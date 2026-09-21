@@ -112,6 +112,7 @@ jobs:
           VITE_STORE_LISTING_READY: ${{ vars.STORE_LISTING_READY }}
           VITE_ADSENSE_CLIENT_ID: ${{ vars.ADSENSE_CLIENT_ID }}
           VITE_ADSENSE_SLOT_ID: ${{ vars.ADSENSE_SLOT_ID }}
+          VITE_PLAY_STORE_URL: ${{ vars.PLAY_STORE_URL }}
           VITE_APP_STORE_URL: ${{ vars.APP_STORE_URL }}
 
       # ads.txt는 빌드 산출물이 아니라 배포 값이라 여기서 만든다 (KAN-197).

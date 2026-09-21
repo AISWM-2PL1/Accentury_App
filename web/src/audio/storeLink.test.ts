@@ -56,6 +56,28 @@ describe('storeUrlFor', () => {
   it('플레이스토어 URL에 앱 패키지명이 들어 있다', () => {
     expect(storeUrlFor('android')).toContain('id=com.accentury.app')
   })
+
+  it('빌드 변수가 있으면 그 주소를 쓴다', () => {
+    vi.stubEnv('VITE_PLAY_STORE_URL', 'https://play.google.com/store/apps/details?id=com.accentury.app&referrer=web')
+    expect(storeUrlFor('android')).toBe(
+      'https://play.google.com/store/apps/details?id=com.accentury.app&referrer=web',
+    )
+  })
+
+  it('빈 빌드 변수는 기본값으로 떨어진다 - 등록하지 않은 환경이 이렇게 들어온다 (KAN-174)', () => {
+    // 워크플로가 GitHub vars를 그대로 넘기면 없는 변수는 undefined가 아니라 빈 문자열이다.
+    // 그대로 쓰면 CTA의 href가 빈 값이 되어 아무 데도 가지 않는 링크가 된다.
+    vi.stubEnv('VITE_PLAY_STORE_URL', '')
+    expect(storeUrlFor('android')).toBe(DEFAULT_PLAY_STORE_URL)
+
+    vi.stubEnv('VITE_APP_STORE_URL', '')
+    expect(storeUrlFor('ios')).toBe(DEFAULT_APP_STORE_URL)
+  })
+
+  it('공백뿐인 값도 기본값으로 떨어진다', () => {
+    vi.stubEnv('VITE_PLAY_STORE_URL', '   ')
+    expect(storeUrlFor('android')).toBe(DEFAULT_PLAY_STORE_URL)
+  })
 })
 
 describe('storeListingReady', () => {
