@@ -282,7 +282,7 @@ Play 신고와 무관하다 (`docs/wiki/privacy-policy.md` §6 마지막 항목)
 - [ ] 개인정보처리방침 URL 입력 (§8 선행 조건 확인)
 - [ ] 테스터 12명 모집 → 비공개 테스트 시작 (= D). 부탁할 것은 §1 참고
 - [ ] D+14 프로덕션 액세스 신청 + 심사 제출
-- [ ] Play 스토어 URL 확정 → GitHub environment 변수 `PLAY_STORE_URL` 등록(주입은 이 티켓 2단계 `.github/workflows/web-deploy.yml`) + `STORE_LISTING_READY=true`를 **prod·staging 각각** 등록 후 재배포 (`web/README.md` 「배포 (KAN-127)」의 `VITE_STORE_LISTING_READY`, `web/src/audio/storeLink.ts`). 기본은 꺼짐이라 등록 전에는 웹 CTA가 비활성 버튼으로 남는다
+- [ ] Play 스토어 URL 확정 → GitHub environment 변수 `PLAY_STORE_URL` 등록(주입은 이 티켓 3단계 `.github/workflows/web-deploy.yml`. 비워 두면 코드 기본값을 쓴다) + `STORE_LISTING_READY=true`를 **prod·staging 각각** 등록 후 재배포 (`web/README.md` 「배포 (KAN-127)」의 `VITE_STORE_LISTING_READY`, `web/src/audio/storeLink.ts`). 기본은 꺼짐이라 등록 전에는 웹 CTA가 비활성 버튼으로 남는다
 
 ## 8. 심사 제출을 막는 선행 조건
 
