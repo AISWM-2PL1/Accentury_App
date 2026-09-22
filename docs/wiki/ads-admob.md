@@ -76,6 +76,15 @@ iOS의 같은 빗장은 `REQUIRE_ADMOB_IDS=YES`(명령줄 빌드 설정)이고 `
 스크립트가 판정한다 — §7.2. 아카이브 명령에 `ADMOB_APP_ID=… ADMOB_INTERSTITIAL_ID=… ADMOB_REWARDED_ID=…
 REQUIRE_ADMOB_IDS=YES`를 함께 준다.
 
+**iOS는 릴리스 워크플로에 이미 걸려 있다** (`.github/workflows/ios-release.yml`, KAN-175 4단계 —
+안드로이드와 갈리는 지점이다). 시크릿 이름은 `ADMOB_IOS_APP_ID`·`ADMOB_IOS_INTERSTITIAL_ID`·
+`ADMOB_IOS_REWARDED_ID`이고(저장소 시크릿이 평면 이름공간이라 플랫폼 접두를 붙였다 — 안드로이드
+쪽 `ADMOB_APP_ID` 등과 이름이 갈린다), 워크플로가 이 셋을 xcconfig가 아는 이름으로 바꿔 넘기며
+`REQUIRE_ADMOB_IDS=YES`를 함께 준다. 셋이 아직 등록되지 않은 동안에는 수동 실행의
+`allow_test_ads` 스위치로 빗장을 풀어 아카이브·서명 경로만 확인할 수 있다 — 그 실행은 TestFlight
+업로드가 **금지**되고(두 입력을 함께 켜면 첫 스텝에서 실패한다), 산출물 `Info.plist`를 보는 검증
+스텝이 테스트 ID가 남은 빌드를 다시 한 번 막는다 (`app-store-listing.md` §2 「릴리스 워크플로」).
+
 ## 4. 동의 → 요청
 
 동의는 웹 시트가 묻고 네이티브가 저장한다 (§8.1). UMP SDK(Google의 동의 폼)는 쓰지 않는다 — 동의를
@@ -214,7 +223,12 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
 **빗장**: `project.yml`의 preBuild 스크립트 «AdMob 테스트 ID 빗장 (Release)». `CONFIGURATION=Release`이고
 `REQUIRE_ADMOB_IDS=YES`일 때 세 값 중 하나라도 `ca-app-pub-3940256099942544`이면 컴파일 전에 실패한다
 (2026-09-11 확인: 세 값 모두 걸려 `BUILD FAILED`). 기본은 꺼짐 — 시크릿 없는 기계·CI가 아카이브부터 못 하면 안 된다.
-릴리스 워크플로에 걸 순서는 §3.1과 같다: 시크릿 등록 → 명령줄 인자 → `REQUIRE_ADMOB_IDS=YES`.
+
+**릴리스 워크플로**(`.github/workflows/ios-release.yml`)는 이 빗장을 이미 걸고 있다. 저장소 시크릿
+`ADMOB_IOS_APP_ID`·`ADMOB_IOS_INTERSTITIAL_ID`·`ADMOB_IOS_REWARDED_ID`를 위 세 빌드 설정으로 옮기고
+`REQUIRE_ADMOB_IDS=YES`를 함께 준다. 셋이 등록되지 않았다면 워크플로가 **아카이브 전에** 이름만
+적어 실패하고, 수동 실행의 `allow_test_ads`를 켜면 그 검사와 빗장을 함께 건너뛰되 업로드가 막힌다.
+안드로이드 쪽은 아직 §3.1의 순서를 밟지 않았다.
 
 ### 7.3 Info.plist
 
@@ -255,8 +269,11 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
 - 프롬프트는 앱이 active일 때만 뜬다. 앱 시작 경로는 `didBecomeActive`를 한 번 기다린다 (`TrackingAuthorization.whenActive`).
   프롬프트가 떠 있는 동안 두 번째 요청(SDK 초기화 완료와 시트 선택이 겹침)은 시스템에 다시 묻지 않고 같은 답을 기다린다
 
-App Store 개인정보 라벨·«추적» 항목(`analytics.md` KAN-175 표)은 이 티켓으로 바뀐다 — 맞춤형 광고를 허용한 사용자에
-한해 IDFA가 광고 목적으로 쓰이므로 «추적: 광고 식별자» 신고가 필요하다. KAN-175에서 갱신.
+App Store 개인정보 라벨·«추적» 항목은 이 티켓으로 바뀐다 — 맞춤형 광고를 허용한 사용자에
+한해 IDFA가 광고 목적으로 쓰이므로 «추적: 광고 식별자» 신고가 필요하다. **KAN-175에서 갱신 완료:
+확정 답안은 [`app-store-listing.md`](app-store-listing.md) §6.2다.** 그 절은 SDK의
+`PrivacyInfo.xcprivacy`를 직접 읽어 옮겼고, 거기서 «위치 › 대략적 위치»(IP 추정)와 «사용 데이터 ›
+광고 데이터»가 라벨에 더 붙는다는 것이 드러났다.
 
 ### 7.6 스모크
 
