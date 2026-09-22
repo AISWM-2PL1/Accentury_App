@@ -66,9 +66,9 @@ OS 판정이 실패해도 파싱 이후는 그대로 동작한다 — 링크가 
 | iOS host | `ios/Accentury/Accentury.entitlements` | `ios/AccenturyCore/Tests/.../Web/AppLinkTests.swift` |
 | iOS 진입 origin | `ios/AccenturyCore/.../Web/AppLink.swift` `appLinkOrigins` | 〃 (entitlements를 직접 읽어 대조) |
 | 진입 경로 `/t`·`/t/` | 양 플랫폼 `parseAppLink` | 위 두 테스트 |
-| AASA의 경로 집합 | `infra/well-known/*/.well-known/apple-app-site-association` | `infra/modules/edge/spa-rewrite.test.mjs` (매니페스트 `android:path`와 대조) |
-| `/.well-known/` 리라이트 예외 | `infra/modules/edge/spa-rewrite.js` | 〃 |
-| 릴리스 서명 지문 | `infra/well-known/*/.well-known/assetlinks.json` | 〃 (개수와 릴리스 지문 포함 여부) |
+| AASA의 경로 집합 | Accentury_Server `infra/well-known/*/.well-known/apple-app-site-association` | Accentury_Server `infra/modules/edge/spa-rewrite.test.mjs` (매니페스트 `android:path`의 복사본 `app-link-paths.json`과 대조, KAN-221) |
+| `/.well-known/` 리라이트 예외 | Accentury_Server `infra/modules/edge/spa-rewrite.js` | 〃 |
+| 릴리스 서명 지문 | Accentury_Server `infra/well-known/*/.well-known/assetlinks.json` | 〃 (개수와 릴리스 지문 포함 여부) |
 
 마지막 세 줄이 4단계에서 생겼다. `spa-rewrite.test.mjs`는 CI의 `edge-test` job이 돌린다
 (`infra/modules/edge/**`, `infra/well-known/**`, `AndroidManifest.xml` 변경 시).

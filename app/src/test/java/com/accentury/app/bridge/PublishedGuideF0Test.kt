@@ -202,9 +202,13 @@ class PublishedGuideF0Test {
         get() = guideF0.getValue("values").jsonArray.size
 
     private companion object {
-        /** 정본 발행본이 담긴 마이그레이션. 레포 루트 기준 경로다 */
+        /**
+         * 정본 발행본이 담긴 마이그레이션의 복사본. 레포 루트 기준 경로다. 원본은 Accentury_Server의
+         * backend/src/main/resources/db/migration/V1__baseline.sql이고, 새 발행본이 나오면 복사본을
+         * 갱신한다 (KAN-221, fixtures/README.md).
+         */
         const val MIGRATION_RELATIVE_PATH =
-            "backend/src/main/resources/db/migration/V1__baseline.sql"
+            "fixtures/definitions/gn-2026.09.4/V1__baseline.sql"
 
         /** 정의 JSON을 감싼 PostgreSQL 달러 인용 구분자 */
         const val DELIMITER = "\$definition\$"

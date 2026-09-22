@@ -12,10 +12,7 @@ jobs:
     outputs:
       app: ${{ steps.filter.outputs.app }}
       ios: ${{ steps.filter.outputs.ios }}
-      backend: ${{ steps.filter.outputs.backend }}
       web: ${{ steps.filter.outputs.web }}
-      ai: ${{ steps.filter.outputs.ai }}
-      infra: ${{ steps.filter.outputs.infra }}
     steps:
       # pull_request 이벤트에서는 checkout 없이 GitHub API로 변경 파일을 조회한다
       - uses: dorny/paths-filter@v3
@@ -24,36 +21,23 @@ jobs:
           filters: |
             app:
               - 'app/**'
+              - 'fixtures/**'
               - 'gradle/**'
               - 'build.gradle.kts'
               - 'settings.gradle.kts'
               - 'gradle.properties'
               - '.github/workflows/test.yml'
-            # iOS 테스트는 ios/ 밖도 읽는다 - FilePcmSourceTests가 안드로이드 쪽 가짜 마이크 WAV를,
-            # PublishedGuideF0Tests가 발행본 gn-2026.09.4 마이그레이션 SQL(V1__baseline.sql, KAN-220
-            # 재베이스라인)을 #filePath에서 거슬러 연다. 그래도 필터는 ios/**로 충분하다: 발행본은 발행 후
-            # 불변이라(KAN-26) backend 변경이 그 INSERT를 건드리지 않고, 새 발행본은 새 파일로 들어오면서
-            # 테스트 쪽(ios/**)도 같이 고쳐야 하므로 그때는 이 필터가 잡는다.
+            # 세 플랫폼 테스트가 자기 디렉터리 밖도 읽는다 - FilePcmSource 테스트가 안드로이드 쪽 가짜
+            # 마이크 WAV(app/src/debug/assets)를, PublishedGuideF0 테스트가 발행본 gn-2026.09.4 SQL
+            # (fixtures/definitions, Accentury_Server backend 마이그레이션의 복사본, KAN-221)을 연다.
+            # fixtures/**를 세 필터에 다 넣는다: 새 발행본이 들어오면 세 테스트가 같이 깨져야 한다.
             ios:
               - 'ios/**'
-              - '.github/workflows/test.yml'
-            backend:
-              - 'backend/**'
+              - 'fixtures/**'
               - '.github/workflows/test.yml'
             web:
               - 'web/**'
-              - '.github/workflows/test.yml'
-            ai:
-              - 'ai/**'
-              - '.github/workflows/test.yml'
-            # CloudFront Function과 App Link 검증 파일 (KAN-32 4단계). AndroidManifest가 여기
-            # 끼는 이유는 락스텝 테스트가 그 파일을 직접 읽어 AASA의 경로 집합과 대조하기
-            # 때문이다 - 매니페스트만 바꾸면 app-test가 아니라 이 job이 먼저 깨져야 한다.
-            infra:
-              - 'infra/modules/edge/**'
-              - 'infra/well-known/**'
-              - 'infra/privacy/**'
-              - 'app/src/main/AndroidManifest.xml'
+              - 'fixtures/**'
               - '.github/workflows/test.yml'
 
   app-test:
@@ -149,23 +133,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  backend-test:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-      - uses: gradle/actions/setup-gradle@v4
-      # 백엔드 테스트는 Testcontainers PostgreSQL로 실행 (KAN-123) - ubuntu-latest 러너의
-      # 기본 Docker를 그대로 쓴다. 스키마는 Flyway V1이 만들고 Hibernate validate가
-      # 대조하므로, 이 job 통과가 곧 "마이그레이션이 실제 PostgreSQL에 적용된다"의 검증이다 (티켓 AC).
-      - run: ./gradlew test
-        working-directory: backend
-
   web-test:
     needs: changes
     if: needs.changes.outputs.web == 'true'
@@ -186,46 +153,8 @@ jobs:
       - run: npm run build
 
   # 브라우저 E2E (KAN-181)는 2026-09-05에 CI에서 내렸다 (KAN-22). 그 job은 로컬 풀스택
-  # (DB + AI + BE) 위에서 돌았는데, AI 서버의 베이스가 채점 모델 전달본이 되면서 러너에서
-  # 띄울 수 없게 됐다 - 4GB 이미지에 RSS 7GB대이고 추론 1건이 14~30초다. 스펙 파일
-  # (web/e2e)은 남겨 두었고, 분석이 필요한 전 구간 확인은 staging 스모크가 맡는다
-  # (deploy.yml). 2026-09-06에 루트 compose의 ai가 가짜 엔진(ai/Dockerfile.fake, slim)으로
-  # 되살아나 러너에서도 뜨므로, 이 job을 되살리는 것은 별도 결정이다 (PR #87 리뷰).
-
-  # SPA 재작성 Function과 App Link 검증 파일 (KAN-32 4단계). 의존성이 없어 setup-node만으로
-  # 돌고 몇 초 만에 끝난다 - CloudFront Function은 배포해야만 도는 코드라 이 job이 없으면
-  # `/.well-known/` 예외가 깨져도 apply 뒤 curl 전까지 아무도 모른다.
-  #
-  # 아직 required check로 올리지 않는다 (안정화 후 별도 결정).
-  edge-test:
-    needs: changes
-    if: needs.changes.outputs.infra == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      # 디렉터리 경로가 아니라 glob이다 - node 22.6부터 --test의 위치 인자는 glob으로 해석돼
-      # 디렉터리를 주면 그 이름의 모듈을 찾다가 MODULE_NOT_FOUND로 죽는다.
-      - run: node --test 'infra/modules/edge/*.test.mjs'
-      # 개인정보처리방침 본문의 계약 테스트 (KAN-176). 같은 job에 둔 이유는 둘 다 배포해야만
-      # 드러나는 정적 자산이고, 의존성 없이 몇 초면 끝나기 때문이다.
-      - run: node --test 'infra/privacy/*.test.mjs'
-
-  ai-test:
-    needs: changes
-    if: needs.changes.outputs.ai == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ai
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-          cache: pip
-          cache-dependency-path: ai/requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
-      - run: pytest
+  # (DB + AI + BE, 지금은 Accentury_Server 루트 compose) 위에서 돌았는데, AI 서버의 베이스가 채점
+  # 모델 전달본이 되면서 러너에서 띄울 수 없게 됐다 - 4GB 이미지에 RSS 7GB대이고 추론 1건이
+  # 14~30초다. 스펙 파일(web/e2e)은 남겨 두었고, 분석이 필요한 전 구간 확인은 staging 스모크가
+  # 맡는다 (Accentury_Server deploy.yml). 되살리려면 다른 레포를 checkout해야 하므로 별도 결정이다.
+  # backend, ai, edge 테스트는 Accentury_Server의 test.yml이 돈다 (KAN-221).

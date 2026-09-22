@@ -23,10 +23,14 @@ import type { GuideF0 } from '../progress/testDefinition'
 import { guideCurveDisplayPoints } from './guideCurve'
 import { USER_CURVE_WINDOW_SCALE, userCurveWindowMs } from './userCurve'
 
-/** 정본 발행본이 담긴 마이그레이션. cwd가 아니라 이 파일 위치를 기준으로 잡는다 */
+/**
+ * 정본 발행본이 담긴 마이그레이션의 복사본. cwd가 아니라 이 파일 위치를 기준으로 잡는다. 원본은
+ * Accentury_Server의 backend/src/main/resources/db/migration/V1__baseline.sql이고, 새 발행본이 나오면
+ * 복사본을 갱신한다 (KAN-221, fixtures/README.md).
+ */
 const MIGRATION_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../backend/src/main/resources/db/migration/V1__baseline.sql',
+  '../../../fixtures/definitions/gn-2026.09.4/V1__baseline.sql',
 )
 
 /** 정의 JSON을 감싼 PostgreSQL 달러 인용 구분자 */

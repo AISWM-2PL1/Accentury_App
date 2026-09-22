@@ -37,7 +37,12 @@
 
 ## 게시 (KAN-132)
 
+게시 스크립트는 Accentury_Server에 있고, 그 레포의 `infra/share-assets/`에 이 5장의 복사본이 있다
+(KAN-221). 이미지를 다시 만들면 복사본을 갱신한 뒤 그쪽에서 돌린다.
+
 ```
+# Accentury_Server 체크아웃에서
+cp <Accentury_App>/assets/share/*.png infra/share-assets/
 scripts/publish-share-assets.sh staging     # 또는 prod
 ```
 
@@ -46,7 +51,7 @@ scripts/publish-share-assets.sh staging     # 또는 prod
 (`accentury.result.asset-base-url`, 배포에서는 SSM `ACCENTURY_RESULT_ASSETBASEURL` =
 `https://<도메인>/share`)에 등급 code 소문자와 `.png`를 붙여 `share.imageUrl`을 만든다 - 그래서
 위 표의 파일명이 곧 계약이다. 캐릭터가 바뀌면 다시 만들어 이 스크립트만 돌리면 되고 서버와
-앱 배포는 없다. 자세한 것은 `infra/README.md` "등급 공유 이미지".
+앱 배포는 없다. 자세한 것은 Accentury_Server `infra/README.md` "등급 공유 이미지".
 
 ## 재생성
 

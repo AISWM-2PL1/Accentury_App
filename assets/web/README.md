@@ -49,7 +49,7 @@ index.html만 `no-cache`라, 참조가 바뀌는 즉시 새 이름이 나간다.
 | 누가 본다 | 결과를 공유한 사람의 **수신자** | 링크가 붙여 넣어진 자리를 지나가는 사람 |
 | 무엇을 그린다 | 그 사람이 받은 **등급** 5종 | 고정 한 장 — 등급을 말하지 않는다 |
 | 규격 | 800×400 (카카오 피드 카드) | 1200×630 (OG 표준 1.91:1) |
-| 배포 | `scripts/publish-share-assets.sh` → `s3://.../share/` | 웹 번들과 함께 `web-deploy.yml` |
+| 배포 | Accentury_Server `scripts/publish-share-assets.sh` (복사본 `infra/share-assets/`) → `s3://.../share/` | 웹 번들과 함께 `web-deploy.yml` |
 
 SPA라 `/t?c=...`도 같은 `index.html`이 응답한다 — 등급별로 다른 OG를 내보내려면 서버 렌더가 필요해서,
 프로토타입에서는 고정 카드 한 장으로 간다.
