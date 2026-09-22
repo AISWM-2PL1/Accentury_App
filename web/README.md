@@ -72,7 +72,8 @@ vitest가 못 보는 것을 실제 Chromium에서 본다 — `getUserMedia`·`Au
 
 #### 스택 띄우기
 
-`docker compose up -d --build --wait` 한 줄이면 끝나는 것이 정석이다 — Docker Desktop과
+스택(DB + 가짜 AI + BE)은 Accentury_Server의 루트 compose다 (KAN-221 레포 분리). 그 레포를 옆에
+받아 그 안에서 `docker compose up -d --build --wait` 한 줄이면 끝나는 것이 정석이다 — Docker Desktop과
 CI 러너에는 BuildKit이 있어 그대로 된다. **`docker buildx`가 없는 Docker 환경**(Colima 기본
 설치처럼 buildx 플러그인이 빠진 엔진)에서는 backend 이미지가 `RUN --mount=type=cache`에서
 멈추므로, 그때만 아래처럼 backend를 gradlew로 우회한다. `docker buildx version`이 에러면
@@ -80,6 +81,7 @@ CI 러너에는 BuildKit이 있어 그대로 된다. **`docker buildx`가 없는
 
 ```bash
 # 1) DB — application.yml 기본값이 localhost:5432라 루트 compose(5433)가 아니라 이쪽이다
+#    (아래 명령은 전부 Accentury_Server 체크아웃 안에서)
 cd backend && docker compose up -d && cd ..
 
 # 2) AI — 루트 compose의 ai는 포트를 공개하지 않는다(BE만 부르는 사설망 서비스).
