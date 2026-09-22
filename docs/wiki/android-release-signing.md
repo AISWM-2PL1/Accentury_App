@@ -78,6 +78,10 @@ kakaoNativeAppKey=...
 
 ## 3. 릴리스 워크플로 (`.github/workflows/app-release.yml`)
 
+> **iOS 짝**: [`app-store-listing.md`](app-store-listing.md) §2 「릴리스 워크플로」 ·
+> `.github/workflows/ios-release.yml` (KAN-175 4단계). 러너가 갈려서(ubuntu / macos) 파일을
+> 나눴고, 구조·주석 규칙·시크릿 취급은 이 절을 그대로 따른다.
+
 트리거는 **`Release` 브랜치 푸시**(앱 관련 `paths`만) + **수동 실행**이다. 웹·백엔드만 바뀐 Release
 병합까지 앱을 다시 빌드하면 올리지 않을 산출물이 쌓이고 서명 시크릿을 쓸데없이 자주 꺼낸다.
 겹친 실행은 취소하지 않고 기다린다 — 같은 커밋을 두 번 서명해도 해로울 것이 없고, 끊긴 실행이
@@ -174,8 +178,11 @@ AC1·AC2·AC4는 로컬 시뮬레이션(임시 키스토어)으로 전 스텝을
 
   어느 쪽을 고르든 **업로드 키**는 따로 만들어도 되고 이 키스토어를 그대로 써도 된다. 업로드 키는
   잃어도 구글에 재발급을 요청할 수 있다 — 앱 서명 키와 달리 복구 경로가 있는 쪽이다.
-- **`versionCode`.** `app/build.gradle.kts`에 `1`로 박혀 있다. 스토어 릴리스마다 올려야 하는데 지금은
-  수동이고 규칙도 없다.
+- **`versionCode`.** ~~규칙이 없다~~ → **규칙 확정 (KAN-175 3단계).** iOS
+  `CURRENT_PROJECT_VERSION`과 같은 값을 **같은 커밋에서 같이 올린다**. 지금 둘 다 `6`이고
+  (TestFlight에 1.0 빌드 5까지 올라가 있어 6부터라야 받는다), 어긋나면 iOS의
+  `AccenturyCoreTests/ReleaseVersionParityTests`가 두 파일을 직접 읽어 대조하다 실패한다.
+  근거와 값은 `ios/Accentury/Config/Base.xcconfig` 주석에 있다. 올리는 것 자체는 여전히 수동이다.
 - **R8 축소.** release가 `optimization { enable = false }`라 R8이 돌지 않는다(카카오 SDK가 retrofit·
   moshi를 끌고 와 APK가 커진 상태). 켜면 매핑 파일이 생기고, 워크플로의 매핑 업로드 스텝은 이미
   그때를 대비해 결선돼 있다.

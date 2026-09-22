@@ -8,9 +8,17 @@
 PRODUCT_NAME = Accentury
 PRODUCT_BUNDLE_IDENTIFIER = com.accentury.app
 
-// 안드로이드 versionName/versionCode와 짝. 릴리스 때 두 플랫폼을 같이 올린다.
+// 안드로이드 versionName/versionCode와 짝이고, **같은 커밋에서 같이 올린다** (KAN-175 3단계).
+// `MARKETING_VERSION` = `versionName`, `CURRENT_PROJECT_VERSION` = `versionCode`다.
+// 한쪽만 올리면 `AccenturyCoreTests/ReleaseVersionParityTests`가 두 파일을 직접 읽어 대조하다
+// 실패한다 — 두 스토어에 서로 다른 버전이 나가는 것을 커밋 전에 막으려는 검사다.
+//
+// **왜 1이 아니라 6인가.** TestFlight에 1.0 빌드 5까지 올라가 있다 (`docs/wiki/ios-port.md` §7).
+// App Store Connect는 같은 `MARKETING_VERSION` 안에서 빌드 번호가 단조 증가할 때만 업로드를
+// 받으므로 다음 업로드는 6부터다. 안드로이드 `versionCode`는 아직 어디에도 올라가지 않았지만
+// 번호를 갈라 두면 규칙이 둘이 되니 같은 값으로 맞춰 6에서 출발한다.
 MARKETING_VERSION = 1.0
-CURRENT_PROJECT_VERSION = 1
+CURRENT_PROJECT_VERSION = 6
 
 // minSdk 29(Android 10, 2019)와 대략 같은 시기·보급률 대의 하한.
 IPHONEOS_DEPLOYMENT_TARGET = 16.0
