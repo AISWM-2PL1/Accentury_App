@@ -58,6 +58,75 @@ PR에서 `ios/**`가 바뀌면 `.github/workflows/test.yml`의 `ios-test` 잡이
   아카이브는 명령줄로 넘기고 `REQUIRE_ADMOB_IDS=YES`를 붙이면 테스트 ID가 남았을 때 빌드가 즉시
   실패한다 (`docs/wiki/ads-admob.md` §7.2).
 
+## 릴리스 아카이브 · TestFlight (KAN-175)
+
+### 빌드 번호 규칙
+
+| iOS (`Accentury/Config/Base.xcconfig`) | Android (`app/build.gradle.kts`) | 지금 값 |
+|---|---|---|
+| `MARKETING_VERSION` | `versionName` | `1.0` |
+| `CURRENT_PROJECT_VERSION` | `versionCode` | `6` |
+
+**같은 커밋에서 같이 올린다.** 한쪽만 올리면 `AccenturyCoreTests/ReleaseVersionParityTests`가
+두 파일을 직접 읽어 대조하다 실패한다 (`swift test`). 6에서 출발하는 이유는 TestFlight에
+1.0 빌드 5까지 올라가 있어서다 — App Store Connect는 같은 마케팅 버전 안에서 빌드 번호가
+단조 증가할 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7).
+
+### 아카이브 → export
+
+```bash
+cd ios
+xcodebuild archive -project Accentury.xcodeproj -scheme Accentury -configuration Release \
+  -archivePath build/Accentury.xcarchive CODE_SIGNING_ALLOWED=NO \
+  REQUIRE_ADMOB_IDS=YES \
+  ADMOB_APP_ID=... ADMOB_INTERSTITIAL_ID=... ADMOB_REWARDED_ID=... \
+  KAKAO_NATIVE_APP_KEY=...
+
+xcodebuild -exportArchive -archivePath build/Accentury.xcarchive \
+  -exportPath build/export -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates
+```
+
+- **`WEB_URL`·`API_BASE_URL`은 주지 않는다.** `Config/Release.xcconfig`가 prod 도메인을 박아
+  두고 `Local.xcconfig`가 그 뒤라 덮지도 못한다 (그쪽 주석).
+- **`REQUIRE_ADMOB_IDS=YES`와 실 광고 ID 셋은 준다.** Google 테스트 ID가 스토어로 나가면 AdMob
+  정책 위반이라 `project.yml`의 Release 전용 preBuild 스크립트가 빌드를 즉시 세운다
+  (`docs/wiki/ads-admob.md` §3.1).
+- **`KAKAO_NATIVE_APP_KEY`도 준다.** 없으면 공유가 OS 공유 시트로만 간다 (위 「카카오톡 공유」).
+- 두 단계로 갈린 이유는 **팀에 등록된 기기가 0대**라서다. 자동 서명 `archive`는 개발용
+  프로비저닝 프로파일을 만들려다 막히고, export 단계는 기기 목록을 보지 않는다.
+  `ExportOptions.plist`(레포에 있다)가 `app-store-connect` · `signingStyle automatic` ·
+  `teamID 559P9SYY57`을 들고 있고, 빌드 번호는 Xcode가 못 건드리게 잠가 뒀다.
+
+### 재서명됐는지 확인
+
+`.ipa`는 zip이라 `codesign`이 직접 읽지 못한다. 풀어서 안의 `.app`을 본다.
+
+```bash
+cd build/export && unzip -q -o Accentury.ipa -d ipa
+codesign -dv --verbose=4 ipa/Payload/Accentury.app 2>&1 | grep Authority
+# Authority=Apple Distribution: ... (559P9SYY57)
+```
+
+`Apple Development`가 나오면 export가 개발 인증서를 골랐다는 뜻이고 TestFlight가 받지 않는다.
+
+### 업로드
+
+이 명령들은 `.ipa`를 만들기까지다. 올리는 것은 `.github/workflows/ios-release.yml`이거나 손으로
+`xcrun altool --upload-app` · Transporter다.
+
+워크플로는 `Release` 푸시(`ios/**`)와 수동 실행으로 돌고, 수동 실행에 입력이 둘 있다 —
+`upload`(기본 꺼짐, 켜면 TestFlight까지)와 `allow_test_ads`(기본 꺼짐, 켜면 AdMob 테스트 ID로
+빌드하고 업로드는 막힌다). 위 아카이브·export 명령을 **그대로** 쓰고, `.ipa`를 풀어 서명
+Authority와 번들 `Info.plist`의 `WEB_URL`·카카오 키·광고 ID를 확인한 뒤 아티팩트로 남긴다.
+시크릿 일곱 개(신규 등록 6개 = ASC 셋 + AdMob iOS 셋, 기존 `KAKAO_NATIVE_APP_KEY` 1개는
+KAN-163에서 등록 완료)의 이름과 발급 위치, 스텝별 설명은 `docs/wiki/app-store-listing.md` §2
+「릴리스 워크플로」에 있다.
+
+### 정본 문서
+
+`docs/wiki/app-store-listing.md` §2 (서명·빌드 경로, API 키) · §10 (심사 선행 조건) ·
+`docs/wiki/ios-port.md` §7 (이 경로를 고른 이유)
+
 ## 카카오톡 공유 (KAN-180)
 
 결과 화면의 [친구에게 공유하기]는 카톡 친구 선택을 바로 열고 등급 카드를 보낸다
@@ -421,7 +490,10 @@ xcrun simctl uninstall booted com.accentury.app
 시작값이 빈 문자열이고, 메인 프레임 전환마다 유저 스크립트가 다시 돌아 초기화되며, 네이티브는
 **커밋된 문서의 origin이 allowlist 안일 때만** 밀어 넣는다. iframe에는 스크립트 자체가 가지 않는다.
 
-## 카카오 공유가 iOS에 없다
+## 카카오 공유가 iOS에 없던 시절 (KAN-30 당시)
+
+> **지금은 탑재돼 있다** — 위 「카카오톡 공유 (KAN-180)」가 현재 동작이다. 아래는 그 전
+> 상태의 기록이고, 카톡이 없을 때 내려가는 폴백 경로 설명으로만 읽는다.
 
 안드로이드는 카카오 피드 템플릿으로 카톡을 직접 열고 미설치면 OS 공유 시트로 내려간다.
 iOS는 그 **폴백에 해당하는 것만** 세웠다 — `UIActivityViewController`에 문구와 캠페인 URL을 싣는다
