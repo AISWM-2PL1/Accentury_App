@@ -377,7 +377,9 @@ Run에서 «Debug executable»을 끄고 Arguments에 `-TestCrash 1`을 넣은 �
 
 ## 8. 스토어 데이터 고지에 반영할 것 (KAN-174·KAN-175 앞으로)
 
-> **KAN-196(2026-09-11)으로 뒤집혔다 — 스토어 답안의 정본은 `docs/wiki/privacy-policy.md` §2다.**
+> **KAN-196(2026-09-11)으로 뒤집혔고, App Store 몫은 KAN-175(2026-09-22)로 한 번 더 정리됐다 —
+> 스토어 답안의 정본은 Play가 `docs/wiki/play-store-listing.md` §5, App Store가
+> [`app-store-listing.md`](app-store-listing.md) §6이다.**
 > 아래 「추적 아님·ATT 불필요·광고 ID 없음」은 계측(GA4·Crashlytics)만 있던 때의 답이고, AdMob SDK가
 > 들어오면서 앱 전체의 답은 「추적함(동의 시)·ATT 프롬프트 있음·광고 ID 수집」이 됐다. **계측 자체의
 > 답은 그대로다** — `google_analytics_adid_collection_enabled=false`·`FirebaseAnalyticsCore`는 유지되고
@@ -390,7 +392,7 @@ Crashlytics가 붙으면서 **수집 항목이 늘었다.** 두 스토어의 고
 | | 무엇을 적어야 하는가 |
 |---|---|
 | Play 데이터 안전 (KAN-174) | **앱 활동**(앱 상호작용) 수집·전송, **앱 정보 및 성능** 중 «비정상 종료 로그»·«진단» 수집·전송. 전송 중 암호화됨, 사용자가 삭제 요청 가능 여부는 정책 확인 필요 |
-| App Store 개인정보 라벨 (KAN-175) | **사용 데이터 › 제품 상호작용**, **진단 › 비정상 종료 데이터·성능 데이터**. 세 항목 모두 «사용자와 연결되지 않음(Not Linked to You)» — `setUserID`를 부르지 않고 IDFA를 링크하지 않았다 |
+| App Store 개인정보 라벨 (KAN-175) | **사용 데이터 › 제품 상호작용**, **진단 › 비정상 종료 데이터·성능 데이터**. 계측만 보면 세 항목 모두 «사용자와 연결되지 않음(Not Linked to You)» — `setUserID`를 부르지 않고 IDFA를 링크하지 않았다. **앱 전체의 확정 답안은 [`app-store-listing.md`](app-store-listing.md) §6.2** — AdMob SDK 매니페스트가 «제품 상호작용»을 연결됨으로 선언해 합집합이 «연결됨»으로 넘어갔다 |
 | **KAN-196 AdMob (2026-09-11 추가)** — Play | **기기 또는 기타 ID** 수집, **제3자와 공유**(Google AdMob), 목적 **광고 또는 마케팅**. 콘텐츠 등급 설문 «광고 포함» = **예** |
 | **KAN-196 AdMob (2026-09-11 추가)** — App Store | **식별자 › 기기 ID**(IDFA, ATT 허용 시), **추적: 예(동의 시)** — «사용자를 추적하는 데 사용되는 데이터»에 식별자·사용 데이터, **ATT 프롬프트 있음**(`NSUserTrackingUsageDescription`, `ads-admob.md` §7.3·§7.5) |
 
