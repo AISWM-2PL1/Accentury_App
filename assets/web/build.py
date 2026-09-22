@@ -72,7 +72,7 @@ shots = _load("accentury_screenshots_build", REPO / "assets" / "screenshots" / "
 
 # ── 상수 ────────────────────────────────────────────────────────────────────────────────────
 
-VERSION = "v1"
+VERSION = "v2"
 
 CREAM = icon.CREAM  # --color-background #F3ECD9
 INK = icon.INK  # --color-primary #1C1A17

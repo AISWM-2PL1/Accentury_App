@@ -30,11 +30,11 @@ OG는 스크립트가 돌기 전에 읽히므로 클라이언트에서 갈아 �
 
 | `web/public/` | `<head>` 참조 | 소비처 |
 | --- | --- | --- |
-| `og-card-v1.png` (1200×630) | `og:image` · `og:image:{width,height,alt}` | 카톡·슬랙·DM의 링크 카드 |
-| `favicon-v1.svg` | `<link rel="icon" type="image/svg+xml">` | 브라우저 탭 |
-| `apple-touch-icon-v1.png` (180×180) | `<link rel="apple-touch-icon">` | iOS Safari "홈 화면에 추가" |
-| `icon-192-v1.png` · `icon-512-v1.png` | manifest `icons` | Android 홈 화면 바로가기 |
-| `manifest-v1.webmanifest` | `<link rel="manifest">` | 이름·아이콘·테마색 |
+| `og-card-v2.png` (1200×630) | `og:image` · `og:image:{width,height,alt}` | 카톡·슬랙·DM의 링크 카드 |
+| `favicon-v2.svg` | `<link rel="icon" type="image/svg+xml">` | 브라우저 탭 |
+| `apple-touch-icon-v2.png` (180×180) | `<link rel="apple-touch-icon">` | iOS Safari "홈 화면에 추가" |
+| `icon-192-v2.png` · `icon-512-v2.png` | manifest `icons` | Android 홈 화면 바로가기 |
+| `manifest-v2.webmanifest` | `<link rel="manifest">` | 이름·아이콘·테마색 |
 
 전부 `assets/web/build.py`가 앱 아이콘 도상(`assets/app-icon/source.png`)과 호소인 캐릭터
 (`assets/characters/wannabe/source.png`)에서 만든다 — **웹에만 있는 원본은 없다.** 도상이 팀 결정으로
@@ -60,9 +60,9 @@ staging에 올라간 문서도 prod 주소를 가리키는데, 공유되는 주�
 켜는 순간 두 환경의 산출물이 갈려 "staging에서 통과한 것"이 prod의 근거가 아니게 된다.
 
 `/.well-known/` 밖의 확장자 있는 경로는 SPA 재작성 함수(KAN-126)가 손대지 않으므로
-`/og-card-v1.png`·`/manifest-v1.webmanifest`는 그대로 S3 객체에 닿는다.
+`/og-card-v2.png`·`/manifest-v2.webmanifest`는 그대로 S3 객체에 닿는다.
 
-## 4. 캐시 — 왜 파일명에 `-v1`이 붙는가
+## 4. 캐시 — 왜 파일명에 `-v2`가 붙는가
 
 `web-deploy.yml`(KAN-127)은 `index.html`을 뺀 `dist/` 전부를
 `Cache-Control: public, max-age=31536000, immutable`로 올리고, CloudFront 무효화 대상은 `/`와
@@ -71,7 +71,7 @@ staging에 올라간 문서도 prod 주소를 가리키는데, 공유되는 주�
 
 그래서 **교체 = 파일명 변경**이다:
 
-1. `assets/web/build.py`의 `VERSION`을 올린다 (`v1` → `v2`)
+1. `assets/web/build.py`의 `VERSION`을 올린다 (`v2` → `v3`)
 2. 스크립트를 돌린다 — 새 이름으로 파일이 생긴다
 3. `web/index.html`의 참조를 새 이름으로 바꾸고 옛 파일을 `git rm` 한다
 
