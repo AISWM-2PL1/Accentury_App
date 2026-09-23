@@ -65,12 +65,13 @@ PR에서 `ios/**`가 바뀌면 `.github/workflows/test.yml`의 `ios-test` 잡이
 | iOS (`Accentury/Config/Base.xcconfig`) | Android (`app/build.gradle.kts`) | 지금 값 |
 |---|---|---|
 | `MARKETING_VERSION` | `versionName` | `1.0` |
-| `CURRENT_PROJECT_VERSION` | `versionCode` | `6` |
+| `CURRENT_PROJECT_VERSION` | `versionCode` | `7` |
 
 **같은 커밋에서 같이 올린다.** 한쪽만 올리면 `AccenturyCoreTests/ReleaseVersionParityTests`가
-두 파일을 직접 읽어 대조하다 실패한다 (`swift test`). 6에서 출발하는 이유는 TestFlight에
-1.0 빌드 5까지 올라가 있어서다 — App Store Connect는 같은 마케팅 버전 안에서 빌드 번호가
-단조 증가할 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7).
+두 파일을 직접 읽어 대조하다 실패한다 (`swift test`). 7인 이유는 TestFlight에 1.0 빌드 6까지
+올라가 있어서다 — App Store Connect는 같은 마케팅 버전 안에서 빌드 번호가 단조 증가할 때만
+업로드를 받는다 (`docs/wiki/ios-port.md` §7). 빌드 6은 C2 아이콘으로 올라갔고 7이 확정 도상
+D3를 싣는 첫 빌드다 (2026-09-23).
 
 ### 아카이브 → export
 
