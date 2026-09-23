@@ -241,6 +241,9 @@ SF Symbol로 세운 그림 셋(히어로 아이콘·녹음 버튼 안 도형·�
   로그인 뒤에는 자동 서명 `archive`가 `Your team has no devices from which to generate a provisioning
   profile`로 막혔다 — 팀에 등록된 기기가 0대라 개발용 프로파일을 못 만든다. 우회는 두 단계다:
   ① `xcodebuild archive … CODE_SIGNING_ALLOWED=NO` (무서명 아카이브)
+  — 임베디드 바이너리 프레임워크가 있으면 **export 전에 그 링커 ad-hoc 서명을 지워야 한다**. 안 지우면
+  재서명이 `identifier "arm64-apple"` DR을 물려받아 애플 업로드가 거절한다
+  (`app-store-listing.md` §2 「링커 서명 제거」, KAN-175).
   ② `xcodebuild -exportArchive -exportOptionsPlist`(method `app-store-connect`, `signingStyle automatic`,
   `teamID 559P9SYY57`) `-allowProvisioningUpdates` — 이 단계가 App ID·Apple Distribution 인증서(Cloud Managed)·
   `iOS Team Store Provisioning Profile: com.accentury.app`을 스스로 만들어 재서명한다.

@@ -59,8 +59,40 @@ App Store에는 Play의 비공개 테스트 강제 요건에 해당하는 것이
 
 ```sh
 xcodebuild archive … CODE_SIGNING_ALLOWED=NO
+codesign --remove-signature <아카이브>/…/Accentury.app/Frameworks/*.framework   # ← export 전에
 xcodebuild -exportArchive -exportOptionsPlist ios/ExportOptions.plist -allowProvisioningUpdates
 ```
+
+### 링커 서명 제거 — export 앞의 한 줄
+
+**무서명 아카이브에도 서명이 하나 남는다.** `CODE_SIGNING_ALLOWED=NO`는 우리가 서명하지 말라는
+뜻이지 바이너리에 서명이 없다는 뜻이 아니다. SwiftPM이 끌어오는 바이너리 xcframework 넷
+(`GoogleMobileAds` · `UserMessagingPlatform` · `GoogleAppMeasurement` · `FirebaseAnalytics`)은
+원본이 무서명이라(`code object is not signed at all`) **링커가** `flags=0x20002(adhoc,linker-signed)` ·
+`Identifier=arm64-apple` 서명을 붙여 앱 번들에 넣는다.
+
+export 재서명은 CodeDirectory 식별자를 번들 ID로 바꾸지만 **designated requirement는 물려받은
+`identifier "arm64-apple"` 그대로**다. 애플 업로드 검증은 DR을 보므로 거절한다:
+
+```
+Invalid Signature. Code failed to satisfy specified code requirement(s). The file at path
+"Accentury.app/Frameworks/GoogleMobileAds.framework/GoogleMobileAds" is not properly signed.
+```
+
+**`codesign --verify --deep --strict`는 이걸 통과시킨다.** 서명 자체는 유효하고 봉인 해시도 맞다 —
+틀린 것은 「이 코드가 만족해야 하는 요구사항」이고 그걸 보는 것은 애플 업로드뿐이다. 그래서 4단계의
+검증 스텝(Authority·WEB_URL·키)이 전부 통과한 산출물이 업로드에서 떨어졌다.
+
+고침은 **아카이브 뒤·export 앞에** 프레임워크 서명을 통째로 지우는 것이다. 물려받을 서명이 없으면
+export가 DR을 번들 식별자에서 새로 만든다. export 뒤에 손대면 이미 서명된 `.ipa`를 다시 뜯는 일이
+되고 재서명을 직접 해야 한다.
+
+| 실패한 대안 | 왜 안 되나 |
+|---|---|
+| 아카이브를 ad-hoc으로 서명해 링커 서명을 덮기 (`CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO`) | `error: Ad Hoc code signing is not allowed with SDK 'iOS 26.5'` — 아카이브 자체가 막힌다 |
+
+**왜 지금까지 안 터졌나.** TestFlight 빌드 5(2026-09-01)까지는 임베디드 바이너리 프레임워크가
+아예 없었다 — Firebase가 9/5, AdMob이 9/11에 들어왔고 그 뒤로 업로드까지 가 본 적이 없었다.
 
 export 설정은 `ios/ExportOptions.plist`가 정본이다 (KAN-175 3단계에 신설). 전체 명령과
 아카이브에 같이 줘야 하는 값들(AdMob·카카오)은 `ios/README.md` 「릴리스 아카이브 · TestFlight」에 있다.
@@ -108,12 +140,13 @@ TestFlight 업로드는 워크플로의 `workflow_dispatch` 입력 `upload` 스�
 | `upload` | **꺼짐** | 켜면 TestFlight까지 올린다. 기본을 끈 이유는 빌드 번호가 소모품이 아니어서다 — 아카이브가 되는지 보려고 돌린 실행이 올라가면 그 번호는 영영 다시 못 쓴다 |
 | `allow_test_ads` | **꺼짐** | 켜면 AdMob 빗장을 풀고 `Base.xcconfig`의 Google 테스트 ID로 빌드한다. 광고 시크릿 셋이 없는 동안 「아카이브·서명 경로가 사는가」만 보려는 스위치다. `upload`와 함께 켜면 **첫 스텝에서 실패**한다 (테스트 광고 빌드를 TestFlight에 올리면 AdMob 정책 위반이고 빌드 번호만 버린다) |
 
-11스텝: ① checkout ② 도구 버전 ③ **입력·시크릿 검사**(20분 아카이브를 태우기 전에) ④ 짧은 SHA
+12스텝: ① checkout ② 도구 버전 ③ **입력·시크릿 검사**(20분 아카이브를 태우기 전에) ④ 짧은 SHA
 ⑤ ASC `.p8`을 `$RUNNER_TEMP`에 base64 디코딩(체크아웃 밖 — 레포 안에 두면 아티팩트에 딸려 나갈 수
-있다) ⑥ `xcodebuild archive … CODE_SIGNING_ALLOWED=NO` ⑦ `-exportArchive`로 재서명·`.ipa`
-⑧ **산출물 검증** ⑨ 아티팩트 업로드 ⑩ TestFlight 업로드(`upload`가 켜진 실행만) ⑪ 실행 요약.
+있다) ⑥ `xcodebuild archive … CODE_SIGNING_ALLOWED=NO` ⑦ **임베디드 프레임워크 링커 서명 제거**
+(위 「링커 서명 제거」) ⑧ `-exportArchive`로 재서명·`.ipa` ⑨ **산출물 검증** ⑩ 아티팩트 업로드
+⑪ TestFlight 업로드(`upload`가 켜진 실행만) ⑫ 실행 요약.
 
-**⑥⑦은 `ios/README.md` 「아카이브 → export」와 같은 명령이다.** 로컬과 CI가 갈리면 한쪽에서만
+**⑥⑦⑧은 `ios/README.md` 「아카이브 → export」와 같은 명령이다.** 로컬과 CI가 갈리면 한쪽에서만
 재현되는 서명 문제를 쫓게 된다.
 
 #### 시크릿
@@ -151,6 +184,7 @@ Apple Distribution 인증서·프로비저닝 프로파일을 스스로 만드�
 | AC | 워크플로가 하는 일 |
 |---|---|
 | 배포 인증서로 서명됐다 | `.ipa`를 풀어 `codesign -dv --verbose=4`의 Authority가 `Apple Distribution`이고 팀이 `559P9SYY57`인지 본다. `Apple Development`면 실패 — TestFlight가 받지 않는다 |
+| 서명이 업로드를 통과한다 | 같은 스텝에서 앱과 임베디드 프레임워크 각각의 **DR 식별자**(`codesign -d -r-`)가 자기 `CFBundleIdentifier`와 같은지 본다. `arm64-apple`이 남아 있으면 링커 ad-hoc 서명이 export를 넘어 살아남은 것이라 애플이 업로드를 거절한다. `--verify --deep --strict`는 이 결함을 통과시키므로 별도 검사다 (위 「링커 서명 제거」) |
 | 프로덕션 주소를 본다 | 번들 `Info.plist`의 `WEB_URL`·`API_BASE_URL`이 `https://accentury.app`이 아니면 **실패**한다. 실기기 확인용 cloudflared 터널 URL이 박힌 빌드가 스토어로 나가는 것을 막는 빗장이다 |
 | 카카오 키가 들어갔다 | 번들 `Info.plist`의 `KAKAO_NATIVE_APP_KEY`가 비어 있지 않은지 본다. 값은 찍지 않고 길이만 찍는다 |
 | 테스트 광고가 아니다 | 번들 `Info.plist`의 `GADApplicationIdentifier`·`ADMOB_INTERSTITIAL_ID`·`ADMOB_REWARDED_ID`가 Google 테스트 퍼블리셔 ID(`ca-app-pub-3940256099942544`)가 아닌지 본다. `project.yml`의 `REQUIRE_ADMOB_IDS=YES` 빗장은 **빌드 입력**을 보므로, 이쪽은 산출물을 보는 두 번째 잠금이다 |
@@ -175,15 +209,25 @@ Apple Distribution 인증서·프로비저닝 프로파일을 스스로 만드�
 그대로 돌려 `.ipa`를 만들고 Transporter나 `xcrun altool --upload-app`으로 올린다. 워크플로가 더
 하는 일은 검증 스텝과 아티팩트 보관뿐이다.
 
-#### 아직 러너에서 돌려 보지 않았다
+#### 러너 실행 기록 (2026-09-23)
 
-시크릿 6개가 등록되기 전이라 실제 실행 기록이 없다. 대신 2026-09-22에 **로컬에서 워크플로의 셸
-스텝을 그대로 떼어 돌렸다**: Release 아카이브(무서명) → `ExportOptions.plist`로 export →
-검증 스크립트. 결과는 서명 `Apple Distribution: Seongju Lee (559P9SYY57)`, 버전 `1.0` 빌드 `6`,
-`WEB_URL`·`API_BASE_URL` 모두 `https://accentury.app`, `.ipa` 6.2MB였고, 테스트 광고 ID가 든
-번들에 `allow_test_ads=false` 경로를 물리자 검증이 의도대로 실패했다. 러너에서 처음 돌릴 때
-갈릴 수 있는 것은 도구 버전(러너 Xcode)과 `-allowProvisioningUpdates`의 API 키 인증 경로다 —
-로컬은 Xcode 계정으로 통과했고 러너는 `.p8`로 통과해야 한다.
+시크릿 7개가 등록된 뒤 러너에서 세 번 돌렸다. 각 실행 4분 안팎이다.
+
+| # | 실행 | 입력 | 결과 |
+|---|---|---|---|
+| 1차 | [35833056059](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35833056059) | `allow_test_ads=true`, `upload=false` | **통과**. AdMob 시크릿 없이 아카이브·서명 경로가 사는지만 봤다 |
+| 2차 | [35833732628](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35833732628) | 실 광고 ID(`REQUIRE_ADMOB_IDS=YES`), `upload=false` | **통과**. 빗장을 켠 채로 검증 스텝까지 전부 |
+| 3차 | [35834152345](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35834152345) | 실 광고 ID, `upload=true` | **업로드에서 거절**. 앞 스텝은 모두 통과하고 TestFlight 업로드만 exit 70 |
+
+3차의 거절 사유가 위 「링커 서명 제거」다 — 프레임워크 넷 전부에 `Invalid Signature … is not
+properly signed`가 떴다. 검증 스텝이 못 잡은 것은 그때 DR을 보지 않았기 때문이고, 이번에 DR
+검사를 붙였다. 1·2차가 통과한 것은 업로드를 하지 않아 애플 검증을 거치지 않아서다.
+
+그 전 기록: 2026-09-22에 **로컬에서 워크플로의 셸 스텝을 그대로 떼어 돌렸다**. Release
+아카이브(무서명) → `ExportOptions.plist`로 export → 검증 스크립트. 결과는 서명
+`Apple Distribution: Seongju Lee (559P9SYY57)`, 버전 `1.0` 빌드 `6`, `WEB_URL`·`API_BASE_URL`
+모두 `https://accentury.app`, `.ipa` 6.2MB였고, 테스트 광고 ID가 든 번들에
+`allow_test_ads=false` 경로를 물리자 검증이 의도대로 실패했다.
 
 ## 3. 스토어 등록 정보 문안
 

@@ -82,6 +82,11 @@ xcodebuild archive -project Accentury.xcodeproj -scheme Accentury -configuration
   ADMOB_APP_ID=... ADMOB_INTERSTITIAL_ID=... ADMOB_REWARDED_ID=... \
   KAKAO_NATIVE_APP_KEY=...
 
+# 임베디드 프레임워크의 링커 ad-hoc 서명을 지운다 — export **전**이어야 한다 (아래 불릿)
+for fw in build/Accentury.xcarchive/Products/Applications/Accentury.app/Frameworks/*.framework; do
+  codesign --remove-signature "$fw"
+done
+
 xcodebuild -exportArchive -archivePath build/Accentury.xcarchive \
   -exportPath build/export -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates
 ```
@@ -92,6 +97,13 @@ xcodebuild -exportArchive -archivePath build/Accentury.xcarchive \
   정책 위반이라 `project.yml`의 Release 전용 preBuild 스크립트가 빌드를 즉시 세운다
   (`docs/wiki/ads-admob.md` §3.1).
 - **`KAKAO_NATIVE_APP_KEY`도 준다.** 없으면 공유가 OS 공유 시트로만 간다 (위 「카카오톡 공유」).
+- **아카이브와 export 사이에서 임베디드 프레임워크의 서명을 지운다.** SwiftPM이 끌어오는 바이너리
+  xcframework 넷(GoogleMobileAds · UserMessagingPlatform · GoogleAppMeasurement ·
+  FirebaseAnalytics)은 원본이 무서명이라 링크 단계에서 `Identifier=arm64-apple`인 ad-hoc 서명이
+  달린다. export 재서명이 그 designated requirement를 그대로 물려받아 **애플 업로드가 거절한다**
+  (`Invalid Signature … is not properly signed`). 지워 두면 export가 물려받을 서명이 없어 DR을
+  번들 식별자에서 새로 만든다. `codesign --verify --deep --strict`로는 이 결함이 안 잡힌다
+  (`docs/wiki/app-store-listing.md` §2).
 - 두 단계로 갈린 이유는 **팀에 등록된 기기가 0대**라서다. 자동 서명 `archive`는 개발용
   프로비저닝 프로파일을 만들려다 막히고, export 단계는 기기 목록을 보지 않는다.
   `ExportOptions.plist`(레포에 있다)가 `app-store-connect` · `signingStyle automatic` ·
@@ -105,6 +117,10 @@ xcodebuild -exportArchive -archivePath build/Accentury.xcarchive \
 cd build/export && unzip -q -o Accentury.ipa -d ipa
 codesign -dv --verbose=4 ipa/Payload/Accentury.app 2>&1 | grep Authority
 # Authority=Apple Distribution: ... (559P9SYY57)
+
+# DR이 자기 번들 식별자인지 — arm64-apple이 보이면 업로드가 거절된다 (위 링커 서명 불릿)
+codesign -d -r- ipa/Payload/Accentury.app/Frameworks/GoogleMobileAds.framework 2>&1 | grep designated
+# designated => ... identifier "com.google.GoogleMobileAds" ...
 ```
 
 `Apple Development`가 나오면 export가 개발 인증서를 골랐다는 뜻이고 TestFlight가 받지 않는다.
