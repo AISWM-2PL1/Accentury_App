@@ -179,8 +179,8 @@ AC1·AC2·AC4는 로컬 시뮬레이션(임시 키스토어)으로 전 스텝을
   어느 쪽을 고르든 **업로드 키**는 따로 만들어도 되고 이 키스토어를 그대로 써도 된다. 업로드 키는
   잃어도 구글에 재발급을 요청할 수 있다 — 앱 서명 키와 달리 복구 경로가 있는 쪽이다.
 - **`versionCode`.** ~~규칙이 없다~~ → **규칙 확정 (KAN-175 3단계).** iOS
-  `CURRENT_PROJECT_VERSION`과 같은 값을 **같은 커밋에서 같이 올린다**. 지금 둘 다 `6`이고
-  (TestFlight에 1.0 빌드 5까지 올라가 있어 6부터라야 받는다), 어긋나면 iOS의
+  `CURRENT_PROJECT_VERSION`과 같은 값을 **같은 커밋에서 같이 올린다**. 지금 둘 다 `7`이고
+  (TestFlight에 1.0 빌드 6까지 올라가 있어 7부터라야 받는다), 어긋나면 iOS의
   `AccenturyCoreTests/ReleaseVersionParityTests`가 두 파일을 직접 읽어 대조하다 실패한다.
   근거와 값은 `ios/Accentury/Config/Base.xcconfig` 주석에 있다. 올리는 것 자체는 여전히 수동이다.
 - **R8 축소.** release가 `optimization { enable = false }`라 R8이 돌지 않는다(카카오 SDK가 retrofit·
