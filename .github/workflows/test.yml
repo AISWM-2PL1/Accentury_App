@@ -34,6 +34,10 @@ jobs:
             ios:
               - 'ios/**'
               - 'fixtures/**'
+              # ReleaseVersionParityTests가 app/build.gradle.kts의 versionCode/versionName을 읽어
+              # ios/Accentury/Config/Base.xcconfig와 대조한다. 이 필터에 없으면 안드로이드 버전만
+              # 올린 PR에서 iOS 테스트가 안 돌아 불일치가 통과한다 (KAN-175 PR #1 리뷰).
+              - 'app/build.gradle.kts'
               - '.github/workflows/test.yml'
             web:
               - 'web/**'
