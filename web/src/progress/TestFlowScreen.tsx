@@ -15,6 +15,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnalysisWaitingScreen } from '../analysis/AnalysisWaitingScreen'
+import { AnalysisApiError } from '../analysis/errorEnvelope'
+import { fetchAnalysisStatuses } from '../analysis/fetchAnalysisStatuses'
 import { track } from '../analytics/track'
 import type { CaptureFactory, Recording } from '../audio'
 import { uploadRecording } from '../audio/uploadRecording'
@@ -22,6 +24,7 @@ import { getSessionToken, installItemResultReceiver, startVoiceItem } from '../b
 import type { ItemResult } from '../bridge/itemResult'
 import { useRetest } from '../result/useRetest'
 import { fetchTestDefinition, type FetchLike } from './fetchTestDefinition'
+import { isSessionExitCode } from './sessionExit'
 import type { SnapshotStorage } from './progressSnapshot'
 import { submitVocabAnswer } from './submitVocabAnswer'
 import type { TestDefinition, VoiceItem } from './testDefinition'
@@ -330,6 +333,26 @@ function TestRunner({
   )
 
   /*
+   * 앱 대기 푸터의 세션 생존 확인 (KAN-237). [녹음 화면 다시 열기] 탭 한 번에 한 번만 불린다 —
+   * 왜 그 자리인지는 `VoiceItemScreen`의 `reopen` 주석.
+   *
+   * 새 엔드포인트 대신 분석 상태 일괄 조회(`/analyses`)를 쓴다. 세션 토큰으로 인증되는 부작용
+   * 없는 GET이라, 만료된 세션이면 업로드와 같은 401 `SESSION_EXPIRED`가 돌아온다.
+   *
+   * 판정은 한쪽으로 기운다. 봉투가 세션 종료 코드를 말할 때만 `'EXPIRED'`고, 200은 물론
+   * 네트워크 실패·다른 오류·토큰 누락 가드까지 전부 `'ALIVE'`다 — 확인하지 못한 실패로
+   * 사용자를 내보내면 안 된다. 살아 있다고 보고 녹음 화면을 다시 열면 최악이라도 예전과 같다.
+   */
+  const probeSession = useCallback(async (): Promise<'ALIVE' | 'EXPIRED'> => {
+    try {
+      await fetchAnalysisStatuses({ apiBase, sessionId, sessionToken: readToken() }, fetchImpl)
+      return 'ALIVE'
+    } catch (error) {
+      return error instanceof AnalysisApiError && isSessionExitCode(error.code) ? 'EXPIRED' : 'ALIVE'
+    }
+  }, [apiBase, sessionId, readToken, fetchImpl])
+
+  /*
    * 재녹음 — 대기 화면이 실패한 문항을 짚으면 그 문항으로 녹음 화면을 다시 연다.
    *
    * 브리지 계약을 늘리지 않는다. `startVoiceItem`은 문항 컨텍스트를 통째로 받는 호출이라
@@ -474,6 +497,7 @@ function TestRunner({
           onWebUploaded={receiveResult}
           /* 대기 화면과 같은 가드다 — 폴백 없는 호출자에게는 죽은 버튼을 주지 않는다 (KAN-237) */
           retest={retestFallback === undefined ? undefined : retest}
+          probeSession={probeSession}
         />
       ) : (
         <VocabularyItemScreen

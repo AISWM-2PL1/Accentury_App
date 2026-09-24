@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createFakeCapture } from '../audio/testing/fakeCapture'
 import type { ItemResult } from '../bridge/itemResult'
+import type { RetestControl } from '../result/useRetest'
 import { VoiceItemScreen } from './VoiceItemScreen'
 import type { VoiceItem } from './testDefinition'
 
@@ -28,7 +29,9 @@ function stubBridge() {
   return startVoiceItem
 }
 
-function renderScreen() {
+function renderScreen(
+  extra: { retest?: RetestControl; probeSession?: () => Promise<'ALIVE' | 'EXPIRED'> } = {},
+) {
   const capture = createFakeCapture()
   const upload = vi.fn(async () => ({ analysisJobId: 'job-1' }))
   const onWebUploaded = vi.fn<(result: ItemResult) => void>()
@@ -39,6 +42,8 @@ function renderScreen() {
       totalItems={10}
       webRecording={{ upload, capture: capture.factory }}
       onWebUploaded={onWebUploaded}
+      retest={extra.retest}
+      probeSession={extra.probeSession}
     />,
   )
   return { capture, upload, onWebUploaded }
@@ -121,5 +126,61 @@ describe('대기 문구 단일화 (KAN-146)', () => {
     expect(screen.getByText('"밥 뭇나?"를 평소 말투로 읽어 주세요')).toBeInTheDocument()
     // 카드 아래 따로 있던 지시문이 캡션 한 줄로 합쳐졌다 (KAN-161 3단계)
     expect(screen.getByText('1 / 10 · 이 문장을 읽어주세요')).toBeInTheDocument()
+  })
+})
+
+/** 재응시 훅이 만드는 값의 대역. 버튼 라벨·잠금은 `RetestAction`이 그대로 그린다 */
+function stubRetest(): RetestControl {
+  return { onRetest: vi.fn(), disabled: false, pending: false, message: null, retryAfterSec: 0 }
+}
+
+describe('앱 대기 푸터의 세션 만료 출구 (KAN-237)', () => {
+  it('확인 결과가 만료면 녹음 화면을 다시 열지 않고 [다시 테스트하기]를 세운다', async () => {
+    const startVoiceItem = stubBridge()
+    const retest = stubRetest()
+    const probeSession = vi.fn(async () => 'EXPIRED' as const)
+    renderScreen({ retest, probeSession })
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    expect(await screen.findByText('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.')).toBeInTheDocument()
+    expect(probeSession).toHaveBeenCalledTimes(1)
+    // 마운트 때의 1회뿐이다 — 다시 열어 봐야 같은 401이다
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: '녹음 화면 다시 열기' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+    expect(retest.onRetest).toHaveBeenCalledTimes(1)
+  })
+
+  it('살아 있으면 예전처럼 녹음 화면을 다시 연다', async () => {
+    const startVoiceItem = stubBridge()
+    renderScreen({ retest: stubRetest(), probeSession: async () => 'ALIVE' })
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    // 확인 중에는 잠긴다 — 두 번 눌러 두 번 묻지 않는다
+    expect(screen.getByRole('button', { name: '확인 중…' })).toBeDisabled()
+    await waitFor(() => expect(startVoiceItem).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: '녹음 화면 다시 열기' })).toBeEnabled()
+  })
+
+  it('확인 함수가 없으면 곧바로 다시 연다 (기존 동작)', () => {
+    const startVoiceItem = stubBridge()
+    renderScreen({ retest: stubRetest() })
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    expect(startVoiceItem).toHaveBeenCalledTimes(2)
+  })
+
+  it('만료여도 재응시 수단이 없는 호출자에게는 죽은 출구 대신 기존 버튼을 남긴다', async () => {
+    const startVoiceItem = stubBridge()
+    renderScreen({ probeSession: async () => 'EXPIRED' })
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    expect(await screen.findByRole('button', { name: '녹음 화면 다시 열기' })).toBeEnabled()
+    expect(screen.queryByText('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.')).not.toBeInTheDocument()
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
   })
 })
