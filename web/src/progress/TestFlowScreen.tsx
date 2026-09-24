@@ -360,7 +360,7 @@ function TestRunner({
   )
 
   /*
-   * 막다른 분석 상태의 [다시 테스트하기] (KAN-191).
+   * 막다른 상태의 [다시 테스트하기] (KAN-191 분석 대기, KAN-237 문항 제출).
    *
    * **수신자 설치가 이 자리인 이유가 §8이다.** 재응시 실패 회신(`onRetestFailed`)은 부모가
    * 받아 자식에게 값으로 내려보낸다 — 대기 화면이 스스로 걸면, 자식 effect가 먼저 도는 React
@@ -374,8 +374,15 @@ function TestRunner({
    *
    * 훅은 폴백이 없어도 항상 부른다 — 조건부 호출은 훅 규칙 위반이다. 값을 화면에 넘길지
    * 말지만 아래에서 가른다.
+   *
+   * **문항 화면도 이 훅 하나를 같이 쓴다** (KAN-237 — 제출이 세션 만료로 거절된 자리의 출구).
+   * 화면마다 훅을 하나씩 두지 않는 이유가 위 §8과 같은 슬롯 문제다: 한 컴포넌트에서 두 번
+   * 부르면 나중 훅이 `onRetestFailed` 슬롯을 덮어, 대기 화면 버튼은 실패 회신(광고 중도 닫기
+   * 등)을 받지 못한 채 "준비 중…"에 잠긴다. 문항 화면과 대기 화면은 동시에 서지 않으므로 훅은
+   * 하나로 두고 계측 origin(`RetestOrigin`)만 지금 선 화면으로 고른다.
    */
-  const retest = useRetest(retestFallback ?? noop, 'waiting')
+  const awaitingAnalysis = state.phase === 'AWAITING_ANALYSIS' || current === null
+  const retest = useRetest(retestFallback ?? noop, awaitingAnalysis ? 'waiting' : 'item')
 
   /*
    * 대기 화면이 그릴 음성 문항. 순번은 **전체 문항 기준**으로 매겨서 넘긴다 — 음성 안에서
@@ -391,7 +398,7 @@ function TestRunner({
   )
 
   // 마지막 문항까지 제출됨 — 여기서부터 분석 대기 화면이 폴링을 맡는다 (KAN-14).
-  if (state.phase === 'AWAITING_ANALYSIS' || current === null) {
+  if (awaitingAnalysis) {
     return (
       <AnalysisWaitingScreen
         apiBase={apiBase}
@@ -465,6 +472,8 @@ function TestRunner({
           totalItems={progress.total}
           webRecording={{ upload: uploadWebRecording, capture, userCurveCenterHz }}
           onWebUploaded={receiveResult}
+          /* 대기 화면과 같은 가드다 — 폴백 없는 호출자에게는 죽은 버튼을 주지 않는다 (KAN-237) */
+          retest={retestFallback === undefined ? undefined : retest}
         />
       ) : (
         <VocabularyItemScreen
@@ -473,6 +482,7 @@ function TestRunner({
           /* 번호는 전체 문항 기준이다 — 음성 문항 화면·네이티브 녹음 화면이 쓰는 값과 같다 */
           itemNumber={progress.current}
           totalItems={progress.total}
+          retest={retestFallback === undefined ? undefined : retest}
           /*
            * 답안은 실행 환경과 무관하게 **항상 서버로 나간다**. 브리지가 없을 때 저장된 셈
            * 치고 진행만 밀던 개발용 통로가 있었는데, 웹 단독 실행(KAN-31)이 정식 경로가 된

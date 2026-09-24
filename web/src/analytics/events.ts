@@ -57,8 +57,12 @@ export type RetakeReason = 'QUALITY' | 'FAILED' | 'USER'
  * 되돌아 나온 것이다 — 같은 버튼이지만 뜻이 정반대라, 뭉치면 재응시가 늘어난 것이 좋은
  * 신호인지 나쁜 신호인지 구분되지 않는다. 대기 화면의 출구는 KAN-147이 걷어낸 이탈 버튼을
  * 막다른 상태에만 되살린 것이라(KAN-191), 그 자리가 얼마나 밟히는지가 곧 그 결정의 검증값이다.
+ *
+ * `item`은 문항 제출이 세션 만료(401 `SESSION_EXPIRED`)·타인 세션(403)으로 거절된 자리다
+ * (KAN-237). 대기 화면과 같은 "막다른 길의 출구"지만 시험 도중이라는 점이 달라 따로 센다 —
+ * `waiting`에 섞으면 분석이 막힌 것과 30분을 넘긴 것이 구분되지 않는다.
  */
-export type RetestOrigin = 'result' | 'waiting'
+export type RetestOrigin = 'result' | 'waiting' | 'item'
 
 /**
  * 문항 분석의 최종 상태 (`AnalysisItemStatus`의 종결 상태 셋).
