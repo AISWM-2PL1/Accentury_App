@@ -17,9 +17,11 @@ import type { CaptureFactory, Recording } from '../audio'
 import type { UploadAccepted } from '../audio/uploadRecording'
 import { startVoiceItem } from '../bridge/bridge'
 import type { ItemResult } from '../bridge/itemResult'
+import { RetestAction } from '../result/RetestAction'
 import type { RetestControl } from '../result/useRetest'
 import { Button, StatusBlock } from '../ui'
 import { itemCaption } from './itemBadge'
+import { SESSION_EXPIRED_MESSAGE } from './sessionExit'
 import type { VoiceItem } from './testDefinition'
 import { WebVoiceRecorder } from './WebVoiceRecorder'
 
@@ -54,10 +56,15 @@ export interface VoiceItemScreenProps {
   onWebUploaded: (result: ItemResult) => void
   /**
    * 제출이 세션 만료로 거절됐을 때의 [다시 테스트하기] (KAN-237). 없으면 그 출구를 그리지
-   * 않는다. 지금은 브라우저 녹음 경로만 쓰고, 브리지 분기(네이티브 녹음 화면에서 돌아온 뒤)도
-   * 같은 prop을 쓸 예정이다 (KAN-237 2단계).
+   * 않는다. 브라우저 녹음 경로는 업로드 실패 봉투로, 브리지 분기는 [probeSession]으로 만료를
+   * 안다.
    */
   retest?: RetestControl
+  /**
+   * 세션이 아직 살아 있는지 서버에 한 번 묻는다 (KAN-237). 브리지 분기의 [녹음 화면 다시 열기]
+   * 탭에서만 부른다 — 이유는 `reopen` 주석. 없으면 탭은 예전처럼 곧바로 녹음 화면을 다시 연다.
+   */
+  probeSession?: () => Promise<'ALIVE' | 'EXPIRED'>
 }
 
 export function VoiceItemScreen({
@@ -67,6 +74,7 @@ export function VoiceItemScreen({
   webRecording,
   onWebUploaded,
   retest,
+  probeSession,
 }: VoiceItemScreenProps) {
   /*
    * 브리지 호출 결과. `null`은 아직 부르기 전이라는 뜻이다 — 호출은 effect에서 일어나므로
@@ -81,6 +89,22 @@ export function VoiceItemScreen({
    * (네이티브 쪽 중복 방어는 Stage 3이 따로 갖는다).
    */
   const started = useRef(false)
+  /** 앱 대기 푸터에서 세션 만료를 확인했다 (KAN-237). 되돌아가는 길이 없어 false로 돌리지 않는다 */
+  const [sessionExit, setSessionExit] = useState(false)
+  /** [녹음 화면 다시 열기]가 생존 확인을 기다리는 중. 두 번 눌러 두 번 묻지 않게 잠근다 */
+  const [probing, setProbing] = useState(false)
+  /*
+   * 확인 응답이 화면이 사라진 뒤에 올 수 있다 — 기다리는 사이 네이티브 결과가 도착해 다음
+   * 문항으로 넘어가면(itemId key로 새로 마운트) 이 인스턴스는 이미 없다. 그때 상태를 바꾸거나
+   * 녹음 화면을 여는 것은 지난 문항을 다시 여는 셈이라 막는다.
+   */
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   const requestRecording = () =>
     startVoiceItem({
@@ -92,6 +116,39 @@ export function VoiceItemScreen({
       // 네이티브 녹음 화면의 가이드 레인이 그릴 정적 곡선 (KAN-102). 정의 그대로 전달한다.
       guideF0: item.guideF0,
     })
+
+  /*
+   * [녹음 화면 다시 열기] 탭 (KAN-237). 녹음 화면을 다시 열기 **전에** 세션이 살아 있는지 한 번 묻는다.
+   *
+   * 세션이 만료되면 네이티브 업로드는 401 `SESSION_EXPIRED`를 받지만, 브리지 계약상 실패는 웹에
+   * 오지 않는다(성공 `onItemResult`만 온다). 오버레이가 걷히면 이 푸터만 남고, 버튼을 누르면
+   * 다시 녹음 → 같은 401 → 다시 이 푸터인 막다른 길이 된다. 웹이 실패를 들을 수 없으니 스스로
+   * 확인한다 — 네이티브는 심사 중이라 계약을 늘리지 않는다.
+   *
+   * **탭 시점 1회인 이유.** 이 버튼은 네이티브가 결과 없이 돌려보낸 뒤에만 눌리는 자리라, 여기서
+   * 묻는 것은 사용자 행동 하나에 요청 하나다 — "문항 진행 중 폴링 금지"(KAN-14,
+   * `AnalysisStatusController`)가 막는 주기 요청이 아니다. 마운트 시점에 묻지 않는 이유는
+   * 그때는 아직 업로드 전이라, 녹음하는 사이 만료되는 경우를 잡지 못하기 때문이다.
+   *
+   * **확인 못 한 실패는 살아 있다고 본다.** 네트워크 오류·다른 오류로 만료를 단정하면, 멀쩡한
+   * 세션의 사용자를 시험 밖으로 내보낸다. 만료가 확정될 때만 출구를 연다는 KAN-191 기준이고,
+   * 시험 중 이탈 버튼을 두지 않는다는 KAN-147과도 이 선에서 맞는다.
+   */
+  const reopen = async () => {
+    if (probeSession === undefined) {
+      requestRecording()
+      return
+    }
+    setProbing(true)
+    try {
+      const verdict = await probeSession()
+      if (!mounted.current) return
+      if (verdict === 'EXPIRED') setSessionExit(true)
+      else requestRecording()
+    } finally {
+      if (mounted.current) setProbing(false)
+    }
+  }
 
   useEffect(() => {
     if (started.current) return
@@ -138,6 +195,16 @@ export function VoiceItemScreen({
           userCurveCenterHz={webRecording.userCurveCenterHz}
           retest={retest}
         />
+      ) : sessionExit && retest !== undefined ? (
+        /*
+          앱 대기 푸터의 세션 만료 출구 (KAN-237). 녹음 화면을 다시 열어도 같은 401이라 [녹음 화면
+          다시 열기] 대신 [다시 테스트하기] 하나만 둔다. 문구가 상수인 이유는 `SESSION_EXPIRED_MESSAGE`
+          주석. 래퍼 클래스는 그대로 둔다 — iOS 스모크 구동기(`WebAutoDriver.swift`)가 이
+          클래스로 화면을 가른다. `retest`가 없는 호출자(폴백 없음)는 아래 기존 버튼을 탄다.
+        */
+        <div className="item-screen__footer">
+          <StatusBlock tone="error" message={SESSION_EXPIRED_MESSAGE} action={<RetestAction retest={retest} />} />
+        </div>
       ) : (
         <div className="item-screen__footer">
           {/*
@@ -159,8 +226,8 @@ export function VoiceItemScreen({
               [나가기] 이탈은 더 이상 없다 (KAN-147): 이탈 버튼은 걷어냈고, 업로드 확정 실패(재시도 2회
               소진)는 네이티브가 스스로 녹음 화면을 다시 열어 이 버튼을 거치지 않는다.
             */
-            <Button onClick={requestRecording} style={{ width: '100%' }}>
-              녹음 화면 다시 열기
+            <Button disabled={probing} onClick={() => void reopen()} style={{ width: '100%' }}>
+              {probing ? '확인 중…' : '녹음 화면 다시 열기'}
             </Button>
           )}
         </div>

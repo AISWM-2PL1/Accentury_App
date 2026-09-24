@@ -15,3 +15,13 @@ export const SESSION_EXIT_CODES = ['SESSION_EXPIRED', 'SESSION_FORBIDDEN'] as co
 export function isSessionExitCode(code: string | null | undefined): boolean {
   return (SESSION_EXIT_CODES as readonly string[]).includes(code ?? '')
 }
+
+/**
+ * 세션 만료 문구 — 서버 `SESSION_EXPIRED` 봉투의 message와 같은 문장이다 (KAN-237).
+ *
+ * 다른 자리는 봉투 문구를 그대로 쓰지만, 앱 대기 푸터(`VoiceItemScreen` 브리지 분기)에는
+ * 봉투가 오지 않는다: 업로드는 네이티브가 하고, 브리지 계약상 실패는 웹에 통지되지 않는다
+ * (성공 `onItemResult`만 온다). 웹이 `/analyses` 확인으로 만료를 알아내도 그 응답은 조회의
+ * 거절이지 제출의 거절이 아니라서, 사용자가 보는 문구는 다른 자리와 같은 이 한 줄로 고정한다.
+ */
+export const SESSION_EXPIRED_MESSAGE = '세션이 만료되었습니다. 테스트를 다시 시작해 주세요.'
