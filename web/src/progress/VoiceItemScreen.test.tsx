@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createFakeCapture } from '../audio/testing/fakeCapture'
 import type { ItemResult } from '../bridge/itemResult'
@@ -35,7 +35,7 @@ function renderScreen(
   const capture = createFakeCapture()
   const upload = vi.fn(async () => ({ analysisJobId: 'job-1' }))
   const onWebUploaded = vi.fn<(result: ItemResult) => void>()
-  render(
+  const { unmount } = render(
     <VoiceItemScreen
       item={voiceItem()}
       itemNumber={1}
@@ -46,7 +46,7 @@ function renderScreen(
       probeSession={extra.probeSession}
     />,
   )
-  return { capture, upload, onWebUploaded }
+  return { capture, upload, onWebUploaded, unmount }
 }
 
 afterEach(() => {
@@ -171,6 +171,24 @@ describe('앱 대기 푸터의 세션 만료 출구 (KAN-237)', () => {
     fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
 
     expect(startVoiceItem).toHaveBeenCalledTimes(2)
+  })
+
+  it('확인을 기다리는 사이 화면이 사라지면 응답이 와도 녹음 화면을 다시 열지 않는다', async () => {
+    // 기다리는 사이 네이티브 결과가 와서 다음 문항으로 넘어간 경우 — 지난 문항을 다시 열면 안 된다
+    const startVoiceItem = stubBridge()
+    let resolveProbe!: (verdict: 'ALIVE' | 'EXPIRED') => void
+    const probeSession = () =>
+      new Promise<'ALIVE' | 'EXPIRED'>((resolve) => {
+        resolveProbe = resolve
+      })
+    const { unmount } = renderScreen({ retest: stubRetest(), probeSession })
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+    unmount()
+    await act(async () => resolveProbe('ALIVE'))
+
+    // 마운트 때의 1회뿐이다
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
   })
 
   it('만료여도 재응시 수단이 없는 호출자에게는 죽은 출구 대신 기존 버튼을 남긴다', async () => {

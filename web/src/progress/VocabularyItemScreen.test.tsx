@@ -202,6 +202,27 @@ describe('제출 수명주기', () => {
     expect(onSubmitted).not.toHaveBeenCalled()
   })
 
+  it('retest를 받았어도 세션 종료가 아닌 거절은 [다시 시도]를 남긴다 (KAN-237)', async () => {
+    // 출구는 세션 종료 코드에만 선다 — retryable=false라는 이유만으로 시험 밖으로 내보내지 않는다
+    const retest: RetestControl = {
+      onRetest: vi.fn(),
+      disabled: false,
+      pending: false,
+      message: null,
+      retryAfterSec: 0,
+    }
+    renderScreen(async () => {
+      throw new VocabSubmitError('답안을 처리하지 못했습니다', 'INVALID_CHOICE', false)
+    }, retest)
+
+    choose('부추')
+    pressNext()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('답안을 처리하지 못했습니다')
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+  })
+
   it('같은 답의 재시도는 같은 멱등 키로 나간다 (AC 3항 — 중복 생성 없는 재시도)', async () => {
     const { submitSpy } = renderScreen(vi.fn<SubmitFn>()
       .mockRejectedValueOnce(new VocabSubmitError('일시적인 오류가 발생했습니다', null, true))
