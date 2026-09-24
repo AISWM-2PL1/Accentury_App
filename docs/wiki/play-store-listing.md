@@ -97,7 +97,7 @@ Play Console에서 사람이 채워야 하는 값의 **정본**이다. 콘솔 �
 
 업로드 뒤 반드시 대조한다: Play Console › 테스트 및 출시 › 앱 무결성 › **앱 서명 키 인증서**의
 SHA-256이 `assetlinks.json`의 값과 같은지. 다르면 구글이 새 키를 만든 것이므로, 콘솔에 표시된
-지문을 `infra/well-known/*/.well-known/assetlinks.json` 배열에 **추가**하고 (배열이라 여러 개를
+지문을 Accentury_Server `infra/well-known/*/.well-known/assetlinks.json` 배열에 **추가**하고 (배열이라 여러 개를
 넣을 수 있고 하나만 맞아도 검증은 통과한다) 게시 스크립트를 다시 돌린다. 카카오 콘솔의 키 해시도
 같은 인증서에서 다시 뽑아 등록한다.
 
@@ -148,7 +148,7 @@ java -jar pepk.jar --keystore=~/keys/accentury-release.jks --alias=accentury \
 | 짧은 설명 | `목소리로 재는 경남 사투리 억양. 다섯 문항 읽고 5등급 중 내 등급을 확인해요.` | 80자 (현재 43자) |
 | 카테고리 | 앱 › 엔터테인먼트 | |
 | 태그 | 퀴즈, 재미, 음성 | |
-| 개발자 연락처 이메일 | `team2pl1@gmail.com` — 방침 13항 보호책임자 문의처와 같은 주소다(`docs/wiki/privacy-policy.md` §5 2026-09-07 행). 스토어 공개 주소와 방침 문의처가 다르면 이용자가 두 곳에 묻게 된다. 콘솔 로그인 계정과 달라도 되고, 계정 세부정보에서 따로 지정한 뒤 **그 주소로 오는 인증 메일을 확인해야** 반영된다. 이 주소는 스토어에 공개된다 | |
+| 개발자 연락처 이메일 | `team2pl1@gmail.com` — 방침 13항 보호책임자 문의처와 같은 주소다(Accentury_Server `docs/wiki/privacy-policy.md` §5 2026-09-07 행). 스토어 공개 주소와 방침 문의처가 다르면 이용자가 두 곳에 묻게 된다. 콘솔 로그인 계정과 달라도 되고, 계정 세부정보에서 따로 지정한 뒤 **그 주소로 오는 인증 메일을 확인해야** 반영된다. 이 주소는 스토어에 공개된다 | |
 | 웹사이트 | `https://accentury.app/` | |
 | 개인정보처리방침 URL | `https://accentury.app/privacy.html` | §8 참고 — 확장자 `.html` 필수 |
 
@@ -228,13 +228,13 @@ Play가 묻는 대로 답한 값과 그 근거다. **코드가 바뀌면 이 표
 | 질문 | 답 | 근거 |
 |---|---|---|
 | 데이터를 수집하거나 공유하나 | 예 | 아래 여섯 종류 |
-| 제3자와 공유하나 | **예** (2026-09-21 갱신) | Google AdMob에 광고 식별자·IP·기기 정보·노출/클릭 기록이 간다 (KAN-196, 방침 2항 제3자 제공 표 — `docs/wiki/privacy-policy.md` §2 확정 답안). Firebase(Analytics·Crashlytics)와 Slack(후기 알림)은 우리 대신 처리·전달하는 **서비스 제공업체**라 Play 정의상 이 항목에 잡히지 않는다 |
+| 제3자와 공유하나 | **예** (2026-09-21 갱신) | Google AdMob에 광고 식별자·IP·기기 정보·노출/클릭 기록이 간다 (KAN-196, 방침 2항 제3자 제공 표 — Accentury_Server `docs/wiki/privacy-policy.md` §2 확정 답안). Firebase(Analytics·Crashlytics)와 Slack(후기 알림)은 우리 대신 처리·전달하는 **서비스 제공업체**라 Play 정의상 이 항목에 잡히지 않는다 |
 | 전송 중 암호화하나 | 예 | 앱↔서버 전 구간 HTTPS |
-| 데이터 삭제 요청 방법을 제공하나 | **예** (2026-09-21 갱신) | 방침 6항이 후기 회신 이메일을 적은 이용자에게 그 주소로 열람·삭제를 요청할 경로(13항 문의처)를 약속했다 (KAN-211, `docs/wiki/feedback.md` §8). 2026-09-07 「아니요」의 근거였던 「사람을 특정할 값이 없다」는 회신 이메일이 생기며 깨졌다 |
+| 데이터 삭제 요청 방법을 제공하나 | **예** (2026-09-21 갱신) | 방침 6항이 후기 회신 이메일을 적은 이용자에게 그 주소로 열람·삭제를 요청할 경로(13항 문의처)를 약속했다 (KAN-211, Accentury_Server `docs/wiki/feedback.md` §8). 2026-09-07 「아니요」의 근거였던 「사람을 특정할 값이 없다」는 회신 이메일이 생기며 깨졌다 |
 
 이력: 2026-09-07 초안은 제3자 공유·삭제 요청 둘 다 「아니요」였다. 광고 사업자 확정(KAN-196,
 2026-09-11)과 이용 후기(KAN-211, 2026-09-15)가 Dev에 들어와 바뀌었고, 초안 대비 표는
-`docs/wiki/privacy-policy.md` §2가 이력으로 들고 있다.
+Accentury_Server `docs/wiki/privacy-policy.md` §2가 이력으로 들고 있다.
 
 **2026-09-22 콘솔 입력 완료.** 아래 여섯 종류에 쓴 카테고리 이름이 콘솔 화면에 그대로 있었다 —
 「기기 또는 기타 ID」, 「개인 정보 › 이메일 주소」, 「앱 활동 › 기타 사용자 생성 콘텐츠」. 이 문서의
@@ -253,7 +253,7 @@ Play가 묻는 대로 답한 값과 그 근거다. **코드가 바뀌면 이 표
 **① 음성 또는 사운드 녹음** — 수집됨, 목적 "앱 기능", **일시적으로만 처리되며 저장되지 않음**에
 체크, 선택사항 아님.
 
-근거는 KAN-27이다 (`ai/app/tempstore.py`). 추론 라이브러리가 파형 파일을 읽어야 해서 오디오가
+근거는 KAN-27이다 (Accentury_Server `ai/app/tempstore.py`). 추론 라이브러리가 파형 파일을 읽어야 해서 오디오가
 디스크를 한 번 거치지만, 세 겹으로 막는다: 소유자 전용(700) 전용 디렉터리, 요청이 성공·실패·예외·
 취소 어느 쪽으로 끝나도 `finally`에서 삭제, 그리고 프로세스가 kill돼 그 삭제가 실행조차 못 된
 경우를 대비한 30분 청소 잡. 로그에도 경로와 파일명을 남기지 않는다. 서버 DB에 음성은 들어가지
@@ -277,17 +277,17 @@ Firebase Crashlytics다 (`app/build.gradle.kts`). 스택 트레이스와 기기 
 Google AdMob SDK다 (KAN-196, `docs/wiki/ads-admob.md`). 분석 대기 화면 전면 광고와 재응시 전
 보상형 광고 두 자리에서 광고 요청에 GAID가 실린다. 동의는 인트로 첫 실행 동의 시트에서 받고,
 거부하면 비맞춤 광고(`npa=1`)만 나가는데 — **npa도 식별자를 빈도 제한·집계 보고·부정 사용 방지에
-쓴다** (`docs/wiki/privacy-policy.md` §1 10항 근거 행, Google 「맞춤 광고 및 맞춤 설정되지 않은
+쓴다** (Accentury_Server `docs/wiki/privacy-policy.md` §1 10항 근거 행, Google 「맞춤 광고 및 맞춤 설정되지 않은
 광고」). 그래서 "동의하면 수집"이 아니라 광고가 나가는 한 수집이고, 선택사항에 체크하지 않는다.
 매니페스트의 `google_analytics_adid_collection_enabled=false`는 그대로다 — 그 키는 GA4 계측에
 광고 ID를 붙일지를 정할 뿐이고 AdMob SDK는 자기 경로로 GAID를 읽는다 (`docs/wiki/ads-admob.md`
 §6). 계측은 여전히 익명이고, 이 항목은 AdMob 몫이다. 웹 AdSense(KAN-197)는 브라우저 전용이라
-Play 신고와 무관하다 (`docs/wiki/privacy-policy.md` §6 마지막 항목).
+Play 신고와 무관하다 (Accentury_Server `docs/wiki/privacy-policy.md` §6 마지막 항목).
 
 **⑤ 개인 정보 › 이메일 주소** — 수집됨, 목적 "앱 기능"(후기 회신), **선택사항**, 공유 안 함.
 (2026-09-21 추가)
 
-이용 후기의 회신 이메일이다 (KAN-211, `docs/wiki/feedback.md`). 결과 화면 후기 시트에서
+이용 후기의 회신 이메일이다 (KAN-211, Accentury_Server `docs/wiki/feedback.md`). 결과 화면 후기 시트에서
 이용자가 직접 적는 선택 입력이고, 안 적으면 수집이 없다. 서버 DB `session_feedback`에 **1년**
 보관 뒤 자동 삭제 (`FeedbackRetention`). 슬랙 `#feedback` 알림에는 유무만 붙고 값은 싣지 않으며
 (`FeedbackSlackNotifier`), 로그도 `LogMasking`이 가린다. 이 서비스가 받는 유일한 개인 식별
@@ -315,10 +315,10 @@ Play 신고와 무관하다 (`docs/wiki/privacy-policy.md` §6 마지막 항목)
 
 서버가 저장하는 것은 세션 행(id, 토큰 **해시**, 테스트 버전, 플랫폼, 앱 버전, 캠페인 토큰,
 만료 시각), 결과 행(점수 셋과 등급), 단어 답변 행(문항 id, 고른 선택지, 정답 여부), 그리고
-후기 행(별점, 본문, 회신 이메일, 결과 스냅샷 — `backend/…/db/migration/V12__session_feedback.sql`)이다.
+후기 행(별점, 본문, 회신 이메일, 결과 스냅샷 — Accentury_Server `backend/…/db/migration/V12__session_feedback.sql`)이다.
 후기의 회신 이메일을 빼면 사람을 가리키는 값이 없어 Play가 정의하는 "개인 정보"에 해당하지
 않는다. 세션 토큰은 원문이 아니라 해시로 들어가고 TTL 30분이 지나면 무효가 된다
-(`backend/…/session/TestSession.java`). 세션·결과는 24시간 뒤 정리되고 후기만 1년 남는다.
+(Accentury_Server `backend/…/session/TestSession.java`). 세션·결과는 24시간 뒤 정리되고 후기만 1년 남는다.
 
 ## 6. 콘텐츠 등급과 타겟 대상
 
@@ -429,7 +429,7 @@ adb shell pm clear com.android.vending   # Play 스토어 캐시가 옛 상태�
 `docs/wiki/android-release-signing.md` (KAN-163 서명·빌드) ·
 `docs/wiki/app-links.md` (KAN-32 딥링크 지문) ·
 `web/README.md` 「배포 (KAN-127)」 (`VITE_STORE_LISTING_READY`, 웹 [앱 다운로드] 결선) ·
-`docs/wiki/privacy-policy.md` (§2 스토어 신고 대조표, §5 결정 기록) ·
+Accentury_Server `docs/wiki/privacy-policy.md` (§2 스토어 신고 대조표, §5 결정 기록) ·
 `docs/wiki/ads-admob.md` (KAN-196 광고 ID·광고 포함 근거) ·
-`docs/wiki/feedback.md` (KAN-211 이메일·후기 수집 근거) ·
+Accentury_Server `docs/wiki/feedback.md` (KAN-211 이메일·후기 수집 근거) ·
 KAN-39 출시 검증 · KAN-175 iOS 짝 · KAN-176 정책 본문 · KAN-178 자산
