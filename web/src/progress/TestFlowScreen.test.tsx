@@ -611,6 +611,49 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
     )
   })
 
+  it('생존 확인이 네트워크 오류로 실패하면 살아 있다고 보고 녹음 화면을 다시 연다 (KAN-237)', async () => {
+    // 만료를 단정하지 못한 실패로 사용자를 시험 밖에 내보내지 않는다 — `probeSession`이 ALIVE로 기운다
+    const startVoiceItem = stubBridge()
+    const base = okFetch()
+    const fetchImpl = vi.fn<FetchLike>(async (input, init) => {
+      if (String(input).endsWith('/analyses')) throw new TypeError('Failed to fetch')
+      return base(input, init)
+    })
+    renderScreen(fetchImpl, { retestFallback: vi.fn() })
+    await findRecordingWait()
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    await waitFor(() => expect(startVoiceItem).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+  })
+
+  it('403 SESSION_FORBIDDEN도 만료와 같은 갈래로 [다시 테스트하기]를 세운다 (KAN-237)', async () => {
+    const startVoiceItem = stubBridge()
+    const fetchImpl = vi.fn<FetchLike>(async (input) => {
+      if (String(input).endsWith('/analyses')) {
+        return {
+          ok: false,
+          status: 403,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'SESSION_FORBIDDEN',
+            message: '이 세션에 접근할 수 없습니다.',
+            retryable: false,
+          }),
+        } as unknown as Response
+      }
+      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+    })
+    renderScreen(fetchImpl, { retestFallback: vi.fn() })
+    await findRecordingWait()
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    expect(await screen.findByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
+  })
+
   it('상태 머신이 거부하는 결과 통지는 진행을 움직이지 않는다', async () => {
     stubBridge()
     renderScreen(okFetch())

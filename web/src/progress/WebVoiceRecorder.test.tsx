@@ -320,6 +320,21 @@ describe('업로드 (§3.3·§5.1)', () => {
       expect(retest.onRetest).toHaveBeenCalledTimes(1)
     })
 
+    it('retest를 받았어도 세션 종료가 아닌 재시도 불가 실패는 [재녹음]만 남긴다', async () => {
+      // 출구는 세션 종료 코드에만 선다 — retryable=false 전부로 넓히면 형식 오류 사용자를 시험 밖으로 내보낸다
+      const upload = vi
+        .fn<UploadFn>()
+        .mockRejectedValue(new UploadError('지원하지 않는 오디오 형식이에요', 'AUDIO_FORMAT_UNSUPPORTED', false))
+      const { capture } = renderRecorder(upload, voiceItem(), dummyRetest())
+
+      await recordFor(capture, 2_000)
+      click('다음')
+      await act(async () => {})
+
+      expect(screen.getByRole('button', { name: '재녹음' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+    })
+
     it('retest를 받지 못한 호출자는 예전처럼 [재녹음]만 남는다', async () => {
       const { capture } = renderRecorder(vi.fn<UploadFn>().mockRejectedValue(expired()))
 
