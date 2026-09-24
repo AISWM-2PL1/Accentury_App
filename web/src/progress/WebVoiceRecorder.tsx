@@ -31,6 +31,8 @@ import { UploadError, type UploadAccepted } from '../audio/uploadRecording'
 import type { ItemResult } from '../bridge/itemResult'
 import { newIdempotencyKey } from '../net/idempotencyKey'
 import { CurveCard } from '../recording/CurveCard'
+import { RetestAction } from '../result/RetestAction'
+import type { RetestControl } from '../result/useRetest'
 import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import {
   fillShortGaps,
@@ -39,6 +41,7 @@ import {
   userCurveWindowMs,
 } from '../recording/userCurve'
 import { Button, StatusBlock } from '../ui'
+import { isSessionExitCode } from './sessionExit'
 import type { VoiceItem } from './testDefinition'
 
 export interface WebVoiceRecorderProps {
@@ -63,12 +66,15 @@ export interface WebVoiceRecorderProps {
    * 레인이 비어 있으면 사용자에게는 녹음이 안 되는 것으로 보인다.
    */
   userCurveCenterHz?: number | null
+  /** 업로드가 세션 만료로 거절됐을 때의 [다시 테스트하기] (KAN-237). 없으면 예전처럼 [재녹음]만 남는다 */
+  retest?: RetestControl
 }
 
 type UploadState =
   | { kind: 'idle' }
   | { kind: 'uploading' }
-  | { kind: 'failed'; message: string; retryable: boolean }
+  /** `code`는 서버 봉투의 오류 코드. 봉투 없는 실패는 null — 세션 만료 판정에만 쓴다 (KAN-237) */
+  | { kind: 'failed'; message: string; retryable: boolean; code: string | null }
 
 /**
  * 품질 판정별 안내. 전부 **다음 행동**을 말한다 — "실패했습니다"는 사용자가 할 일을 알려주지
@@ -124,6 +130,7 @@ export function WebVoiceRecorder({
   onUploaded,
   capture,
   userCurveCenterHz = null,
+  retest,
 }: WebVoiceRecorderProps) {
   const [uploadState, setUploadState] = useState<UploadState>({ kind: 'idle' })
 
@@ -295,6 +302,7 @@ export function WebVoiceRecorder({
           kind: 'failed',
           message: error instanceof Error ? error.message : String(error),
           retryable: error instanceof UploadError ? error.retryable : true,
+          code: error instanceof UploadError ? error.code : null,
         })
       } finally {
         uploadingRef.current = false
@@ -329,6 +337,7 @@ export function WebVoiceRecorder({
         <ReviewPanel
           recording={state.recording}
           uploadState={uploadState}
+          retest={retest}
           onRetake={retake}
           onSend={() => void send(state.recording)}
         />
@@ -421,11 +430,13 @@ export function WebVoiceRecorder({
 function ReviewPanel({
   recording,
   uploadState,
+  retest,
   onRetake,
   onSend,
 }: {
   recording: Recording
   uploadState: UploadState
+  retest: RetestControl | undefined
   /** 재녹음. 사유는 누른 자리가 정한다 (`retake` 주석) */
   onRetake: (reason: RetakeReason) => void
   onSend: () => void
@@ -433,6 +444,20 @@ function ReviewPanel({
   if (uploadState.kind === 'uploading') {
     // 버튼을 아예 그리지 않는다 — 비활성 버튼을 남기면 눌러 보고 안 눌리는 것을 확인하게 된다.
     return <StatusBlock tone="waiting" message="보내는 중…" />
+  }
+
+  if (uploadState.kind === 'failed' && isSessionExitCode(uploadState.code) && retest !== undefined) {
+    /*
+     * 세션이 만료된 뒤의 제출 (KAN-237). [다시 시도]·[재녹음] 대신 [다시 테스트하기] 하나만 둔다.
+     *
+     * 재녹음해도 같은 세션으로 올리므로 같은 401이 돌아온다 — 예전 화면은 [재녹음]만 남겨 이
+     * 문항에서 영영 못 나가는 막다른 길이었다. 시험 중 이탈 버튼은 두지 않기로 했지만(KAN-147),
+     * 되돌아갈 길이 하나도 없는 상태에서만 출구를 연다는 KAN-191의 기준에 이 자리가 맞는다.
+     *
+     * 문구는 서버 봉투 그대로다("세션이 만료되었습니다. 테스트를 다시 시작해 주세요.") — 원인과
+     * 할 일을 이미 한 줄에 담고 있다. `retest`가 없는 호출자(폴백 없음)는 아래 기존 갈래를 탄다.
+     */
+    return <StatusBlock tone="error" message={uploadState.message} action={<RetestAction retest={retest} />} />
   }
 
   if (uploadState.kind === 'failed') {

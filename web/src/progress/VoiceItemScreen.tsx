@@ -17,6 +17,7 @@ import type { CaptureFactory, Recording } from '../audio'
 import type { UploadAccepted } from '../audio/uploadRecording'
 import { startVoiceItem } from '../bridge/bridge'
 import type { ItemResult } from '../bridge/itemResult'
+import type { RetestControl } from '../result/useRetest'
 import { Button, StatusBlock } from '../ui'
 import { itemCaption } from './itemBadge'
 import type { VoiceItem } from './testDefinition'
@@ -51,6 +52,12 @@ export interface VoiceItemScreenProps {
   }
   /** 브라우저 녹음이 접수됐다. 브리지 경로의 `onItemResult`와 같은 모양이다 */
   onWebUploaded: (result: ItemResult) => void
+  /**
+   * 제출이 세션 만료로 거절됐을 때의 [다시 테스트하기] (KAN-237). 없으면 그 출구를 그리지
+   * 않는다. 지금은 브라우저 녹음 경로만 쓰고, 브리지 분기(네이티브 녹음 화면에서 돌아온 뒤)도
+   * 같은 prop을 쓸 예정이다 (KAN-237 2단계).
+   */
+  retest?: RetestControl
 }
 
 export function VoiceItemScreen({
@@ -59,6 +66,7 @@ export function VoiceItemScreen({
   totalItems,
   webRecording,
   onWebUploaded,
+  retest,
 }: VoiceItemScreenProps) {
   /*
    * 브리지 호출 결과. `null`은 아직 부르기 전이라는 뜻이다 — 호출은 effect에서 일어나므로
@@ -128,6 +136,7 @@ export function VoiceItemScreen({
           onUploaded={onWebUploaded}
           capture={webRecording.capture}
           userCurveCenterHz={webRecording.userCurveCenterHz}
+          retest={retest}
         />
       ) : (
         <div className="item-screen__footer">

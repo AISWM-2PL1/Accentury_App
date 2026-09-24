@@ -4,6 +4,7 @@ import { createFakeCapture, sineChunk, type FakeCapture } from '../audio/testing
 import type { Recording } from '../audio'
 import { UploadError, type UploadAccepted } from '../audio/uploadRecording'
 import type { ItemResult } from '../bridge/itemResult'
+import type { RetestControl } from '../result/useRetest'
 import { REAL_GUIDE_F0 } from '../recording/guideF0Fixture'
 import { WebVoiceRecorder } from './WebVoiceRecorder'
 import type { VoiceItem } from './testDefinition'
@@ -46,7 +47,11 @@ function okUpload(analysisJobId = 'job-1'): UploadMock {
   return vi.fn<UploadFn>(async () => ({ analysisJobId }))
 }
 
-function renderRecorder(upload: UploadMock = okUpload(), item: VoiceItem = voiceItem()): Harness {
+function renderRecorder(
+  upload: UploadMock = okUpload(),
+  item: VoiceItem = voiceItem(),
+  retest?: RetestControl,
+): Harness {
   const capture = createFakeCapture()
   const onUploaded = vi.fn<(result: ItemResult) => void>()
   render(
@@ -56,6 +61,7 @@ function renderRecorder(upload: UploadMock = okUpload(), item: VoiceItem = voice
       upload={upload}
       onUploaded={onUploaded}
       capture={capture.factory}
+      retest={retest}
     />,
   )
   return { capture, upload, onUploaded }
@@ -286,6 +292,44 @@ describe('업로드 (§3.3·§5.1)', () => {
     expect(screen.getByText('지원하지 않는 오디오 형식이에요')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '재녹음' })).toBeInTheDocument()
+  })
+
+  describe('세션 만료 (KAN-237)', () => {
+    const expired = () =>
+      new UploadError('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.', 'SESSION_EXPIRED', false)
+    const dummyRetest = (): RetestControl => ({
+      onRetest: vi.fn(),
+      disabled: false,
+      pending: false,
+      message: null,
+      retryAfterSec: 0,
+    })
+
+    it('[재녹음]·[다시 시도] 대신 [다시 테스트하기]만 남긴다 — 재녹음해도 같은 401이다', async () => {
+      const retest = dummyRetest()
+      const { capture } = renderRecorder(vi.fn<UploadFn>().mockRejectedValue(expired()), voiceItem(), retest)
+
+      await recordFor(capture, 2_000)
+      click('다음')
+      await act(async () => {})
+
+      expect(screen.getByText('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '재녹음' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+      click('다시 테스트하기')
+      expect(retest.onRetest).toHaveBeenCalledTimes(1)
+    })
+
+    it('retest를 받지 못한 호출자는 예전처럼 [재녹음]만 남는다', async () => {
+      const { capture } = renderRecorder(vi.fn<UploadFn>().mockRejectedValue(expired()))
+
+      await recordFor(capture, 2_000)
+      click('다음')
+      await act(async () => {})
+
+      expect(screen.getByRole('button', { name: '재녹음' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+    })
   })
 
   it('[재녹음]으로 다시 읽으면 새 시도 식별자를 쓴다 — 앞 녹음을 덮어쓰지 않는다', async () => {
