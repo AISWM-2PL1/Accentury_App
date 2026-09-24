@@ -24,7 +24,7 @@ import type { VocabularyItem } from './testDefinition'
 import { newIdempotencyKey, VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
 import { RetestAction } from '../result/RetestAction'
 import type { RetestControl } from '../result/useRetest'
-import { Button } from '../ui'
+import { Button, StatusBlock } from '../ui'
 import { CheckIcon } from '../ui/icons'
 import { itemCaption } from './itemBadge'
 import { isSessionExitCode } from './sessionExit'
@@ -149,40 +149,47 @@ export function VocabularyItemScreen({
       </div>
 
       <div className="item-screen__footer">
-        {errorMessage !== null && (
-          // 서버 봉투의 한국어 message 그대로. 비난 없는 카피 톤은 봉투(ErrorCode) 쪽 책임이다
-          <p
-            role="alert"
-            className="type-caption"
-            style={{
-              color: 'var(--color-destructive-on-surface)',
-              textAlign: 'center',
-              marginBottom: 'var(--space-3)',
-            }}
-          >
-            {errorMessage}
-          </p>
-        )}
-        {/*
-          선택 전 비활성이 AC 1항이다. disabled면 onClick이 아예 안 불리므로 selected가 null인
-          채로 submit에 닿는 경로가 없다 — 그래도 submit 안의 가드를 남기는 이유는 위 주석 참조.
-        */}
         {sessionExit && retest !== undefined ? (
           /*
             세션이 만료된 뒤의 제출 (KAN-237). [다시 시도]는 같은 세션으로 다시 보내 같은 401을
             받을 뿐이라 막다른 길이었다 — 되돌아갈 길이 없는 이 상태에서만 출구를 연다
             (KAN-147 시험 중 이탈 버튼 금지, KAN-191 기준). 보기는 그대로 두되 제출 버튼은 그리지
             않는다. `retest`가 없는 호출자(폴백 없음)는 아래 기존 [다시 시도]를 탄다.
+
+            음성 실패 패널·대기 화면과 같은 벌(StatusBlock)로 맞춘다 — 세 자리의 출구가 다르게
+            생기면 안 된다(KAN-191 한 벌 원칙). 처음엔 아래 빨간 <p> + RetestAction으로 그려
+            버튼만 왼쪽에 자기 폭으로 붙어 캡처에서 치우쳐 보였다. 문구는 StatusBlock이 실으므로
+            이 갈래에서는 <p>를 따로 그리지 않는다 (같은 문구가 두 번 읽히면 안 된다).
           */
-          <RetestAction retest={retest} />
+          <StatusBlock tone="error" message={errorMessage ?? ''} action={<RetestAction retest={retest} />} />
         ) : (
-          <Button
-            disabled={selected === null || submitting}
-            onClick={() => void submit()}
-            style={{ width: '100%' }}
-          >
-            {submitting ? '제출 중…' : errorMessage !== null ? '다시 시도' : '다음'}
-          </Button>
+          <>
+            {errorMessage !== null && (
+              // 서버 봉투의 한국어 message 그대로. 비난 없는 카피 톤은 봉투(ErrorCode) 쪽 책임이다
+              <p
+                role="alert"
+                className="type-caption"
+                style={{
+                  color: 'var(--color-destructive-on-surface)',
+                  textAlign: 'center',
+                  marginBottom: 'var(--space-3)',
+                }}
+              >
+                {errorMessage}
+              </p>
+            )}
+            {/*
+              선택 전 비활성이 AC 1항이다. disabled면 onClick이 아예 안 불리므로 selected가 null인
+              채로 submit에 닿는 경로가 없다 — 그래도 submit 안의 가드를 남기는 이유는 위 주석 참조.
+            */}
+            <Button
+              disabled={selected === null || submitting}
+              onClick={() => void submit()}
+              style={{ width: '100%' }}
+            >
+              {submitting ? '제출 중…' : errorMessage !== null ? '다시 시도' : '다음'}
+            </Button>
+          </>
         )}
       </div>
     </>

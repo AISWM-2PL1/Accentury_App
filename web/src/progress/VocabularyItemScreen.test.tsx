@@ -194,6 +194,8 @@ describe('제출 수명주기', () => {
     pressNext()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('세션이 만료되었습니다')
+    // 문구는 StatusBlock 한 곳에서만 — 빨간 <p>가 같이 그려지면 스크린 리더가 두 번 읽는다
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
     expect(retest.onRetest).toHaveBeenCalledTimes(1)
