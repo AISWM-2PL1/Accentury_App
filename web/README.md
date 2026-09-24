@@ -195,7 +195,7 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
 - 환경을 새로 지은 뒤 첫 배포나 웹 변경 없는 재배포는 Actions의 "Web Deploy"를
   workflow_dispatch로 환경을 골라 돌린다.
 - 대상 버킷, 배포 ID, IAM 역할은 GitHub environment 변수다 (infra/README.md "GitHub 설정").
-- 예외가 넷 있다. 하나는 `VITE_GA4_MEASUREMENT_ID`(KAN-33). GitHub environment 변수
+- 예외는 아래 목록이다. 하나는 `VITE_GA4_MEASUREMENT_ID`(KAN-33). GitHub environment 변수
   `GA4_MEASUREMENT_ID`를 워크플로가 빌드에 넘긴다. staging과 prod가 **다른 스트림**이어야
   우리 확인 트래픽이 실사용 집계에 섞이지 않는다. 비워 두면 계측 없이 빌드된다 -
   로컬 개발도 그 상태이고, 이벤트가 실제로 도는지는 콘솔의 `[track]` 로그로 본다.
@@ -223,3 +223,10 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
   ```
   gh variable set PLAY_STORE_URL -e prod --body 'https://play.google.com/store/apps/details?id=com.accentury.app'
   ```
+- 다섯째는 `VITE_APP_STORE_URL`(KAN-175). GitHub environment 변수 `APP_STORE_URL`을 넘기며, iOS 쪽
+  같은 자리다 - 값은 `https://apps.apple.com/app/id<숫자>` 꼴이고, 같은 `STORE_LISTING_READY`
+  스위치가 꺼져 있으면 이 값도 링크가 되지 않는다.
+- 나머지 둘은 `VITE_ADSENSE_CLIENT_ID`와 `VITE_ADSENSE_SLOT_ID`(KAN-197). GitHub environment 변수
+  `ADSENSE_CLIENT_ID`·`ADSENSE_SLOT_ID`를 넘기며, **승인 대상이 prod 하나**라 staging에는 두지
+  않는다 - 그 환경은 태그도 슬롯도 없는 빌드가 정상이다. **둘 다 있어야 켜진다**
+  (`src/ads/adsense.ts`, `docs/wiki/ads-web-adsense.md`).
