@@ -1,0 +1,551 @@
+# iOS 릴리스 빌드 (KAN-175 4단계)
+#
+# Release 구성으로 아카이브하고 App Store Connect용으로 재서명해 `.ipa`를 아티팩트로 남긴다.
+# TestFlight 업로드는 수동 실행의 `upload` 스위치를 켠 실행만 한다 - 기본은 꺼짐이다.
+#
+# ── app-release.yml과 짝이고, 따로 있는 이유 ────────────────────────────────
+# 저쪽이 안드로이드 짝(KAN-163)이고 이 파일은 같은 자리의 iOS다. 한 워크플로에 합치지 않은 이유는
+# 러너가 갈리기 때문이다 - 안드로이드는 ubuntu, iOS는 macos여야 한다. 한 잡에 둘을 넣을 수 없고
+# 잡을 둘로 나눌 바에는 파일을 나누는 편이 paths 필터도 concurrency 그룹도 따로 잡힌다.
+# (`deploy.yml`과 갈라 둔 사정은 app-release.yml 헤더가 설명한다 - 여기도 그대로 적용된다.)
+#
+# ── 트리거 ───────────────────────────────────────────────────────────────────
+# Release 브랜치 푸시 + 수동 실행. 푸시 쪽 paths는 `ios/**`와 이 파일뿐이다 - 웹·안드로이드만 바뀐
+# Release 병합까지 아카이브하면 올리지 않을 산출물이 쌓이고 서명 키를 쓸데없이 자주 꺼내 쓴다.
+# 겹친 실행은 기다린다(취소하지 않는다) - app-release.yml과 같은 판단이다.
+#
+# 수동 실행에만 입력 둘을 둔다. app-release.yml이 입력을 하나도 두지 않은 것과 갈리는 지점인데,
+# 그쪽은 늘 같은 일(서명된 AAB를 만든다)을 하고 이쪽은 실행마다 갈리는 결정이 둘 있어서다.
+#
+#   upload           (기본 false) TestFlight까지 올린다. 기본을 끈 이유는 빌드 번호가 소모품이
+#                    아니기 때문이다 - App Store Connect는 같은 마케팅 버전 안에서 빌드 번호가
+#                    단조 증가할 때만 업로드를 받으므로, 아카이브가 되는지 보려고 돌린 실행이
+#                    TestFlight에 올라가면 그 번호는 영영 다시 못 쓴다 (app-store-listing.md §2).
+#   allow_test_ads   (기본 false) AdMob 빗장을 풀고 Base.xcconfig의 Google 테스트 ID로 빌드한다.
+#                    AdMob iOS 시크릿 셋이 아직 등록되지 않은 동안 "아카이브·서명 경로가 살아
+#                    있는가"만 확인하려는 스위치다. 켜면 업로드는 금지된다 - 테스트 광고 단위가
+#                    박힌 바이너리가 스토어로 나가면 AdMob 정책 위반이다 (ads-admob.md §3.1).
+#
+# ── 시크릿 (총 7개 = 신규 등록 6개 + 기존 1개, 계정 소유자가 등록) ─────────
+#   신규 6개: ASC 셋(`ASC_API_*`) + AdMob iOS 셋(`ADMOB_IOS_*`)
+#   기존 1개: `KAKAO_NATIVE_APP_KEY` — KAN-163에서 안드로이드용으로 이미 등록된 것을 그대로 쓴다
+#   ASC_API_KEY_BASE64        App Store Connect API 키(.p8)를 base64 한 줄로
+#   ASC_API_KEY_ID            키 ID (10자 영숫자)
+#   ASC_API_ISSUER_ID         Issuer ID (계정 단위 UUID)
+#   KAKAO_NATIVE_APP_KEY      카카오 네이티브 앱 키 (KAN-180, 안드로이드와 같은 시크릿)
+#   ADMOB_IOS_APP_ID          AdMob **iOS 앱**의 앱 ID (KAN-196)
+#   ADMOB_IOS_INTERSTITIAL_ID AdMob iOS 전면 광고 단위 ID
+#   ADMOB_IOS_REWARDED_ID     AdMob iOS 보상형 광고 단위 ID
+#
+# AdMob 셋에 `_IOS_` 접두를 붙인 이유: 저장소 시크릿은 평면 이름공간인데 AdMob 콘솔의 iOS 앱은
+# 안드로이드 앱과 별개 레코드라 ID도 별개다 (ads-admob.md §7.2). 안드로이드 쪽이 먼저 자리를
+# 잡아 `ADMOB_APP_ID` 등을 쓰므로, 플랫폼을 이름에 박지 않으면 둘 중 하나가 남의 ID로 빌드된다.
+# 카카오 키는 반대로 **같은 시크릿을 공유한다** - 카카오 콘솔은 앱 하나에 네이티브 앱 키 하나를
+# 주고 플랫폼(iOS 번들 ID·안드로이드 패키지명)을 그 아래 등록한다 (ios/README.md 「카카오톡 공유」).
+#
+# ASC 키 셋은 `upload`를 끄고 돌려도 **항상** 필요하다. export 단계가 무서명 아카이브를 재서명하며
+# App ID·Apple Distribution 인증서·프로비저닝 프로파일을 스스로 만드는데, 그 통신에 자격 증명이
+# 있어야 한다 - 로컬에서는 Xcode에 로그인된 Apple ID가 그 자리를 채우지만 러너에는 계정이 없다.
+#
+# ── 비밀이 로그·프로세스 목록에 남지 않게 ──────────────────────────────────
+# 값은 전부 `env:`로 받고 명령줄에는 `"$VAR"` 참조만 쓴다. GitHub가 `run:` 블록의 본문을 그대로
+# 찍으므로 확장된 값이 아니라 변수 이름이 로그에 남는다(그마저도 GitHub가 시크릿 문자열을 가린다).
+#
+# **다만 xcodebuild 빌드 설정은 원리상 명령줄 인자다.** `KAKAO_NATIVE_APP_KEY=...`·`ADMOB_*=...`는
+# 셸이 확장한 뒤 xcodebuild의 argv로 들어가므로 같은 러너의 다른 프로세스가 `ps`로 읽을 수 있다.
+# app-release.yml이 "왜 -P가 아니라 환경변수인가"로 피한 바로 그 노출인데, 여기서는 피할 길이
+# 없다 - gradle의 `-P`에는 환경변수라는 대안이 있지만 xcconfig 값을 덮는 길은 명령줄뿐이다.
+# 감수하는 근거는 둘이다. (1) 러너는 이 실행 전용이고 끝나면 통째로 버려진다 - `ps`를 읽을 남의
+# 프로세스가 없다. (2) 카카오 키와 AdMob ID는 **바이너리에 박혀 사용자 기기로 나가는 공개 값**이다
+# (Info.plist의 `KAKAO_NATIVE_APP_KEY`·`GADApplicationIdentifier`). 반대로 ASC `.p8`은 그런 값이
+# 아니라서 명령줄에 절대 올리지 않는다 - 파일로 풀고 **경로만** 넘긴다.
+#
+# `.p8`은 체크아웃 밖 $RUNNER_TEMP에 푼다. 레포 안에 두면 아티팩트 업로드나 후속 스텝에 딸려
+# 나갈 수 있다. 러너가 실행마다 새로 만들어지고 끝나면 버려지므로 따로 지우지 않는다.
+#
+# ── AC 대응 ─────────────────────────────────────────────────────────────────
+#   AC1  배포 서명: 풀어 낸 `.app`의 codesign Authority가 `Apple Distribution`이고 팀이
+#        559P9SYY57인지 본다. `Apple Development`면 TestFlight가 받지 않으므로 실패시킨다.
+#        같은 스텝에 **DR(designated requirement) 검사**가 붙어 있다 - 앱과 임베디드 프레임워크
+#        각각의 요구 식별자가 자기 `CFBundleIdentifier`와 같은지 본다. `arm64-apple`이 남아 있으면
+#        링커 ad-hoc 서명이 export를 넘어 살아남은 것이고 애플 업로드가 거절한다. Authority만
+#        보던 2단계 검증이 3차 실행에서 그 결함을 놓쳤다 (아래 「임베디드 프레임워크 링커 서명
+#        제거」 스텝 주석에 전말이 있다).
+#   AC2  프로덕션 주소: 번들 Info.plist의 WEB_URL이 `https://accentury.app`이 아니면 실패한다.
+#        실기기 확인용 터널 URL이 박힌 빌드가 스토어로 나가는 것을 막는 빗장이다.
+#   AC3  키 주입: 카카오 키가 번들에 비어 있지 않은지, AdMob 세 값이 Google 테스트 ID가 아닌지
+#        **산출물에서** 확인한다 - 빌드 입력(REQUIRE_ADMOB_IDS 빗장)과 따로 서는 두 번째 잠금이다.
+#   AC4  로그에 시크릿 없음: 값을 echo하는 곳이 없다. 존재 검사는 `-z`로 이름만, 광고 ID 검사는
+#        값 출력 없이 패턴 매칭만, 카카오 키 검사는 길이(`-c`)만 찍는다.
+
+name: iOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'TestFlight에 업로드한다 (끄면 .ipa를 아티팩트로만 남긴다)'
+        type: boolean
+        default: false
+      allow_test_ads:
+        description: 'AdMob 테스트 ID로 빌드한다 (시크릿 미등록 상태 점검용 - upload와 함께 켤 수 없다)'
+        type: boolean
+        default: false
+  push:
+    branches: [Release]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-release.yml'
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # test.yml의 ios-test와 같은 이미지다. 두 곳이 갈리면 PR에서 통과한 빌드가 여기서 깨진다.
+    # 퍼블릭 레포라 macOS 러너도 과금되지 않는다.
+    runs-on: macos-26
+    timeout-minutes: 45
+    # `shell: bash`를 명시해야 `bash --noprofile --norc -eo pipefail {0}`이 된다. 비워 두면
+    # `bash -e {0}`로만 돌아 **pipefail이 꺼진 채**라, xcbeautify로 넘긴 xcodebuild의 실패가
+    # 파이프에 먹힌다 (app-release.yml 헤더에 1차 실행 로그 근거가 있다).
+    # working-directory는 test.yml의 ios-test와 같은 `ios`다 - xcodeproj도 ExportOptions.plist도
+    # 거기 있다. `uses:` 스텝(checkout·upload-artifact)에는 적용되지 않으므로 그쪽은 절대 경로를 쓴다.
+    defaults:
+      run:
+        shell: bash
+        working-directory: ios
+    env:
+      # 입력을 셸에서 읽기 쉬운 문자열로 한 번만 접는다. push 이벤트에는 `inputs` 컨텍스트가
+      # 비어 있어 둘 다 false가 된다 - 자동 트리거는 실 광고 ID로 빌드하고 업로드는 하지 않는다.
+      UPLOAD: ${{ inputs.upload == true }}
+      ALLOW_TEST_ADS: ${{ inputs.allow_test_ads == true }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 러너 이미지는 예고 없이 갈린다. 실패가 우리 코드인지 도구 버전인지 가르는 첫 줄이라
+      # 로그 맨 앞에 남겨 둔다 (test.yml의 ios-test와 같은 자리, 같은 이유).
+      - name: 도구 버전
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      # 20분짜리 아카이브를 태우기 전에 이 실행이 성립하는지부터 본다.
+      #
+      # 시크릿이 없어도 아카이브는 "성공"한다 - 카카오 키는 빈 값이 정상 상태이고(Base.xcconfig)
+      # AdMob은 테스트 ID로 떨어진다. 릴리스 워크플로에서는 그게 곧 스토어에 올릴 수 없는 파일을
+      # 성공으로 보고하는 것이라 여기서 먼저 끊는다.
+      #
+      # 값은 절대 찍지 않는다. 이름만 모아 보고한다 (AC4).
+      - name: 입력·시크릿 검사
+        env:
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          ADMOB_IOS_APP_ID: ${{ secrets.ADMOB_IOS_APP_ID }}
+          ADMOB_IOS_INTERSTITIAL_ID: ${{ secrets.ADMOB_IOS_INTERSTITIAL_ID }}
+          ADMOB_IOS_REWARDED_ID: ${{ secrets.ADMOB_IOS_REWARDED_ID }}
+        run: |
+          if [ "$ALLOW_TEST_ADS" = true ] && [ "$UPLOAD" = true ]; then
+            echo "::error title=입력 충돌::allow_test_ads와 upload를 함께 켤 수 없습니다. 테스트 광고 단위가 박힌 빌드를 TestFlight에 올리면 AdMob 정책 위반이고, 그 빌드 번호는 다시 쓸 수 없습니다 (docs/wiki/ads-admob.md §3.1)." >&2
+            exit 1
+          fi
+
+          # ASC 셋은 upload와 무관하게 필요하다 - export 재서명이 그 자격 증명으로 프로파일을 만든다.
+          required=(ASC_API_KEY_BASE64 ASC_API_KEY_ID ASC_API_ISSUER_ID KAKAO_NATIVE_APP_KEY)
+          if [ "$ALLOW_TEST_ADS" != true ]; then
+            required+=(ADMOB_IOS_APP_ID ADMOB_IOS_INTERSTITIAL_ID ADMOB_IOS_REWARDED_ID)
+          fi
+
+          missing=""
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=시크릿 누락::등록되지 않은 저장소 시크릿:$missing - 저장소 Settings > Secrets and variables > Actions에 계정 소유자가 등록합니다. 이름과 발급 위치는 docs/wiki/app-store-listing.md §2에 있습니다. AdMob 셋이 아직 없다면 수동 실행에서 allow_test_ads를 켜면 그 셋 없이 아카이브까지만 확인할 수 있습니다." >&2
+            exit 1
+          fi
+          echo "시크릿 확인: ${#required[@]}개"
+
+      # 아티팩트 이름과 요약에 쓸 짧은 SHA. app-release.yml·deploy.yml과 같은 7자리 규칙이다.
+      - name: 커밋 정보
+        id: meta
+        run: |
+          echo "sha7=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      # 파일 이름을 `AuthKey_<키 ID>.p8`로 두는 것은 애플 도구들의 관례다 - xcodebuild는 경로를
+      # 그대로 받으므로 이름을 가리지 않지만, altool·Transporter로 갈아탈 일이 생기면 그쪽은 이
+      # 이름을 요구한다. 키 ID는 시크릿이라 GitHub가 로그에서 가리므로 경로는 AuthKey_***.p8로 찍힌다.
+      #
+      # base64 값은 명령줄이 아니라 환경변수로 받아 파이프로 넘긴다 - 인자로 주면 실행 명령에
+      # 그대로 남는다 (app-release.yml의 키스토어 복원과 같은 꼴).
+      - name: ASC API 키 복원
+        env:
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+        run: |
+          dest="$RUNNER_TEMP/AuthKey_$ASC_API_KEY_ID.p8"
+          if ! printf '%s' "$ASC_API_KEY_BASE64" | base64 -d > "$dest"; then
+            echo "::error title=ASC 키 복원 실패::ASC_API_KEY_BASE64를 base64 디코딩하지 못했습니다. 값이 잘렸거나 base64가 아닙니다 - 'base64 -i AuthKey_XXXXXXXXXX.p8 | tr -d \"\\n\"' 결과 전체를 등록했는지 확인하세요." >&2
+            exit 1
+          fi
+          chmod 600 "$dest"
+          if [ ! -s "$dest" ]; then
+            echo "::error title=ASC 키 복원 실패::디코딩 결과가 빈 파일입니다." >&2
+            exit 1
+          fi
+          echo "ASC_API_KEY_PATH=$dest" >> "$GITHUB_ENV"
+          echo "ASC API 키 복원 완료 ($(wc -c < "$dest") bytes)"
+
+      # ios/README.md 「아카이브 → export」와 **같은 명령**이다. 로컬과 CI가 갈리면 한쪽에서만
+      # 재현되는 서명 문제를 디버깅하게 된다 (app-store-listing.md §2 「로컬과 CI가 같은 경로를 쓴다」).
+      #
+      # CODE_SIGNING_ALLOWED=NO로 무서명 아카이브를 만들고 서명은 export가 한다. 팀에 등록된
+      # 기기가 0대라 자동 서명 archive가 개발용 프로파일을 만들려다 막히기 때문이다 (ios-port.md §7).
+      #
+      # **WEB_URL·API_BASE_URL은 주지 않는다.** Release.xcconfig가 prod 도메인을 박아 두고
+      # Local.xcconfig가 그 뒤라 덮지도 못한다 - 명령줄로 줄 수 있게 열어 두면 그 구조적 보호가
+      # 무너진다. 아래 검증 스텝이 산출물에서 그 값을 다시 확인한다 (AC2).
+      - name: 릴리스 아카이브
+        env:
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          ADMOB_APP_ID: ${{ secrets.ADMOB_IOS_APP_ID }}
+          ADMOB_INTERSTITIAL_ID: ${{ secrets.ADMOB_IOS_INTERSTITIAL_ID }}
+          ADMOB_REWARDED_ID: ${{ secrets.ADMOB_IOS_REWARDED_ID }}
+        run: |
+          args=(
+            -project Accentury.xcodeproj
+            -scheme Accentury
+            -configuration Release
+            -archivePath "$RUNNER_TEMP/Accentury.xcarchive"
+            CODE_SIGNING_ALLOWED=NO
+            "KAKAO_NATIVE_APP_KEY=$KAKAO_NATIVE_APP_KEY"
+          )
+          if [ "$ALLOW_TEST_ADS" = true ]; then
+            # 아무것도 넘기지 않으면 Base.xcconfig의 Google 테스트 ID가 그대로 살고,
+            # REQUIRE_ADMOB_IDS를 주지 않으므로 project.yml의 preBuild 빗장도 통과한다.
+            echo "::warning title=테스트 광고 빌드::allow_test_ads=true - Google 테스트 광고 단위로 아카이브합니다. 이 산출물은 스토어·TestFlight에 올릴 수 없습니다 (docs/wiki/ads-admob.md §3.1)."
+          else
+            args+=(
+              REQUIRE_ADMOB_IDS=YES
+              "ADMOB_APP_ID=$ADMOB_APP_ID"
+              "ADMOB_INTERSTITIAL_ID=$ADMOB_INTERSTITIAL_ID"
+              "ADMOB_REWARDED_ID=$ADMOB_REWARDED_ID"
+            )
+          fi
+          # xcbeautify는 러너 이미지에 들어 있지만 없어도 돌게 둔다 (test.yml의 ios-test와 같다).
+          # 잡 기본 셸이 pipefail이라 xcodebuild의 실패가 파이프에 먹히지 않는다.
+          if command -v xcbeautify >/dev/null; then
+            xcodebuild archive "${args[@]}" | xcbeautify --renderer github-actions
+          else
+            xcodebuild archive "${args[@]}"
+          fi
+
+      # ── 왜 export 앞에 이 스텝이 있는가 ─────────────────────────────────────────
+      # `CODE_SIGNING_ALLOWED=NO`로 만든 아카이브에도 서명이 하나 남는다 - **링커가 붙이는
+      # ad-hoc 서명**이다. SwiftPM이 끌어오는 바이너리 xcframework 넷(GoogleMobileAds ·
+      # UserMessagingPlatform · GoogleAppMeasurement · FirebaseAnalytics)은 원본이 무서명이라
+      # (`code object is not signed at all`) 링크 단계에서 `flags=0x20002(adhoc,linker-signed)` ·
+      # `Identifier=arm64-apple` 서명이 달려 앱 번들에 들어간다.
+      #
+      # export가 재서명하면 CodeDirectory 식별자는 번들 ID로 바뀌지만 **designated requirement는
+      # 물려받은 `identifier "arm64-apple"` 그대로**다. 애플 업로드 검증이 그걸 거절한다:
+      #
+      #   Invalid Signature. Code failed to satisfy specified code requirement(s). The file at path
+      #   "Accentury.app/Frameworks/GoogleMobileAds.framework/GoogleMobileAds" is not properly signed.
+      #
+      # 3차 러너 실행(35834152345, upload=true)이 export까지 전부 통과하고 이 메시지 4개로 exit 70에
+      # 떨어졌다. 그때까지 안 터진 이유는 TestFlight 빌드 5(2026-09-01)까지 임베디드 바이너리
+      # 프레임워크가 아예 없어서다 - Firebase는 9/5, AdMob은 9/11에 들어왔고 이 경로는 그 뒤로
+      # 한 번도 업로드까지 가 본 적이 없었다.
+      #
+      # 서명을 통째로 지우면 export의 재서명이 물려받을 것이 없어 **DR을 번들 식별자에서 새로
+      # 만든다**. 그래서 아카이브 뒤·export 앞이어야 한다 - export가 끝난 뒤에 손대면 이미 서명된
+      # `.ipa`를 다시 뜯는 일이 되고, 그러면 재서명을 우리가 직접 해야 한다.
+      #
+      # **실패한 대안**: 아카이브를 ad-hoc으로 서명해 링커 서명을 우리 것으로 덮기
+      # (`CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO`) → `error: Ad Hoc code signing is not
+      # allowed with SDK 'iOS 26.5'`로 아카이브 자체가 막힌다.
+      #
+      # 제거 전 `Identifier=`·`flags=`를 찍어 둔다. 둘 다 비밀이 아니고, 다음에 이 경로가 갈릴 때
+      # "무엇이 달려 있었는가"가 첫 단서다 (AC4에 걸리지 않는다).
+      - name: 임베디드 프레임워크 링커 서명 제거
+        run: |
+          fw_dir="$RUNNER_TEMP/Accentury.xcarchive/Products/Applications/Accentury.app/Frameworks"
+          if [ ! -d "$fw_dir" ]; then
+            echo "임베디드 프레임워크 없음 - 건너뜁니다 ($fw_dir)"
+            exit 0
+          fi
+
+          count=0
+          for fw in "$fw_dir"/*.framework; do
+            [ -d "$fw" ] || continue
+            name=$(basename "$fw")
+            desc=$(codesign -dvvv "$fw" 2>&1 || true)
+            ident=$(printf '%s\n' "$desc" | sed -n 's/^Identifier=//p' | head -1)
+            flags=$(printf '%s\n' "$desc" | sed -n 's/.*\(flags=[^ ]*\).*/\1/p' | head -1)
+            echo "  ${name}: Identifier=${ident:-없음} ${flags:-flags=없음}"
+            codesign --remove-signature "$fw"
+            count=$((count + 1))
+          done
+          echo "링커 서명 제거: ${count}개"
+
+      # 레포의 ExportOptions.plist가 정본이다 (destination=export - .ipa를 떨구고 업로드는 하지 않는다).
+      # `-allowProvisioningUpdates`가 App ID·Apple Distribution 인증서·프로비저닝 프로파일을
+      # 만드는데, 러너에는 Xcode 계정이 없으므로 ASC API 키 셋으로 인증한다.
+      #
+      # 옵션 이름 셋(-authenticationKeyPath / -authenticationKeyID / -authenticationKeyIssuerID)은
+      # `xcodebuild -help`의 해당 항목에서 직접 확인했다 (Xcode 26.6 / 17F113, 2026-09-22):
+      # "-allowProvisioningUpdates ... Requires a developer account to have been added in Xcode's
+      #  Accounts settings or an App Store Connect authentication key to be specified via the
+      #  -authenticationKeyPath, -authenticationKeyID, and -authenticationKeyIssuerID parameters."
+      - name: export (.ipa)
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Accentury.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_API_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+
+      # AC1·AC2·AC3. 여기까지는 전부 "빌드가 성공했다"까지만 말해 주는 상태라, 산출물 자체를 연다.
+      # `.ipa`는 zip이라 codesign이 직접 읽지 못한다 - 풀어서 안의 `.app`을 본다
+      # (ios/README.md 「재서명됐는지 확인」과 같은 방법).
+      - name: 산출물 검증 (서명 · 주소 · 키)
+        id: verify
+        run: |
+          ipa="$RUNNER_TEMP/export/Accentury.ipa"
+          if [ ! -f "$ipa" ]; then
+            echo "::error title=ipa 없음::$ipa 가 없습니다. export가 산출물을 남기지 않았습니다." >&2
+            ls -la "$RUNNER_TEMP/export" || true
+            exit 1
+          fi
+
+          work="$RUNNER_TEMP/verify"
+          rm -rf "$work"
+          mkdir -p "$work"
+          unzip -q -o "$ipa" -d "$work"
+          app="$work/Payload/Accentury.app"
+          if [ ! -d "$app" ]; then
+            echo "::error title=앱 번들 없음::$ipa 안에 Payload/Accentury.app이 없습니다." >&2
+            exit 1
+          fi
+
+          # AC1. Authority 첫 줄이 인증서 종류다. 개발 인증서로 서명되면 TestFlight가 받지 않는다.
+          authority=$(codesign -dv --verbose=4 "$app" 2>&1 | sed -n 's/^Authority=//p' | head -1)
+          if [ -z "$authority" ]; then
+            echo "::error title=서명 없음::codesign이 Authority를 찾지 못했습니다 - 재서명되지 않은 번들입니다." >&2
+            codesign -dv --verbose=4 "$app" 2>&1 || true
+            exit 1
+          fi
+          case "$authority" in
+            "Apple Distribution"*) ;;
+            *)
+              echo "::error title=배포 인증서가 아님::서명 Authority가 '$authority'입니다. 'Apple Distribution'이어야 TestFlight가 받습니다 - export가 개발 인증서를 골랐습니다 (ios/README.md 「재서명됐는지 확인」)." >&2
+              exit 1
+              ;;
+          esac
+          case "$authority" in
+            *559P9SYY57*) ;;
+            *)
+              echo "::error title=팀 불일치::서명 팀이 559P9SYY57이 아닙니다 ('$authority'). ExportOptions.plist의 teamID를 확인하세요." >&2
+              exit 1
+              ;;
+          esac
+          echo "서명: $authority"
+          echo "authority=$authority" >> "$GITHUB_OUTPUT"
+
+          # DR(designated requirement) 검사. 위 「임베디드 프레임워크 링커 서명 제거」가 실제로
+          # 먹혔는지를 **산출물에서** 다시 본다.
+          #
+          # 이 검사를 따로 두는 이유: `codesign --verify --deep --strict`는 이 결함을 **통과시킨다**.
+          # 서명 자체는 유효하고 봉인 해시도 맞기 때문이다 - 틀린 것은 "이 코드가 만족해야 하는
+          # 요구사항"이고, 그걸 보는 것은 애플 업로드 검증뿐이다. 3차 러너 실행이 아카이브·export·
+          # 검증을 전부 통과하고 업로드에서 거절당한 경로가 정확히 이것이다.
+          dr_ident() { codesign -d -r- "$1" 2>&1 | sed -n 's/.*identifier "\([^"]*\)".*/\1/p' | head -1; }
+          dr_checked=0
+          for bundle in "$app" "$app/Frameworks"/*.framework; do
+            [ -d "$bundle" ] || continue
+            name=$(basename "$bundle")
+            ident=$(dr_ident "$bundle" || true)
+            if [ "$ident" = "arm64-apple" ]; then
+              echo "::error title=링커 서명 DR이 남음::${name}의 designated requirement 식별자가 'arm64-apple'입니다 - 링커 ad-hoc 서명을 export가 그대로 물려받았습니다. 애플 업로드 검증이 'Invalid Signature ... is not properly signed'로 거절합니다(exit 70). 「임베디드 프레임워크 링커 서명 제거」 스텝이 아카이브 뒤·export 앞에서 돌았는지 확인하세요." >&2
+              exit 1
+            fi
+            expected=$(plutil -extract CFBundleIdentifier raw -o - "$bundle/Info.plist" 2>/dev/null || true)
+            if [ "$ident" != "$expected" ]; then
+              echo "::error title=DR 식별자 불일치::${name}의 designated requirement 식별자가 '$ident'인데 번들 Info.plist의 CFBundleIdentifier는 '$expected'입니다 - 서명이 자기 번들이 아닌 식별자를 요구하고 있어 업로드가 거절됩니다." >&2
+              exit 1
+            fi
+            dr_checked=$((dr_checked + 1))
+          done
+          echo "DR 식별자 확인 (${dr_checked}개)"
+
+          # 번들 Info.plist는 바이너리 plist라 grep이 통하지 않는다. plutil로 값만 꺼낸다.
+          # 키가 없으면 plutil이 1로 끝나므로 `|| true`로 받아 빈 문자열이 되게 한다 - 아래에서
+          # -z로 잡는 편이 스텝이 그 자리에서 죽어 원인을 못 찍는 것보다 낫다.
+          plist="$app/Info.plist"
+          read_key() { plutil -extract "$1" raw -o - "$plist" 2>/dev/null || true; }
+
+          version=$(read_key CFBundleShortVersionString)
+          build=$(read_key CFBundleVersion)
+          web_url=$(read_key WEB_URL)
+          api_base=$(read_key API_BASE_URL)
+          echo "버전: $version (빌드 $build)"
+          echo "WEB_URL: $web_url / API_BASE_URL: $api_base"
+
+          # AC2. 실기기 확인용 cloudflared 터널 URL이 박힌 빌드가 스토어로 나가는 것을 막는다.
+          # Release.xcconfig가 구조적으로 이미 막고 있지만(Local.xcconfig가 그 뒤라 못 덮는다),
+          # 그건 빌드 입력 쪽 보호라 xcconfig를 고치는 변경 하나로 조용히 뚫린다.
+          if [ "$web_url" != "https://accentury.app" ]; then
+            echo "::error title=프로덕션 주소가 아님::번들의 WEB_URL이 '$web_url'입니다. https://accentury.app 이어야 합니다 - Release.xcconfig가 아니라 다른 곳에서 값이 들어왔습니다 (터널 URL·localhost가 박힌 빌드는 스토어로 나갈 수 없습니다)." >&2
+            exit 1
+          fi
+          if [ "$api_base" != "https://accentury.app" ]; then
+            echo "::error title=프로덕션 API 주소가 아님::번들의 API_BASE_URL이 '$api_base'입니다. https://accentury.app 이어야 합니다." >&2
+            exit 1
+          fi
+
+          # AC3 (카카오). 값은 찍지 않고 길이만 본다 - 어차피 번들에 박혀 사용자 기기로 가는 값이지만
+          # 로그에 굳이 흘릴 이유도 없다 (AC4). 비어 있으면 공유가 OS 공유 시트로만 간다 (KAN-180).
+          kakao=$(read_key KAKAO_NATIVE_APP_KEY)
+          if [ -z "$kakao" ]; then
+            echo "::error title=카카오 키 비어 있음::번들 Info.plist의 KAKAO_NATIVE_APP_KEY가 비었습니다. 시크릿은 있는데 아카이브 명령의 빌드 설정이 흐르지 않았습니다 - 이대로 나가면 결과 공유가 OS 공유 시트로만 갑니다 (KAN-180)." >&2
+            exit 1
+          fi
+          echo "카카오 키 주입 확인 ($(printf '%s' "$kakao" | wc -c | tr -d ' ')자)"
+
+          # AC3 (AdMob). project.yml의 preBuild 빗장은 **빌드 입력**을 본다 - 그 조건문이 잘못되면
+          # 조용히 통과한다. 여기서는 산출물의 plist를 직접 보는 두 번째 잠금이다.
+          # ca-app-pub-3940256099942544는 Google이 공개한 테스트 퍼블리셔 ID다 (ads-admob.md §7.2).
+          if [ "$ALLOW_TEST_ADS" = true ]; then
+            echo "::warning title=테스트 광고 산출물::allow_test_ads=true로 빌드했습니다 - 이 .ipa는 스토어·TestFlight에 올릴 수 없습니다."
+          else
+            # `${key}`로 감싸는 이유: 바로 뒤에 한글 조사가 붙는 자리라 `$key가`로 쓰면 bash가
+            # 조사의 첫 바이트를 변수 이름에 먹는다 - 값이 빈 채로 나오고 글자도 깨진다
+            # (로컬 드라이런에서 실제로 재현했다).
+            for key in GADApplicationIdentifier ADMOB_INTERSTITIAL_ID ADMOB_REWARDED_ID; do
+              value=$(read_key "$key")
+              if [ -z "$value" ]; then
+                echo "::error title=AdMob ID 비어 있음::번들 Info.plist의 ${key}가 비었습니다." >&2
+                exit 1
+              fi
+              case "$value" in
+                *ca-app-pub-3940256099942544*)
+                  echo "::error title=테스트 광고 ID가 산출물에 있음::번들 Info.plist의 ${key}가 Google 테스트 ID입니다. REQUIRE_ADMOB_IDS=YES 빗장을 통과했는데도 값이 테스트 ID로 남았습니다 - 스토어에 올라가면 AdMob 정책 위반입니다 (docs/wiki/ads-admob.md §3.1)." >&2
+                  exit 1
+                  ;;
+              esac
+            done
+            echo "AdMob 실 광고 ID 주입 확인 (3개)"
+          fi
+
+          {
+            echo "version=$version"
+            echo "build=$build"
+            echo "web_url=$web_url"
+            echo "ipa_size=$(du -h "$ipa" | cut -f1)"
+          } >> "$GITHUB_OUTPUT"
+
+      # dSYM을 함께 남긴다. 스토어 업로드 경로에서는 uploadSymbols=YES가 애플 쪽으로도 보내지만
+      # (ExportOptions.plist), Crashlytics로 올라가는 것은 빌드 단계의 스크립트이고 그쪽은
+      # GoogleService-Info.plist가 있어야 돈다 - 없으면 조용히 건너뛴다 (project.yml). 그 경우에도
+      # 크래시를 나중에 심볼화할 수 있게 아카이브의 dSYMs를 아티팩트로 챙겨 둔다.
+      # export 쪽 *.dSYM은 method·옵션에 따라 나오기도 안 나오기도 해서 없어도 넘어간다.
+      - name: 아티팩트 업로드 (.ipa + dSYM)
+        uses: actions/upload-artifact@v4
+        with:
+          name: accentury-ios-release-${{ steps.meta.outputs.sha7 }}
+          path: |
+            ${{ runner.temp }}/export/Accentury.ipa
+            ${{ runner.temp }}/export/*.dSYM
+            ${{ runner.temp }}/Accentury.xcarchive/dSYMs
+          if-no-files-found: error
+          retention-days: 90
+
+      # 업로드는 검증을 통과한 뒤에만 한다 - 서명이 틀렸거나 터널 URL이 박힌 빌드가 TestFlight에
+      # 올라가면 그 빌드 번호를 영영 다시 못 쓴다.
+      #
+      # **왜 altool이 아니라 두 번째 -exportArchive인가.** `xcrun altool --upload-app`도 되지만
+      # 도구가 하나 더 늘고 인증 규칙이 다르다 - altool은 `.p8`이 `~/.private_keys/`(또는
+      # API_PRIVATE_KEYS_DIR)에 `AuthKey_<키 ID>.p8` 이름으로 **있어야** 찾는다. 그러면 키 ID가
+      # 박힌 경로를 한 번 더 만들어야 하고, 그 경로가 altool의 오류 메시지에 그대로 실린다.
+      # exportArchive 쪽은 이미 export 스텝이 쓰고 있는 같은 도구·같은 plist·같은 인증 옵션이고
+      # `.p8`은 경로로만 넘어간다 - 새로 생기는 노출면이 없다. 바뀌는 것은 plist의 destination 한
+      # 줄뿐이라, 레포의 정본을 복사해 그 키만 덮는다 (ExportOptions.plist 주석의 「업로드는 여기서
+      # 하지 않는다」가 예고한 그 방식이다). destination의 허용값 export/upload는 `xcodebuild -help`
+      # "Available keys for -exportOptionsPlist"에서 확인했다 (Xcode 26.6 / 17F113).
+      #
+      # 아카이브를 다시 서명하는 데 몇 분이 더 들지만, 검증한 것과 같은 아카이브에서 나온 빌드가
+      # 올라간다는 점은 그대로다.
+      - name: TestFlight 업로드
+        if: ${{ inputs.upload == true }}
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          BUILD: ${{ steps.verify.outputs.build }}
+        run: |
+          plist="$RUNNER_TEMP/ExportOptions-upload.plist"
+          cp ExportOptions.plist "$plist"
+          plutil -replace destination -string upload "$plist"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Accentury.xcarchive" \
+            -exportPath "$RUNNER_TEMP/upload" \
+            -exportOptionsPlist "$plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_API_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+          echo "::notice title=TestFlight 업로드::빌드 $VERSION ($BUILD)를 올렸습니다. 처리에 몇 분 걸리고, 그 뒤 App Store Connect > TestFlight에 뜹니다."
+
+      # 업로드가 수동 스위치라 사람이 이 표를 보고 판단한다. 값은 gradle·xcconfig가 아니라
+      # **산출물 Info.plist에서 읽은 것**이다 (app-release.yml이 output-metadata.json을 읽는 것과 같다).
+      - name: 실행 요약
+        env:
+          SHA7: ${{ steps.meta.outputs.sha7 }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          BUILD: ${{ steps.verify.outputs.build }}
+          AUTHORITY: ${{ steps.verify.outputs.authority }}
+          WEB_URL_OUT: ${{ steps.verify.outputs.web_url }}
+          IPA_SIZE: ${{ steps.verify.outputs.ipa_size }}
+        run: |
+          if [ "$UPLOAD" = true ]; then upload_row="예 (TestFlight)"; else upload_row="아니오 - 아티팩트로만"; fi
+          if [ "$ALLOW_TEST_ADS" = true ]; then ads_row="**Google 테스트 ID** (스토어 제출 불가)"; else ads_row="실 광고 ID"; fi
+          {
+            echo "## iOS 릴리스 빌드"
+            echo ""
+            echo "| 항목 | 값 |"
+            echo "| --- | --- |"
+            echo "| 커밋 | \`$SHA7\` (\`$GITHUB_SHA\`) |"
+            echo "| ref | \`$GITHUB_REF_NAME\` |"
+            echo "| 트리거 | $GITHUB_EVENT_NAME |"
+            echo "| 버전 | $VERSION (빌드 $BUILD) |"
+            echo "| 아티팩트 | accentury-ios-release-$SHA7 |"
+            echo "| ipa 크기 | $IPA_SIZE |"
+            echo "| 서명 | \`$AUTHORITY\` |"
+            echo "| WEB_URL | \`$WEB_URL_OUT\` |"
+            echo "| 광고 ID | $ads_row |"
+            echo "| 업로드 | $upload_row |"
+            echo ""
+            if [ "$UPLOAD" = true ]; then
+              echo "App Store Connect > TestFlight에서 처리 완료를 기다린 뒤 테스터에게 배포하세요."
+              echo "빌드 번호는 같은 마케팅 버전 안에서 단조 증가해야 합니다 - 다음 업로드 전에"
+              echo "\`ios/Accentury/Config/Base.xcconfig\`의 \`CURRENT_PROJECT_VERSION\`과 안드로이드"
+              echo "\`versionCode\`를 **같은 커밋에서 함께** 올립니다 (\`ReleaseVersionParityTests\`가 대조합니다)."
+            else
+              echo "업로드는 하지 않았습니다. TestFlight에 올리려면 이 워크플로를 \`upload\`를 켜고 다시 실행하거나,"
+              echo "위 아티팩트의 \`.ipa\`를 내려받아 Transporter로 올립니다 (\`ios/README.md\` 「업로드」)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=iOS 릴리스 빌드::$SHA7 / $VERSION (빌드 $BUILD) / 업로드 $upload_row"

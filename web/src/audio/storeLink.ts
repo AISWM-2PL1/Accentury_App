@@ -16,7 +16,12 @@ export const DEFAULT_PLAY_STORE_URL = 'https://play.google.com/store/apps/detail
 
 /**
  * iOS 스토어 URL 기본값 — **아직 앱 ID가 없어 스토어 첫 화면을 가리키는 자리표시자다.**
- * iOS 앱이 등록되면 `VITE_APP_STORE_URL`(또는 이 상수)을 `.../app/idXXXXXXXXX`로 바꾼다.
+ * 숫자 Apple ID는 App Store Connect 앱 레코드 › 앱 정보 › 일반 정보에서 확인하고(정본은
+ * `docs/wiki/app-store-listing.md` §3), 배포에는 `VITE_APP_STORE_URL`(GitHub environment 변수
+ * `APP_STORE_URL`, KAN-175)로 `.../app/id<숫자>`를 넘긴다 — 이 상수를 고칠 일은 없다.
+ *
+ * 주소가 정해져도 링크가 곧바로 살아나지는 않는다. CTA를 여는 스위치는 [storeListingReady]
+ * (GitHub environment 변수 `STORE_LISTING_READY=true`)이고, 꺼져 있으면 비활성 버튼이 나간다.
  */
 export const DEFAULT_APP_STORE_URL = 'https://apps.apple.com/'
 
@@ -45,8 +50,11 @@ export function detectStorePlatform(userAgent: string, maxTouchPoints = 0): Stor
  * (테스트는 모바일 전제다) 어느 쪽으로 보내도 크게 다르지 않다 — 다수를 맞히는 쪽을 고른다.
  */
 export function storeUrlFor(platform: StorePlatform): string {
-  const play = (import.meta.env.VITE_PLAY_STORE_URL as string | undefined) ?? DEFAULT_PLAY_STORE_URL
-  const app = (import.meta.env.VITE_APP_STORE_URL as string | undefined) ?? DEFAULT_APP_STORE_URL
+  // 빈 값도 기본값으로 떨어뜨린다 (`??`가 아니라 `?.trim() ||`인 이유). 워크플로가 GitHub vars를
+  // 그대로 넘기므로 등록하지 않은 환경에서는 `undefined`가 아니라 **빈 문자열**이 들어온다 -
+  // `??`로 받으면 CTA의 href가 빈 값이 되어 아무 데도 가지 않는 링크가 된다 (KAN-174).
+  const play = (import.meta.env.VITE_PLAY_STORE_URL as string | undefined)?.trim() || DEFAULT_PLAY_STORE_URL
+  const app = (import.meta.env.VITE_APP_STORE_URL as string | undefined)?.trim() || DEFAULT_APP_STORE_URL
   return platform === 'ios' ? app : play
 }
 

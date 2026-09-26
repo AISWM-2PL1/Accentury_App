@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFakeCapture, sineChunk, type FakeCapture } from '../audio/testing/fakeCapture'
@@ -397,6 +397,7 @@ function deadEndFetch(): ReturnType<typeof vi.fn<FetchLike>> {
 afterEach(() => {
   delete window.AccenturyBridge
   delete window.AccenturyWeb
+  delete window.gtag
 })
 
 describe('정의 로딩', () => {
@@ -554,13 +555,103 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
     // 네이티브가 결과 없이 돌려보내는 것(PCM 없는 제출 등)은 웹에 통지되지 않는다 — 대기 뷰의
     // 재진입 버튼이 유일한 복구 통로다. ([나가기] 이탈은 KAN-147에서 버튼째 사라졌다.)
     const startVoiceItem = stubBridge()
-    renderScreen(okFetch())
+    const fetchImpl = okFetch()
+    renderScreen(fetchImpl, { retestFallback: vi.fn() })
     await findRecordingWait()
 
     fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
 
-    expect(startVoiceItem).toHaveBeenCalledTimes(2)
+    // 다시 열기 전에 세션 생존을 한 번 묻는다 (KAN-237). 200이면 살아 있으니 예전처럼 다시 연다
+    await waitFor(() => expect(startVoiceItem).toHaveBeenCalledTimes(2))
     expect(JSON.parse(startVoiceItem.mock.calls[1][0])).toMatchObject({ itemId: 'item-1' })
+    expect(urls(fetchImpl).filter((url) => url.endsWith('/analyses'))).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+  })
+
+  it('세션이 만료됐으면 [녹음 화면 다시 열기]가 [다시 테스트하기]로 바뀐다 (KAN-237)', async () => {
+    // 네이티브 업로드의 401은 웹에 오지 않는다 — 탭 순간 `/analyses`로 웹이 스스로 확인한다
+    const retestFallback = vi.fn()
+    const startVoiceItem = stubBridge()
+    // 앱 안의 계측은 gtag가 아니라 브리지 `logEvent`로 나간다 (`track`)
+    const logEvent = vi.fn()
+    window.AccenturyBridge!.logEvent = logEvent
+    const fetchImpl = vi.fn<FetchLike>(async (input) => {
+      if (String(input).endsWith('/analyses')) {
+        return {
+          ok: false,
+          status: 401,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'SESSION_EXPIRED',
+            message: '세션이 만료되었습니다. 테스트를 다시 시작해 주세요.',
+            retryable: false,
+          }),
+        } as unknown as Response
+      }
+      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+    })
+    renderScreen(fetchImpl, { retestFallback })
+    await findRecordingWait()
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    expect(await screen.findByText('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.')).toBeInTheDocument()
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
+    // 앱 안에서는 토큰이 브리지에서 온다 — 확인 요청도 같은 토큰을 싣는다
+    const [, init] = fetchImpl.mock.calls.find(([input]) => String(input).endsWith('/analyses'))!
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer stub-token')
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+
+    // 스텁 브리지에 `startRetest`가 없어 훅이 곧바로 폴백을 부른다
+    expect(retestFallback).toHaveBeenCalledTimes(1)
+    const started = logEvent.mock.calls.filter(([name]) => name === 'retest_started')
+    expect(started.map(([, params]) => JSON.parse(params as string))).toContainEqual(
+      expect.objectContaining({ from: 'item' }),
+    )
+  })
+
+  it('생존 확인이 네트워크 오류로 실패하면 살아 있다고 보고 녹음 화면을 다시 연다 (KAN-237)', async () => {
+    // 만료를 단정하지 못한 실패로 사용자를 시험 밖에 내보내지 않는다 — `probeSession`이 ALIVE로 기운다
+    const startVoiceItem = stubBridge()
+    const base = okFetch()
+    const fetchImpl = vi.fn<FetchLike>(async (input, init) => {
+      if (String(input).endsWith('/analyses')) throw new TypeError('Failed to fetch')
+      return base(input, init)
+    })
+    renderScreen(fetchImpl, { retestFallback: vi.fn() })
+    await findRecordingWait()
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    await waitFor(() => expect(startVoiceItem).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+  })
+
+  it('403 SESSION_FORBIDDEN도 만료와 같은 갈래로 [다시 테스트하기]를 세운다 (KAN-237)', async () => {
+    const startVoiceItem = stubBridge()
+    const fetchImpl = vi.fn<FetchLike>(async (input) => {
+      if (String(input).endsWith('/analyses')) {
+        return {
+          ok: false,
+          status: 403,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'SESSION_FORBIDDEN',
+            message: '이 세션에 접근할 수 없습니다.',
+            retryable: false,
+          }),
+        } as unknown as Response
+      }
+      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+    })
+    renderScreen(fetchImpl, { retestFallback: vi.fn() })
+    await findRecordingWait()
+
+    fireEvent.click(screen.getByRole('button', { name: '녹음 화면 다시 열기' }))
+
+    expect(await screen.findByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
   })
 
   it('상태 머신이 거부하는 결과 통지는 진행을 움직이지 않는다', async () => {
@@ -733,6 +824,39 @@ describe('VOICE 문항 — 브라우저 녹음 업로드 (KAN-56 Stage 3)', () =
     expect(screen.getByText('음성 문항 1')).toBeInTheDocument()
     expect(screen.getByText('녹음을 보내지 못했어요 (HTTP 503)')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+  })
+
+  it('세션이 만료된 뒤의 업로드는 [다시 테스트하기]로 나가고, 브리지가 없으면 폴백이 돈다 (KAN-237)', async () => {
+    const events = stubGtag()
+    const retestFallback = vi.fn()
+    const fetchImpl = vi.fn<FetchLike>(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/recording')) {
+        return {
+          ok: false,
+          status: 401,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'SESSION_EXPIRED',
+            message: '세션이 만료되었습니다. 테스트를 다시 시작해 주세요.',
+            retryable: false,
+          }),
+        } as unknown as Response
+      }
+      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+    })
+    const { capture } = renderScreen(fetchImpl, { retestFallback })
+    await findRecordButton()
+
+    await recordAndSend(capture)
+
+    expect(screen.getByText('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '재녹음' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+
+    expect(retestFallback).toHaveBeenCalledTimes(1)
+    // 문항 화면의 출구는 자기 origin으로 센다 — 대기 화면(`waiting`)과 섞이지 않는다
+    expect(events).toContainEqual(expect.objectContaining({ event: 'retest_started', from: 'item' }))
   })
 })
 
@@ -977,6 +1101,7 @@ describe('분석 대기 결선 (KAN-14)', () => {
 
   it('막다른 상태에서는 [다시 테스트하기]가 서고, 브리지가 없으면 폴백이 돈다 (KAN-191)', async () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const events = stubGtag()
     const retestFallback = vi.fn()
     // 브리지 없음 = 브라우저 단독 실행. 재녹음 버튼이 없어 되살릴 방법이 하나도 없는 자리다
     const { capture } = renderScreen(deadEndFetch(), { sessionId: 'sess-1', retestFallback })
@@ -989,6 +1114,8 @@ describe('분석 대기 결선 (KAN-14)', () => {
 
     // 브리지가 없으면 `startRetest`가 false를 돌려주고 훅이 곧바로 폴백을 부른다
     expect(retestFallback).toHaveBeenCalledTimes(1)
+    // 문항 화면과 훅 하나를 나눠 쓰지만(KAN-237) 대기 화면에서 누른 것은 `waiting`으로 센다
+    expect(events).toContainEqual(expect.objectContaining({ event: 'retest_started', from: 'waiting' }))
     errorLog.mockRestore()
   })
 

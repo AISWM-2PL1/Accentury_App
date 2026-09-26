@@ -72,7 +72,7 @@ jobs:
       - run: npm ci
       # tsc --noEmit + vite build.
       #
-      # 환경을 아는 값이 넷이다. 나머지는 그대로 - 산출물이 환경을 몰라야 한다는 원칙(KAN-127)에서
+      # 환경을 아는 값이 일곱이다. 나머지는 그대로 - 산출물이 환경을 몰라야 한다는 원칙(KAN-127)에서
       # 이것들만 빼는 이유가 각각 있다.
       #
       # GA4 측정 ID (KAN-33): 계측이 환경별로 갈려야 한다. staging과 prod가 같은 ID를 쓰면
@@ -93,9 +93,18 @@ jobs:
       # docs/wiki/ads-web-adsense.md §6). **둘 다 있어야 켜진다** - 하나만 준 빌드는 값이 없는 빌드와
       # 같다. 반쪽 설정이 「태그는 떴는데 빈 칸」으로 나타나면 승인 전 상태와 구분이 안 되기 때문이다.
       #
+      # 스토어 링크 둘 (KAN-174): 앞쪽 `STORE_LISTING_READY`가 웹 [앱 다운로드] CTA를 살리는 스위치이고
+      # (등록 전에는 비활성 버튼 + 안내 문구), 뒤쪽 `PLAY_STORE_URL`이 그 버튼이 갈 주소다. 주소를 변수로
+      # 두는 이유는 **등록이 배포와 다른 날 일어나기 때문**이다 - 스토어 URL이 확정되는 날 필요한 것은
+      # 빌드 한 번이지 PR 한 벌이 아니다. 비워 두면 코드 기본값(앱 패키지명으로 만든 URL)을 쓰고, 게시
+      # 뒤에는 그 주소가 곧 실제 스토어 페이지라 평소에는 등록할 일이 없다 - 캠페인 `referrer`를 붙이거나
+      # 주소 형태가 달라질 때만 넣는다 (web/src/audio/storeLink.ts, docs/wiki/play-store-listing.md §7).
+      # `APP_STORE_URL`(KAN-175)은 iOS 쪽 같은 자리 - 값은 `https://apps.apple.com/app/id<숫자>`,
+      # 숫자는 `docs/wiki/app-store-listing.md` §3.
+      #
       # **비어 있는 것이 정상 상태다.** 변수를 두지 않은 환경은 계측 없이(web/src/analytics/ga4.ts),
-      # 지역 화면 없이, 광고 없이 빌드된다. 넷 다 페이지 소스에 박히는 공개 값이라 시크릿이 아니라
-      # 변수로 둔다.
+      # 지역 화면 없이, 광고 없이, 스토어 링크 없이 빌드된다. 일곱 다 페이지 소스에 박히는 공개 값이라
+      # 시크릿이 아니라 변수로 둔다.
       - run: npm run build
         env:
           VITE_GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
@@ -103,6 +112,8 @@ jobs:
           VITE_STORE_LISTING_READY: ${{ vars.STORE_LISTING_READY }}
           VITE_ADSENSE_CLIENT_ID: ${{ vars.ADSENSE_CLIENT_ID }}
           VITE_ADSENSE_SLOT_ID: ${{ vars.ADSENSE_SLOT_ID }}
+          VITE_PLAY_STORE_URL: ${{ vars.PLAY_STORE_URL }}
+          VITE_APP_STORE_URL: ${{ vars.APP_STORE_URL }}
 
       # ads.txt는 빌드 산출물이 아니라 배포 값이라 여기서 만든다 (KAN-197).
       #

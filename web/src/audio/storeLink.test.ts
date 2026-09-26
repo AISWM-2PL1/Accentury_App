@@ -56,6 +56,28 @@ describe('storeUrlFor', () => {
   it('플레이스토어 URL에 앱 패키지명이 들어 있다', () => {
     expect(storeUrlFor('android')).toContain('id=com.accentury.app')
   })
+
+  it('빌드 변수가 있으면 그 주소를 쓴다', () => {
+    vi.stubEnv('VITE_PLAY_STORE_URL', 'https://play.google.com/store/apps/details?id=com.accentury.app&referrer=web')
+    expect(storeUrlFor('android')).toBe(
+      'https://play.google.com/store/apps/details?id=com.accentury.app&referrer=web',
+    )
+  })
+
+  it('빈 빌드 변수는 기본값으로 떨어진다 - 등록하지 않은 환경이 이렇게 들어온다 (KAN-174)', () => {
+    // 워크플로가 GitHub vars를 그대로 넘기면 없는 변수는 undefined가 아니라 빈 문자열이다.
+    // 그대로 쓰면 CTA의 href가 빈 값이 되어 아무 데도 가지 않는 링크가 된다.
+    vi.stubEnv('VITE_PLAY_STORE_URL', '')
+    expect(storeUrlFor('android')).toBe(DEFAULT_PLAY_STORE_URL)
+
+    vi.stubEnv('VITE_APP_STORE_URL', '')
+    expect(storeUrlFor('ios')).toBe(DEFAULT_APP_STORE_URL)
+  })
+
+  it('공백뿐인 값도 기본값으로 떨어진다', () => {
+    vi.stubEnv('VITE_PLAY_STORE_URL', '   ')
+    expect(storeUrlFor('android')).toBe(DEFAULT_PLAY_STORE_URL)
+  })
 })
 
 describe('storeListingReady', () => {
@@ -83,5 +105,26 @@ describe('storeLabelFor', () => {
     expect(storeLabelFor('ios')).toBe('App Store')
     expect(storeLabelFor('android')).toBe('Play 스토어')
     expect(storeLabelFor('unknown')).toBe('Play 스토어')
+  })
+})
+
+describe('storeUrlFor - App Store (KAN-175)', () => {
+  const REAL_APP_STORE_URL = 'https://apps.apple.com/app/id123456789'
+
+  it('빌드 변수가 있으면 iOS가 그 주소로 간다', () => {
+    vi.stubEnv('VITE_APP_STORE_URL', REAL_APP_STORE_URL)
+    expect(storeUrlFor('ios')).toBe(REAL_APP_STORE_URL)
+  })
+
+  it('App Store 변수는 안드로이드 쪽 결과를 건드리지 않는다', () => {
+    // 한 함수가 두 스토어를 고르므로, 한쪽 변수를 넣은 빌드가 다른 쪽 링크를 갈아치우면 안 된다
+    vi.stubEnv('VITE_APP_STORE_URL', REAL_APP_STORE_URL)
+    expect(storeUrlFor('android')).toBe(DEFAULT_PLAY_STORE_URL)
+    expect(storeUrlFor('unknown')).toBe(DEFAULT_PLAY_STORE_URL)
+  })
+
+  it('빈 값이면 자리표시자 기본값으로 떨어진다 - 변수를 등록하지 않은 환경이 이렇게 들어온다', () => {
+    vi.stubEnv('VITE_APP_STORE_URL', '')
+    expect(storeUrlFor('ios')).toBe(DEFAULT_APP_STORE_URL)
   })
 })

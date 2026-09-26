@@ -15,6 +15,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnalysisWaitingScreen } from '../analysis/AnalysisWaitingScreen'
+import { AnalysisApiError } from '../analysis/errorEnvelope'
+import { fetchAnalysisStatuses } from '../analysis/fetchAnalysisStatuses'
 import { track } from '../analytics/track'
 import type { CaptureFactory, Recording } from '../audio'
 import { uploadRecording } from '../audio/uploadRecording'
@@ -22,6 +24,7 @@ import { getSessionToken, installItemResultReceiver, startVoiceItem } from '../b
 import type { ItemResult } from '../bridge/itemResult'
 import { useRetest } from '../result/useRetest'
 import { fetchTestDefinition, type FetchLike } from './fetchTestDefinition'
+import { isSessionExitCode } from './sessionExit'
 import type { SnapshotStorage } from './progressSnapshot'
 import { submitVocabAnswer } from './submitVocabAnswer'
 import type { TestDefinition, VoiceItem } from './testDefinition'
@@ -330,6 +333,26 @@ function TestRunner({
   )
 
   /*
+   * 앱 대기 푸터의 세션 생존 확인 (KAN-237). [녹음 화면 다시 열기] 탭 한 번에 한 번만 불린다 —
+   * 왜 그 자리인지는 `VoiceItemScreen`의 `reopen` 주석.
+   *
+   * 새 엔드포인트 대신 분석 상태 일괄 조회(`/analyses`)를 쓴다. 세션 토큰으로 인증되는 부작용
+   * 없는 GET이라, 만료된 세션이면 업로드와 같은 401 `SESSION_EXPIRED`가 돌아온다.
+   *
+   * 판정은 한쪽으로 기운다. 봉투가 세션 종료 코드를 말할 때만 `'EXPIRED'`고, 200은 물론
+   * 네트워크 실패·다른 오류·토큰 누락 가드까지 전부 `'ALIVE'`다 — 확인하지 못한 실패로
+   * 사용자를 내보내면 안 된다. 살아 있다고 보고 녹음 화면을 다시 열면 최악이라도 예전과 같다.
+   */
+  const probeSession = useCallback(async (): Promise<'ALIVE' | 'EXPIRED'> => {
+    try {
+      await fetchAnalysisStatuses({ apiBase, sessionId, sessionToken: readToken() }, fetchImpl)
+      return 'ALIVE'
+    } catch (error) {
+      return error instanceof AnalysisApiError && isSessionExitCode(error.code) ? 'EXPIRED' : 'ALIVE'
+    }
+  }, [apiBase, sessionId, readToken, fetchImpl])
+
+  /*
    * 재녹음 — 대기 화면이 실패한 문항을 짚으면 그 문항으로 녹음 화면을 다시 연다.
    *
    * 브리지 계약을 늘리지 않는다. `startVoiceItem`은 문항 컨텍스트를 통째로 받는 호출이라
@@ -360,7 +383,7 @@ function TestRunner({
   )
 
   /*
-   * 막다른 분석 상태의 [다시 테스트하기] (KAN-191).
+   * 막다른 상태의 [다시 테스트하기] (KAN-191 분석 대기, KAN-237 문항 제출).
    *
    * **수신자 설치가 이 자리인 이유가 §8이다.** 재응시 실패 회신(`onRetestFailed`)은 부모가
    * 받아 자식에게 값으로 내려보낸다 — 대기 화면이 스스로 걸면, 자식 effect가 먼저 도는 React
@@ -374,8 +397,15 @@ function TestRunner({
    *
    * 훅은 폴백이 없어도 항상 부른다 — 조건부 호출은 훅 규칙 위반이다. 값을 화면에 넘길지
    * 말지만 아래에서 가른다.
+   *
+   * **문항 화면도 이 훅 하나를 같이 쓴다** (KAN-237 — 제출이 세션 만료로 거절된 자리의 출구).
+   * 화면마다 훅을 하나씩 두지 않는 이유가 위 §8과 같은 슬롯 문제다: 한 컴포넌트에서 두 번
+   * 부르면 나중 훅이 `onRetestFailed` 슬롯을 덮어, 대기 화면 버튼은 실패 회신(광고 중도 닫기
+   * 등)을 받지 못한 채 "준비 중…"에 잠긴다. 문항 화면과 대기 화면은 동시에 서지 않으므로 훅은
+   * 하나로 두고 계측 origin(`RetestOrigin`)만 지금 선 화면으로 고른다.
    */
-  const retest = useRetest(retestFallback ?? noop, 'waiting')
+  const awaitingAnalysis = state.phase === 'AWAITING_ANALYSIS' || current === null
+  const retest = useRetest(retestFallback ?? noop, awaitingAnalysis ? 'waiting' : 'item')
 
   /*
    * 대기 화면이 그릴 음성 문항. 순번은 **전체 문항 기준**으로 매겨서 넘긴다 — 음성 안에서
@@ -391,7 +421,7 @@ function TestRunner({
   )
 
   // 마지막 문항까지 제출됨 — 여기서부터 분석 대기 화면이 폴링을 맡는다 (KAN-14).
-  if (state.phase === 'AWAITING_ANALYSIS' || current === null) {
+  if (awaitingAnalysis) {
     return (
       <AnalysisWaitingScreen
         apiBase={apiBase}
@@ -465,6 +495,9 @@ function TestRunner({
           totalItems={progress.total}
           webRecording={{ upload: uploadWebRecording, capture, userCurveCenterHz }}
           onWebUploaded={receiveResult}
+          /* 대기 화면과 같은 가드다 — 폴백 없는 호출자에게는 죽은 버튼을 주지 않는다 (KAN-237) */
+          retest={retestFallback === undefined ? undefined : retest}
+          probeSession={probeSession}
         />
       ) : (
         <VocabularyItemScreen
@@ -473,6 +506,7 @@ function TestRunner({
           /* 번호는 전체 문항 기준이다 — 음성 문항 화면·네이티브 녹음 화면이 쓰는 값과 같다 */
           itemNumber={progress.current}
           totalItems={progress.total}
+          retest={retestFallback === undefined ? undefined : retest}
           /*
            * 답안은 실행 환경과 무관하게 **항상 서버로 나간다**. 브리지가 없을 때 저장된 셈
            * 치고 진행만 밀던 개발용 통로가 있었는데, 웹 단독 실행(KAN-31)이 정식 경로가 된

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { VocabularyItemScreen } from './VocabularyItemScreen'
 import { VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
 import type { VocabularyItem } from './testDefinition'
+import type { RetestControl } from '../result/useRetest'
 
 /** 더미 확정본(KAN-13 댓글, 2026-08-05)의 1번 문항 모양 그대로 */
 function vocabularyItem(): VocabularyItem {
@@ -22,7 +23,7 @@ function vocabularyItem(): VocabularyItem {
 
 type SubmitFn = (choiceId: string, idempotencyKey: string) => Promise<VocabSubmitResult>
 
-function renderScreen(submitAnswer: SubmitFn = async () => ({ status: 'SAVED' })) {
+function renderScreen(submitAnswer: SubmitFn = async () => ({ status: 'SAVED' }), retest?: RetestControl) {
   const submitSpy = vi.fn<SubmitFn>(submitAnswer)
   const onSubmitted = vi.fn<() => void>()
   // 7 / 10 — 어휘 문항의 순번은 전체 문항 기준이다 (정의가 음성·어휘를 번갈아 둔다)
@@ -33,6 +34,7 @@ function renderScreen(submitAnswer: SubmitFn = async () => ({ status: 'SAVED' })
       totalItems={10}
       submitAnswer={submitSpy}
       onSubmitted={onSubmitted}
+      retest={retest}
     />,
   )
   return { submitSpy, onSubmitted }
@@ -174,6 +176,51 @@ describe('제출 수명주기', () => {
     expect(onSubmitted).not.toHaveBeenCalled()
     // 실패 뒤에는 답을 바꿀 수 있어야 한다 — 보기 잠금이 풀린다
     screen.getAllByRole('radio').forEach((radio) => expect(radio).toBeEnabled())
+  })
+
+  it('세션 만료로 거절되면 [다시 시도] 대신 [다시 테스트하기]가 선다 (KAN-237)', async () => {
+    const retest: RetestControl = {
+      onRetest: vi.fn(),
+      disabled: false,
+      pending: false,
+      message: null,
+      retryAfterSec: 0,
+    }
+    const { onSubmitted } = renderScreen(async () => {
+      throw new VocabSubmitError('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.', 'SESSION_EXPIRED', false)
+    }, retest)
+
+    choose('부추')
+    pressNext()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('세션이 만료되었습니다')
+    // 문구는 StatusBlock 한 곳에서만 — 빨간 <p>가 같이 그려지면 스크린 리더가 두 번 읽는다
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+    expect(retest.onRetest).toHaveBeenCalledTimes(1)
+    expect(onSubmitted).not.toHaveBeenCalled()
+  })
+
+  it('retest를 받았어도 세션 종료가 아닌 거절은 [다시 시도]를 남긴다 (KAN-237)', async () => {
+    // 출구는 세션 종료 코드에만 선다 — retryable=false라는 이유만으로 시험 밖으로 내보내지 않는다
+    const retest: RetestControl = {
+      onRetest: vi.fn(),
+      disabled: false,
+      pending: false,
+      message: null,
+      retryAfterSec: 0,
+    }
+    renderScreen(async () => {
+      throw new VocabSubmitError('답안을 처리하지 못했습니다', 'INVALID_CHOICE', false)
+    }, retest)
+
+    choose('부추')
+    pressNext()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('답안을 처리하지 못했습니다')
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
   })
 
   it('같은 답의 재시도는 같은 멱등 키로 나간다 (AC 3항 — 중복 생성 없는 재시도)', async () => {

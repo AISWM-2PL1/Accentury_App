@@ -226,7 +226,15 @@ android {
         applicationId = "com.accentury.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
+        // iOS `ios/Accentury/Config/Base.xcconfig`의 CURRENT_PROJECT_VERSION/MARKETING_VERSION과
+        // 짝이고, **같은 커밋에서 같이 올린다** (KAN-175 3단계). 한쪽만 올리면
+        // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
+        // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
+        //
+        // 7인 이유는 iOS 사정이다: TestFlight에 1.0 빌드 5까지 올라가 있었고 빌드 6은 C2
+        // 아이콘으로 올라갔다(2026-09-23). 다음 업로드는 7부터여야 받아지고, 7이 확정 도상 D3를
+        // 싣는 첫 빌드다 (xcconfig 주석). Play에는 아직 아무것도 올라가지 않았다.
+        versionCode = 7
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

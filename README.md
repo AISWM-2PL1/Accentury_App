@@ -9,7 +9,7 @@ Accentury(경남 사투리 레벨 테스트)의 프론트 쪽 레포다. 2026-09
 | [Accentury_Prototype](https://github.com/AISWM-2PL1/Accentury_Prototype) | 분리 전 모노레포. 읽기 전용 아카이브. 커밋 메시지의 `#NNN`은 이 레포의 PR 번호다 |
 
 브랜치 모델은 그대로다: `Dev` 병합이 staging 웹 배포, `Release` 병합이 prod 웹 배포와 앱 릴리스 빌드
-(`.github/workflows/web-deploy.yml`, `app-release.yml`).
+(`.github/workflows/web-deploy.yml`, `app-release.yml`, `ios-release.yml`).
 
 ## 시작
 

@@ -10,14 +10,14 @@
       링크 미리보기·파비콘·manifest (KAN-179). 자산은 `assets/web/build.py`가 만들고
       `web/public/`에 있다 — 이 파일의 참조와 실제 파일이 어긋나면 `src/webAppMeta.test.ts`가 깨진다.
 
-      파일명의 `-v1`은 캐시 때문이다. `web-deploy.yml`(KAN-127)이 index.html을 뺀 dist/ 전부를
+      파일명의 `-v2`는 캐시 때문이다. `web-deploy.yml`(KAN-127)이 index.html을 뺀 dist/ 전부를
       immutable 1년으로 올리고 CloudFront 무효화는 `/`와 `/index.html`뿐이라, public/ 파일은
       내용을 바꿔도 1년 동안 옛 것이 나간다. 교체는 build.py의 VERSION을 올려 이름을 바꾸고
       여기 참조를 따라 고치는 것이다. index.html만 no-cache라 그 즉시 새 이름이 나간다.
     -->
-    <link rel="icon" type="image/svg+xml" href="/favicon-v1.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon-v1.png" />
-    <link rel="manifest" href="/manifest-v1.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/favicon-v2.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.png" />
+    <link rel="manifest" href="/manifest-v2.webmanifest" />
     <!-- 주소창·상태 표시줄을 화면 종이색으로. 값은 --color-background와 같다 -->
     <meta name="theme-color" content="#f3ecd9" />
 
@@ -40,7 +40,7 @@
     <meta property="og:title" content="사투리 좀 치나?" />
     <meta property="og:description" content="내 말투가 얼마나 경남 사투리인지 목소리로 재 봐요. 5등급 중 내 등급은?" />
     <meta property="og:url" content="https://accentury.app/" />
-    <meta property="og:image" content="https://accentury.app/og-card-v1.png" />
+    <meta property="og:image" content="https://accentury.app/og-card-v2.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="확성기를 든 사투리 호소인 캐릭터와 '사투리 좀 치나?' 문구" />

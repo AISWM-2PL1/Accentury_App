@@ -34,8 +34,13 @@ Release 브랜치에 앱 코드가 들어가면 GitHub Actions가 **서명된 AA
 > **분실 = 영구 업데이트 불가.** 키스토어나 비밀번호를 잃으면 이미 올라간 앱의 업데이트를 영원히
 > 올릴 수 없다. 패키지명을 바꿔 새 앱으로 다시 시작하는 것 말고는 방법이 없고, 설치 기반과 리뷰는
 > 그대로 버려진다. 그래서 규칙 하나: **기존 키스토어를 덮어쓰지 않는다.**
-> (Play App Signing에서 이 키를 **업로드 키**로만 쓰게 되면 분실해도 재발급 경로가 있다. 다만 앱 서명
-> 키로 올리는 쪽을 권하고 있어서 — §6 — 지금은 복구 경로가 없는 것으로 다룬다.)
+
+**2026-09-22, 이 키스토어를 Play App Signing의 앱 서명 키로 업로드했다** (KAN-174). 업로드 키도
+같은 키스토어를 그대로 쓴다 — 따로 만들지 않았으므로 워크플로와 CI 시크릿은 그대로다. 구글이
+앱 서명 키 사본을 들고 있어 이제 업로드 키를 잃어도 재발급 경로가 있고, 위 경고는 "구글 쪽
+사본까지 함께 없어졌을 때"로 좁혀졌다. 콘솔이 표시하는 앱 서명 인증서 지문은 위 표의
+`48:C1:0D:…:FB:F2` 그대로라 `assetlinks.json`과 카카오 키 해시는 손대지 않았다. 등록 경로와
+PEPK 함정은 `docs/wiki/play-store-listing.md` §2에 있다.
 
 ## 2. 빌드 설정 (`app/build.gradle.kts`)
 
@@ -77,6 +82,10 @@ kakaoNativeAppKey=...
 그 다음 `./gradlew :app:assembleRelease` (JAVA_HOME은 Android Studio JBR).
 
 ## 3. 릴리스 워크플로 (`.github/workflows/app-release.yml`)
+
+> **iOS 짝**: [`app-store-listing.md`](app-store-listing.md) §2 「릴리스 워크플로」 ·
+> `.github/workflows/ios-release.yml` (KAN-175 4단계). 러너가 갈려서(ubuntu / macos) 파일을
+> 나눴고, 구조·주석 규칙·시크릿 취급은 이 절을 그대로 따른다.
 
 트리거는 **`Release` 브랜치 푸시**(앱 관련 `paths`만) + **수동 실행**이다. 웹·백엔드만 바뀐 Release
 병합까지 앱을 다시 빌드하면 올리지 않을 산출물이 쌓이고 서명 시크릿을 쓸데없이 자주 꺼낸다.
@@ -155,7 +164,9 @@ AC1·AC2·AC4는 로컬 시뮬레이션(임시 키스토어)으로 전 스텝을
 
 ## 6. 이월
 
-- **Play App Signing — 앱 서명 키를 무엇으로 할지 (KAN-174).** 2021년 8월 이후 Play에 새로 올리는
+- ~~**Play App Signing — 앱 서명 키를 무엇으로 할지 (KAN-174).**~~ **해결 (2026-09-22)** — 아래
+  표의 「이 키스토어를 업로드」 쪽으로 등록했다. §1 끝과 `docs/wiki/play-store-listing.md` §2.
+  아래는 그때의 판단 근거로 남긴다. 2021년 8월 이후 Play에 새로 올리는
   앱은 Play App Signing이 **필수**라 "켤지 말지"는 고를 수 없다. 고를 수 있는 것은 앱 서명 키를
   어디서 오게 하느냐다.
 
@@ -174,8 +185,11 @@ AC1·AC2·AC4는 로컬 시뮬레이션(임시 키스토어)으로 전 스텝을
 
   어느 쪽을 고르든 **업로드 키**는 따로 만들어도 되고 이 키스토어를 그대로 써도 된다. 업로드 키는
   잃어도 구글에 재발급을 요청할 수 있다 — 앱 서명 키와 달리 복구 경로가 있는 쪽이다.
-- **`versionCode`.** `app/build.gradle.kts`에 `1`로 박혀 있다. 스토어 릴리스마다 올려야 하는데 지금은
-  수동이고 규칙도 없다.
+- **`versionCode`.** ~~규칙이 없다~~ → **규칙 확정 (KAN-175 3단계).** iOS
+  `CURRENT_PROJECT_VERSION`과 같은 값을 **같은 커밋에서 같이 올린다**. 지금 둘 다 `7`이고
+  (TestFlight에 1.0 빌드 6까지 올라가 있어 7부터라야 받는다), 어긋나면 iOS의
+  `AccenturyCoreTests/ReleaseVersionParityTests`가 두 파일을 직접 읽어 대조하다 실패한다.
+  근거와 값은 `ios/Accentury/Config/Base.xcconfig` 주석에 있다. 올리는 것 자체는 여전히 수동이다.
 - **R8 축소.** release가 `optimization { enable = false }`라 R8이 돌지 않는다(카카오 SDK가 retrofit·
   moshi를 끌고 와 APK가 커진 상태). 켜면 매핑 파일이 생기고, 워크플로의 매핑 업로드 스텝은 이미
   그때를 대비해 결선돼 있다.

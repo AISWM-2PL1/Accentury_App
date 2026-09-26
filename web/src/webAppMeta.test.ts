@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
  * 단위 테스트도 e2e도 전부 초록불이다. 깨진 것은 링크를 붙여 넣은 사람의 화면에서만 보이고,
  * 그때는 이미 나간 뒤다.
  *
- * 특히 `-v1` 버전 토큰이 그렇다. 자산을 갈려면 `assets/web/build.py`의 VERSION을 올리고 새
+ * 특히 `-v2` 버전 토큰이 그렇다. 자산을 갈려면 `assets/web/build.py`의 VERSION을 올리고 새
  * 이름으로 만든 다음 index.html의 참조를 따라 고쳐야 하는데(캐시 규칙은 assets/web/README.md),
  * 그 세 걸음 중 하나만 빠져도 조용히 어긋난다. 그래서 참조와 실제 파일을 양방향으로 맞춰 본다 —
  * 가리키는 것이 다 있는지, 그리고 있는 것을 다 가리키는지.
@@ -41,7 +41,7 @@ function pngSize(path: string): [number, number] {
   return [buf.readUInt32BE(16), buf.readUInt32BE(20)]
 }
 
-/** `/favicon-v1.svg` → `web/public/favicon-v1.svg`. 절대 URL이면 오리진을 떼고 같은 규칙을 쓴다. */
+/** `/favicon-v2.svg` → `web/public/favicon-v2.svg`. 절대 URL이면 오리진을 떼고 같은 규칙을 쓴다. */
 function publicPath(reference: string): string {
   const path = reference.startsWith(ORIGIN) ? reference.slice(ORIGIN.length) : reference
   return join(PUBLIC_DIR, path.replace(/^\//, ''))

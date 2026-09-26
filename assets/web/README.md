@@ -12,16 +12,16 @@
 
 | `web/public/` 파일 | 규격 | 소비처 |
 | --- | --- | --- |
-| `favicon-v1.svg` | 192px 래스터를 품은 SVG | 브라우저 탭 |
-| `apple-touch-icon-v1.png` | 180×180 RGB, 크림 꽉 참 | iOS Safari "홈 화면에 추가" |
-| `icon-192-v1.png` · `icon-512-v1.png` | RGB, 크림 꽉 참 | manifest `icons` |
-| `og-card-v1.png` | 1200×630 RGB, 400KB 이하 | `og:image` · `twitter:image` |
-| `manifest-v1.webmanifest` | JSON | `<link rel="manifest">` |
+| `favicon-v2.svg` | 192px 래스터를 품은 SVG | 브라우저 탭 |
+| `apple-touch-icon-v2.png` | 180×180 RGB, 크림 꽉 참 | iOS Safari "홈 화면에 추가" |
+| `icon-192-v2.png` · `icon-512-v2.png` | RGB, 크림 꽉 참 | manifest `icons` |
+| `og-card-v2.png` | 1200×630 RGB, 400KB 이하 | `og:image` · `twitter:image` |
+| `manifest-v2.webmanifest` | JSON | `<link rel="manifest">` |
 
 `web/index.html`이 이 파일들을 절대 URL·절대 경로로 가리킨다. 그 참조가 실제 파일과 어긋나면
 `web/src/webAppMeta.test.ts`가 깨진다.
 
-## 왜 파일명에 `-v1`이 붙는가
+## 왜 파일명에 `-v2`가 붙는가
 
 `web-deploy.yml`(KAN-127)은 index.html을 뺀 `dist/` 전부를
 `Cache-Control: public, max-age=31536000, immutable`로 S3에 올리고, CloudFront 무효화 대상은 `/`와
@@ -30,7 +30,7 @@
 
 그래서 **교체 = 파일명 변경**이다:
 
-1. `build.py`의 `VERSION`을 올린다 (`v1` → `v2`)
+1. `build.py`의 `VERSION`을 올린다 (`v2` → `v3`)
 2. 스크립트를 돌린다 — 새 이름으로 파일이 생긴다
 3. `web/index.html`의 참조를 새 이름으로 바꾸고 옛 파일을 지운다
 
@@ -44,7 +44,7 @@ index.html만 `no-cache`라, 참조가 바뀌는 즉시 새 이름이 나간다.
 
 ## 등급 공유 카드(`assets/share/`)와 무엇이 다른가
 
-| | `assets/share/*.png` (KAN-30) | `web/public/og-card-v1.png` (KAN-179) |
+| | `assets/share/*.png` (KAN-30) | `web/public/og-card-v2.png` (KAN-179) |
 | --- | --- | --- |
 | 누가 본다 | 결과를 공유한 사람의 **수신자** | 링크가 붙여 넣어진 자리를 지나가는 사람 |
 | 무엇을 그린다 | 그 사람이 받은 **등급** 5종 | 고정 한 장 — 등급을 말하지 않는다 |
@@ -59,7 +59,7 @@ SPA라 `/t?c=...`도 같은 `index.html`이 응답한다 — 등급별로 다른
 
 ## 파비콘이 벡터가 아닌 이유
 
-`favicon-v1.svg`는 모서리와 배경만 벡터이고 도상은 원본에서 뽑은 래스터를 data URI로 안는다.
+`favicon-v2.svg`는 모서리와 배경만 벡터이고 도상은 원본에서 뽑은 래스터를 data URI로 안는다.
 도상 정본이 생성 모델 산출물(래스터)이라 벡터본이 없고, 손으로 다시 그리면 앱 아이콘과 웹
 파비콘이 서로 다른 원본을 갖게 된다 — KAN-178이 "원본 한 장에서 전부"로 정리한 것을 웹에서
 되돌리는 셈이다. 파비콘은 탭·즐겨찾기에서 최대 64px로 그려지므로 192px 래스터면 2배 이상 남는다.

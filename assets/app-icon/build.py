@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """앱 아이콘 원본 한 장에서 플랫폼별 파생본을 전부 만든다 (KAN-178 2단계).
 
-원본은 `source.png` — Codex CLI 내장 image_gen이 뽑은 "ㅅㅌㄹ" 종이 조각 도상이다. 배경이 흰색
-(`#FFFFFF`)으로 나와서(생성 편차) 그대로 쓰면 크림 배경 위에 흰 사각형이 얹힌다. 그래서 여기서
-배경을 투명으로 키잉하고 종이색을 토큰 값(`#F3ECD9`)으로 정규화한 뒤, 그 도상 하나를 플랫폼별
-규격에 맞춰 다시 앉힌다:
+원본은 `source.png` — Codex CLI 내장 image_gen이 뽑은 피치 곡선 한 획의 종이 조각 도상이다(D3,
+2026-09-23 확정). 배경과 종이색이 토큰 값에서 조금씩 빗나가게 나오므로(D3는 배경 `#F6EDDB`) 그대로
+쓰면 크림 배경 위에 색이 다른 사각형이 얹힌다. 그래서 여기서 배경을 투명으로 키잉하고 종이색을
+토큰 값(`#F3ECD9`)으로 정규화한 뒤, 그 도상 하나를 플랫폼별 규격에 맞춰 다시 앉힌다:
 
 - Android adaptive icon  → `mipmap-<density>/ic_launcher_foreground.png` + `ic_launcher_monochrome.png`
 - Android 레거시 런처     → `mipmap-<density>/ic_launcher.png` · `ic_launcher_round.png`
@@ -45,8 +45,9 @@ INK = (0x1C, 0x1A, 0x17)  # --color-primary
 MUTED = (0x6B, 0x64, 0x59)  # --color-muted-foreground
 PAPER_SHADOW = (0xCF, 0xC5, 0xAA)  # 오프셋 그림자 (3px 4px 0)
 
-# 키잉 파라미터. 배경이 정확히 순백(편차 0)이라 허용 오차가 넉넉해도 안전하다 — 도상에서 가장
-# 밝은 면인 스티커 림이 배경보다 채널 최대 29 어두워서, 그 선이 flood fill을 막는 벽이 된다.
+# 키잉 파라미터. 도상에서 가장 밝은 면인 스티커 림이 배경보다 어두워서 flood fill을 막는 벽이 된다 —
+# 그 여유가 허용 오차보다 커야 한다. C2(흰 배경)는 채널 최대 29였고 D3는 16이다. 여유가 줄었으니
+# KEY_TOL을 올릴 때는 새 원본에서 림과 배경의 채널 차를 먼저 재고 올린다.
 KEY_TOL = 14  # 이 값 이하로 배경과 가까우면 "배경일 수 있음"
 EDGE_SPAN = 40  # 경계 픽셀의 알파를 배경 거리 0..EDGE_SPAN → 0..1 로 편다
 LEAK_RADIUS = 3  # 림의 틈(≤ 2×반지름)으로 새어 들어간 fill을 끊는다
@@ -146,7 +147,7 @@ def normalize_paper(cut: Image.Image) -> tuple[Image.Image, tuple[int, int, int]
     """도상의 종이(스티커 림)를 정확히 CREAM으로 옮긴다. 잉크와 오프셋 그림자는 건드리지 않는다.
 
     `assets/characters/build.py`는 배경이 곧 종이색이라 "휘도가 높을수록 (PAPER − 배경) 델타를
-    적용"하면 됐다. 여기는 배경이 흰색이고 종이는 도상 안에만 있으니, 기준색을 배경이 아니라
+    적용"하면 됐다. 여기는 배경과 종이가 서로 다른 밝기이고 종이는 도상 안에만 있으니, 기준색을 배경이 아니라
     **도상 안 밝은 면의 중앙값**에서 잡는다. 그리고 휘도 대신 그 기준색과의 거리로 가중치를 준다 —
     휘도 램프를 쓰면 그림자(휘도 ~206)까지 같이 밀려 이미 토큰 값인 `#CFC5AA`에서 벗어난다.
     """
