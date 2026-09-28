@@ -1,13 +1,17 @@
 package com.accentury.app.auth
 
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
@@ -22,15 +26,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -69,24 +79,7 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.x6),
         ) {
-            // 텍스트 히어로 (design-tokens §8) — 인트로와 같은 글자·같은 크기. 화면 이름을 말하는 것이 이것뿐이라 heading이다.
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.x2),
-            ) {
-                Text(
-                    "사투리 좀 치나?",
-                    style = MaterialTheme.typography.displayLarge,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.semantics { heading() },
-                )
-                Text(
-                    "로그인하고 내 말씨가 어디 사투리인지 알아보세요",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
+            IntroHero()
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -122,6 +115,53 @@ fun LoginScreen(
                 state.inFlight -> CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
+    }
+}
+
+/**
+ * 웹 인트로의 상단 블록을 그대로 옮겼다 (KAN-224, `web/src/intro/IntroScreen.tsx` `.intro-hero`) — 앱 첫 화면이
+ * 테스트 인트로와 같은 얼굴이어야 한다. 워드마크는 브랜드 표기라 평문이고, 화면 이름은 두 줄 히어로 하나만
+ * heading이다(웹 h1). 밑줄은 장식이라 의미론이 없다.
+ */
+@Composable
+private fun IntroHero() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.x2),
+    ) {
+        Text("Accentury", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
+        // 밑줄 폭 = 제목 글자 폭 (웹 `.intro-heading`이 글자 폭으로 줄고 svg가 width 100%).
+        Column(
+            modifier = Modifier.width(IntrinsicSize.Max),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.x1),
+        ) {
+            Text(
+                "사투리\n좀 치나?",
+                // text-intro-hero 56 · leading-tight 1.15 — 네이티브 타입 슬롯에 없는 웹 전용 크기라 여기서만 덮는다
+                style = MaterialTheme.typography.displayLarge.copy(fontSize = 56.sp, lineHeight = 64.sp),
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { heading() },
+            )
+            // 웹 svg viewBox 0 0 200 12, `M 4 3.5 Q 100 13.5 196 3.5`, preserveAspectRatio none + non-scaling-stroke:
+            // 좌표만 상자에 늘리고 굵기(7dp)는 그대로다.
+            Canvas(modifier = Modifier.fillMaxWidth().height(Spacing.x3)) {
+                val sx = size.width / 200f
+                val sy = size.height / 12f
+                val path = Path().apply {
+                    moveTo(4f * sx, 3.5f * sy)
+                    quadraticTo(100f * sx, 13.5f * sy, 196f * sx, 3.5f * sy)
+                }
+                drawPath(path, color = LightPoint, style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round))
+            }
+        }
+        Text(
+            "내 목소리로 확인하는 사투리 억양",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
