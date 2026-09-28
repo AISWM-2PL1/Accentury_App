@@ -47,6 +47,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = { received = it },
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -71,6 +72,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = { fired++ },
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -95,6 +97,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = { fired++ },
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -122,6 +125,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = { fired++ },
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -147,6 +151,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = { fired++ },
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -184,6 +189,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = { fired++ },
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -215,6 +221,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = { fired++ },
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -229,6 +236,44 @@ class AccenturyBridgeTest {
         assertEquals(2, fired)
     }
 
+    /** startRetestAfterFailure를 한 번 호출하고 (광고 경로 콜백, 실패 출구 콜백) 호출 수를 돌려준다. */
+    private fun startRetestAfterFailure(allowed: Boolean): Pair<Int, Int> {
+        val queue = FakeMainQueue()
+        var adPath = 0
+        var noAdPath = 0
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = { allowed },
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = { adPath++ },
+            onStartRetestAfterFailure = { noAdPath++ },
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+        )
+        bridge.startRetestAfterFailure()
+        queue.drain()
+        return adPath to noAdPath
+    }
+
+    @Test
+    fun `실패 출구 재응시는 광고 경로가 아니라 자기 콜백으로 간다`() {
+        // KAN-248: 사용자 잘못이 아닌 실패에는 보상형 광고를 물리지 않는다 — startRetest 콜백을 타면 광고가 뜬다.
+        assertEquals(0 to 1, startRetestAfterFailure(allowed = true))
+    }
+
+    @Test
+    fun `allowlist 밖 origin에서는 실패 출구 재응시도 무시된다`() {
+        // startRetest와 같은 이유다 — 서버 쪽 세션·결과를 즉시 폐기시키는 호출이다 (KAN-107).
+        assertEquals(0 to 0, startRetestAfterFailure(allowed = false))
+    }
+
     @Test
     fun `getContractVersion은 앱이 보유한 계약 버전을 돌려준다`() {
         val bridge = AccenturyBridge(
@@ -239,6 +284,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -258,6 +304,7 @@ class AccenturyBridgeTest {
         onRequestMicPermission = {},
         onStartVoiceItem = {},
         onStartRetest = {},
+        onStartRetestAfterFailure = {},
         onShareResult = {},
         onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -389,6 +436,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = { received = it },
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -415,6 +463,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = { received = it },
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -478,6 +527,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { eventName, params -> received = eventName to params },
             onOpenExternalUrl = {},
@@ -549,6 +599,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = { received = it },
@@ -601,6 +652,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
@@ -678,6 +730,7 @@ class AccenturyBridgeTest {
             onRequestMicPermission = {},
             onStartVoiceItem = {},
             onStartRetest = {},
+            onStartRetestAfterFailure = {},
             onShareResult = {},
             onLogEvent = { _, _ -> },
             onOpenExternalUrl = {},
