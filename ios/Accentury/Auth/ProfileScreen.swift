@@ -10,15 +10,25 @@ struct ProfileScreen: View {
     let error: AuthFailure?
     /// ``AccenturyCore/AuthGateController/submitProfile(_:)``
     let onSubmit: (ProfileInput) async -> Void
+    /// [다른 계정으로 로그인] — 로그아웃해 로그인 화면으로 (``AccenturyCore/AuthGateController/logout(idpLogout:)``).
+    /// 만 14세 미만 거절을 받았거나 계정을 잘못 고른 사용자가 이 화면에 갇히지 않게 하는 유일한 출구다(설정 화면은 KAN-247).
+    let onSwitchAccount: () async -> Void
 
     /// 서버가 아는 계정 값으로 미리 채운 입력. 계정이 바뀌면 부모가 `.id(user.id)`로 이 화면을 새로 세워 앞 계정의
     /// 입력을 물려받지 않는다.
     @StateObject private var form: ProfileFormState
     @State private var pickingDate = false
+    @State private var leaving = false
 
-    init(user: AuthUser, error: AuthFailure?, onSubmit: @escaping (ProfileInput) async -> Void) {
+    init(
+        user: AuthUser,
+        error: AuthFailure?,
+        onSubmit: @escaping (ProfileInput) async -> Void,
+        onSwitchAccount: @escaping () async -> Void
+    ) {
         self.error = error
         self.onSubmit = onSubmit
+        self.onSwitchAccount = onSwitchAccount
         _form = StateObject(wrappedValue: ProfileFormState(user: user))
     }
 
@@ -59,12 +69,20 @@ struct ProfileScreen: View {
 
                 if let error { AuthFailureBlock(failure: error, verb: "저장") }
 
-                AccenturyButton(text: "완료", enabled: form.isComplete && !form.submitting, fillsWidth: true) {
+                AccenturyButton(text: "완료", enabled: form.isComplete && !form.submitting && !leaving, fillsWidth: true) {
                     guard let input = form.toInput() else { return }
                     form.submitting = true
                     Task {
                         await onSubmit(input)
                         form.submitting = false
+                    }
+                }
+
+                AccenturyButton(text: "다른 계정으로 로그인", variant: .text, enabled: !form.submitting && !leaving, fillsWidth: true) {
+                    leaving = true
+                    Task {
+                        await onSwitchAccount()
+                        leaving = false
                     }
                 }
             }

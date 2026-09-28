@@ -26,7 +26,10 @@ data class AuthTokens(val accessToken: String, val refreshToken: String) {
  * 테스트가 Android Keystore 없이 갱신·게이트 규칙을 돌리기 위해서다.
  */
 interface TokenStore {
-    /** 저장된 쌍. 없거나 읽을 수 없으면(복호화 실패 등) null. */
+    /**
+     * 저장된 쌍. 없거나 읽을 수 없으면(복호화 실패·파일 손상·디스크 오류) null. **던지지 않는다** — 시작 확인
+     * ([AuthGateController.bootstrap])이 이 값을 가장 먼저 읽으므로, 던지면 앱이 실행할 때마다 같은 자리에서 죽는다.
+     */
     suspend fun read(): AuthTokens?
 
     /**

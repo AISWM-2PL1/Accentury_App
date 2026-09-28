@@ -17,6 +17,7 @@ stateDiagram-v2
     Checking --> SignedOut: 저장된 토큰 없음 / Refresh 401
     Checking --> CheckFailed: 전송 실패·429·5xx (토큰 보존)
     CheckFailed --> Checking: [다시 시도]
+    Checking --> CheckFailed: 확인이 취소됨 (Android)
     Checking --> NeedsProfile: me() = INCOMPLETE
     Checking --> SignedIn: me() = COMPLETE
     SignedOut --> NeedsProfile: 로그인 성공, 프로필 미완료
@@ -24,7 +25,7 @@ stateDiagram-v2
     NeedsProfile --> SignedIn: 추가 정보 제출 성공
     SignedIn --> NeedsProfile: 세션 생성 403 AUTH_PROFILE_INCOMPLETE
     SignedIn --> SignedOut: 어느 요청에서든 Refresh 거절(401)
-    NeedsProfile --> SignedOut: Refresh 거절(401)
+    NeedsProfile --> SignedOut: Refresh 거절(401) / [다른 계정으로 로그인]
 ```
 
 | 상태 | 화면 | 코드 |
@@ -39,6 +40,11 @@ stateDiagram-v2
 상태의 정본이고, 오래 안 연 앱의 Access(30분)는 어차피 만료돼 있다. 거절(401)은 로그인 화면으로,
 판정 없음(망·5xx)은 [다시 시도]로 깔끔히 갈린다 (`AuthGateController.kt` KDoc).
 
+안드로이드의 시작 확인과 [다시 시도]는 둘 다 `AuthGateController.retry()`로 Application의 앱 수명 스코프에서
+돈다. 화면 스코프에서 돌리면 회전이 확인을 취소해 스플래시가 영영 안 걷혔다. `bootstrap()` 자체도 취소되면
+CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남거나 앱이 죽지 않는다. 로그인 성공 뒤 저장과
+로그아웃의 로컬 정리는 `NonCancellable`로 끝까지 간다. iOS는 비구조 `Task`라 뷰가 사라져도 취소되지 않아 같은 문제가 없다.
+
 테스트 흐름은 `SignedIn`일 때만 화면에 있다. 로그인이나 추가 정보 화면으로 밀려나면 흐름 화면이 통째로
 내려가고, iOS는 저장해 둔 시작 게이트·세션도 지운다(`TestFlowModel.clearSavedState()`). 진행 중이던 응시를
 다른 계정 상태로 이어 가지 않게 하려는 구조다.
@@ -52,7 +58,7 @@ stateDiagram-v2
 | 히어로 배치 | 웹 인트로 히어로(워드마크·두 줄 제목·곡선 밑줄·부제)를 버튼 묶음 위 남은 칸의 세로 가운데 | 2026-09-28 팀장 결정 (커밋 cdfa46d) |
 | 설정 없는 IdP | 버튼을 숨긴다 | 눌러야 SDK 오류로 떨어질 버튼을 세울 이유가 없다 (`visibleProviders`). 그래서 릴리스 빗장이 필요하다 (§4) |
 | IdP 화면 취소 | 오류 안내 없이 로그인 화면으로 | 로그인하지 않겠다는 뜻이지 실패가 아니다 (`IdpOutcome.Cancelled`) |
-| 로그아웃 화면 | 이 티켓 밖, **KAN-247** | 계약(`AuthGateController.logout`, `IdpLogout.all`)만 두고 부르는 곳은 없다 |
+| 로그아웃 화면 | 설정 화면 로그아웃은 **KAN-247**. 추가 정보 화면에만 [다른 계정으로 로그인](Text 버튼) | 만 14세 미만 거절·계정 잘못 고른 사용자가 추가 정보 화면에 갇히지 않게 하는 출구. `logout { IdpLogout.all }` → 로그인 화면 |
 | 실패 후 재응시 광고 | 이 티켓 밖, **KAN-248** | |
 | 개인정보처리방침 버전 | `2026-09-15` (`PRIVACY_POLICY_VERSION`) — **확인 대기** | 게시된 방침 문서의 표기는 "초안 2026-09-07"이지만 본문은 2026-09-15(KAN-211 이용 후기 절)까지 바뀌었다. 서버가 허용 버전을 고정하는 것은 **KAN-240**이고, 그때 이 값과 맞춘다 |
 
@@ -71,7 +77,7 @@ stateDiagram-v2
 | 암호화 | Android Keystore의 AES-256-GCM 키(`accentury_auth_tokens`)로 직접 암호화 | 키체인 항목이 기기 키로 잠긴다 |
 | 저장 자리 | DataStore Preferences `auth_tokens`에 `base64(IV ‖ 암호문)` 한 줄 | `kSecClassGenericPassword`, service `com.accentury.app.auth` / account `tokens` |
 | 백업·기기 이전 | 제외 — `res/xml/backup_rules.xml`·`data_extraction_rules.xml`이 `datastore/auth_tokens.preferences_pb`를 뺀다 | 제외 — `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` |
-| 읽기 실패 | 값을 지우고 로그아웃으로 본다 (키는 백업으로 따라가지 않아 파일만 복원되면 영영 못 푼다) | 같다 |
+| 읽기 실패 | 값을 지우고 로그아웃으로 본다 (키는 백업으로 따라가지 않아 파일만 복원되면 영영 못 푼다). 파일 손상은 `ReplaceFileCorruptionHandler`가 빈 값으로 바꾸고, 그 밖의 IOException도 null이다 — `read()`는 던지지 않는다(던지면 시작마다 죽는다) | 같다 (디코드 실패는 지우고 nil) |
 | 쓰기 실패 | `save`가 false를 돌려준다 (Keystore·Cipher 예외, DataStore IOException을 삼킨다) | `SecItemAdd`가 `errSecSuccess`가 아니면 false |
 
 쓰기가 실패해도 메모리 값은 새 쌍으로 바뀐다 — 이 프로세스 안에서는 회전된 쌍이 정본이고, 옛 쌍을 들고 있으면
@@ -317,5 +323,5 @@ order by s.created_at desc limit 5;
   만료된 상태에서 망이 느리면 [시작하기] 뒤 대기가 15초를 넘을 수 있다. 안드로이드는 OkHttp `callTimeout`이
   Authenticator 재시도까지 한 호출로 묶는다.
 - **계정 삭제 없음** — 애플 5.1.1(v), §3 애플 4번. 스토어 제출 선행 조건이다.
-- **로그아웃 화면 없음** — KAN-247. 그 전에는 로그아웃하려면 앱 데이터를 지워야 한다.
+- **로그아웃 화면 없음** — KAN-247. 그 전에는 로그인된 뒤(SignedIn) 로그아웃하려면 앱 데이터를 지워야 한다. 추가 정보 화면에는 [다른 계정으로 로그인]이 있다.
 - **개인정보처리방침 버전** — §1 결정 표. KAN-240에서 서버가 허용 버전을 고정하면 앱 값과 맞춘다.

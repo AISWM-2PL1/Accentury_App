@@ -9,7 +9,6 @@ import com.accentury.app.auth.KeystoreTokenStore
 import com.kakao.sdk.common.KakaoSdk
 import com.navercorp.nid.NidOAuth
 import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
 
 /**
  * 앱 전역 초기화 지점 — 카카오 SDK(KAN-30)·크래시 리포트(KAN-33)·광고(KAN-196)·로그인(KAN-224).
@@ -36,8 +35,11 @@ class AccenturyApplication : Application() {
      */
     val authClients: AuthClients by lazy { AuthClients(BuildConfig.API_BASE_URL, KeystoreTokenStore(this)) }
 
+    /** 앱 수명 코루틴 스코프. 로그인 확인처럼 화면 회전을 넘겨야 하는 일이 여기서 돈다. */
+    private val appScope = MainScope()
+
     val authGate: AuthGateController by lazy {
-        AuthGateController(authClients.api, authClients.store, authClients.refresher)
+        AuthGateController(authClients.api, authClients.store, authClients.refresher, appScope)
     }
 
     override fun onCreate() {
@@ -88,6 +90,6 @@ class AccenturyApplication : Application() {
          * 로그인 상태 확인은 프로세스당 한 번 (KAN-224). Activity에서 걸면 회전마다 갱신이 한 번 더 나가 Refresh가
          * 괜히 회전한다. 첫 화면은 이 확인이 끝날 때까지 스플래시를 붙든다 (MainActivity).
          */
-        MainScope().launch { authGate.bootstrap() }
+        authGate.retry()
     }
 }

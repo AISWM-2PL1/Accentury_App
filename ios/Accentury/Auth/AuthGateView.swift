@@ -46,7 +46,12 @@ struct AuthGateView: View {
 
         case .needsProfile(let user, let error):
             // 계정이 바뀌면(다른 계정으로 다시 로그인) 앞 계정의 입력을 물려받지 않는다.
-            ProfileScreen(user: user, error: error, onSubmit: { await gate.submitProfile($0) })
+            ProfileScreen(
+                user: user,
+                error: error,
+                onSubmit: { await gate.submitProfile($0) },
+                onSwitchAccount: { await gate.logout { await IdpLogout.all() } }
+            )
                 .id(user.id)
 
         case .signedIn:

@@ -87,6 +87,7 @@ import com.accentury.app.analytics.channelParam
 import com.accentury.app.auth.AuthCheckScreen
 import com.accentury.app.auth.AuthGateController
 import com.accentury.app.auth.AuthGateState
+import com.accentury.app.auth.IdpLogout
 import com.accentury.app.auth.LoginScreen
 import com.accentury.app.auth.PRIVACY_POLICY_URL
 import com.accentury.app.auth.PRIVACY_POLICY_VERSION
@@ -239,7 +240,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val authClients = remember(context) { (context.applicationContext as AccenturyApplication).authClients }
 
     when (val state = gate.state.collectAsStateWithLifecycle().value) {
@@ -248,7 +248,7 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
 
         is AuthGateState.CheckFailed -> AuthCheckScreen(
             failure = state.error,
-            onRetry = { scope.launch { gate.bootstrap() } },
+            onRetry = gate::retry,
             modifier = modifier,
         )
 
@@ -265,6 +265,7 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             user = state.user,
             error = state.error,
             onSubmit = gate::submitProfile,
+            onSwitchAccount = { gate.logout { IdpLogout.all(context) } },
             modifier = modifier,
         )
 

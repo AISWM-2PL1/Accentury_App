@@ -187,7 +187,8 @@ private final class AppleIdp: NSObject, ASAuthorizationControllerDelegate, ASAut
 }
 
 /// IdP SDK 쪽 세션 정리 (KAN-224). ``AccenturyCore/AuthGateController/logout(idpLogout:)``에 넘길 몫이다 —
-/// `await gate.logout { await IdpLogout.all() }`. 로그아웃 화면은 이 티켓 범위 밖(KAN-247)이라 아직 부르는 곳이 없다.
+/// `await gate.logout { await IdpLogout.all() }`. 지금은 추가 정보 화면의 [다른 계정으로 로그인]이 부르고, 설정 화면의
+/// 로그아웃은 KAN-247이다.
 ///
 /// 셋 다 최선 노력이다: 우리 토큰은 이미 서버에서 폐기됐고, SDK 세션이 남으면 다음 로그인에서 계정 선택이
 /// 생략될 뿐이다. 하나가 실패해도 나머지는 정리한다. 애플은 앱이 부를 로그아웃 API가 없다(사용자가 설정에서 끊는다).
