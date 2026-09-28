@@ -1,7 +1,7 @@
 import XCTest
 @testable import AccenturyCore
 
-/// 안드로이드 `auth/AuthGateControllerTest.kt`의 이식본 (KAN-224). 같은 11가지 전이를 같은 응답으로 겨눈다.
+/// 안드로이드 `auth/AuthGateControllerTest.kt`의 이식본 (KAN-224). 같은 전이를 같은 응답으로 겨눈다.
 @MainActor
 final class AuthGateControllerTests: XCTestCase {
 
@@ -163,6 +163,19 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertTrue(idpLoggedOut)
         XCTAssertEqual(.signedOut(nil), gate.state)
         XCTAssertEqual("/v0/auth/logout", MockURLProtocol.requests().first?.url?.path)
+    }
+
+    func test추가_정보_화면에서_다른_계정으로_로그인하면_저장소를_비우고_로그인_화면이다() async {
+        let store = InMemoryTokenStore()
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([(200, incompleteLogin), (204, "")])
+        await gate.login(google, privacyPolicyVersion: "v1")
+        XCTAssertEqual(.needsProfile(user, error: nil), gate.state)
+
+        await gate.logout()
+
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
     }
 
     func test다른_요청에서_Refresh가_거절되면_게이트가_로그인_화면으로_돌아간다() async {

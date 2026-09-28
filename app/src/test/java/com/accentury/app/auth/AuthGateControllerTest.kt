@@ -1,8 +1,19 @@
 package com.accentury.app.auth
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
+import java.io.IOException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,9 +45,10 @@ class AuthGateControllerTest {
         runCatching { server.shutdown() }
     }
 
-    private fun controller(store: TokenStore): AuthGateController {
+    /** 앱 수명 스코프 자리는 테스트의 backgroundScope다 — 테스트가 끝나면 함께 정리된다. */
+    private fun TestScope.controller(store: TokenStore): AuthGateController {
         val clients = AuthClients(server.url("/").toString(), store)
-        return AuthGateController(clients.api, store, clients.refresher)
+        return AuthGateController(clients.api, store, clients.refresher, backgroundScope)
     }
 
     @Test
@@ -211,7 +223,7 @@ class AuthGateControllerTest {
     fun `다른 요청에서 Refresh가 거절되면 게이트가 로그인 화면으로 돌아간다`() = runTest {
         val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         val clients = AuthClients(server.url("/").toString(), store)
-        val gate = AuthGateController(clients.api, store, clients.refresher)
+        val gate = AuthGateController(clients.api, store, clients.refresher, backgroundScope)
         server.enqueue(MockResponse().setBody(tokens(1)))
         server.enqueue(MockResponse().setBody(account("COMPLETE")))
         gate.bootstrap()
@@ -223,5 +235,93 @@ class AuthGateControllerTest {
 
         assertEquals(AuthGateState.SignedOut(), gate.state.value)
         assertNull(store.tokens)
+    }
+
+    @Test
+    fun `다시 시도는 부른 쪽이 취소돼도 앱 스코프에서 끝까지 간다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+
+        // 화면 스코프(회전하면 취소되는 rememberCoroutineScope) 자리
+        val screen = launch {
+            gate.retry()
+            awaitCancellation()
+        }
+        runCurrent()
+        screen.cancelAndJoin()
+
+        assertEquals(AuthGateState.SignedIn(user), gate.state.first { it != AuthGateState.Checking })
+    }
+
+    @Test
+    fun `갱신 도중 취소된 시작 확인은 확인 중에 남지 않고 다시 시도 안내다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+
+        val check = launch { gate.bootstrap() }
+        withContext(Dispatchers.IO) { server.takeRequest() } // 갱신 요청이 서버에 닿았다
+        check.cancelAndJoin()
+
+        assertEquals(AuthGateState.CheckFailed(AuthFailure(AuthFailureReason.Retry)), gate.state.value)
+        assertEquals(AuthTokens("jwt_0", "rt_0"), store.tokens)
+    }
+
+    @Test
+    fun `저장소 읽기가 던지면 죽지 않고 로그인 화면이다`() = runTest {
+        val broken = object : TokenStore {
+            override suspend fun read(): AuthTokens? = throw IOException("손상")
+            override suspend fun save(tokens: AuthTokens) = false
+            override suspend fun clear() = Unit
+        }
+        val gate = controller(broken)
+
+        gate.retry()
+
+        assertEquals(AuthGateState.SignedOut(), gate.state.first { it != AuthGateState.Checking })
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `추가 정보 화면에서 다른 계정으로 로그인하면 저장소를 비우고 로그인 화면이다`() = runTest {
+        val store = InMemoryTokenStore()
+        val gate = controller(store)
+        server.enqueue(
+            MockResponse().setBody(
+                """{"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"isNewUser":true,""" +
+                    """"profileStatus":"INCOMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}""",
+            ),
+        )
+        server.enqueue(MockResponse().setResponseCode(204))
+        gate.login(google, privacyPolicyVersion = "v1")
+        assertEquals(AuthGateState.NeedsProfile(user), gate.state.value)
+
+        gate.logout()
+
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertNull(store.tokens)
+    }
+
+    @Test
+    fun `로그아웃이 서버 응답 대기 중 취소돼도 로컬 정리와 로그인 화면 전환은 끝낸다`() = runTest {
+        val memory = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        // 실제 저장소(DataStore 쓰기)처럼 비우기가 중단점을 지난다 — 취소된 코루틴이면 여기서 취소 예외가 난다.
+        val store = object : TokenStore by memory {
+            override suspend fun clear() {
+                yield()
+                memory.clear()
+            }
+        }
+        val gate = controller(store)
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+
+        val screen = launch { gate.logout() }
+        withContext(Dispatchers.IO) { server.takeRequest() }
+        screen.cancelAndJoin()
+
+        assertNull(memory.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
     }
 }

@@ -168,7 +168,7 @@ public final class AuthGateController: ObservableObject {
     /// 로그아웃. 서버 폐기가 실패해도(망·5xx) **로컬 토큰은 반드시 지운다** — 사용자가 로그아웃을 눌렀는데
     /// 로그인 상태가 남으면 그것이 더 큰 문제다. 서버에 남은 Refresh는 만료로 사라진다.
     ///
-    /// 로그아웃 화면은 이 티켓 범위 밖이다(KAN-247) — 부르는 곳은 아직 없고, 안드로이드와 같은 계약만 둔다.
+    /// 지금 부르는 곳은 추가 정보 화면의 [다른 계정으로 로그인]이다. 설정 화면의 로그아웃은 KAN-247이다.
     ///
     /// - Parameter idpLogout: IdP SDK 쪽 로그아웃 (앱 타깃 `IdpLogout.all`). 서버 로그아웃 뒤에 부른다
     public func logout(idpLogout: @MainActor () async -> Void = {}) async {

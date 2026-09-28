@@ -1,8 +1,14 @@
 package com.accentury.app.auth
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** 봉투를 읽을 수 있을 때의 요청 제한 코드 (§2.5). */
 private const val CODE_RATE_LIMITED = "RATE_LIMITED"
@@ -35,7 +41,7 @@ sealed interface AuthGateState {
 
     /**
      * 시작 확인이 판정 없이 끝났다 (전송 실패·429·5xx). **토큰은 그대로다** — 여기서 로그인 화면으로 보내면
-     * 망이 잠깐 끊긴 사용자를 로그아웃시키는 셈이다. 화면은 [다시 시도]로 [AuthGateController.bootstrap]을 다시 부른다.
+     * 망이 잠깐 끊긴 사용자를 로그아웃시키는 셈이다. 화면은 [다시 시도]로 [AuthGateController.retry]를 부른다.
      */
     data class CheckFailed(val error: AuthFailure) : AuthGateState
 }
@@ -70,12 +76,18 @@ data class AuthFailure(val reason: AuthFailureReason, val retryAfterSeconds: Lon
  *
  * 저장소의 주인은 여전히 [TokenRefresher]·[AuthApi]의 호출 흐름이고, 이 클래스는 저장소를 **보는** 쪽이다.
  * 예외는 로그인 성공(쌍을 처음 저장)과 로그아웃(무조건 비움) 둘뿐이다.
+ *
+ * @param scope 앱 수명 스코프 (Application이 하나 들고 넘긴다). 시작 확인·[다시 시도]는 여기서 돈다 —
+ *   화면 스코프(rememberCoroutineScope)에서 돌리면 회전이 확인을 도중에 취소해 [AuthGateState.Checking]에 남는다.
  */
 class AuthGateController(
     private val api: AuthApi,
     private val store: TokenStore,
     private val refresher: TokenRefresher,
+    private val scope: CoroutineScope,
 ) {
+
+    private var checkJob: Job? = null
 
     private val _state = MutableStateFlow<AuthGateState>(AuthGateState.Checking)
     val state: StateFlow<AuthGateState> = _state.asStateFlow()
@@ -86,28 +98,48 @@ class AuthGateController(
     }
 
     /**
-     * 앱 시작 시 한 번(그리고 [AuthGateState.CheckFailed]의 [다시 시도]마다) 부른다.
+     * 앱 시작 확인과 [AuthGateState.CheckFailed]의 [다시 시도]가 함께 쓰는 입구. [bootstrap]을 앱 수명
+     * [scope]에서 돌리므로 부른 화면이 사라져도(회전) 확인은 끝까지 간다. 이미 도는 확인이 있으면 무시한다.
+     */
+    fun retry() {
+        if (checkJob?.isActive == true) return
+        checkJob = scope.launch { bootstrap() }
+    }
+
+    /**
+     * 확인 본체. 화면은 [retry]로 부른다 — 여기를 직접 부르는 것은 테스트뿐이다.
      *
      * 저장된 Access로 곧장 `me()`를 부르지 않고 갱신부터 하는 이유: Refresh가 살아 있는지가 "로그인 상태"의
      * 정본이다. 오래 안 연 앱의 Access는 거의 늘 만료돼 있어 어차피 갱신을 한 번 거치고, 여기서 먼저 해 두면
      * 거절(401)을 로그인 화면으로, 판정 없음(망·5xx)을 [다시 시도]로 깔끔히 가를 수 있다.
+     *
+     * **어떻게 끝나든 [AuthGateState.Checking]에 남지 않는다.** 취소되면 [다시 시도]가 보이게 CheckFailed로
+     * 두고 취소는 그대로 올린다. 저장소가 계약(읽기는 던지지 않는다)을 어기고 던지면 로그인 화면으로 보낸다 —
+     * 읽을 수 없는 저장소는 쌍이 없는 것과 같고(TokenStore.read), CheckFailed로 두면 같은 저장소에 [다시 시도]만
+     * 되풀이하며 빠져나갈 길이 없다. 다시 로그인하면 저장이 쌍을 덮어쓴다. 앱 스코프로 예외가 새어 프로세스가 죽는 일도 없다.
      */
     suspend fun bootstrap() {
         _state.value = AuthGateState.Checking
-        if (store.read() == null) {
+        try {
+            _state.value = checkStoredTokens()
+        } catch (e: CancellationException) {
+            if (_state.value == AuthGateState.Checking) {
+                _state.value = AuthGateState.CheckFailed(AuthFailure(AuthFailureReason.Retry))
+            }
+            throw e
+        } catch (_: Exception) {
             _state.value = AuthGateState.SignedOut()
-            return
         }
-        when (val outcome = refresher.refresh(staleAccess = null)) {
-            RefreshOutcome.SignedOut -> _state.value = AuthGateState.SignedOut()
-            is RefreshOutcome.Failed -> _state.value = AuthGateState.CheckFailed(failureOf(outcome.result))
+    }
+
+    private suspend fun checkStoredTokens(): AuthGateState {
+        if (store.read() == null) return AuthGateState.SignedOut()
+        return when (val outcome = refresher.refresh(staleAccess = null)) {
+            RefreshOutcome.SignedOut -> AuthGateState.SignedOut()
+            is RefreshOutcome.Failed -> AuthGateState.CheckFailed(failureOf(outcome.result))
             is RefreshOutcome.Refreshed -> when (val me = api.me()) {
-                is AuthResult.Success -> _state.value = stateOf(me.value)
-                else -> _state.value = if (store.read() == null) {
-                    AuthGateState.SignedOut()
-                } else {
-                    AuthGateState.CheckFailed(failureOf(me))
-                }
+                is AuthResult.Success -> stateOf(me.value)
+                else -> if (store.read() == null) AuthGateState.SignedOut() else AuthGateState.CheckFailed(failureOf(me))
             }
         }
     }
@@ -118,7 +150,9 @@ class AuthGateController(
      */
     suspend fun login(credential: LoginCredential, privacyPolicyVersion: String) {
         when (val result = api.login(credential, privacyPolicyVersion)) {
-            is AuthResult.Success -> {
+            // 서버가 쌍을 준 뒤에는 취소(화면 회전)되어도 저장과 상태 반영을 끝낸다 — 도중에 끊기면 쌍은 저장됐는데
+            // 화면은 로그인에 남는다.
+            is AuthResult.Success -> withContext(NonCancellable) {
                 if (store.save(result.value.tokens)) {
                     _state.value = stateOf(result.value.account)
                 } else {
@@ -163,14 +197,19 @@ class AuthGateController(
      *
      * @param idpLogout IdP SDK 쪽 로그아웃 (카카오·네이버 SDK 세션 정리 등). 서버 로그아웃 뒤에 부르고,
      *   던져도 로컬 토큰은 지워진 채로 예외가 호출자에게 간다.
+     *
+     * 화면 스코프에서 불려 도중에 취소돼도(회전) 로컬 정리는 끝낸다 — 취소된 코루틴에서는 DataStore 쓰기가
+     * 곧장 취소 예외를 던져 상태 반영까지 건너뛴다.
      */
     suspend fun logout(idpLogout: suspend () -> Unit = {}) {
         try {
             store.read()?.let { api.logout(it.refreshToken) }
             idpLogout()
         } finally {
-            store.clear()
-            _state.value = AuthGateState.SignedOut()
+            withContext(NonCancellable) {
+                store.clear()
+                _state.value = AuthGateState.SignedOut()
+            }
         }
     }
 

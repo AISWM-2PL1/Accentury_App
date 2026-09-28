@@ -20,6 +20,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -48,18 +49,22 @@ private const val OLDEST_BIRTH_YEAR = 1900
  * @param user 서버가 아는 계정 값. 칸을 미리 채운다
  * @param error 방금 실패한 제출의 안내 ([AuthGateState.NeedsProfile.error])
  * @param onSubmit [AuthGateController.submitProfile]
+ * @param onSwitchAccount [다른 계정으로 로그인] — 로그아웃해 로그인 화면으로 ([AuthGateController.logout]). 만 14세 미만
+ *   거절을 받았거나 계정을 잘못 고른 사용자가 이 화면에 갇히지 않게 하는 유일한 출구다(설정 화면은 KAN-247).
  */
 @Composable
 fun ProfileScreen(
     user: AuthUser,
     error: AuthFailure?,
     onSubmit: suspend (ProfileInput) -> Unit,
+    onSwitchAccount: suspend () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 계정이 바뀌면(다른 계정으로 다시 로그인) 앞 계정의 입력을 물려받지 않는다.
     val form = rememberSaveable(user.id, saver = ProfileFormState.saver()) { ProfileFormState.from(user) }
     val scope = rememberCoroutineScope()
     var pickingDate by rememberSaveable { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -139,7 +144,24 @@ fun ProfileScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = form.isComplete && !form.submitting,
+                enabled = form.isComplete && !form.submitting && !leaving,
+            )
+
+            AccenturyButton(
+                text = "다른 계정으로 로그인",
+                onClick = {
+                    scope.launch {
+                        leaving = true
+                        try {
+                            onSwitchAccount()
+                        } finally {
+                            leaving = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                variant = ButtonVariant.Text,
+                enabled = !form.submitting && !leaving,
             )
         }
     }

@@ -5,8 +5,10 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
@@ -39,8 +41,14 @@ private const val STORE_NAME = "auth_tokens"
  * Preferences DataStore는 파일 하나당 인스턴스가 하나여야 한다(둘이면 서로의 쓰기를 덮는다). 최상위
  * 위임 프로퍼티가 프로세스 단일 인스턴스를 보장하는 공식 방식이다.
  * https://developer.android.com/topic/libraries/architecture/datastore (datastore-preferences 1.2.1)
+ *
+ * 파일이 깨졌으면(CorruptionException) 빈 값으로 갈아 끼운다 — 처리기가 없으면 읽을 때마다 예외가 나 앱이 시작
+ * 게이트에서 매번 죽는다. 복호화 실패와 같은 규칙이다: 되살릴 수 없는 쌍은 로그아웃으로 본다(클래스 KDoc).
  */
-private val Context.authTokenDataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)
+private val Context.authTokenDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = STORE_NAME,
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 private val SEALED_TOKENS = stringPreferencesKey("sealed_tokens")
 
@@ -111,13 +119,23 @@ class KeystoreTokenStore(context: Context) : TokenStore {
     }
 
     private suspend fun load(): AuthTokens? {
-        val sealed = dataStore.data.first()[SEALED_TOKENS] ?: return null
+        // 읽기 실패(디스크 오류 — 손상은 위 처리기가 빈 값으로 바꾼다)도 쌍이 없는 것으로 본다. [read]는 던지지 않는다
+        // (TokenStore 계약). 이 프로세스 동안은 null로 캐시된다 — 다시 로그인하면 저장이 덮어쓴다.
+        val sealed = try {
+            dataStore.data.first()[SEALED_TOKENS]
+        } catch (_: IOException) {
+            null
+        } ?: return null
         return try {
             json.decodeFromString(AuthTokens.serializer(), open(sealed))
         } catch (_: Exception) {
             // 키 유실(백업 복원·잠금 방식 변경)·손상된 값 — 어느 쪽이든 되살릴 방법이 없다. 클래스 KDoc 참조.
             // 예외 메시지에 암호문 조각이 실릴 수 있어 로그로 남기지 않는다.
-            dataStore.edit { it.remove(SEALED_TOKENS) }
+            try {
+                dataStore.edit { it.remove(SEALED_TOKENS) }
+            } catch (_: IOException) {
+                // 지우지 못한 암호문은 다음 실행에서 또 복호화에 실패해 여기로 온다 — 결과는 같다.
+            }
             null
         }
     }
