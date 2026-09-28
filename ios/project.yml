@@ -57,6 +57,19 @@ packages:
   GoogleMobileAds:
     url: https://github.com/googleads/swift-package-manager-google-mobile-ads
     exactVersion: 13.9.0
+  # 구글 로그인 (KAN-224). 안드로이드 `androidx.credentials` + `googleid`(Sign in with Google) 자리다 —
+  # iOS에는 Credential Manager가 없어 구글이 이 SDK 하나로 계정 선택·ID 토큰 발급을 준다. 9.2.0은 GitHub
+  # 태그 목록의 최신 정식 릴리스다(2026-09-28 기준, `-eap` 태그 제외). 태그를 못 박는 이유는 위 셋과 같다.
+  # https://developers.google.com/identity/sign-in/ios/start-integrating
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    exactVersion: 9.2.0
+  # 네이버 로그인 (KAN-224). 안드로이드 `naver.oauth`(NidOAuth 5.x) 자리 — 같은 네이버가 Swift로 새로 낸
+  # SDK다(옛 Objective-C `naveridlogin-sdk-ios` 4.x는 SPM이 아니고 갱신이 멈췄다). 5.2.1은 태그 목록의 최신이다.
+  # https://github.com/naver/naveridlogin-sdk-ios-swift
+  NaverIdLogin:
+    url: https://github.com/naver/naveridlogin-sdk-ios-swift
+    exactVersion: 5.2.1
 
 targets:
   Accentury:
@@ -132,6 +145,17 @@ targets:
         product: KakaoSDKTemplate
       - package: KakaoOpenSDK
         product: KakaoSDKCommon
+      # 카카오 로그인 (KAN-224). 공유와 같은 패키지·같은 버전이다 — 안드로이드가 `kakao.share`에 `kakao.user`를
+      # 더한 것과 같은 자리. `AuthController.handleOpenUrl`(카톡에서 돌아오는 URL)이 Auth에 있어 둘 다 적는다.
+      - package: KakaoOpenSDK
+        product: KakaoSDKUser
+      - package: KakaoOpenSDK
+        product: KakaoSDKAuth
+      # 구글·네이버 로그인 (KAN-224). 호출은 앱 타깃 `Auth/IdpSdks.swift` 한 파일에만 있다.
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: NaverIdLogin
+        product: NidThirdPartyLogin
       # 익명 계측·크래시 (KAN-33). 설정 파일이 없어도 **의존성은 늘 붙는다** — 안드로이드가
       # 플러그인만 조건부로 걸고 의존성은 무조건 넣은 것과 같은 판단이다. 링크 대상이 설정 유무에
       # 따라 갈리면 설정 없는 CI가 검증한 바이너리와 스토어로 나가는 바이너리가 달라진다.
@@ -182,6 +206,27 @@ targets:
             echo "error: AdMob ID가 주입되지 않아 Google 테스트 ID로 떨어졌다 (KAN-196, REQUIRE_ADMOB_IDS=YES):$bad"
             echo "error:   릴리스 산출물은 테스트 광고 단위로 나갈 수 없다 - 스토어에 올라가면 AdMob 정책 위반이다."
             echo "error:   xcodebuild ... ADMOB_APP_ID=... ADMOB_INTERSTITIAL_ID=... ADMOB_REWARDED_ID=... 로 넘긴다 (ads-admob.md §3)."
+            exit 1
+          fi
+        basedOnDependencyAnalysis: false
+      # 로그인 IdP 빗장 (KAN-224). 안드로이드 `-PrequireGoogleServerClientId`·`-PrequireNaverClient`의 자리이고
+      # 바로 위 AdMob 빗장과 같은 꼴이다 — 명령줄에 `REQUIRE_IDP_CONFIG=YES`를 준 Release 아카이브에서 구글·네이버
+      # 설정이 하나라도 비면 빌드를 세운다. 빈 값으로 스토어에 나가면 그 IdP 버튼이 사라진 채 배포된다
+      # (앱은 설정 없는 버튼을 숨긴다 - Auth/IdpSdks.swift). 애플은 설정값이 없고(번들 ID + entitlement),
+      # 카카오 키는 공유 때부터 빗장 없이 명령줄로 주는 값이라 여기서도 보지 않는다.
+      - name: 로그인 IdP 설정 빗장 (Release)
+        script: |
+          set -euo pipefail
+          if [ "${CONFIGURATION:-}" != "Release" ] || [ "${REQUIRE_IDP_CONFIG:-NO}" != "YES" ]; then
+            exit 0
+          fi
+          missing=""
+          for key in GOOGLE_IOS_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_REVERSED_CLIENT_ID NAVER_CLIENT_ID NAVER_CLIENT_SECRET NAVER_URL_SCHEME; do
+            if [ -z "$(printenv "$key" | tr -d '[:space:]')" ]; then missing="$missing $key"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "error: 로그인 IdP 설정이 비어 있다 (KAN-224, REQUIRE_IDP_CONFIG=YES):$missing"
+            echo "error:   이 상태로 배포하면 그 IdP 로그인 버튼이 사라진다. xcodebuild ... GOOGLE_IOS_CLIENT_ID=... 식으로 넘긴다."
             exit 1
           fi
         basedOnDependencyAnalysis: false

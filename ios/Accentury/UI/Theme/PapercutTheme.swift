@@ -36,6 +36,10 @@ enum Papercut {
     static let paperShadow = Color(red: 0xcf / 255, green: 0xc5 / 255, blue: 0xaa / 255)
     /// 흐린 잉크. 캡션·부연·레인 라벨이 쓴다.
     static let muted = Color(red: 0x6b / 255, green: 0x64 / 255, blue: 0x59 / 255)
+    /// 포인트 컬러 — 종이에 얹은 두 번째 잉크다 (정본 §2 `point`, 안드로이드 `LightPoint`). 인트로 히어로 밑줄처럼
+    /// 지금 여기를 짚는 자리에만 쓰고 상태(오류·정오답)에는 쓰지 않는다 (정본 §7). 네이티브 첫 사용처는 로그인
+    /// 화면의 히어로 밑줄이다 (KAN-224).
+    static let point = Color(red: 0xa8 / 255, green: 0x50 / 255, blue: 0x3a / 255)
 
     // MARK: - 간격 (정본 §4)
 

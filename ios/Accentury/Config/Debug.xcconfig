@@ -24,6 +24,10 @@ GCC_PREPROCESSOR_DEFINITIONS = $(inherited) DEBUG=1
 // 파일 재생 경로를 만들지 않는다.
 FAKE_MIC_ASSET =
 
+// 가짜 IdP (KAN-224). 기본은 NO(Base.xcconfig)이고, 아래 Local.xcconfig에 `FAKE_IDP = YES`를 적거나
+// `xcodebuild ... FAKE_IDP=YES`로 켠다. 켜면 로그인 버튼 넷이 SDK를 건너뛰고 `fake:dev-<provider>`를 보낸다 —
+// 서버도 `accentury.auth.fake-idp=true`여야 받는다. 안드로이드 `-PfakeIdp=true`(local.properties `fakeIdp=true`) 자리다.
+
 // 실기기 확인용 오버라이드 (안드로이드 local.properties의 `webUrl=`과 같은 자리).
 // 실기기는 맥의 localhost를 모른다. `cloudflared tunnel --url http:/$()/localhost:5173`이 준
 // HTTPS 주소를 Local.xcconfig에 적으면 화면과 API가 배포와 같은 단일 출처로 나간다 —

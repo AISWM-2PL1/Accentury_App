@@ -32,3 +32,16 @@
 // ADMOB_APP_ID = ca-app-pub-XXXX~YYYY
 // ADMOB_INTERSTITIAL_ID = ca-app-pub-XXXX/1111
 // ADMOB_REWARDED_ID = ca-app-pub-XXXX/2222
+
+// --- 로그인 IdP (KAN-224) ---
+// 비워 두면 그 IdP 버튼이 숨는다 — 그게 기본 상태다. 발급 위치는 Base.xcconfig 주석.
+// GOOGLE_IOS_CLIENT_ID = 1234567890-abc.apps.googleusercontent.com
+// GOOGLE_SERVER_CLIENT_ID = 1234567890-web.apps.googleusercontent.com
+// GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.1234567890-abc
+// NAVER_CLIENT_ID = xxxxxxxxxxxxxxxxxxxx
+// NAVER_CLIENT_SECRET = xxxxxxxxxx
+// NAVER_URL_SCHEME = accenturynaverlogin
+
+// --- 가짜 IdP (KAN-224, Debug 전용) ---
+// SDK 없이 로그인 버튼 넷을 돌린다. 로컬 서버가 accentury.auth.fake-idp=true여야 받는다.
+// FAKE_IDP = YES
