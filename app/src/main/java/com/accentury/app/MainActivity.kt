@@ -525,7 +525,9 @@ private fun TestFlow(
     val ads = remember(appContext) { AdsController.from(appContext) }
 
     /**
-     * 재응시 본체 (KAN-34 2단계, KAN-107). 보상형 광고 게이트를 통과한 뒤에만 온다 ([startRetest]).
+     * 재응시 본체 (KAN-34 2단계, KAN-107). 보상형 광고 게이트를 통과한 뒤([startRetest]), 또는 실패
+     * 출구에서 광고 없이([startRetestAfterFailure], KAN-248) 온다. 잠금([SessionGateController.beginRetest])이
+     * 여기 있어서 두 입구가 같은 잠금을 지난다.
      *
      * 세션 게이트 화면이 아니라 여기서 요청을 거는 이유: 재응시가 벌어지는 자리에는 그 화면이 없다.
      * 사용자는 결과 화면(웹)을 보고 있고 그 화면은 요청이 도는 동안에도 그대로 있어야 한다 —
@@ -617,6 +619,17 @@ private fun TestFlow(
         )
     }
 
+    /**
+     * 실패 출구(문항 중 세션 만료·제출 실패, 분석 대기 막다른 상태)의 재응시 → 광고 없이 곧바로
+     * [proceedRetest] (KAN-248, webview-bridge.md §8.6). 사용자 잘못이 아닌 실패에는 광고를 물리지
+     * 않는다 (팀장 결정).
+     *
+     * 따로 잠그지 않는다 — `retestInFlight`는 [proceedRetest] 안의 `beginRetest()`가 걸므로 연타도,
+     * [startRetest]의 광고 완주와 겹친 호출도 세션 요청은 한 번만 나간다. 광고가 없으니 `AD_DISMISSED`
+     * 갈래도 없다.
+     */
+    fun startRetestAfterFailure() = proceedRetest()
+
     Column(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             WebViewHost(
@@ -657,6 +670,7 @@ private fun TestFlow(
                     flow.onStartVoiceItem(start, micGranted = isMicGranted())
                 },
                 onStartRetest = { startRetest() },
+                onStartRetestAfterFailure = { startRetestAfterFailure() },
                 /*
                  * 탭은 여기서 세지 않는다 (FR-SH-06). 그 한 건은 웹이 `share_clicked`로 이미
                  * 세고, 앱 안에서는 브리지 `logEvent`를 타고 같은 창구로 들어온다 — 네이티브가
