@@ -380,6 +380,8 @@ dependencies {
     // 넣는 것은 Firebase와 같은 이유다 - 설정 유무에 따라 컴파일되는 소스가 갈리면 안 된다.
     // ID가 없는 빌드는 Google 테스트 ID로 돈다 (위 admobProperty 주석).
     implementation(libs.play.services.ads)
+    // 계정 토큰 저장 (KAN-224). auth/KeystoreTokenStore.kt 참조.
+    implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
