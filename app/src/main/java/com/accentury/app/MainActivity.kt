@@ -84,11 +84,22 @@ import com.accentury.app.analytics.crashIfRequested
 import com.accentury.app.analytics.create
 import com.accentury.app.analytics.log
 import com.accentury.app.analytics.channelParam
+import com.accentury.app.auth.AuthCheckScreen
+import com.accentury.app.auth.AuthGateController
+import com.accentury.app.auth.AuthGateState
+import com.accentury.app.auth.LoginScreen
+import com.accentury.app.auth.PRIVACY_POLICY_URL
+import com.accentury.app.auth.PRIVACY_POLICY_VERSION
+import com.accentury.app.auth.ProfileScreen
+import com.accentury.app.auth.configuredProviders
+import com.accentury.app.auth.idpSignInFor
+import com.accentury.app.auth.visibleProviders
 import com.accentury.app.share.ResultSharer
 import com.accentury.app.session.OkHttpSessionClient
 import com.accentury.app.session.RetestOutcome
 import com.accentury.app.session.SessionGateController
 import com.accentury.app.session.SessionGateScreen
+import com.accentury.app.session.sessionCreationClient
 import com.accentury.app.testflow.TestFlowController
 import com.accentury.app.testflow.continuesFrom
 import com.accentury.app.testflow.TestFlowPhase
@@ -114,6 +125,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 
 
 /*
@@ -139,10 +151,13 @@ class MainActivity : ComponentActivity() {
          * 스플래시 (KAN-178). `super.onCreate` **앞**이어야 한다 — 이 호출이 하는 일이
          * 창의 테마를 매니페스트의 Theme.Accentury.Starting에서 postSplashScreenTheme
          * (Theme.Accentury)로 갈아 끼우는 것이고, 창이 만들어진 뒤에 바꾸면 늦는다.
-         * 유지 조건(setKeepOnScreenCondition)은 걸지 않는다 — 첫 화면이 웹뷰라 붙들 기준이
-         * 애매하고, 붙들면 그만큼 사용자가 아무것도 못 하는 시간이 늘어난다.
+         *
+         * 로그인 상태를 확인하는 동안은 스플래시를 붙든다 (KAN-224). 예전에는 첫 화면이 웹뷰라 붙들
+         * 기준이 없었지만, 이제 첫 화면이 로그인 관문이라 확인이 끝나기 전에 걷으면 로그인된 사용자에게도
+         * 로그인 화면이 한 번 번쩍인다. 확인은 Application이 프로세스당 한 번 건다.
          */
-        installSplashScreen()
+        val authGate = (application as AccenturyApplication).authGate
+        installSplashScreen().setKeepOnScreenCondition { authGate.state.value is AuthGateState.Checking }
         super.onCreate(savedInstanceState)
         /*
          * 시스템 바를 **항상 밝은 배경용**으로 고정한다 (KAN-161 4단계).
@@ -178,7 +193,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AccenturyTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    TestFlow(appLink = appLink, modifier = Modifier.padding(innerPadding))
+                    AuthGate(gate = authGate, appLink = appLink, modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -214,6 +229,55 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
+ * 로그인 관문 (KAN-224). 인트로(웹)보다 앞에 서고, 로그인·추가 정보가 끝나야 [TestFlow]가 열린다.
+ *
+ * **[TestFlow]는 [AuthGateState.SignedIn]일 때만 컴포지션에 있다.** 어디서든 Refresh가 거절돼 로그인
+ * 화면으로 돌아가면(또는 프로필 미완료로 추가 정보 화면으로 가면) TestFlow가 통째로 내려가며 그 안의
+ * rememberSaveable(시작 게이트 네 칸·세션)도 함께 버려진다 — 다시 들어오면 인트로부터다. 진행 중이던
+ * 응시를 다른 계정 상태로 이어 가지 않는 것이 이 구조의 요점이다.
+ */
+@Composable
+private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val authClients = remember(context) { (context.applicationContext as AccenturyApplication).authClients }
+
+    when (val state = gate.state.collectAsStateWithLifecycle().value) {
+        // 첫 확인은 스플래시가 가린다. 여기가 보이는 것은 CheckFailed의 [다시 시도] 뒤다.
+        AuthGateState.Checking -> AuthCheckScreen(failure = null, onRetry = {}, modifier = modifier)
+
+        is AuthGateState.CheckFailed -> AuthCheckScreen(
+            failure = state.error,
+            onRetry = { scope.launch { gate.bootstrap() } },
+            modifier = modifier,
+        )
+
+        is AuthGateState.SignedOut -> LoginScreen(
+            error = state.error,
+            providers = remember { visibleProviders(configuredProviders(), BuildConfig.FAKE_IDP) },
+            signInFor = ::idpSignInFor,
+            onLogin = { gate.login(it, PRIVACY_POLICY_VERSION) },
+            onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+            modifier = modifier,
+        )
+
+        is AuthGateState.NeedsProfile -> ProfileScreen(
+            user = state.user,
+            error = state.error,
+            onSubmit = gate::submitProfile,
+            modifier = modifier,
+        )
+
+        is AuthGateState.SignedIn -> TestFlow(
+            appLink = appLink,
+            authedClient = authClients.authedClient,
+            onProfileIncomplete = gate::onProfileIncomplete,
+            modifier = modifier,
+        )
+    }
+}
+
+/**
  * 인트로(웹) → 시작 게이트(마이크 권한 → 세션 생성) → 테스트 진입(웹) → VOICE 문항마다 녹음
  * 오버레이 (KAN-100, KAN-34).
  *
@@ -223,9 +287,16 @@ class MainActivity : ComponentActivity() {
  * 여기는 Android·Compose 결선만 한다.
  *
  * @param appLink App Link 진입 (KAN-32). Activity가 Intent에서 읽어 흘려보낸다
+ * @param authedClient 세션 생성에 계정 Access 토큰을 싣는 클라이언트 (KAN-224, AuthClients.authedClient)
+ * @param onProfileIncomplete 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224)
  */
 @Composable
-private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Modifier) {
+private fun TestFlow(
+    appLink: StateFlow<AppLinkEntry?>,
+    authedClient: OkHttpClient,
+    onProfileIncomplete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
 
     /*
@@ -286,7 +357,13 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
     var micPassed by rememberSaveable { mutableStateOf(false) }
     var voiceCenterHz by rememberSaveable { mutableStateOf<Float?>(null) }
     val sessionGate = rememberSaveable(saver = SessionGateController.saver()) { SessionGateController() }
-    val sessionClient = remember { OkHttpSessionClient(BuildConfig.API_BASE_URL) }
+    /*
+     * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
+     * 업로드·결과 등 세션 범위 API는 `st_` 세션 토큰을 쓰는 기존 클라이언트 그대로다 (AuthClients KDoc).
+     */
+    val sessionClient = remember(authedClient) {
+        OkHttpSessionClient(BuildConfig.API_BASE_URL, sessionCreationClient(authedClient))
+    }
     val session = sessionGate.session
 
     val flow = rememberSaveable(saver = TestFlowController.saver()) { TestFlowController() }
@@ -417,6 +494,30 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
     val scope = rememberCoroutineScope()
 
     /*
+     * 시작 게이트를 인트로 앞으로 되감는다. 다시 시도해도 소용없는 세션 실패의 [처음으로]와, 프로필 미완료로
+     * 추가 정보 화면에 다녀오는 경우(KAN-224)가 같은 되감기를 쓴다.
+     */
+    fun resetStartGates() {
+        startRequested = false
+        micPassed = false
+        // 점검도 함께 되돌린다 - 인트로로 돌아간 뒤 다시 시작하면 마이크를 새로
+        // 열게 되므로, 그 마이크가 잘 잡히는지는 그때 다시 확인해야 맞다.
+        voiceCenterHz = null
+        // 실패 상태를 그대로 두면 다음 [시작하기]가 같은 실패 화면으로 곧장 떨어진다.
+        sessionGate.restart()
+    }
+
+    /*
+     * 프로필 미완료 (KAN-224). 되감은 뒤 추가 정보 화면으로 넘긴다 — 넘기는 순간 이 TestFlow가 컴포지션에서
+     * 내려가 저장 상태도 버려지므로 되감기는 사실상 이중 안전장치다. 그래도 명시해 두는 이유는, 이 구조
+     * (SignedIn일 때만 TestFlow)가 바뀌어도 완료 뒤에 인트로로 떨어진다는 약속이 남게 하려는 것이다.
+     */
+    fun leaveForProfile() {
+        resetStartGates()
+        onProfileIncomplete()
+    }
+
+    /*
      * 광고 허브 (KAN-196). Application이 든 프로세스 단위 인스턴스라 remember 키가 없다 —
      * 미리 받아 둔 광고가 회전을 넘겨야 해서 컴포지션이 소유하지 않는다 (AdsController KDoc).
      */
@@ -463,6 +564,9 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
                      */
                     startRequested = false
                 }
+
+                // 결과 화면에 회신할 실패가 아니다 — 추가 정보를 받으러 간다 (KAN-224).
+                RetestOutcome.ProfileIncomplete -> leaveForProfile()
 
                 is RetestOutcome.Failed -> {
                     /*
@@ -651,15 +755,8 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
                     client = sessionClient,
                     appVersion = BuildConfig.VERSION_NAME,
                     campaignToken = campaignToken,
-                    onBackToIntro = {
-                        startRequested = false
-                        micPassed = false
-                        // 점검도 함께 되돌린다 - 인트로로 돌아간 뒤 다시 시작하면 마이크를 새로
-                        // 열게 되므로, 그 마이크가 잘 잡히는지는 그때 다시 확인해야 맞다.
-                        voiceCenterHz = null
-                        // 실패 상태를 그대로 두면 다음 [시작하기]가 같은 실패 화면으로 곧장 떨어진다.
-                        sessionGate.restart()
-                    },
+                    onBackToIntro = ::resetStartGates,
+                    onProfileIncomplete = ::leaveForProfile,
                 )
 
                 // 문항 진입 시점의 게이트 — 통과하면 기다리던 문항의 녹음으로 곧장 들어간다.

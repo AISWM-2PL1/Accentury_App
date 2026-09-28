@@ -32,6 +32,7 @@ import kotlinx.coroutines.ensureActive
  * @param gate 상태 머신. 결과 판정과 재시도가 전부 여기로 모인다
  * @param campaignToken App Link로 들어온 공유 유입 계측 코드 (KAN-32). 링크 진입이 아니면 null
  * @param onBackToIntro 다시 시도해도 소용없는 실패에서 인트로로 돌려보낸다
+ * @param onProfileIncomplete 서버가 프로필 미완료(403 `AUTH_PROFILE_INCOMPLETE`)로 막았다 — 추가 정보 화면으로 (KAN-224)
  */
 @Composable
 fun SessionGateScreen(
@@ -40,6 +41,7 @@ fun SessionGateScreen(
     appVersion: String,
     campaignToken: String?,
     onBackToIntro: () -> Unit,
+    onProfileIncomplete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(gate.attempt) {
@@ -79,6 +81,12 @@ fun SessionGateScreen(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (val state = gate.state) {
             is SessionGateState.Failed -> FailureScreen(state, onRetry = gate::restart, onBackToIntro = onBackToIntro)
+            // 통보는 이펙트에서 한다 — 콜백이 이 화면을 걷어내므로 컴포지션 도중에 부르면 컴포지션 중 상태 변경이다.
+            // 그동안은 준비 중 표시를 그대로 둔다.
+            SessionGateState.ProfileIncomplete -> {
+                LaunchedEffect(Unit) { onProfileIncomplete() }
+                PreparingScreen()
+            }
             // 확보 직후 한 프레임은 여기로 올 수 있다 — 상위가 세션을 보고 이 화면을 걷어내기
             // 직전이라, 준비 중 표시를 그대로 두는 것이 화면이 덜컥거리지 않는 쪽이다.
             else -> PreparingScreen()
