@@ -6,8 +6,8 @@ import WebKit
 /// 안드로이드 `AccenturyBridge.kt`의 이식본이고, JS 쪽 절반은 ``BridgeUserScript``다.
 ///
 /// 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
-/// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)까지 필요한 열한 메서드만 둔다. 늘리기 전에
-/// 웹에서 해결 가능한지 먼저 볼 것.
+/// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)까지 필요한 열두
+/// 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
 /// 그중 값을 돌려주는 셋(`getContractVersion`·`getSessionToken`·`getAdConsent`)은 여기로 오지
 /// 않는다 — JS 안에서 끝난다 (``BridgeUserScript`` 참고).
 ///
@@ -36,6 +36,10 @@ struct BridgeDispatcher {
     let onRequestMicPermission: () -> Void
     let onStartVoiceItem: (VoiceItemStart) -> Void
     let onStartRetest: () -> Void
+
+    /// 실패 출구의 재응시 (KAN-248). ``onStartRetest``와 같되 보상형 광고만 건너뛴다 — 중복 호출
+    /// 무시도 같은 상태 머신(`SessionGateController.retestInFlight`)이 맡는다 (webview-bridge.md §8.6).
+    let onStartRetestAfterFailure: () -> Void
     let onShareResult: (SharePayload) -> Void
 
     /// 웹이 센 계측 이벤트 (KAN-33). 이름과 파라미터는 여기 도착하기 전에 이미 GA4 규격으로
@@ -78,6 +82,13 @@ struct BridgeDispatcher {
             // 한다 (`SessionGateController.retestInFlight`). 두 곳에 두면 어긋나는 순간 막으려던
             // 이중 요청이 정확히 그때 새어 나간다.
             onStartRetest()
+
+        case "startRetestAfterFailure":
+            // 실패 출구(문항 중 세션 만료·제출 실패, 분석 대기 막다른 상태)의 재응시 (KAN-248, §8.6).
+            // 사용자 잘못이 아닌 실패에는 광고를 물리지 않는다 (팀장 결정). 인자로 가르지 않고 메서드를
+            // 따로 둔 이유는 웹이 유무를 보고 구버전 앱에서 `startRetest`로 폴백하기 위해서다. 연타를
+            // 여기서 세지 않는 이유는 위 `startRetest`와 같다.
+            onStartRetestAfterFailure()
 
         case "startVoiceItem":
             guard let json = payload as? String else { return }

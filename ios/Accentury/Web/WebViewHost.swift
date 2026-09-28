@@ -165,6 +165,8 @@ struct WebViewHost: View {
     let onRequestMicPermission: () -> Void
     let onStartVoiceItem: (VoiceItemStart) -> Void
     let onStartRetest: () -> Void
+    /// 실패 출구의 재응시, 광고 없음 (KAN-248). ``onStartRetest``와 같은 잠금을 지난다.
+    let onStartRetestAfterFailure: () -> Void
     let onShareResult: (SharePayload) -> Void
 
     /// 웹이 센 계측 이벤트 (KAN-33). 검증은 ``BridgeDispatcher``가 이미 끝냈다.
@@ -204,6 +206,7 @@ struct WebViewHost: View {
                     onRequestMicPermission: onRequestMicPermission,
                     onStartVoiceItem: onStartVoiceItem,
                     onStartRetest: onStartRetest,
+                    onStartRetestAfterFailure: onStartRetestAfterFailure,
                     onShareResult: onShareResult,
                     onLogEvent: onLogEvent,
                     onOpenExternalUrl: onOpenExternalUrl,
@@ -255,6 +258,7 @@ private struct WebViewRepresentable: UIViewRepresentable {
     let onRequestMicPermission: () -> Void
     let onStartVoiceItem: (VoiceItemStart) -> Void
     let onStartRetest: () -> Void
+    let onStartRetestAfterFailure: () -> Void
     let onShareResult: (SharePayload) -> Void
     let onLogEvent: (String, [String: EventParam]) -> Void
     let onOpenExternalUrl: (String) -> Void
@@ -270,6 +274,7 @@ private struct WebViewRepresentable: UIViewRepresentable {
             onRequestMicPermission: onRequestMicPermission,
             onStartVoiceItem: onStartVoiceItem,
             onStartRetest: onStartRetest,
+            onStartRetestAfterFailure: onStartRetestAfterFailure,
             onShareResult: onShareResult,
             onLogEvent: onLogEvent,
             onOpenExternalUrl: onOpenExternalUrl,
@@ -455,6 +460,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
     private let onRequestMicPermission: () -> Void
     private let onStartVoiceItem: (VoiceItemStart) -> Void
     private let onStartRetest: () -> Void
+    private let onStartRetestAfterFailure: () -> Void
     private let onShareResult: (SharePayload) -> Void
     private let onLogEvent: (String, [String: EventParam]) -> Void
     private let onOpenExternalUrl: (String) -> Void
@@ -473,6 +479,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
             onRequestMicPermission: { [weak self] in self?.onRequestMicPermission() },
             onStartVoiceItem: { [weak self] in self?.onStartVoiceItem($0) },
             onStartRetest: { [weak self] in self?.onStartRetest() },
+            onStartRetestAfterFailure: { [weak self] in self?.onStartRetestAfterFailure() },
             onShareResult: { [weak self] in self?.onShareResult($0) },
             onLogEvent: { [weak self] name, params in self?.onLogEvent(name, params) },
             onOpenExternalUrl: { [weak self] url in self?.onOpenExternalUrl(url) },
@@ -487,6 +494,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         onRequestMicPermission: @escaping () -> Void,
         onStartVoiceItem: @escaping (VoiceItemStart) -> Void,
         onStartRetest: @escaping () -> Void,
+        onStartRetestAfterFailure: @escaping () -> Void,
         onShareResult: @escaping (SharePayload) -> Void,
         onLogEvent: @escaping (String, [String: EventParam]) -> Void,
         onOpenExternalUrl: @escaping (String) -> Void,
@@ -498,6 +506,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         self.onRequestMicPermission = onRequestMicPermission
         self.onStartVoiceItem = onStartVoiceItem
         self.onStartRetest = onStartRetest
+        self.onStartRetestAfterFailure = onStartRetestAfterFailure
         self.onShareResult = onShareResult
         self.onLogEvent = onLogEvent
         self.onOpenExternalUrl = onOpenExternalUrl
