@@ -3,13 +3,16 @@ package com.accentury.app.auth
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,52 +75,77 @@ fun LoginScreen(
     val activity = checkNotNull(LocalActivity.current)
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = Spacing.x6, end = Spacing.x6, top = Dimens.screenPaddingTop, bottom = Spacing.x8),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.x6),
-        ) {
-            IntroHero()
-
+        // 키 작은 화면에서는 히어로와 버튼이 겹치지 않고 스크롤된다 — 최소 높이만 화면에 맞추고 넘치면 늘어난다.
+        BoxWithConstraints {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.x3),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(min = maxHeight)
+                    .padding(start = Spacing.x6, end = Spacing.x6, top = HeroTop, bottom = Spacing.x8),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                providers.forEach { provider ->
-                    AccenturyButton(
-                        text = "${providerLabel(provider)}로 계속하기",
-                        onClick = {
-                            scope.launch {
-                                state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
-                            }
-                        },
+                IntroHero()
+                Spacer(Modifier.weight(1f).height(Spacing.x6))
+
+                // 아래 묶음 — 웹 인트로의 CTA·안내 자리. 실패 안내·대기 표시는 버튼 바로 위에 붙는다.
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.x4),
+                ) {
+                    val shown = state.idpError ?: error
+                    when {
+                        // 설정이 하나도 없는 빌드 — 가짜 IdP도 꺼져 있으면 누를 것이 없다. 사용자에게는 업데이트 안내다.
+                        providers.isEmpty() -> AuthFailureBlock(AuthFailure(AuthFailureReason.Unsupported), verb = "로그인")
+                        shown != null -> AuthFailureBlock(shown, verb = "로그인")
+                        // 서버 로그인까지 도는 동안 버튼은 흐려지고 여기서 기다림을 알린다.
+                        state.inFlight -> CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        variant = ButtonVariant.Secondary,
-                        enabled = state.buttonsEnabled,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.x3),
+                    ) {
+                        providers.forEach { provider ->
+                            AccenturyButton(
+                                text = "${providerLabel(provider)}로 계속하기",
+                                onClick = {
+                                    scope.launch {
+                                        state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                variant = ButtonVariant.Secondary,
+                                enabled = state.buttonsEnabled,
+                            )
+                        }
+                    }
+
+                    ConsentRow(
+                        checked = state.consented,
+                        onCheckedChange = { state.consented = it },
+                        onOpenPrivacy = onOpenPrivacy,
                     )
                 }
-            }
-
-            ConsentRow(
-                checked = state.consented,
-                onCheckedChange = { state.consented = it },
-                onOpenPrivacy = onOpenPrivacy,
-            )
-
-            val shown = state.idpError ?: error
-            when {
-                // 설정이 하나도 없는 빌드 — 가짜 IdP도 꺼져 있으면 누를 것이 없다. 사용자에게는 업데이트 안내다.
-                providers.isEmpty() -> AuthFailureBlock(AuthFailure(AuthFailureReason.Unsupported), verb = "로그인")
-                shown != null -> AuthFailureBlock(shown, verb = "로그인")
-                // 서버 로그인까지 도는 동안 버튼은 흐려지고 여기서 기다림을 알린다.
-                state.inFlight -> CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
     }
 }
+
+/**
+ * 히어로 위쪽 여백. 웹 인트로의 히어로와 같은 자리에 앉도록 Pixel 8급(약 915dp 높이) 화면에서 맞춘 값이다.
+ *
+ * ponytail: 웹은 히어로·카드·안내를 푸터 위 남은 칸의 세로 가운데에 두므로(`.screen__body` justify-content center)
+ * 화면 높이가 크게 다르면 두 화면이 몇 dp 어긋난다. 웹 인트로가 가운데 정렬을 그만두면 이 값을 웹과 같은
+ * 레이아웃 상수로 나눠 쓴다.
+ */
+private val HeroTop = 152.dp
+
+/**
+ * 웹 CSS의 줄 높이처럼 줄 간격을 글자 위아래로 나눠 두고 잘라내지 않는다. Compose 기본값은 첫 줄 위·끝 줄 아래
+ * 간격을 잘라 내 웹보다 글자가 몇 dp씩 붙는다 — 히어로 줄 위치를 웹과 맞추려고 여기서만 쓴다.
+ */
+private val CssLineHeight = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.None)
 
 /**
  * 웹 인트로의 상단 블록을 그대로 옮겼다 (KAN-224, `web/src/intro/IntroScreen.tsx` `.intro-hero`) — 앱 첫 화면이
@@ -129,7 +158,7 @@ private fun IntroHero() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.x2),
     ) {
-        Text("Accentury", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
+        Text("Accentury", style = MaterialTheme.typography.titleMedium.copy(lineHeightStyle = CssLineHeight), color = MaterialTheme.colorScheme.onBackground)
         // 밑줄 폭 = 제목 글자 폭 (웹 `.intro-heading`이 글자 폭으로 줄고 svg가 width 100%).
         Column(
             modifier = Modifier.width(IntrinsicSize.Max),
@@ -139,7 +168,7 @@ private fun IntroHero() {
             Text(
                 "사투리\n좀 치나?",
                 // text-intro-hero 56 · leading-tight 1.15 — 네이티브 타입 슬롯에 없는 웹 전용 크기라 여기서만 덮는다
-                style = MaterialTheme.typography.displayLarge.copy(fontSize = 56.sp, lineHeight = 64.sp),
+                style = MaterialTheme.typography.displayLarge.copy(fontSize = 56.sp, lineHeight = 64.sp, lineHeightStyle = CssLineHeight),
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() },
@@ -158,7 +187,7 @@ private fun IntroHero() {
         }
         Text(
             "내 목소리로 확인하는 사투리 억양",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeightStyle = CssLineHeight),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
