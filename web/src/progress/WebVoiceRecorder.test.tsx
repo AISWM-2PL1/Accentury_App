@@ -303,6 +303,7 @@ describe('업로드 (§3.3·§5.1)', () => {
       pending: false,
       message: null,
       retryAfterSec: 0,
+      adGated: false,
     })
 
     it('[재녹음]·[다시 시도] 대신 [다시 테스트하기]만 남긴다 — 재녹음해도 같은 401이다', async () => {

@@ -34,9 +34,13 @@ import type { RetestControl } from './useRetest'
  *
  * `showInterstitialAd`나 `startRetest`의 유무로 가르지 않는 이유: 전자는 전면 광고의 신호지
  * 보상형의 신호가 아니고, 후자는 광고 이전(KAN-34)부터 있던 메서드다.
+ *
+ * 실패 출구(`adGated === false`, KAN-248)는 광고를 건너뛰므로 동의 유무와 무관하게 예전
+ * 라벨이다. 메서드를 모르는 구버전 앱에서는 실패 출구에도 광고가 뜰 수 있는데(`startRetest`
+ * 폴백), 그 경우의 라벨 불일치는 구버전 앱 광고를 감수한다는 팀 결정의 범위다.
  */
-function retestLabel(): string {
-  return readAdConsent() !== null ? '광고 보고 다시 테스트하기' : '다시 테스트하기'
+function retestLabel(adGated: boolean): string {
+  return adGated && readAdConsent() !== null ? '광고 보고 다시 테스트하기' : '다시 테스트하기'
 }
 
 export interface RetestActionProps {
@@ -56,7 +60,7 @@ export interface RetestActionProps {
 }
 
 export function RetestAction({ retest, variant, className }: RetestActionProps) {
-  const { onRetest, disabled, pending, message, retryAfterSec } = retest
+  const { onRetest, disabled, pending, message, retryAfterSec, adGated } = retest
 
   return (
     <>
@@ -65,7 +69,7 @@ export function RetestAction({ retest, variant, className }: RetestActionProps) 
           성공하면 회신이 아니라 페이지 교체가 온다. 그 사이 create 왕복 동안 화면은 아무것도
           모르므로, 할 수 있는 말은 "받았고 진행 중"까지다 — 몇 초 걸리는지도 알 수 없다.
         */}
-        {pending ? '준비 중…' : retestLabel()}
+        {pending ? '준비 중…' : retestLabel(adGated)}
       </Button>
 
       {message !== null && (

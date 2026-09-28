@@ -46,6 +46,7 @@ function retestControl(overrides: Partial<RetestControl> = {}): RetestControl {
     pending: false,
     message: null,
     retryAfterSec: 0,
+    adGated: true,
     ...overrides,
   }
 }

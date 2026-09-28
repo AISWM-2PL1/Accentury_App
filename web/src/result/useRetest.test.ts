@@ -91,6 +91,66 @@ describe('브리지 분기', () => {
   })
 })
 
+describe('광고 갈래 — 실패 출구는 광고를 건너뛴다 (KAN-248)', () => {
+  function stubBothRetests() {
+    const startRetest = vi.fn()
+    const startRetestAfterFailure = vi.fn()
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => 1,
+      startRetest,
+      startRetestAfterFailure,
+    }
+    return { startRetest, startRetestAfterFailure }
+  }
+
+  it("결과 화면('result')은 광고 경로인 startRetest를 부른다", () => {
+    const bridge = stubBothRetests()
+    const { result } = renderHook(() => useRetest(vi.fn(), 'result'))
+
+    act(() => result.current.onRetest())
+
+    expect(bridge.startRetest).toHaveBeenCalledTimes(1)
+    expect(bridge.startRetestAfterFailure).not.toHaveBeenCalled()
+    expect(result.current.adGated).toBe(true)
+  })
+
+  it.each(['item', 'waiting'] as const)(
+    "실패 출구('%s')는 startRetestAfterFailure를 부르고 잠금·계측은 같다",
+    (from) => {
+      const bridge = stubBothRetests()
+      const logEvent = vi.fn()
+      window.AccenturyBridge!.logEvent = logEvent
+      const { result } = renderHook(() => useRetest(vi.fn(), from))
+
+      act(() => result.current.onRetest())
+      act(() => result.current.onRetest())
+
+      expect(bridge.startRetestAfterFailure).toHaveBeenCalledTimes(1)
+      expect(bridge.startRetest).not.toHaveBeenCalled()
+      expect(result.current.adGated).toBe(false)
+      expect(result.current.pending).toBe(true)
+      expect(result.current.disabled).toBe(true)
+      // 잠긴 두 번째 탭은 세지 않는다 — 광고 갈래와 무관하게 한 번이다
+      expect(logEvent).toHaveBeenCalledTimes(1)
+      expect(logEvent).toHaveBeenCalledWith('retest_started', JSON.stringify({ from }))
+    },
+  )
+
+  it('실패 출구도 메서드를 모르는 구버전 앱에서는 startRetest로 내려가 잠근다', () => {
+    const startRetest = stubBridge()
+    const fallback = vi.fn()
+    const { result } = renderHook(() => useRetest(fallback, 'item'))
+
+    act(() => result.current.onRetest())
+
+    expect(startRetest).toHaveBeenCalledTimes(1)
+    expect(fallback).not.toHaveBeenCalled()
+    expect(result.current.pending).toBe(true)
+  })
+})
+
 describe('잠금 — 더블탭 방지 (KAN-107이 서버 멱등 장치를 두지 않는다)', () => {
   it('호출이 성사된 순간부터 잠기고 준비 중이 된다', () => {
     stubBridge()
