@@ -15,6 +15,7 @@ function retestControl(overrides: Partial<RetestControl> = {}): RetestControl {
     pending: false,
     message: null,
     retryAfterSec: 0,
+    adGated: true,
     ...overrides,
   }
 }
@@ -55,6 +56,14 @@ describe('RetestAction — 버튼 라벨 (KAN-196)', () => {
     window.AccenturyBridge = bridge() // getAdConsent 없음, startRetest 있음
 
     render(<RetestAction retest={retestControl()} />)
+
+    expect(screen.getByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
+  })
+
+  it('실패 출구(adGated false)는 광고를 아는 앱이어도 광고 문구가 없다 (KAN-248)', () => {
+    window.AccenturyBridge = bridge({ getAdConsent: () => 'granted' })
+
+    render(<RetestAction retest={retestControl({ adGated: false })} />)
 
     expect(screen.getByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
   })

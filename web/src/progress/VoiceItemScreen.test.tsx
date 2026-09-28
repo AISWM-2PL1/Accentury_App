@@ -131,7 +131,7 @@ describe('대기 문구 단일화 (KAN-146)', () => {
 
 /** 재응시 훅이 만드는 값의 대역. 버튼 라벨·잠금은 `RetestAction`이 그대로 그린다 */
 function stubRetest(): RetestControl {
-  return { onRetest: vi.fn(), disabled: false, pending: false, message: null, retryAfterSec: 0 }
+  return { onRetest: vi.fn(), disabled: false, pending: false, message: null, retryAfterSec: 0, adGated: false }
 }
 
 describe('앱 대기 푸터의 세션 만료 출구 (KAN-237)', () => {
