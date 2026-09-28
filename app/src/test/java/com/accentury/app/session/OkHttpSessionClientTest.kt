@@ -1,5 +1,8 @@
 package com.accentury.app.session
 
+import com.accentury.app.auth.AuthClients
+import com.accentury.app.auth.AuthTokens
+import com.accentury.app.auth.InMemoryTokenStore
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -114,12 +117,42 @@ class OkHttpSessionClientTest {
     }
 
     @Test
-    fun `이전 토큰을 주면 Bearer로 실어 보낸다 - 재응시 폐기 경로 (KAN-107)`() = runTest {
+    fun `이전 토큰은 본문 previousSessionToken으로 싣고 헤더에는 없다 - 재응시 폐기 경로 (KAN-107, KAN-224)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
 
         client().create(appVersion = "1.0", previousToken = "st_old")
 
-        assertEquals("Bearer st_old", server.takeRequest().getHeader("Authorization"))
+        val recorded = server.takeRequest()
+        // 헤더 자리는 로그인한 앱의 Access 토큰 몫이다 - st_ 토큰이 거기 실리면 안 된다.
+        assertNull(recorded.getHeader("Authorization"))
+        val body = Json.parseToJsonElement(recorded.body.readUtf8()).jsonObject
+        assertEquals("st_old", body["previousSessionToken"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `최초 응시에는 previousSessionToken 키가 없다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
+
+        client().create(appVersion = "1.0")
+
+        val body = server.takeRequest().body.readUtf8()
+        assertFalse(body, body.contains("previousSessionToken"))
+    }
+
+    @Test
+    fun `인증 클라이언트를 주면 Access JWT를 Bearer로 싣고 region은 보내지 않는다 (KAN-224)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
+        val store = InMemoryTokenStore(AuthTokens("jwt_access", "rt_1"))
+        val authed = AuthClients(server.url("/").toString(), store).authedClient
+        val client = OkHttpSessionClient(server.url("/").toString(), sessionCreationClient(authed))
+
+        client.create(appVersion = "1.0", previousToken = "st_old")
+
+        val recorded = server.takeRequest()
+        assertEquals("Bearer jwt_access", recorded.getHeader("Authorization"))
+        val body = Json.parseToJsonElement(recorded.body.readUtf8()).jsonObject
+        assertEquals("st_old", body["previousSessionToken"]!!.jsonPrimitive.content)
+        assertNull(body["region"])
     }
 
     @Test
