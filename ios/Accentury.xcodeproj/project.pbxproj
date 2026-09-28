@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		006BCD03129B198732F827E7 /* LoginScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449CC9BCB953FCB532847217 /* LoginScreen.swift */; };
+		024C890CFC81C81DFEFCA5C8 /* AuthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52FCA2A8F05E8DD81698AF50 /* AuthGateView.swift */; };
 		0286E8DBA30BED74F1C2AD3B /* KakaoSDKShare in Frameworks */ = {isa = PBXBuildFile; productRef = F5B3D07508A812FD7E26A278 /* KakaoSDKShare */; };
 		03FD3E88EFCBAEB786922E80 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 519A8D634C011FD35B714408 /* GoogleService-Info.plist */; };
 		04A63C20DF24D5E63CDF78CA /* RecordingFileLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 704F02B2845DB68F35EE0A01 /* RecordingFileLifecycleTests.swift */; };
@@ -14,7 +16,10 @@
 		10D68C70533165CE8FD66555 /* ResultSharer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A131F2B4843525E348A138 /* ResultSharer.swift */; };
 		111E067F4C27A92446F1B194 /* CurvePathBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7651DEA8417312CA6605FD /* CurvePathBuilderTests.swift */; };
 		14158247BFD2031B9D6B7738 /* CurveLatencyProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605E85B43A92125E5747AF57 /* CurveLatencyProbe.swift */; };
+		14D66E090C06F149AED0351A /* AccenturyTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEFAA2F91C5F7AC6DA739755 /* AccenturyTextField.swift */; };
 		16E8199AE8BC355AD952EA70 /* AccenturyBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607F36430836A82E19D41B47 /* AccenturyBridgeTests.swift */; };
+		19D0E170C2A662EFE7A7018F /* NidThirdPartyLogin in Frameworks */ = {isa = PBXBuildFile; productRef = A6E4883D7FB783CAF4F9FD4A /* NidThirdPartyLogin */; };
+		1E5F56E993F6C18E799773E1 /* ProfileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027E1A53FFD5EC7536BE3E4A /* ProfileScreen.swift */; };
 		202C2D7EAFF2F4C80BA8D285 /* ProgressIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 773A982B19B83B94B4234083 /* ProgressIndicator.swift */; };
 		23A926CAEA2B263C22C7533B /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D06BC29425E893F55AE8F9A /* AppConfig.swift */; };
 		25833EE02027D490207CA1CF /* UploadModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C520180AF16EA0902B79F7 /* UploadModel.swift */; };
@@ -22,7 +27,7 @@
 		32DF4843F5A8DA80C8385721 /* TestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8743BCD3EE6871AFE9C2DF64 /* TestDoubles.swift */; };
 		33EC80CA45D4C12AC521A7C3 /* VoiceCheckModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DEE86D46BCC8F6213F670EA /* VoiceCheckModelTests.swift */; };
 		355B9977DF82745AA41AE529 /* PapercutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E00BC0B32B9296094D3014D /* PapercutTheme.swift */; };
-		38419F6115CAF01241F54943 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 6EBC5DFDBE6BCFF4929561DB /* FirebaseCrashlytics */; };
+		38419F6115CAF01241F54943 /* KakaoSDKAuth in Frameworks */ = {isa = PBXBuildFile; productRef = B8780A78D918D55C9D2EB301 /* KakaoSDKAuth */; };
 		387373ED323D0FED5A62B215 /* PermissionGateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AD1979B9D7FBA7E7FFB170 /* PermissionGateModel.swift */; };
 		3958ED33ADDA31F6FE392B5C /* PcmSourcesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A728677C2DA7FF5644257BD /* PcmSourcesTests.swift */; };
 		3B949FFAAB1FABA338069613 /* PermissionGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3AB85017A7A546F989420EE /* PermissionGateView.swift */; };
@@ -30,6 +35,7 @@
 		4A84448D61B3CBA605DAAA05 /* TestFlowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A0F1602F0CEE2A8462704A /* TestFlowModel.swift */; };
 		4BFF2CB4480E6FDE33185928 /* CurveLane.swift in Sources */ = {isa = PBXBuildFile; fileRef = B886426FC063688254DDCEB6 /* CurveLane.swift */; };
 		4F72839F4CEAE92FAFD96E94 /* ExternalBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E73E65985B72C5E4CA3852 /* ExternalBrowser.swift */; };
+		505D1453B485596DE79BD85C /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 83B49217BFE839DFCFA0AEEE /* GoogleMobileAds */; };
 		56BA08CD0375A5130D04B999 /* TopViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8952B5195BCA192384C5AFA5 /* TopViewController.swift */; };
 		5786181C02EE2EC4B4AE863F /* WebAutoDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53EFA92F03249BAA2DB5FCF8 /* WebAutoDriver.swift */; };
 		57AF8BF8F43FD391DEDA98DC /* PaperShadow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F692C86E93A83A08A00B810 /* PaperShadow.swift */; };
@@ -39,13 +45,16 @@
 		625890275914FFE13FFDE280 /* CurvePathBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F38F6B8DAF4F82A6A2F4E3B /* CurvePathBuilder.swift */; };
 		6418A5CB8873C161F6F2EA31 /* AppEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF695EE1F55530BE6EBC6BC /* AppEvents.swift */; };
 		66BF29B84C335095A8902902 /* fake_mic.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3EA0782619C8E715500EADB4 /* fake_mic.wav */; };
+		6B834B767A2F8D8CA70174CB /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7E14D05D5859B8B47FDD16ED /* FirebaseAnalyticsCore */; };
 		6BD1180E0A367BCFA5E35785 /* TestCrash.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3EDE12F5A897637266581E2 /* TestCrash.swift */; };
 		6D7240DA835E2C68EA660649 /* AccenturyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5E217157A2E9F6D8CCB49A /* AccenturyButton.swift */; };
 		6E2C121212BA37EB0F2E205E /* TestFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C54BFDB88BCBAAA1B9DD42 /* TestFlowView.swift */; };
 		723263F7ABDF394533C2C9DC /* HalftoneGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136866C02F845EA0CEA506CD /* HalftoneGridTests.swift */; };
 		792D23243A4F45F884E7E27D /* RewardedRetestAd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C95FA4ECDEEBBB5AAE07870 /* RewardedRetestAd.swift */; };
 		795AE3D905017B3C1F41962F /* PermissionGateModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67AD63BE69878C4E4EA59593 /* PermissionGateModelTests.swift */; };
+		7D2B187086CB6E1844AC4131 /* TestFlowModelAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4461448F6642231A520477E0 /* TestFlowModelAuthTests.swift */; };
 		8228FDF1AA5456116814791D /* CurveWiringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1374B1AFAA9ECF82A00F0728 /* CurveWiringTests.swift */; };
+		831180EA6C1300F0C2F07647 /* IdpSdks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7BE49F383E40F48530BC5D /* IdpSdks.swift */; };
 		8451F550F79240FAD6114DBB /* BridgeUserScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BE31A25BA4409D0D087717 /* BridgeUserScriptTests.swift */; };
 		87742CFC1D4AE0205D4BC31B /* KakaoSDKTemplate in Frameworks */ = {isa = PBXBuildFile; productRef = 70564E535D389FE4BC65ABC0 /* KakaoSDKTemplate */; };
 		8DE02AF5FF1FC6B1659D18D7 /* AccenturyBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2CE5A25F0FDE137C0C1ACE8 /* AccenturyBridge.swift */; };
@@ -62,6 +71,7 @@
 		B054A9D077B1545A061FC651 /* UploadStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAD9E3E8FFB486638338FD9 /* UploadStatusBar.swift */; };
 		B1AECCF83121D9644D1171E8 /* BridgeUserScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA23661AF83EC18C5D92B7B /* BridgeUserScript.swift */; };
 		B34211F2D69B414CB38A5784 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C285C11F1957A7F62C8E6B /* AudioRecorder.swift */; };
+		B68648941AB0397B478BABB2 /* AuthHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08EC690E7E6B36DC75A149C1 /* AuthHub.swift */; };
 		B71631291AD36444826DBEE9 /* AdsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7AD81A1066467377C97AE1 /* AdsController.swift */; };
 		BF78AD13B4C7F9B0F49C0A59 /* WebViewHostPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F992496097E1162874666B6 /* WebViewHostPolicyTests.swift */; };
 		C51B1AC0B01DF054FC0A23EA /* RecordingSmokeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C2427E4D1A062E023DB7E1 /* RecordingSmokeModel.swift */; };
@@ -69,7 +79,8 @@
 		CE859D348B567FDC59344882 /* InterstitialGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5B2EC49F376A2A11A2F468 /* InterstitialGate.swift */; };
 		D1525C5A8620F9800627CBFB /* CrashReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262A6550B61CC0F6093B9FA2 /* CrashReports.swift */; };
 		D1B7F74966AF95157A3892E3 /* HalftoneGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2942DF00F77DB7DE3B8AB95 /* HalftoneGrid.swift */; };
-		D5E1BBE6B28F1B36E27969D9 /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7E14D05D5859B8B47FDD16ED /* FirebaseAnalyticsCore */; };
+		D50A17D9FF98921AFC54A123 /* ChoiceButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6298D373DA76C71D8F4D814B /* ChoiceButton.swift */; };
+		D5E1BBE6B28F1B36E27969D9 /* KakaoSDKUser in Frameworks */ = {isa = PBXBuildFile; productRef = F8B676027100C87A79B708A6 /* KakaoSDKUser */; };
 		D65BC773E51A667EA5370B97 /* UploadModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D026A48BD81029111245DD7 /* UploadModelTests.swift */; };
 		D67159D06F1C8892C958695B /* RecordingModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C932DB5B8B6841CE96814E64 /* RecordingModel.swift */; };
 		D93DEAE1AAC5C59731EE7A9F /* KakaoSDKCommon in Frameworks */ = {isa = PBXBuildFile; productRef = FF1258F7B626CBA21E416381 /* KakaoSDKCommon */; };
@@ -77,13 +88,15 @@
 		DCB418DD0F4121BCC857E26C /* TrackingAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293545799DC01E2B38E62A9F /* TrackingAuthorization.swift */; };
 		E1222128CC32A2AE5817FA25 /* FirebaseEventSink.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A40932C982FF73FB3DC8DB /* FirebaseEventSink.swift */; };
 		EA2AD6CC5E227A113595DC9B /* GuideCurveCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54D6ABD705F2CA4791966C17 /* GuideCurveCache.swift */; };
+		EB7701FE9320B539BCCD3D68 /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239A8CDAFBDA77AF28814D7D /* KeychainTokenStore.swift */; };
 		EF16FA13AAC3F86EF5455E0D /* MicPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB797E81992F94828EE83D32 /* MicPermission.swift */; };
 		EF39FBB9D3880F681389D93D /* ResultSharerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9274FF9A22FC4F50EB082D /* ResultSharerTests.swift */; };
 		EFE227B1F3F2B15FE28C7B54 /* RecordingModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFABEDB1767B4A8CEB028BBF /* RecordingModelTests.swift */; };
 		F0D5C163710987FB48AF55CA /* AccenturyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2929E30A84C10FDE57D3643B /* AccenturyApp.swift */; };
-		F9069F06032E5B7AF1DD2035 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 83B49217BFE839DFCFA0AEEE /* GoogleMobileAds */; };
+		F9069F06032E5B7AF1DD2035 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 5D6079078237EBA87E51A478 /* GoogleSignIn */; };
 		FB97381843C39A2898341B7E /* WebViewLifecycleNotifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57DE3B353CB86958672731A /* WebViewLifecycleNotifierTests.swift */; };
 		FC06743A68EA85DDE80AD806 /* PcmSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 710CF5D06B7D559FE6C6CA94 /* PcmSources.swift */; };
+		FDA4870F5E95DCB53A46105C /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 6EBC5DFDBE6BCFF4929561DB /* FirebaseCrashlytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,6 +110,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		027E1A53FFD5EC7536BE3E4A /* ProfileScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileScreen.swift; sourceTree = "<group>"; };
+		08EC690E7E6B36DC75A149C1 /* AuthHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthHub.swift; sourceTree = "<group>"; };
+		0C7BE49F383E40F48530BC5D /* IdpSdks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdpSdks.swift; sourceTree = "<group>"; };
 		0C95FA4ECDEEBBB5AAE07870 /* RewardedRetestAd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardedRetestAd.swift; sourceTree = "<group>"; };
 		0DB52A866B3F7B1F6A531D61 /* Info-Debug.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Info-Debug.plist"; sourceTree = "<group>"; };
 		0E00BC0B32B9296094D3014D /* PapercutTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PapercutTheme.swift; sourceTree = "<group>"; };
@@ -107,6 +123,7 @@
 		16C54BFDB88BCBAAA1B9DD42 /* TestFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFlowView.swift; sourceTree = "<group>"; };
 		1A9274FF9A22FC4F50EB082D /* ResultSharerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSharerTests.swift; sourceTree = "<group>"; };
 		1D06BC29425E893F55AE8F9A /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		239A8CDAFBDA77AF28814D7D /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
 		262A6550B61CC0F6093B9FA2 /* CrashReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReports.swift; sourceTree = "<group>"; };
 		2929E30A84C10FDE57D3643B /* AccenturyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyApp.swift; sourceTree = "<group>"; };
 		293545799DC01E2B38E62A9F /* TrackingAuthorization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingAuthorization.swift; sourceTree = "<group>"; };
@@ -120,11 +137,14 @@
 		40C520180AF16EA0902B79F7 /* UploadModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadModel.swift; sourceTree = "<group>"; };
 		42A1D84C6622851678ABE2D3 /* AdRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdRequests.swift; sourceTree = "<group>"; };
 		42B781741E830E2F917845E1 /* Info-Release.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Info-Release.plist"; sourceTree = "<group>"; };
+		4461448F6642231A520477E0 /* TestFlowModelAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFlowModelAuthTests.swift; sourceTree = "<group>"; };
+		449CC9BCB953FCB532847217 /* LoginScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginScreen.swift; sourceTree = "<group>"; };
 		4912C22B3DB8478DFFDB15D1 /* SessionGateScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionGateScreen.swift; sourceTree = "<group>"; };
 		4DEE86D46BCC8F6213F670EA /* VoiceCheckModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCheckModelTests.swift; sourceTree = "<group>"; };
 		4F992496097E1162874666B6 /* WebViewHostPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewHostPolicyTests.swift; sourceTree = "<group>"; };
 		514DE1060D23DE29162CBED3 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		519A8D634C011FD35B714408 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		52FCA2A8F05E8DD81698AF50 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
 		5375A299C4DD27AFDBA3FBDE /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
 		53EFA92F03249BAA2DB5FCF8 /* WebAutoDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAutoDriver.swift; sourceTree = "<group>"; };
 		5427870AADAE9970E09CBC35 /* Local.xcconfig.example */ = {isa = PBXFileReference; path = Local.xcconfig.example; sourceTree = "<group>"; };
@@ -137,6 +157,7 @@
 		607F36430836A82E19D41B47 /* AccenturyBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyBridgeTests.swift; sourceTree = "<group>"; };
 		61C285C11F1957A7F62C8E6B /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		625B2F30DE6D951D6EFE8031 /* ProgressDotStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressDotStateTests.swift; sourceTree = "<group>"; };
+		6298D373DA76C71D8F4D814B /* ChoiceButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceButton.swift; sourceTree = "<group>"; };
 		62A131F2B4843525E348A138 /* ResultSharer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSharer.swift; sourceTree = "<group>"; };
 		678FAE681AA8637F3AA3B4ED /* HeroIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroIcon.swift; sourceTree = "<group>"; };
 		67AD63BE69878C4E4EA59593 /* PermissionGateModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGateModelTests.swift; sourceTree = "<group>"; };
@@ -173,6 +194,7 @@
 		DFA23661AF83EC18C5D92B7B /* BridgeUserScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeUserScript.swift; sourceTree = "<group>"; };
 		EB797E81992F94828EE83D32 /* MicPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicPermission.swift; sourceTree = "<group>"; };
 		EE7651DEA8417312CA6605FD /* CurvePathBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurvePathBuilderTests.swift; sourceTree = "<group>"; };
+		EEFAA2F91C5F7AC6DA739755 /* AccenturyTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyTextField.swift; sourceTree = "<group>"; };
 		F1AD1979B9D7FBA7E7FFB170 /* PermissionGateModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGateModel.swift; sourceTree = "<group>"; };
 		F2942DF00F77DB7DE3B8AB95 /* HalftoneGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalftoneGrid.swift; sourceTree = "<group>"; };
 		F3AB85017A7A546F989420EE /* PermissionGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGateView.swift; sourceTree = "<group>"; };
@@ -188,9 +210,13 @@
 				0286E8DBA30BED74F1C2AD3B /* KakaoSDKShare in Frameworks */,
 				87742CFC1D4AE0205D4BC31B /* KakaoSDKTemplate in Frameworks */,
 				D93DEAE1AAC5C59731EE7A9F /* KakaoSDKCommon in Frameworks */,
-				D5E1BBE6B28F1B36E27969D9 /* FirebaseAnalyticsCore in Frameworks */,
-				38419F6115CAF01241F54943 /* FirebaseCrashlytics in Frameworks */,
-				F9069F06032E5B7AF1DD2035 /* GoogleMobileAds in Frameworks */,
+				D5E1BBE6B28F1B36E27969D9 /* KakaoSDKUser in Frameworks */,
+				38419F6115CAF01241F54943 /* KakaoSDKAuth in Frameworks */,
+				F9069F06032E5B7AF1DD2035 /* GoogleSignIn in Frameworks */,
+				19D0E170C2A662EFE7A7018F /* NidThirdPartyLogin in Frameworks */,
+				6B834B767A2F8D8CA70174CB /* FirebaseAnalyticsCore in Frameworks */,
+				FDA4870F5E95DCB53A46105C /* FirebaseCrashlytics in Frameworks */,
+				505D1453B485596DE79BD85C /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -277,6 +303,8 @@
 			isa = PBXGroup;
 			children = (
 				AC5E217157A2E9F6D8CCB49A /* AccenturyButton.swift */,
+				EEFAA2F91C5F7AC6DA739755 /* AccenturyTextField.swift */,
+				6298D373DA76C71D8F4D814B /* ChoiceButton.swift */,
 				B886426FC063688254DDCEB6 /* CurveLane.swift */,
 				678FAE681AA8637F3AA3B4ED /* HeroIcon.swift */,
 				0F692C86E93A83A08A00B810 /* PaperShadow.swift */,
@@ -297,6 +325,19 @@
 			path = Upload;
 			sourceTree = "<group>";
 		};
+		769891008F1CB1431EEC7BEE /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				52FCA2A8F05E8DD81698AF50 /* AuthGateView.swift */,
+				08EC690E7E6B36DC75A149C1 /* AuthHub.swift */,
+				0C7BE49F383E40F48530BC5D /* IdpSdks.swift */,
+				239A8CDAFBDA77AF28814D7D /* KeychainTokenStore.swift */,
+				449CC9BCB953FCB532847217 /* LoginScreen.swift */,
+				027E1A53FFD5EC7536BE3E4A /* ProfileScreen.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
 		7928CA190EE66D108833E925 /* AccenturyTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -313,6 +354,7 @@
 				CFABEDB1767B4A8CEB028BBF /* RecordingModelTests.swift */,
 				1A9274FF9A22FC4F50EB082D /* ResultSharerTests.swift */,
 				681A5FBD0FA4004ED8476F0E /* TestFlowModelAppLinkTests.swift */,
+				4461448F6642231A520477E0 /* TestFlowModelAuthTests.swift */,
 				3D026A48BD81029111245DD7 /* UploadModelTests.swift */,
 				4DEE86D46BCC8F6213F670EA /* VoiceCheckModelTests.swift */,
 				4F992496097E1162874666B6 /* WebViewHostPolicyTests.swift */,
@@ -409,6 +451,7 @@
 				D4E88CD166A278205697CB3F /* Ads */,
 				311F4BAD67776C0EACC850AC /* Analytics */,
 				2A867CA9FAA03EE0E07AB832 /* Audio */,
+				769891008F1CB1431EEC7BEE /* Auth */,
 				D0CECAC03F3782E93DFD2217 /* Config */,
 				AB093A790D7428F842EBCF49 /* Curve */,
 				539A83B31A783DF6C1B950E6 /* DebugResources */,
@@ -493,6 +536,7 @@
 			buildConfigurationList = A48D82BA770BEDD68C4E2AF1 /* Build configuration list for PBXNativeTarget "Accentury" */;
 			buildPhases = (
 				58D58893029B665FE50B1C13 /* AdMob 테스트 ID 빗장 (Release) */,
+				0A4E7AF3C56C57D3BC89B691 /* 로그인 IdP 설정 빗장 (Release) */,
 				6FEDB80A920EB9746AE7B570 /* Sources */,
 				FE71A31FE54F098D8B2E7048 /* Resources */,
 				B8BB8B6B2F8AB8C6E63A19C5 /* Frameworks */,
@@ -508,6 +552,10 @@
 				F5B3D07508A812FD7E26A278 /* KakaoSDKShare */,
 				70564E535D389FE4BC65ABC0 /* KakaoSDKTemplate */,
 				FF1258F7B626CBA21E416381 /* KakaoSDKCommon */,
+				F8B676027100C87A79B708A6 /* KakaoSDKUser */,
+				B8780A78D918D55C9D2EB301 /* KakaoSDKAuth */,
+				5D6079078237EBA87E51A478 /* GoogleSignIn */,
+				A6E4883D7FB783CAF4F9FD4A /* NidThirdPartyLogin */,
 				7E14D05D5859B8B47FDD16ED /* FirebaseAnalyticsCore */,
 				6EBC5DFDBE6BCFF4929561DB /* FirebaseCrashlytics */,
 				83B49217BFE839DFCFA0AEEE /* GoogleMobileAds */,
@@ -543,7 +591,9 @@
 			packageReferences = (
 				5A543650BB6230FB590B5F7F /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				236A3695C0D369A78E8C5CB6 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				B6087464C03E577676582124 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				CAA935154D11E7DF71BC105F /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */,
+				B463B1B6CEA494AC98CF61D5 /* XCRemoteSwiftPackageReference "naveridlogin-sdk-ios-swift" */,
 				7778F63A93DF226A80ED400E /* XCLocalSwiftPackageReference "AccenturyCore" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -572,6 +622,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		0A4E7AF3C56C57D3BC89B691 /* 로그인 IdP 설정 빗장 (Release) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "로그인 IdP 설정 빗장 (Release)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nif [ \"${CONFIGURATION:-}\" != \"Release\" ] || [ \"${REQUIRE_IDP_CONFIG:-NO}\" != \"YES\" ]; then\n  exit 0\nfi\nmissing=\"\"\nfor key in GOOGLE_IOS_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_REVERSED_CLIENT_ID NAVER_CLIENT_ID NAVER_CLIENT_SECRET NAVER_URL_SCHEME; do\n  if [ -z \"$(printenv \"$key\" | tr -d '[:space:]')\" ]; then missing=\"$missing $key\"; fi\ndone\nif [ -n \"$missing\" ]; then\n  echo \"error: 로그인 IdP 설정이 비어 있다 (KAN-224, REQUIRE_IDP_CONFIG=YES):$missing\"\n  echo \"error:   이 상태로 배포하면 그 IdP 로그인 버튼이 사라진다. xcodebuild ... GOOGLE_IOS_CLIENT_ID=... 식으로 넘긴다.\"\n  exit 1\nfi\n";
+		};
 		1C3795B6DC37DE61FAE7B508 /* Crashlytics dSYM 업로드 */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -625,12 +694,16 @@
 				F0D5C163710987FB48AF55CA /* AccenturyApp.swift in Sources */,
 				8DE02AF5FF1FC6B1659D18D7 /* AccenturyBridge.swift in Sources */,
 				6D7240DA835E2C68EA660649 /* AccenturyButton.swift in Sources */,
+				14D66E090C06F149AED0351A /* AccenturyTextField.swift in Sources */,
 				0EC5623BCB8B9358B9D2BC44 /* AdRequests.swift in Sources */,
 				B71631291AD36444826DBEE9 /* AdsController.swift in Sources */,
 				23A926CAEA2B263C22C7533B /* AppConfig.swift in Sources */,
 				6418A5CB8873C161F6F2EA31 /* AppEvents.swift in Sources */,
 				B34211F2D69B414CB38A5784 /* AudioRecorder.swift in Sources */,
+				024C890CFC81C81DFEFCA5C8 /* AuthGateView.swift in Sources */,
+				B68648941AB0397B478BABB2 /* AuthHub.swift in Sources */,
 				B1AECCF83121D9644D1171E8 /* BridgeUserScript.swift in Sources */,
+				D50A17D9FF98921AFC54A123 /* ChoiceButton.swift in Sources */,
 				8F1B9A53CDAEE4D6A8F89EC2 /* ContentView.swift in Sources */,
 				D1525C5A8620F9800627CBFB /* CrashReports.swift in Sources */,
 				4BFF2CB4480E6FDE33185928 /* CurveLane.swift in Sources */,
@@ -641,13 +714,17 @@
 				EA2AD6CC5E227A113595DC9B /* GuideCurveCache.swift in Sources */,
 				D1B7F74966AF95157A3892E3 /* HalftoneGrid.swift in Sources */,
 				5BA4AD39A52498A1CA365979 /* HeroIcon.swift in Sources */,
+				831180EA6C1300F0C2F07647 /* IdpSdks.swift in Sources */,
 				CE859D348B567FDC59344882 /* InterstitialGate.swift in Sources */,
+				EB7701FE9320B539BCCD3D68 /* KeychainTokenStore.swift in Sources */,
+				006BCD03129B198732F827E7 /* LoginScreen.swift in Sources */,
 				EF16FA13AAC3F86EF5455E0D /* MicPermission.swift in Sources */,
 				57AF8BF8F43FD391DEDA98DC /* PaperShadow.swift in Sources */,
 				355B9977DF82745AA41AE529 /* PapercutTheme.swift in Sources */,
 				FC06743A68EA85DDE80AD806 /* PcmSources.swift in Sources */,
 				387373ED323D0FED5A62B215 /* PermissionGateModel.swift in Sources */,
 				3B949FFAAB1FABA338069613 /* PermissionGateView.swift in Sources */,
+				1E5F56E993F6C18E799773E1 /* ProfileScreen.swift in Sources */,
 				202C2D7EAFF2F4C80BA8D285 /* ProgressIndicator.swift in Sources */,
 				A89A2500C13A21AE0546DBCC /* PromptCard.swift in Sources */,
 				8F6765D4C3E6F789C3722135 /* RecordButton.swift in Sources */,
@@ -691,6 +768,7 @@
 				EF39FBB9D3880F681389D93D /* ResultSharerTests.swift in Sources */,
 				32DF4843F5A8DA80C8385721 /* TestDoubles.swift in Sources */,
 				97CB15FF57602CFA42081683 /* TestFlowModelAppLinkTests.swift in Sources */,
+				7D2B187086CB6E1844AC4131 /* TestFlowModelAuthTests.swift in Sources */,
 				D65BC773E51A667EA5370B97 /* UploadModelTests.swift in Sources */,
 				33EC80CA45D4C12AC521A7C3 /* VoiceCheckModelTests.swift in Sources */,
 				BF78AD13B4C7F9B0F49C0A59 /* WebViewHostPolicyTests.swift in Sources */,
@@ -953,6 +1031,22 @@
 				version = 12.18.0;
 			};
 		};
+		B463B1B6CEA494AC98CF61D5 /* XCRemoteSwiftPackageReference "naveridlogin-sdk-ios-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/naver/naveridlogin-sdk-ios-swift";
+			requirement = {
+				kind = exactVersion;
+				version = 5.2.1;
+			};
+		};
+		B6087464C03E577676582124 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = exactVersion;
+				version = 9.2.0;
+			};
+		};
 		CAA935154D11E7DF71BC105F /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kakao/kakao-ios-sdk";
@@ -967,6 +1061,11 @@
 		40EFC6BFA1E64779B7362D13 /* AccenturyCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AccenturyCore;
+		};
+		5D6079078237EBA87E51A478 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B6087464C03E577676582124 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
 		};
 		6EBC5DFDBE6BCFF4929561DB /* FirebaseCrashlytics */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -988,10 +1087,25 @@
 			package = 236A3695C0D369A78E8C5CB6 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
 		};
+		A6E4883D7FB783CAF4F9FD4A /* NidThirdPartyLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B463B1B6CEA494AC98CF61D5 /* XCRemoteSwiftPackageReference "naveridlogin-sdk-ios-swift" */;
+			productName = NidThirdPartyLogin;
+		};
+		B8780A78D918D55C9D2EB301 /* KakaoSDKAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CAA935154D11E7DF71BC105F /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
+			productName = KakaoSDKAuth;
+		};
 		F5B3D07508A812FD7E26A278 /* KakaoSDKShare */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CAA935154D11E7DF71BC105F /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
 			productName = KakaoSDKShare;
+		};
+		F8B676027100C87A79B708A6 /* KakaoSDKUser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CAA935154D11E7DF71BC105F /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
+			productName = KakaoSDKUser;
 		};
 		FF1258F7B626CBA21E416381 /* KakaoSDKCommon */ = {
 			isa = XCSwiftPackageProductDependency;

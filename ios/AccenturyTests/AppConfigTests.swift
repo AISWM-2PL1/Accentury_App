@@ -57,8 +57,10 @@ final class AppConfigTests: XCTestCase {
     /// 두 값이 각각 다른 자리(xcconfig, plist)에서 오므로 한쪽만 고쳐도 컴파일은 조용하다 —
     /// 그러면 공유는 나가는데 카톡에서 앱으로 되돌아오지 못한다.
     func testKakaoUrlSchemeIsDerivedFromTheNativeAppKey() {
+        // 로그인(KAN-224)이 구글·네이버 입구를 더해 URL 타입이 여럿이다 — 카카오 항목만 본다.
         let types = Bundle.main.infoDictionary?["CFBundleURLTypes"] as? [[String: Any]]
-        let schemes = types?.compactMap { $0["CFBundleURLSchemes"] as? [String] }.flatMap { $0 } ?? []
+        let kakao = types?.filter { ($0["CFBundleURLName"] as? String)?.hasSuffix(".kakao") == true }
+        let schemes = kakao?.compactMap { $0["CFBundleURLSchemes"] as? [String] }.flatMap { $0 } ?? []
         XCTAssertEqual(
             ["kakao" + (AppConfig.kakaoNativeAppKey ?? "")],
             schemes,
@@ -74,5 +76,25 @@ final class AppConfigTests: XCTestCase {
         XCTAssertTrue(schemes.contains("kakaolink"), "kakaolink가 없다: \(schemes)")
         XCTAssertTrue(schemes.contains("kakaokompassauth"), "kakaokompassauth가 없다: \(schemes)")
     }
-}
 
+    // MARK: 로그인 IdP 배선 (KAN-224)
+
+    /// 네이버 앱 로그인 조회 스킴. 빠지면 네이버 앱이 깔려 있어도 늘 인앱 브라우저로만 간다 — 카카오 조회 스킴과 같은 종류의 조용한 사고다.
+    func testNaverQuerySchemesAreDeclared() {
+        let schemes = Bundle.main.infoDictionary?["LSApplicationQueriesSchemes"] as? [String] ?? []
+        XCTAssertTrue(schemes.contains("naversearchapp"), "\(schemes)")
+        XCTAssertTrue(schemes.contains("naversearchthirdlogin"), "\(schemes)")
+    }
+
+    /// 구글·네이버가 돌아오는 스킴은 설정값에서 파생된다 — 값이 있는 기계에서 치환이 안 되면 로그인이 돌아오지 못한다.
+    func testIdpReturnSchemesFollowTheirConfig() {
+        let types = Bundle.main.infoDictionary?["CFBundleURLTypes"] as? [[String: Any]] ?? []
+        func schemes(_ suffix: String) -> [String] {
+            types.filter { ($0["CFBundleURLName"] as? String)?.hasSuffix(suffix) == true }
+                .compactMap { $0["CFBundleURLSchemes"] as? [String] }.flatMap { $0 }
+        }
+        XCTAssertEqual([AppConfig.naverUrlScheme ?? ""], schemes(".naver"))
+        XCTAssertEqual(1, schemes(".google").count)
+        XCTAssertFalse(schemes(".google").joined().contains("$("))
+    }
+}

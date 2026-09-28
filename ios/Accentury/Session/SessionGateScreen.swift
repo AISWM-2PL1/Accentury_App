@@ -49,7 +49,8 @@ struct SessionGateScreen: View {
 
             // 확보 직후 한 프레임은 여기로 올 수 있다 — 상위가 세션을 보고 이 화면을 걷어내기
             // 직전이라, 준비 중 표시를 그대로 두는 것이 화면이 덜컥거리지 않는 쪽이다.
-            case .creating, .ready:
+            // 프로필 미완료(KAN-224)도 같다 — 모델이 곧바로 추가 정보 화면으로 넘기므로 그 사이 한 프레임이다.
+            case .creating, .ready, .profileIncomplete:
                 PreparingScreen()
             }
         }

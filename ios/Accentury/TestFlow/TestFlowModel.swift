@@ -162,6 +162,7 @@ final class TestFlowModel: ObservableObject {
     private let defaults: UserDefaults
     private let sessionClient: SessionClient?
     private let isMicGranted: () -> Bool
+    private let onProfileIncomplete: @MainActor () -> Void
 
     /// - Parameters:
     ///   - sessionClient: `POST /v0/sessions` 클라이언트. 기본값이 실제 `URLSession` 구현이고,
@@ -169,14 +170,18 @@ final class TestFlowModel: ObservableObject {
     ///     (``TestFlowModel/defaultSessionClient()``).
     ///   - isMicGranted: 지금의 실제 마이크 권한. 문항 진입마다 다시 묻는다 — 시작 게이트에서
     ///     한 번 허용받았어도 설정에서 회수될 수 있다.
+    ///   - onProfileIncomplete: 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224).
+    ///     기본값이 로그인 관문(``AuthHub/gate``)이다.
     init(
         defaults: UserDefaults = .standard,
         sessionClient: SessionClient? = TestFlowModel.defaultSessionClient(),
-        isMicGranted: @escaping () -> Bool = { MicPermission.currentStatus().granted }
+        isMicGranted: @escaping () -> Bool = { MicPermission.currentStatus().granted },
+        onProfileIncomplete: @escaping @MainActor () -> Void = { AuthHub.gate.onProfileIncomplete() }
     ) {
         self.defaults = defaults
         self.sessionClient = sessionClient
         self.isMicGranted = isMicGranted
+        self.onProfileIncomplete = onProfileIncomplete
 
         let flow = TestFlowController.restored(from: defaults.string(forKey: Self.flowStorageKey) ?? "")
             ?? TestFlowController()
@@ -281,7 +286,8 @@ final class TestFlowModel: ObservableObject {
         syncFlow()
     }
 
-    /// 인트로로 되돌린다 (세션 게이트 실패 화면의 [처음으로]).
+    /// 시작 게이트를 인트로 앞으로 되감는다. 세션 게이트 실패 화면의 [처음으로]와, 프로필 미완료로 추가 정보 화면에
+    /// 다녀오는 경우(KAN-224, ``leaveForProfile()``)가 같은 되감기를 쓴다.
     func backToIntro() {
         startRequested = false
         micPassed = false
@@ -290,6 +296,26 @@ final class TestFlowModel: ObservableObject {
         voiceCenterHz = nil
         sessionGate.restart()
         syncGate()
+    }
+
+    /// 프로필 미완료 (KAN-224). 되감은 뒤 추가 정보 화면으로 넘긴다 — 넘기는 순간 이 흐름 화면이 내려가고 저장 상태도
+    /// 지워지므로(``clearSavedState(in:)``, ``AuthGateView``) 되감기는 이중 안전장치다. 안드로이드 `leaveForProfile`과
+    /// 같은 이유로 명시해 둔다: 화면 구조가 바뀌어도 완료 뒤에 인트로로 떨어진다는 약속이 남게.
+    func leaveForProfile() {
+        backToIntro()
+        onProfileIncomplete()
+    }
+
+    /// 저장해 둔 흐름·세션·시작 게이트를 전부 지운다 (KAN-224).
+    ///
+    /// 안드로이드는 TestFlow 컴포저블이 로그인 상태(SignedIn)일 때만 살아 있어, 로그아웃·추가 정보로 넘어가면
+    /// rememberSaveable 저장분이 컴포지션과 함께 버려진다. iOS는 저장이 `UserDefaults`에 있어 화면이 내려가도 남는다 —
+    /// 그대로 두면 다른 계정(또는 프로필을 다시 채운 계정)이 앞 응시의 세션을 복원해 이어 간다. 그래서 관문이 SignedIn을
+    /// 벗어날 때 여기서 같은 결과를 만든다. 프로세스 사망 뒤 복원(SignedIn → SignedIn)은 건드리지 않는다.
+    static func clearSavedState(in defaults: UserDefaults = .standard) {
+        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey] {
+            defaults.removeObject(forKey: key)
+        }
     }
 
     // MARK: 세션
@@ -313,6 +339,8 @@ final class TestFlowModel: ObservableObject {
         #if DEBUG
         smokeLog("SESSION: \(Self.describe(result))")
         #endif
+        // 실패 화면이 아니라 추가 정보 화면으로 간다 (KAN-224).
+        if sessionGate.state == .profileIncomplete { leaveForProfile() }
     }
 
     /// 세션 게이트 실패 화면의 [다시 시도].
@@ -362,6 +390,10 @@ final class TestFlowModel: ObservableObject {
             return nil
         case .failed(let failure):
             return retestFailurePayload(failure)
+        case .profileIncomplete:
+            // 결과 화면에 회신할 실패가 아니다 — 추가 정보를 받으러 간다 (KAN-224). 결과 화면은 흐름과 함께 내려간다.
+            leaveForProfile()
+            return nil
         }
     }
 
@@ -501,7 +533,11 @@ final class TestFlowModel: ObservableObject {
          */
         if UserDefaults.standard.bool(forKey: "StubSession") { return DebugStubSessionClient() }
         #endif
-        return URLSessionSessionClient(baseURL: AppConfig.apiBaseURL)
+        /*
+         * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
+         * 업로드·결과 등 세션 범위 API는 `st_` 세션 토큰을 쓰는 기존 클라이언트 그대로다 (AuthorizedSession 주석).
+         */
+        return AuthHub.clients.sessionClient()
     }
 
     #if DEBUG

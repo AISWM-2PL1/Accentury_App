@@ -35,6 +35,9 @@ struct AccenturyButton: View {
     /// 폭을 늘려 잡을지. 안드로이드가 호출부에서 `Modifier.weight(1f)`/`fillMaxWidth()`로
     /// 정하던 자리다 — 검토 화면의 [재녹음]·[다음]이 같은 폭을 갖는 규칙이 여기 걸린다.
     var fillsWidth: Bool = false
+    /// 라벨 왼쪽 끝에 붙는 그림 (KAN-224 IdP 로고). 라벨은 버튼 가운데 그대로다 — 안드로이드 `leading` 자리.
+    /// 버튼 본체(라벨) 안에 그려야 눌림·비활성 흐림을 로고도 같이 탄다.
+    var leading: AnyView?
     let action: () -> Void
 
     var body: some View {
@@ -64,6 +67,8 @@ struct AccenturyButton: View {
                         tracking: variant == .primary ? Papercut.primaryLabelTracking : nil
                     )
                     .foregroundColor(variant == .primary ? Papercut.cream : Papercut.ink)
+                    .frame(maxWidth: leading == nil ? nil : .infinity)
+                    .overlay(alignment: .leading) { leading }
             }
             .buttonStyle(PapercutButtonStyle(isPrimary: variant == .primary, fillsWidth: fillsWidth))
             .disabled(!enabled)

@@ -32,3 +32,27 @@
 
 - `AccenturyButton(leading = …)` — 버튼 본체 안 왼쪽 안쪽 여백(`Spacing.x6`)에 붙는다. 라벨은 버튼 가운데 그대로. 본체 안이라 눌림(sink)과 비활성 0.6 흐림을 로고도 같이 탄다.
 - `LoginScreen.kt` `IdpLogo` — `contentDescription = null`(버튼 글자가 이미 제공자를 말한다).
+
+## iOS (KAN-224 3단계)
+
+버튼은 안드로이드와 같은 Papercut 보조 버튼이고(`ios/Accentury/UI/Components/AccenturyButton.swift`의 `leading`), 순서는
+구글 → 카카오 → 네이버 → **애플**이다(팀장 결정 "구글, 카카오, 네이버, iOS는 apple 추가"). 넷 다 같은 크기다.
+
+| 에셋 (`ios/Accentury/Assets.xcassets`) | 원본 |
+|---|---|
+| `IdpGoogle.imageset` PNG 20/40/60px (@1x/2x/3x, 20pt로 그림) | 안드로이드 `ic_idp_google.png`(= `google_G_only.svg`를 Chromium으로 160px 렌더링한 것)를 `sips`로 축소 |
+| `IdpKakao.imageset` SVG, Preserve Vector Data | `ic_idp_kakao.xml`과 같은 path·색·`translate(-13 -14)` — `kakao_login_light.svg`의 말풍선 그대로 |
+| `IdpNaver.imageset` SVG, Preserve Vector Data | `ic_idp_naver.xml`과 같은 10점 다각형·`#03A94D`, `translate(13.561 10.706) scale(1 -1)` |
+| 애플 | SF Symbol `apple.logo` (파일 없음) |
+
+### Sign in with Apple — HIG 대조
+
+App Review Guidelines 4.8은 다른 소셜 로그인을 주는 앱에 애플 로그인을 **같은 무게로** 요구한다 — 같은 크기·같은 모양의
+버튼이라 충족한다. HIG 「Sign in with Apple › Buttons」는 시스템 버튼(`ASAuthorizationAppleIDButton`) 대신 **직접 만든
+버튼**을 허용하되 조건을 건다 (https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple).
+
+| | 지킨 것 | 어긴 것 (팀 결정으로 유지) |
+|---|---|---|
+| 애플 | 문구는 허용된 셋 중 "Continue with Apple"의 현지화("Apple로 계속하기"), 로고와 글자가 같은 색(잉크 `#1c1a17` ≈ 검정), 다른 버튼과 같은 반경·크기, 로고는 애플이 앱에 주는 글리프(SF Symbol `apple.logo`) | 버튼 면이 **흰색·검정이 아니라 크림**이고 1.5 잉크 테두리 — HIG는 흰색/검정(또는 그 위의 은은한 질감)을 요구한다. 로고를 HIG 다운로드 로고 파일이 아니라 SF Symbol로 그렸다. 글자 높이 비율(버튼 높이의 43%)은 맞추지 않았다(보조 버튼 15pt) |
+
+심사에서 문제가 되면 애플 버튼만 흰 면(`#FFFFFF`)으로 바꾸는 것이 가장 작은 수정이다 — 나머지 셋과 모양·크기는 그대로다.

@@ -6,7 +6,8 @@ import os
 
 /// 앱의 첫 화면. 안드로이드 `MainActivity.onCreate`가 `TestFlow()`를 세우는 자리다.
 ///
-/// KAN-108 §5부터 기본 화면은 ``TestFlowView``(WKWebView 호스트 + 브리지)다. §1~§4에서
+/// KAN-224부터 기본 화면은 로그인 관문 ``AuthGateView``이고, 로그인이 끝나면 그 안에서 ``TestFlowView``
+/// (WKWebView 호스트 + 브리지)가 선다. KAN-108 §5부터 흐름 화면이 첫 화면이었다. §1~§4에서
 /// 임시로 세워 뒀던 설정값 표시와 스모크 버튼은 실행 인자 `-DebugSmokeMenu 1`로만 열린다 —
 /// 지우지 않은 이유는 캡처·권한 경로를 시뮬레이터에서 손으로 다시 확인할 일이 6단계까지
 /// 남아 있기 때문이고, 기본 화면에서 걷어낸 이유는 그 화면이 더는 앱의 첫 화면이 아니기 때문이다.
@@ -18,14 +19,14 @@ struct ContentView: View {
             if UserDefaults.standard.bool(forKey: "DebugSmokeMenu") {
                 DebugSmokeMenu()
             } else {
-                TestFlowView()
+                AuthGateView()
             }
         }
         // `-TestCrash 1`: 스모크 메뉴 뒤가 아니라 여기인 이유는 두 화면 어느 쪽으로 떠도
         // 같은 통로여야 해서다. 릴리스에는 이 줄째 없다 (``TestCrash``).
         .task { TestCrash.fireIfRequested() }
         #else
-        TestFlowView()
+        AuthGateView()
         #endif
     }
 }

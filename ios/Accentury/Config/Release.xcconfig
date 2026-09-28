@@ -12,6 +12,9 @@ API_BASE_URL = https:/$()/accentury.app
 // ATS 예외가 하나도 없는 plist. 프로덕션 빌드에 평문 통신 구멍을 두지 않는다.
 INFOPLIST_FILE = Accentury/Info-Release.plist
 
+// 가짜 IdP는 릴리스에서 켤 수 없다 (KAN-224). Base.xcconfig의 Local.xcconfig include 뒤라 로컬 파일이 덮지 못한다.
+FAKE_IDP = NO
+
 SWIFT_COMPILATION_MODE = wholemodule
 SWIFT_OPTIMIZATION_LEVEL = -O
 VALIDATE_PRODUCT = YES

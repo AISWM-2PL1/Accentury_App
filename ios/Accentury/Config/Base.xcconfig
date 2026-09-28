@@ -65,6 +65,31 @@ ADMOB_APP_ID = ca-app-pub-3940256099942544~1458002511
 ADMOB_INTERSTITIAL_ID = ca-app-pub-3940256099942544/4411468910
 ADMOB_REWARDED_ID = ca-app-pub-3940256099942544/1712485313
 
+// 로그인 IdP 설정 여섯 (KAN-224). 안드로이드 `app/build.gradle.kts`의 idpProperty()(googleServerClientId·
+// naverClientId·naverClientSecret)와 같은 자리이고 카카오 키와 같은 판단이다 — **빈 값이 정상**이다. 값이 빈
+// IdP는 로그인 화면에서 버튼을 숨긴다(Auth/IdpSdks.swift). 로컬 개발은 Debug.xcconfig의 FAKE_IDP로 SDK 없이 돈다.
+//
+//   GOOGLE_IOS_CLIENT_ID        구글 콘솔 "iOS" OAuth 클라이언트 ID (SDK가 계정 선택 화면을 여는 데 쓴다)
+//   GOOGLE_SERVER_CLIENT_ID     구글 콘솔 "웹 애플리케이션" 클라이언트 ID — 안드로이드와 같은 값. ID 토큰의 aud가
+//                               이 값이 되고 서버가 대조한다
+//   GOOGLE_REVERSED_CLIENT_ID   iOS 클라이언트 ID를 거꾸로 쓴 URL 스킴 (`com.googleusercontent.apps.<번호>`)
+//   NAVER_CLIENT_ID·NAVER_CLIENT_SECRET  네이버 개발자 센터 앱 — 안드로이드와 같은 앱의 같은 값. 시크릿이 앱에 박히는
+//                               것은 네이버 SDK의 설계다(기기에서 토큰 교환을 한다)
+//   NAVER_URL_SCHEME            네이버 앱 로그인이 우리 앱으로 돌아오는 스킴. 네이버 콘솔 iOS 설정의 "URL Scheme"과 같아야 한다
+//
+// 값을 넣는 자리는 카카오 키와 같다 — 로컬은 Local.xcconfig, 아카이브는 명령줄 `xcodebuild ... GOOGLE_IOS_CLIENT_ID=...`.
+// 스토어 빌드가 빈 값으로 나가는 것은 `REQUIRE_IDP_CONFIG=YES` 빗장이 막는다 (project.yml).
+GOOGLE_IOS_CLIENT_ID =
+GOOGLE_SERVER_CLIENT_ID =
+GOOGLE_REVERSED_CLIENT_ID =
+NAVER_CLIENT_ID =
+NAVER_CLIENT_SECRET =
+NAVER_URL_SCHEME =
+
+// 가짜 IdP (KAN-224). Release는 늘 NO다 — Release.xcconfig가 Local.xcconfig 뒤에서 다시 못 박는다. 켜는 자리는
+// Debug.xcconfig 주석 참고. Info-Release.plist에는 키 자체가 없고 읽는 코드도 `#if DEBUG`다.
+FAKE_IDP = NO
+
 // 여기서 Local.xcconfig를 한 번 읽는 이유는 ACCENTURY_TEAM_ID 하나 때문이다 — Release도
 // 팀 ID는 필요하다. WEB_URL·API_BASE_URL 오버라이드는 이 지점이 아니라 Debug.xcconfig 끝의
 // 두 번째 `#include?`가 담당한다. Release의 URL은 이 include '뒤'에 놓여 있어(Release.xcconfig)
