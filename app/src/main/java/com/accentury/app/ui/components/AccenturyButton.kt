@@ -56,6 +56,8 @@ enum class ButtonVariant { Primary, Secondary, Text }
  *
  * 최소 높이는 주 버튼이 [Dimens.controlHeightLg] 56dp, 보조가 [Dimens.touchTargetMin] 48dp다
  * (ux-ui.md §5의 48dp 최소선을 둘 다 넘는다).
+ *
+ * @param leading 라벨 왼쪽 끝에 붙는 그림 (KAN-224 IdP 로고). 라벨 위치는 바뀌지 않는다
  */
 @Composable
 fun AccenturyButton(
@@ -64,6 +66,7 @@ fun AccenturyButton(
     modifier: Modifier = Modifier,
     variant: ButtonVariant = ButtonVariant.Primary,
     enabled: Boolean = true,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     if (variant == ButtonVariant.Text) {
         TextButton(
@@ -133,6 +136,10 @@ fun AccenturyButton(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
+        }
+        // 앞머리 그림(로그인 IdP 로고)은 왼쪽 안쪽 여백에 붙고 라벨은 버튼 가운데 그대로다. 본체 안에 그려야 눌림·흐림을 함께 탄다.
+        if (leading != null) {
+            Box(Modifier.align(Alignment.CenterStart)) { leading() }
         }
     }
 }
