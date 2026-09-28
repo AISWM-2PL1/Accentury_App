@@ -469,8 +469,8 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 | 진척도 | `ui/components/ProgressIndicator.kt` | `web/src/ui/ProgressIndicator.tsx` |
 | 대기·오류 블록 | `ui/components/StatusBlock.kt` | `web/src/ui/StatusBlock.tsx` |
 | 대사·질문 카드 | `ui/components/PromptCard.kt` | `.prompt-card` |
-| 선택지 | `ui/components/ChoiceButton.kt` (KAN-224 성별·출신지역) | `.choice` |
-| 입력 칸 | `ui/components/AccenturyTextField.kt` (KAN-224 추가 정보) | — |
+| 선택지 | `ui/components/ChoiceButton.kt` (KAN-224 성별·출신지역) · iOS `UI/Components/ChoiceButton.swift` | `.choice` |
+| 입력 칸 | `ui/components/AccenturyTextField.kt` (KAN-224 추가 정보) · iOS `UI/Components/AccenturyTextField.swift` | — |
 | 곡선 레인 | `ui/components/CurveLane.kt` | `web/src/recording/CurveLane.tsx` |
 | 녹음 버튼 | `ui/components/RecordButton.kt` | — (웹은 `.btn`으로 녹음한다) |
 | 히어로 아이콘 | `ui/components/HeroIcon.kt` | `.hero-icon` |
@@ -629,6 +629,7 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 
 네이티브 로그인 화면(KAN-224, `auth/LoginScreen.kt`)도 이 인트로 히어로 블록(워드마크 + 두 줄 히어로 + 포인트 컬러 곡선 밑줄 + 부제)을
 그대로 옮겨 쓴다 — 앱 첫 화면이 테스트 인트로와 같은 얼굴이어야 해서다. 56·7dp 밑줄은 네이티브 토큰이 없어 정본 값을 화면에 직접 적었다.
+iOS(`Auth/LoginScreen.swift`)도 같은 블록이고, 밑줄 색은 `Papercut.point`(`UI/Theme/PapercutTheme.swift`, 안드로이드 `LightPoint`)다.
 
 ## 9. 접근성 최소선 검증
 

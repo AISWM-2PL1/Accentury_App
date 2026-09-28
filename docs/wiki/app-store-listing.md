@@ -160,9 +160,16 @@ TestFlight 업로드는 워크플로의 `workflow_dispatch` 입력 `upload` 스�
 | `ADMOB_IOS_INTERSTITIAL_ID` | iOS 전면 광고 단위 ID | AdMob 콘솔 › 광고 단위 | 계정 소유자 |
 | `ADMOB_IOS_REWARDED_ID` | iOS 보상형 광고 단위 ID | AdMob 콘솔 › 광고 단위 | 계정 소유자 |
 | `KAKAO_NATIVE_APP_KEY` | 카카오 네이티브 앱 키 | **이미 등록돼 있다** (KAN-163에서 안드로이드용으로 등록한 것과 같은 값) | 등록 완료 |
+| `GOOGLE_IOS_CLIENT_ID` | 구글 "iOS" OAuth 클라이언트 ID (KAN-224) | Google Cloud Console › 사용자 인증 정보 (`social-login.md` §3) | 계정 소유자 |
+| `GOOGLE_SERVER_CLIENT_ID` | 구글 "웹 애플리케이션" 클라이언트 ID | 같은 화면. **안드로이드와 공유하는 시크릿** | 계정 소유자 |
+| `GOOGLE_REVERSED_CLIENT_ID` | iOS 클라이언트 ID를 거꾸로 쓴 URL 스킴 | iOS 클라이언트 상세의 "iOS URL 스킴" | 계정 소유자 |
+| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 네이버 로그인 앱의 Client ID·Secret | 네이버 개발자 센터 › Application. **안드로이드와 공유하는 시크릿** | 계정 소유자 |
+| `NAVER_URL_SCHEME` | 네이버 앱 로그인이 돌아올 스킴 | 네이버 개발자 센터 앱의 iOS 설정 "URL Scheme"과 같은 값 | 계정 소유자 |
 
-**워크플로가 읽는 시크릿은 총 7개**다 — 새로 등록할 것이 6개(ASC 셋 + AdMob iOS 셋)이고,
-`KAKAO_NATIVE_APP_KEY` 1개는 KAN-163에서 안드로이드용으로 등록해 둔 것을 그대로 쓴다.
+**워크플로가 읽는 시크릿은 총 13개**다 — ASC 셋 + AdMob iOS 셋 + 카카오 1 + 로그인 IdP 여섯(KAN-224).
+`KAKAO_NATIVE_APP_KEY`는 KAN-163에서 안드로이드용으로 등록해 둔 것을 그대로 쓰고, 로그인 셋 중
+`GOOGLE_SERVER_CLIENT_ID`·`NAVER_CLIENT_ID`·`NAVER_CLIENT_SECRET`도 안드로이드 릴리스와 같은 시크릿이다.
+로그인 셋은 `upload`·`allow_test_ads`와 무관하게 늘 필요하고, 아카이브가 `REQUIRE_IDP_CONFIG=YES`로 빈 값을 막는다.
 카카오 키가 플랫폼별로 갈리지 않는 것은 카카오 콘솔이 앱 하나에 네이티브 앱 키 하나를 주고
 iOS 번들 ID·안드로이드 패키지명을 그 아래 등록하기 때문이다. 안드로이드 릴리스 워크플로와
 같은 시크릿을 공유한다.
