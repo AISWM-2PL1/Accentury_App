@@ -86,11 +86,15 @@ fun LoginScreen(
                 modifier = Modifier
                     .verticalScroll(rememberScrollState())
                     .heightIn(min = maxHeight)
-                    .padding(start = Spacing.x6, end = Spacing.x6, top = HeroTop, bottom = Spacing.x8),
+                    .padding(start = Spacing.x6, end = Spacing.x6, top = Dimens.screenPaddingTop, bottom = Spacing.x8),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // 히어로는 아래 묶음 위 남은 칸의 세로 가운데에 선다 (2026-09-28 팀장 결정) — 웹 `.screen__body`의
+                // justify-content center와 같은 규칙이다. 인트로와 픽셀 단위로 맞추던 고정 오프셋은 카드가 없는 이 화면에서
+                // 히어로를 위로 치우치게 해 걷어냈다. 위아래 가중치가 같아서 어느 화면 높이에서도 가운데다.
+                Spacer(Modifier.weight(1f))
                 IntroHero()
-                Spacer(Modifier.weight(1f).height(Spacing.x6))
+                Spacer(Modifier.weight(1f).heightIn(min = Spacing.x6))
 
                 // 아래 묶음 — 웹 인트로의 CTA·안내 자리. 실패 안내·대기 표시는 버튼 바로 위에 붙는다.
                 Column(
@@ -137,15 +141,6 @@ fun LoginScreen(
         }
     }
 }
-
-/**
- * 히어로 위쪽 여백. 웹 인트로의 히어로와 같은 자리에 앉도록 Pixel 8급(약 915dp 높이) 화면에서 맞춘 값이다.
- *
- * ponytail: 웹은 히어로·카드·안내를 푸터 위 남은 칸의 세로 가운데에 두므로(`.screen__body` justify-content center)
- * 화면 높이가 크게 다르면 두 화면이 몇 dp 어긋난다. 웹 인트로가 가운데 정렬을 그만두면 이 값을 웹과 같은
- * 레이아웃 상수로 나눠 쓴다.
- */
-private val HeroTop = 152.dp
 
 /**
  * 웹 CSS의 줄 높이처럼 줄 간격을 글자 위아래로 나눠 두고 잘라내지 않는다. Compose 기본값은 첫 줄 위·끝 줄 아래
