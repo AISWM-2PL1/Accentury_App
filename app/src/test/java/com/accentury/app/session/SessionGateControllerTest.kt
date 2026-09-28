@@ -326,6 +326,30 @@ class SessionGateControllerTest {
         assertEquals(session, restored.session)
     }
 
+    @Test
+    fun `AUTH_PROFILE_INCOMPLETE는 실패 화면이 아니라 추가 정보로 보낸다 - KAN-224`() {
+        val controller = SessionGateController()
+        controller.onResult(rejected(code = "AUTH_PROFILE_INCOMPLETE", retryable = false, retryAfterMs = null))
+
+        assertEquals(SessionGateState.ProfileIncomplete, controller.state)
+        assertNull(controller.session)
+    }
+
+    @Test
+    fun `재응시가 AUTH_PROFILE_INCOMPLETE로 막히면 결과 화면 회신 대신 추가 정보로 - 이전 세션은 남는다`() {
+        val controller = SessionGateController()
+        controller.onResult(SessionResult.Created(session))
+        controller.beginRetest()
+
+        val outcome = controller.onRetestResult(
+            rejected(code = "AUTH_PROFILE_INCOMPLETE", retryable = false, retryAfterMs = null),
+        )
+
+        assertEquals(RetestOutcome.ProfileIncomplete, outcome)
+        assertEquals(session, controller.session)
+        assertFalse(controller.retestInFlight)
+    }
+
     private fun rejected(code: String?, retryable: Boolean, retryAfterMs: Long?) = SessionResult.Rejected(
         code = code,
         message = "거절",

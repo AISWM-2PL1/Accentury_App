@@ -469,7 +469,8 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 | 진척도 | `ui/components/ProgressIndicator.kt` | `web/src/ui/ProgressIndicator.tsx` |
 | 대기·오류 블록 | `ui/components/StatusBlock.kt` | `web/src/ui/StatusBlock.tsx` |
 | 대사·질문 카드 | `ui/components/PromptCard.kt` | `.prompt-card` |
-| 선택지 | — (어휘 문항은 웹 전용) | `.choice` |
+| 선택지 | `ui/components/ChoiceButton.kt` (KAN-224 성별·출신지역) | `.choice` |
+| 입력 칸 | `ui/components/AccenturyTextField.kt` (KAN-224 추가 정보) | — |
 | 곡선 레인 | `ui/components/CurveLane.kt` | `web/src/recording/CurveLane.tsx` |
 | 녹음 버튼 | `ui/components/RecordButton.kt` | — (웹은 `.btn`으로 녹음한다) |
 | 히어로 아이콘 | `ui/components/HeroIcon.kt` | `.hero-icon` |
@@ -502,6 +503,21 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 바닥이 없다.
 
 비활성은 `opacity-disabled` 0.6뿐이다. 색으로 상태를 만들지 않는다.
+
+### 선택지 (네이티브, KAN-224)
+
+`ChoiceButton` — 웹 `.choice`와 같은 규칙이다. 1.5px 잉크 테두리 + 크림 면 + 반경 16, 높이
+`control-height-lg` 56. **고른 칸만 테두리 2px과 오프셋 그림자**가 붙고 색은 바뀌지 않는다. 그림자
+자리는 고르지 않은 칸도 비워 둬서 고를 때 격자가 들썩이지 않는다. 라벨은 웹 2열 선택지와 같은 Jua
+`titleMedium`. 스크린 리더에는 라디오 버튼(`Role.RadioButton` + `selected`)으로 읽히고, 묶음은 부모가
+`selectableGroup`으로 감싼다.
+
+### 입력 칸 (KAN-224)
+
+`AccenturyTextField` — 1.5px 잉크 테두리 + 크림 면 + 반경 16, 최소 높이 48, **그림자 없음**(떠 있는
+종이는 주 버튼 하나다). 포커스는 테두리가 2px로 굵어지는 것뿐이다. 이름표는 칸 위 `labelLarge`이고
+칸의 접근성 이름도 같은 글자다. `onClick`을 주면 치는 칸이 아니라 누르는 칸(생년월일 → 달력)이 되고
+버튼으로 읽힌다.
 
 ### 진척도
 

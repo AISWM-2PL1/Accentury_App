@@ -114,6 +114,27 @@
                 <data android:path="/t/" />
             </intent-filter>
         </activity>
+
+        <!--
+          카카오 로그인 리다이렉트 (KAN-224). 카톡 앱이 없어 카카오계정(웹) 로그인으로 가면 인가 코드가
+          `kakao<앱 키>://oauth`로 돌아오고, 이 SDK 액티비티가 받아 토큰으로 바꾼다.
+          스킴은 빌드가 채운다(app/build.gradle.kts의 kakaoScheme) - 키가 없는 빌드는 쓰이지 않는 이름이다.
+          https://developers.kakao.com/docs/latest/ko/kakaologin/android#set-redirect-uri
+        -->
+        <activity
+            android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="oauth"
+                    android:scheme="${kakaoScheme}" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
