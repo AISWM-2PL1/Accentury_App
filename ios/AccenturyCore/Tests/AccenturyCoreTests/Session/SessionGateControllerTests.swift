@@ -66,6 +66,28 @@ final class SessionGateControllerTests: XCTestCase {
         XCTAssertEqual(.failed(reason: .unsupported, retryAfterSeconds: nil), controller.state)
     }
 
+    /// 403 `AUTH_PROFILE_INCOMPLETE`는 실패 화면이 아니라 추가 정보 화면으로 갈 일이다 (KAN-224).
+    func testProfileIncompleteIsItsOwnStateNotAFailure() {
+        let controller = SessionGateController()
+        controller.onResult(rejected(code: "AUTH_PROFILE_INCOMPLETE", retryable: false, retryAfterMs: nil))
+
+        XCTAssertEqual(.profileIncomplete, controller.state)
+        XCTAssertNil(controller.session)
+    }
+
+    /// 재응시도 같은 판정이다. 결과 화면에 회신할 실패가 아니고, 이전 세션은 그대로 살아 있다.
+    func testAProfileIncompleteRetestKeepsThePreviousSession() {
+        let controller = SessionGateController()
+        controller.onResult(.created(session))
+        _ = controller.beginRetest()
+
+        let outcome = controller.onRetestResult(rejected(code: "AUTH_PROFILE_INCOMPLETE", retryable: false, retryAfterMs: nil))
+
+        XCTAssertEqual(.profileIncomplete, outcome)
+        XCTAssertEqual(session, controller.session)
+        XCTAssertFalse(controller.retestInFlight)
+    }
+
     func testRestartBumpsAttemptToSendTheRequestAgain() {
         let controller = SessionGateController()
         controller.onResult(.transportError(reason: "boom"))
