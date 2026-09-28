@@ -2,6 +2,7 @@ package com.accentury.app.auth
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -32,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -39,6 +42,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accentury.app.R
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.StatusBlock
@@ -51,8 +55,9 @@ import kotlinx.coroutines.launch
 /**
  * 로그인 화면 (KAN-224). 인트로(웹)보다 앞에 서는 필수 관문이다.
  *
- * 버튼은 브랜드 색·로고 없이 보조 버튼 모양의 글자만 쓴다 (2026-09-28 팀장 결정) — 크림·잉크 한 벌 화면에
- * 브랜드 색 셋이 서면 그것만 튄다. 순서는 구글 → 카카오 → 네이버.
+ * 버튼은 브랜드 면색 없이 보조 버튼 모양을 쓴다 (2026-09-28 팀장 결정) — 크림·잉크 한 벌 화면에
+ * 브랜드 색 셋이 서면 그것만 튄다. 글자만으로는 어느 계정인지 한눈에 읽히지 않아 왼쪽에 공식 로고만
+ * 공식 색으로 둔다(docs/wiki/social-login-logos.md). 순서는 구글 → 카카오 → 네이버.
  *
  * @param error 방금 실패한 서버 로그인의 안내 ([AuthGateState.SignedOut.error])
  * @param providers 이 빌드에 보일 버튼 ([visibleProviders])
@@ -117,6 +122,7 @@ fun LoginScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 variant = ButtonVariant.Secondary,
                                 enabled = state.buttonsEnabled,
+                                leading = { IdpLogo(provider) },
                             )
                         }
                     }
@@ -224,6 +230,23 @@ private fun ConsentRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, onO
         }
         AccenturyButton(text = "보기", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
     }
+}
+
+/**
+ * IdP 공식 로고 (KAN-224). 파일은 각 사 배포본에서 그대로 옮겼다 — 구글 G는 그라데이션·블러라 벡터 드로어블로
+ * 옮길 수 없어 공식 SVG를 렌더링한 PNG다. 버튼 글자가 이미 제공자를 말하므로 스크린 리더에는 읽히지 않는다.
+ */
+@Composable
+private fun IdpLogo(provider: Provider) {
+    val res = when (provider) {
+        Provider.GOOGLE -> R.drawable.ic_idp_google
+        Provider.KAKAO -> R.drawable.ic_idp_kakao
+        Provider.NAVER -> R.drawable.ic_idp_naver
+        Provider.APPLE -> return
+    }
+    // 구글 PNG는 nodpi라 크기를 박아 둔다. 카카오·네이버는 드로어블의 고유 크기(가이드 최소 이상)를 쓴다.
+    val size = if (provider == Provider.GOOGLE) Modifier.size(20.dp) else Modifier
+    Image(painterResource(res), contentDescription = null, modifier = size)
 }
 
 private fun providerLabel(provider: Provider): String = when (provider) {

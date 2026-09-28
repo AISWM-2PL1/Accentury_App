@@ -504,6 +504,9 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 
 비활성은 `opacity-disabled` 0.6뿐이다. 색으로 상태를 만들지 않는다.
 
+로그인 IdP 버튼(KAN-224)만 보조 버튼 왼쪽에 공식 로고를 공식 색으로 단다(`leading`). 출처·가이드 위반 목록은
+[social-login-logos.md](social-login-logos.md).
+
 ### 선택지 (네이티브, KAN-224)
 
 `ChoiceButton` — 웹 `.choice`와 같은 규칙이다. 1.5px 잉크 테두리 + 크림 면 + 반경 16, 높이
