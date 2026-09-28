@@ -32,17 +32,25 @@ actor KeychainTokenStore: TokenStore {
         return cached
     }
 
-    func save(_ tokens: AuthTokens) async {
-        guard let data = try? JSONEncoder().encode(tokens) else { return }
+    /// 키체인 쓰기. 기본값은 `SecItemAdd`이고, 테스트가 실패 상태(서명 없는 시뮬레이터의 -34018 등)를 흉내 내려고 바꿔 끼운다.
+    private let add: @Sendable (CFDictionary) -> OSStatus
+
+    init(add: @escaping @Sendable (CFDictionary) -> OSStatus = { SecItemAdd($0, nil) }) {
+        self.add = add
+    }
+
+    func save(_ tokens: AuthTokens) async -> Bool {
+        // 실패해도 메모리 값은 새 쌍으로 둔다 — 이 프로세스가 사는 동안은 회전된 쌍이 정본이다. 옛 쌍을 들고 있으면
+        // 다음 갱신이 이미 죽은 Refresh를 내 패밀리가 폐기된다. 키체인에 닿았는지는 돌려줘 호출자가 판단한다.
+        cached = tokens
+        loaded = true
+        guard let data = try? JSONEncoder().encode(tokens) else { return false }
+        // 지우기 결과는 보지 않는다 — 항목이 없으면(errSecItemNotFound) 정상이고, 다른 실패는 아래 추가가 드러낸다.
         SecItemDelete(baseQuery() as CFDictionary)
         var item = baseQuery()
         item[kSecValueData as String] = data
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        // 실패해도 메모리 값은 새 쌍으로 둔다 — 이 프로세스가 사는 동안은 회전된 쌍이 정본이다. 옛 쌍을 들고 있으면
-        // 다음 갱신이 이미 죽은 Refresh를 내 패밀리가 폐기된다.
-        SecItemAdd(item as CFDictionary, nil)
-        cached = tokens
-        loaded = true
+        return add(item as CFDictionary) == errSecSuccess
     }
 
     func clear() async {

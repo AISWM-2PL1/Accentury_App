@@ -119,8 +119,14 @@ class AuthGateController(
     suspend fun login(credential: LoginCredential, privacyPolicyVersion: String) {
         when (val result = api.login(credential, privacyPolicyVersion)) {
             is AuthResult.Success -> {
-                store.save(result.value.tokens)
-                _state.value = stateOf(result.value.account)
+                if (store.save(result.value.tokens)) {
+                    _state.value = stateOf(result.value.account)
+                } else {
+                    // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
+                    // 메모리에 남은 쌍까지 비우고 실패로 알려 사용자가 다시 시도하게 한다.
+                    store.clear()
+                    _state.value = AuthGateState.SignedOut(AuthFailure(AuthFailureReason.Retry))
+                }
             }
             else -> _state.value = AuthGateState.SignedOut(failureOf(result))
         }

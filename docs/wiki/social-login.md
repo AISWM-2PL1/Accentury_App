@@ -72,6 +72,12 @@ stateDiagram-v2
 | 저장 자리 | DataStore Preferences `auth_tokens`에 `base64(IV ‖ 암호문)` 한 줄 | `kSecClassGenericPassword`, service `com.accentury.app.auth` / account `tokens` |
 | 백업·기기 이전 | 제외 — `res/xml/backup_rules.xml`·`data_extraction_rules.xml`이 `datastore/auth_tokens.preferences_pb`를 뺀다 | 제외 — `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` |
 | 읽기 실패 | 값을 지우고 로그아웃으로 본다 (키는 백업으로 따라가지 않아 파일만 복원되면 영영 못 푼다) | 같다 |
+| 쓰기 실패 | `save`가 false를 돌려준다 (Keystore·Cipher 예외, DataStore IOException을 삼킨다) | `SecItemAdd`가 `errSecSuccess`가 아니면 false |
+
+쓰기가 실패해도 메모리 값은 새 쌍으로 바뀐다 — 이 프로세스 안에서는 회전된 쌍이 정본이고, 옛 쌍을 들고 있으면
+다음 갱신이 죽은 Refresh를 내 패밀리가 폐기된다. 첫 로그인의 저장 실패는 로그인 실패로 다룬다(저장소를 비우고
+로그인 화면에 [다시 시도] 안내) — 그대로 들여보내면 다음 실행 때 조용히 로그아웃되기 때문이다. 갱신 회전의 저장
+실패는 이번 요청을 그대로 성공시키고, 다음 실행 때 옛 Refresh가 거절돼 로그인 화면으로 가는 열화를 받아들인다.
 
 EncryptedSharedPreferences(security-crypto)를 쓰지 않은 것은 라이브러리가 deprecated 됐기 때문이다. 같은 일을
 플랫폼 API로 직접 한다. iOS가 `AfterFirstUnlock`인 것은 업로드가 백그라운드 실행 시간 안에서 세션 생성·갱신을
@@ -301,8 +307,8 @@ order by s.created_at desc limit 5;
 - **googleid 1.2.0 고정.** 최신 1.2.1은 Kotlin 2.4 메타데이터로 빌드돼 우리 컴파일러(Kotlin 2.2.10)가 못 읽는다.
   Kotlin을 올릴 때 같이 올린다 (`gradle/libs.versions.toml` 주석).
 - **iOS 무서명 시뮬레이터 빌드의 키체인.** 서명 없이 만든 시뮬레이터 빌드(`CODE_SIGNING_ALLOWED=NO`)에서는
-  키체인 쓰기가 실패할 수 있다. `KeychainTokenStore.save`는 실패해도 메모리 값을 새 쌍으로 두므로 그 프로세스
-  안에서는 로그인이 유지되고, 재실행하면 로그인 화면이다. "앱 재실행 자동 로그인"은 서명된 빌드(실기기·
+  키체인 쓰기가 -34018로 실패한다. 이제 첫 로그인은 저장 실패를 보고 로그인 화면에 [다시 시도] 안내로 남는다(들어가지
+  못한다) — 그 빌드에서는 로그인 흐름을 끝까지 볼 수 없다. 로그인·"앱 재실행 자동 로그인"은 서명된 빌드(실기기·
   TestFlight)에서 확인한다.
 - **브랜드 가이드와 어긋난 버튼.** 구글·카카오·애플 버튼 면이 각 사 가이드 값이 아니다(팀 결정으로 유지).
   목록과 심사에서 문제가 될 때의 최소 수정은 [social-login-logos.md](social-login-logos.md).

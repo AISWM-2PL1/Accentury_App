@@ -164,6 +164,23 @@ class AuthGateControllerTest {
     }
 
     @Test
+    fun `로그인 토큰 저장이 실패하면 들어가지 않고 다시 시도 안내와 빈 저장소로 남는다`() = runTest {
+        val store = InMemoryTokenStore().apply { persists = false }
+        val gate = controller(store)
+        server.enqueue(
+            MockResponse().setBody(
+                """{"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"isNewUser":false,""" +
+                    """"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}""",
+            ),
+        )
+
+        gate.login(google, privacyPolicyVersion = "v1")
+
+        assertEquals(AuthGateState.SignedOut(AuthFailure(AuthFailureReason.Retry)), gate.state.value)
+        assertNull(store.tokens)
+    }
+
+    @Test
     fun `세션 생성이 프로필 미완료로 막히면 추가 정보 화면으로 돌아간다`() = runTest {
         val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
         server.enqueue(MockResponse().setBody(tokens(1)))

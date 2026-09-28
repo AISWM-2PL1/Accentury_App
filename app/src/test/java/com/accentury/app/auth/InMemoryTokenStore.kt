@@ -9,8 +9,13 @@ class InMemoryTokenStore(initial: AuthTokens? = null) : TokenStore {
 
     override suspend fun read(): AuthTokens? = tokens
 
-    override suspend fun save(tokens: AuthTokens) {
+    /** false면 [save]가 디스크 쓰기 실패를 흉내 낸다 — 실제 저장소처럼 메모리 값은 바꾸고 false를 돌려준다. */
+    @Volatile
+    var persists: Boolean = true
+
+    override suspend fun save(tokens: AuthTokens): Boolean {
         this.tokens = tokens
+        return persists
     }
 
     override suspend fun clear() {

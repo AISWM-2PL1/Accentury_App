@@ -29,6 +29,8 @@ public struct AuthTokens: Codable, Equatable, Sendable, CustomStringConvertible,
 public protocol TokenStore: Sendable {
     /// 저장된 쌍. 없거나 읽을 수 없으면 nil.
     func read() async -> AuthTokens?
-    func save(_ tokens: AuthTokens) async
+    /// 쌍을 저장하고 키체인까지 닿았는지 돌려준다. 닿지 못해도 메모리 값은 새 쌍으로 바뀐다 — 이 프로세스가 사는 동안은
+    /// 회전된 쌍이 정본이다. 실패를 어떻게 다룰지는 호출자가 정한다 (로그인은 실패로, 갱신은 그대로 진행).
+    func save(_ tokens: AuthTokens) async -> Bool
     func clear() async
 }

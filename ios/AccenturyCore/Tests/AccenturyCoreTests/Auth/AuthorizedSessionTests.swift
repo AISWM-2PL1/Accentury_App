@@ -62,6 +62,19 @@ final class AuthorizedSessionTests: XCTestCase {
         XCTAssertNil(refresh.header("Authorization"))
     }
 
+    func test갱신한_쌍의_저장이_실패해도_새_Bearer로_다시_보내_성공하고_메모리에는_새_쌍이_남는다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_old", "rt_old"))
+        store.persists = false
+
+        let result = await clients(store).api.me()
+
+        guard case .success = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(1, counts.refresh)
+        XCTAssertEqual(2, counts.me)
+        let cached = await store.read()
+        XCTAssertEqual(AuthTokens("jwt_new", "rt_new"), cached)
+    }
+
     func test동시에_5개가_401을_받아도_갱신은_한_번만_나간다() async {
         let store = InMemoryTokenStore(AuthTokens("jwt_old", "rt_old"))
         let api = clients(store).api
