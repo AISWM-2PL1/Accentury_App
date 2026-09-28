@@ -128,6 +128,7 @@ enum BridgeUserScript {
             requestMicPermission: function(){ post("requestMicPermission"); },
             startVoiceItem: function(json){ post("startVoiceItem", String(json)); },
             startRetest: function(){ post("startRetest"); },
+            startRetestAfterFailure: function(){ post("startRetestAfterFailure"); },
             shareResult: function(json){ post("shareResult", String(json)); },
             logEvent: function(name, json){ post("logEvent", {name: String(name), params: String(json)}); },
             openExternalUrl: function(url){ post("openExternalUrl", String(url)); },

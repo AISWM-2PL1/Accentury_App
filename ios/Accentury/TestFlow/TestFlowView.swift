@@ -72,6 +72,7 @@ struct TestFlowView: View {
                     onRequestMicPermission: { model.onRequestMicPermission() },
                     onStartVoiceItem: { model.onStartVoiceItem($0) },
                     onStartRetest: { handleRetest() },
+                    onStartRetestAfterFailure: { handleRetestAfterFailure() },
                     onShareResult: { model.onShareResult($0) },
                     /*
                      * 웹이 센 사건을 앱 스트림으로 넘긴다 (KAN-33). 이름을 여기서 손대지 않는 것이
@@ -622,7 +623,22 @@ struct TestFlowView: View {
         )
     }
 
-    /// 재응시 본체 (KAN-34 2단계, KAN-107). 보상형 광고 게이트를 통과한 뒤에만 온다 (``handleRetest()``).
+    /// 실패 출구(문항 중 세션 만료·제출 실패, 분석 대기 막다른 상태)의 재응시 → 광고 없이 곧바로
+    /// ``proceedRetest()`` (KAN-248, webview-bridge.md §8.6). 안드로이드
+    /// `MainActivity.startRetestAfterFailure` 자리다. 사용자 잘못이 아닌 실패에는 광고를 물리지
+    /// 않는다 (팀장 결정).
+    ///
+    /// 따로 잠그지 않는다 — `retestInFlight`는 ``TestFlowModel/startRetest()`` 안의 `beginRetest()`가
+    /// 걸므로 연타도, ``handleRetest()``의 광고 완주와 겹친 호출도 세션 요청은 한 번만 나간다.
+    /// 광고가 없으니 `AD_DISMISSED` 갈래도 없다.
+    @MainActor
+    private func handleRetestAfterFailure() {
+        Task { @MainActor in await proceedRetest() }
+    }
+
+    /// 재응시 본체 (KAN-34 2단계, KAN-107). 보상형 광고 게이트를 통과한 뒤(``handleRetest()``), 또는
+    /// 실패 출구에서 광고 없이(``handleRetestAfterFailure()``, KAN-248) 온다. 잠금(`beginRetest()`)이
+    /// ``TestFlowModel/startRetest()`` 안에 있어서 두 입구가 같은 잠금을 지난다.
     @MainActor
     private func proceedRetest() async {
         guard let failure = await model.startRetest() else { return }

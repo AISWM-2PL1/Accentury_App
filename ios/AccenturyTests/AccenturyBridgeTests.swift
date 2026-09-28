@@ -20,6 +20,7 @@ final class AccenturyBridgeTests: XCTestCase {
     private final class Sink {
         var micPermissionCalls = 0
         var retestCalls = 0
+        var retestAfterFailureCalls = 0
         var starts: [VoiceItemStart] = []
         var shares: [SharePayload] = []
         var events: [(name: String, params: [String: EventParam])] = []
@@ -37,6 +38,7 @@ final class AccenturyBridgeTests: XCTestCase {
             onRequestMicPermission: { sink.micPermissionCalls += 1 },
             onStartVoiceItem: { sink.starts.append($0) },
             onStartRetest: { sink.retestCalls += 1 },
+            onStartRetestAfterFailure: { sink.retestAfterFailureCalls += 1 },
             onShareResult: { sink.shares.append($0) },
             onLogEvent: { sink.events.append((name: $0, params: $1)) },
             onOpenExternalUrl: { sink.externalUrls.append($0) },
@@ -126,6 +128,25 @@ final class AccenturyBridgeTests: XCTestCase {
         dispatcher.handle(method: "startRetest", payload: nil)
         dispatcher.handle(method: "startRetest", payload: nil)
         XCTAssertEqual(2, sink.retestCalls)
+    }
+
+    // MARK: startRetestAfterFailure (KAN-248)
+
+    /// 광고 없는 재응시는 자기 콜백으로만 간다 — `startRetest` 콜백으로 새면 실패 출구에 광고가 뜬다.
+    func testRetestAfterFailureRunsItsOwnCallbackNotTheAdGatedOne() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+            .handle(method: "startRetestAfterFailure", payload: nil)
+        XCTAssertEqual(1, sink.retestAfterFailureCalls)
+        XCTAssertEqual(0, sink.retestCalls)
+    }
+
+    func testRetestAfterFailureIsIgnoredOutsideTheAllowlist() {
+        // 광고만 건너뛸 뿐 서버 쪽 세션·결과를 폐기시키는 호출인 것은 같다 (KAN-107) — origin 검증이 보안 경계다.
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
+            .handle(method: "startRetestAfterFailure", payload: nil)
+        XCTAssertEqual(0, sink.retestAfterFailureCalls)
     }
 
     // MARK: startVoiceItem
@@ -338,6 +359,7 @@ final class AccenturyBridgeTests: XCTestCase {
 
         XCTAssertEqual(0, sink.micPermissionCalls)
         XCTAssertEqual(0, sink.retestCalls)
+        XCTAssertEqual(0, sink.retestAfterFailureCalls)
         XCTAssertTrue(sink.starts.isEmpty)
         XCTAssertTrue(sink.shares.isEmpty)
         XCTAssertTrue(sink.events.isEmpty)
@@ -351,6 +373,7 @@ final class AccenturyBridgeTests: XCTestCase {
         let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
         dispatcher.handle(method: "requestMicPermission", payload: nil)
         dispatcher.handle(method: "startRetest", payload: nil)
+        dispatcher.handle(method: "startRetestAfterFailure", payload: nil)
         dispatcher.handle(method: "startVoiceItem", payload: voicePayload())
         dispatcher.handle(method: "shareResult", payload: sharePayloadJson)
         dispatcher.handle(
@@ -362,6 +385,7 @@ final class AccenturyBridgeTests: XCTestCase {
 
         XCTAssertEqual(1, sink.micPermissionCalls)
         XCTAssertEqual(1, sink.retestCalls)
+        XCTAssertEqual(1, sink.retestAfterFailureCalls)
         XCTAssertEqual(1, sink.starts.count)
         XCTAssertEqual(1, sink.shares.count)
         XCTAssertEqual(1, sink.events.count)
