@@ -73,7 +73,9 @@ public actor TokenRefresher {
         let result = await refreshCall(current.refreshToken)
         switch result {
         case .success(let tokens):
-            await store.save(tokens)
+            // 저장이 실패해도 새 쌍으로 진행한다(메모리 값은 이미 새 쌍) — 이번 프로세스의 요청은 성공한다. 다음 실행 때는
+            // 키체인에 남은 옛 Refresh가 거절되거나(지우기만 되고 쓰기가 실패했다면 빈 저장소라) 로그인 화면으로 간다. 받아들인 열화다: 여기서 지우면 지금 당장 로그아웃된다.
+            _ = await store.save(tokens)
             return .refreshed(tokens)
         case .rejected(let status, _, _, _, _) where status == statusUnauthorized:
             // AUTH_REFRESH_INVALID(만료·폐기)와 AUTH_REFRESH_REUSED(탈취 의심) 모두 이 Refresh로는 영영 못 푼다.

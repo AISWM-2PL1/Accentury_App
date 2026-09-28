@@ -20,7 +20,14 @@ final class InMemoryTokenStore: TokenStore, @unchecked Sendable {
 
     func read() async -> AuthTokens? { tokens }
 
-    func save(_ tokens: AuthTokens) async { set(tokens) }
+    /// false면 ``save(_:)``가 키체인 쓰기 실패를 흉내 낸다 — 실제 저장소처럼 메모리 값은 바꾸고 false를 돌려준다.
+    /// 테스트 본문이 저장소를 넘기기 전에만 바꾼다.
+    var persists = true
+
+    func save(_ tokens: AuthTokens) async -> Bool {
+        set(tokens)
+        return persists
+    }
 
     func clear() async { set(nil) }
 

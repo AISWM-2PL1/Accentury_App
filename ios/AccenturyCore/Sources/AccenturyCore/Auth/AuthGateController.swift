@@ -132,7 +132,13 @@ public final class AuthGateController: ObservableObject {
         await registerSignedOutHook()
         let result = await api.login(credential, privacyPolicyVersion: privacyPolicyVersion)
         if case .success(let success) = result {
-            await store.save(success.tokens)
+            guard await store.save(success.tokens) else {
+                // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
+                // 메모리에 남은 쌍까지 비우고 실패로 알려 사용자가 다시 시도하게 한다.
+                await store.clear()
+                state = .signedOut(AuthFailure(.retry))
+                return
+            }
             state = Self.state(of: success.account)
         } else {
             state = .signedOut(Self.failure(of: result))

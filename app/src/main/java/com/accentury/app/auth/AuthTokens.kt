@@ -29,7 +29,13 @@ interface TokenStore {
     /** 저장된 쌍. 없거나 읽을 수 없으면(복호화 실패 등) null. */
     suspend fun read(): AuthTokens?
 
-    suspend fun save(tokens: AuthTokens)
+    /**
+     * 쌍을 저장하고 디스크(Keystore·키체인)까지 닿았는지 돌려준다. 닿지 못해도 메모리 값은 새 쌍으로 바뀐다 —
+     * 이 프로세스가 사는 동안은 회전된 쌍이 정본이다. 저장 실패를 어떻게 다룰지는 호출자가 정한다
+     * ([AuthGateController.login]은 로그인을 실패로, [TokenRefresher]는 그대로 진행).
+     */
+    suspend fun save(tokens: AuthTokens): Boolean
 
+    /** 던지지 않는다 — 디스크 삭제가 실패해도 메모리 값은 비운다. */
     suspend fun clear()
 }

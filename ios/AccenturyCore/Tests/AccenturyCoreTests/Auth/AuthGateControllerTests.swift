@@ -129,6 +129,18 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertEqual(.signedOut(AuthFailure(.retry)), gate.state)
     }
 
+    func test로그인_토큰_저장이_실패하면_들어가지_않고_다시_시도_안내와_빈_저장소로_남는다() async {
+        let store = InMemoryTokenStore()
+        store.persists = false
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([(200, incompleteLogin)])
+
+        await gate.login(google, privacyPolicyVersion: "v1")
+
+        XCTAssertEqual(.signedOut(AuthFailure(.retry)), gate.state)
+        XCTAssertNil(store.tokens)
+    }
+
     func test세션_생성이_프로필_미완료로_막히면_추가_정보_화면으로_돌아간다() async {
         let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
         MockURLProtocol.respondInOrder([(200, tokens(1)), (200, account("COMPLETE"))])

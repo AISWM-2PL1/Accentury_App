@@ -62,6 +62,8 @@ class TokenRefresher(
         }
         when (val result = refreshCall(current.refreshToken)) {
             is AuthResult.Success -> {
+                // 저장이 실패해도 새 쌍으로 진행한다(메모리 값은 이미 새 쌍) — 이번 프로세스의 요청은 성공한다. 다음 실행 때는
+                // 디스크에 남은 옛 Refresh가 거절돼 로그인 화면으로 간다. 받아들인 열화다: 여기서 지우면 지금 당장 로그아웃된다.
                 store.save(result.value)
                 RefreshOutcome.Refreshed(result.value)
             }

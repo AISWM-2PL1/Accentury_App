@@ -82,6 +82,18 @@ class TokenAuthenticatorTest {
     }
 
     @Test
+    fun `갱신한 쌍의 저장이 실패해도 새 Bearer로 다시 보내 성공하고 메모리에는 새 쌍이 남는다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_old", "rt_old")).apply { persists = false }
+
+        val result = clients(store).api.me()
+
+        assertTrue(result is AuthResult.Success)
+        assertEquals(1, refreshCalls.get())
+        assertEquals(2, meCalls.get())
+        assertEquals(AuthTokens("jwt_new", "rt_new"), store.read())
+    }
+
+    @Test
     fun `동시에 5개가 401을 받아도 갱신은 한 번만 나간다`() = runTest {
         val store = InMemoryTokenStore(AuthTokens("jwt_old", "rt_old"))
         val api = clients(store).api

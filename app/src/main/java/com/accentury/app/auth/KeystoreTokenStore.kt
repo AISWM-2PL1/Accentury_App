@@ -13,7 +13,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import java.io.IOException
+import java.security.GeneralSecurityException
 import java.security.KeyStore
+import java.security.ProviderException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -77,17 +80,34 @@ class KeystoreTokenStore(context: Context) : TokenStore {
         cached
     }
 
-    override suspend fun save(tokens: AuthTokens) = lock.withLock {
-        val sealed = seal(json.encodeToString(AuthTokens.serializer(), tokens))
-        dataStore.edit { it[SEALED_TOKENS] = sealed }
+    override suspend fun save(tokens: AuthTokens): Boolean = lock.withLock {
+        // 실패해도 메모리 값은 새 쌍으로 둔다 — 이 프로세스가 사는 동안은 회전된 쌍이 정본이다. 옛 쌍을 들고 있으면
+        // 다음 갱신이 이미 죽은 Refresh를 내 패밀리가 폐기된다. 예외는 삼킨다: 갱신은 OkHttp Authenticator 안
+        // runBlocking에서 돌아 여기서 던지면 요청 스레드가 죽는다. 예외 메시지에 암호문 조각이 실릴 수 있어 로그로 남기지 않는다.
         cached = tokens
         loaded = true
+        try {
+            val sealed = seal(json.encodeToString(AuthTokens.serializer(), tokens))
+            dataStore.edit { it[SEALED_TOKENS] = sealed }
+            true
+        } catch (_: GeneralSecurityException) {
+            false
+        } catch (_: ProviderException) {
+            // Keystore 내부 실패(키 생성·하드웨어 오류)는 GeneralSecurityException이 아닌 런타임 예외로 온다.
+            false
+        } catch (_: IOException) {
+            false
+        }
     }
 
-    override suspend fun clear() = lock.withLock {
-        dataStore.edit { it.remove(SEALED_TOKENS) }
+    override suspend fun clear(): Unit = lock.withLock {
         cached = null
         loaded = true
+        try {
+            dataStore.edit { it.remove(SEALED_TOKENS) }
+        } catch (_: IOException) {
+            // 파일에 남은 쌍은 다음 시작의 갱신에서 서버가 판정한다 — 로그아웃 직후라면 이미 폐기된 Refresh다.
+        }
     }
 
     private suspend fun load(): AuthTokens? {
