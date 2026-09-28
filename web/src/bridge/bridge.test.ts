@@ -14,6 +14,7 @@ import {
   shareResult,
   showInterstitialAd,
   startRetest,
+  startRetestAfterFailure,
   startVoiceItem,
   writeAdConsent,
   type AccenturyBridge,
@@ -240,6 +241,35 @@ describe('startRetest — 재응시 요청 (KAN-34)', () => {
     window.AccenturyBridge = fakeBridge() // startRetest 없음
 
     expect(startRetest()).toBe(false)
+  })
+})
+
+describe('startRetestAfterFailure — 실패 출구 재응시 (KAN-248)', () => {
+  it('메서드가 있으면 그것을 부르고 광고 경로(startRetest)는 타지 않는다', () => {
+    const afterFailure = vi.fn()
+    const retest = vi.fn()
+    window.AccenturyBridge = fakeBridge({ startRetestAfterFailure: afterFailure, startRetest: retest })
+
+    expect(startRetestAfterFailure()).toBe(true)
+    expect(afterFailure).toHaveBeenCalledTimes(1)
+    // 인자 없음 — 구버전 앱 호환을 인자가 아니라 메서드 유무로 가르는 것이 계약이다
+    expect(afterFailure).toHaveBeenCalledWith()
+    expect(retest).not.toHaveBeenCalled()
+  })
+
+  it('메서드를 모르는 구버전 앱은 startRetest로 내려간다 — 광고가 떠도 재응시는 된다', () => {
+    const retest = vi.fn()
+    window.AccenturyBridge = fakeBridge({ startRetest: retest })
+
+    expect(startRetestAfterFailure()).toBe(true)
+    expect(retest).toHaveBeenCalledTimes(1)
+  })
+
+  it('둘 다 없으면(브라우저 단독·계약 버전 1) false다', () => {
+    expect(startRetestAfterFailure()).toBe(false)
+
+    window.AccenturyBridge = fakeBridge()
+    expect(startRetestAfterFailure()).toBe(false)
   })
 })
 

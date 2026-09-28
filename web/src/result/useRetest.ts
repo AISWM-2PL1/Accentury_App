@@ -24,6 +24,13 @@
  * `pending` 동안 사용자가 광고를 보고 있을 수 있다는 점은 화면이 알 필요가 없다 — 광고가
  * 화면을 덮고 있어 "준비 중…" 버튼은 보이지 않고, 닫히면 회신 아니면 리로드 중 하나가 온다.
  *
+ * ## 실패 출구는 광고를 건너뛴다 (KAN-248)
+ *
+ * 광고는 결과 화면(`from === 'result'`)의 재응시에만 붙는다. 문항 중 세션 만료·제출 실패
+ * (`'item'`)와 분석 대기의 막다른 상태(`'waiting'`)는 사용자 잘못이 아닌 실패라 광고 없이
+ * `startRetestAfterFailure`로 간다(팀장 결정). 결과 만료 상태도 결과 화면 안이라 광고다 —
+ * 이미 완주하고 결과를 본 뒤의 정상 재응시다(팀 결정 2026-09-28).
+ *
  * ## 왜 잠금이 웹 몫인가
  *
  * KAN-107이 서버 측 멱등 장치를 두지 않기로 확정하면서 더블탭 방지가 클라이언트 책임이 됐다.
@@ -41,10 +48,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RetestOrigin } from '../analytics/events'
 import { track } from '../analytics/track'
-import { installRetestFailedReceiver, startRetest } from '../bridge/bridge'
+import { installRetestFailedReceiver, startRetest, startRetestAfterFailure } from '../bridge/bridge'
 
 /** 남은 대기 시간을 다시 세는 간격. 화면에 초 단위로만 적으므로 1초면 충분하다 */
 const TICK_MS = 1000
+
+/**
+ * 이 화면의 재응시가 보상형 광고를 거치는가 (KAN-248). 판정을 여기 한 곳에 둔다 — 브리지
+ * 갈래와 버튼 라벨이 같은 답을 봐야 "광고 보고"라고 적어 놓고 광고 없이 넘어가는 일이 없다.
+ * 결과 화면만 광고다. 나머지(`'item'`·`'waiting'`)는 실패 출구라 광고를 물리지 않는다.
+ */
+function isAdGated(from: RetestOrigin): boolean {
+  return from === 'result'
+}
 
 /**
  * 결과 화면이 [다시 테스트하기] 버튼을 그리는 데 필요한 전부.
@@ -63,6 +79,12 @@ export interface RetestControl {
   message: string | null
   /** 429 대기 잔여 초(올림). 대기 중이 아니면 0 */
   retryAfterSec: number
+  /**
+   * 이 재응시가 보상형 광고를 거치는 경로인가 (KAN-248). 라벨이 "광고 보고"를 붙일지 가를 때
+   * 쓴다. 참이어도 광고를 모르는 실행(웹 단독·구버전 앱)에서는 광고가 없다 — 그 판정은
+   * 라벨 쪽(`readAdConsent`)이 따로 한다
+   */
+  adGated: boolean
 }
 
 /**
@@ -149,7 +171,7 @@ export function useRetest(fallback: () => void, from: RetestOrigin): RetestContr
      */
     track({ name: 'retest_started', from })
 
-    if (!startRetest()) {
+    if (!(isAdGated(from) ? startRetest() : startRetestAfterFailure())) {
       fallback()
       return
     }
@@ -162,6 +184,7 @@ export function useRetest(fallback: () => void, from: RetestOrigin): RetestContr
     pending: phase.status === 'pending',
     message: phase.status === 'failed' ? phase.message : null,
     retryAfterSec,
+    adGated: isAdGated(from),
   }
 }
 
