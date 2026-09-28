@@ -87,8 +87,11 @@ final class VoiceCheckRunnerTests: XCTestCase {
         runner.stop()
 
         await waitUntil("캡처가 반납되지 않았다: \(source.events.all)") { source.events.contains("release1") }
-        if case .listening = runner.state {
-            XCTFail("마이크를 놓았는데 아직 듣는 중이다")
+        // 반납(소스 정리)이 먼저이고 상태 전이(onStopped)는 engine.record가 돌아온 뒤라, 반납을 본 즉시
+        // 상태를 읽으면 느린 러너에서 둘 사이에 끼어 .listening을 본다 (KAN-224 PR #8 CI에서 재현). 상태도 기다린다.
+        await waitUntil("마이크를 놓았는데 아직 듣는 중이다") {
+            if case .listening = runner.state { return false }
+            return true
         }
     }
 }
