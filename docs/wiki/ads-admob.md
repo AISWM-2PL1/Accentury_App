@@ -250,6 +250,7 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
 | `setAdConsent` 거름 | `granted`/`denied`만, 그 외 Crashlytics | 같음 (`BridgeDispatcher`) |
 | `AD_DISMISSED` | `adDismissedRetestFailure()` | Core `adDismissedRetestFailure()` — JSON까지 테스트로 대조 |
 | 재응시 | `MainActivity.startRetest` → `RewardedRetestAd.run` → `proceedRetest` | `TestFlowView.handleRetest` → `AdsController.runRewardedRetest` → `proceedRetest` → `TestFlowModel.startRetest`(여기서 `beginRetest`) |
+| 실패 출구 재응시 (KAN-248) | `MainActivity.startRetestAfterFailure` → `proceedRetest` — 광고 건너뜀 | `TestFlowView.handleRetestAfterFailure` → `proceedRetest` → `TestFlowModel.startRetest` — 광고 건너뜀, `AD_DISMISSED` 없음 |
 
 ### 7.5 ATT — 시트 동의와 프롬프트의 순서 (4단계 결정)
 

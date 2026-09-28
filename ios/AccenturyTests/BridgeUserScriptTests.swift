@@ -23,7 +23,7 @@ final class BridgeUserScriptTests: XCTestCase {
         XCTAssertTrue(bumped.contains("return \(bridgeContractVersion + 1);"))
     }
 
-    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 열한 이름. 하나라도 빠지면
+    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 열두 이름. 하나라도 빠지면
     /// 웹 래퍼가 false로 내려가 그 경로가 조용히 죽는다 — 광고 셋(KAN-196)은 `readAdConsent()`가
     /// null이 되어 시트도 링크도 광고도 없는 "웹 단독" 모양으로 떨어진다.
     func testAllContractMethodsAreDefined() {
@@ -33,6 +33,7 @@ final class BridgeUserScriptTests: XCTestCase {
             "requestMicPermission",
             "startVoiceItem",
             "startRetest",
+            "startRetestAfterFailure",
             "shareResult",
             "logEvent",
             "openExternalUrl",
@@ -90,7 +91,7 @@ final class BridgeUserScriptTests: XCTestCase {
     /// 상태를 바꾸는 네 메서드만 네이티브로 넘어간다. 값을 돌려주는 둘은 JS 안에서 끝난다.
     func testOnlyStateChangingMethodsPostToNative() {
         XCTAssertTrue(source.contains("window.webkit.messageHandlers.\(BridgeUserScript.messageHandlerName).postMessage"))
-        for method in ["requestMicPermission", "startRetest"] {
+        for method in ["requestMicPermission", "startRetest", "startRetestAfterFailure"] {
             XCTAssertTrue(source.contains(#"post("\#(method)")"#))
         }
         for method in ["startVoiceItem", "shareResult"] {
