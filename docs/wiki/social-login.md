@@ -60,7 +60,7 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
 | IdP 화면 취소 | 오류 안내 없이 로그인 화면으로 | 로그인하지 않겠다는 뜻이지 실패가 아니다 (`IdpOutcome.Cancelled`) |
 | 로그아웃 화면 | 설정 화면 로그아웃은 **KAN-247**. 추가 정보 화면에만 [다른 계정으로 로그인](Text 버튼) | 만 14세 미만 거절·계정 잘못 고른 사용자가 추가 정보 화면에 갇히지 않게 하는 출구. `logout { IdpLogout.all }` → 로그인 화면 |
 | 실패 후 재응시 광고 | 이 티켓 밖, **KAN-248** | |
-| 개인정보처리방침 버전 | `2026-09-15` (`PRIVACY_POLICY_VERSION`) — **확인 대기** | 게시된 방침 문서의 표기는 "초안 2026-09-07"이지만 본문은 2026-09-15(KAN-211 이용 후기 절)까지 바뀌었다. 서버가 허용 버전을 고정하는 것은 **KAN-240**이고, 그때 이 값과 맞춘다 |
+| 개인정보처리방침 버전 | `2026-09-29` (Android `PRIVACY_POLICY_VERSION`, iOS `privacyPolicyVersion`) | **KAN-240 확정 (2026-09-29).** 계정 수집 항목을 반영한 방침 개정본의 버전이고 시행일과 같은 날짜다. 서버는 게시 중인 버전(`AccenturyProperties.Auth.PRIVACY_POLICY_VERSION`)과 정확히 같은 값만 동의로 받고, 다르면 400 `AUTH_CONSENT_REQUIRED`다. 방침을 개정하면 서버 상수, privacy.html, 두 플랫폼 상수를 함께 올린다. 서버가 먼저 바뀌면 그동안 옛 빌드의 새 가입이 막힌다 |
 
 동의는 로그인 화면이 받는다. 동의 체크 없이는 버튼이 눌리지 않으므로 `AuthApi.login`은 늘
 `privacyConsent: true`로 나간다. 기존 계정의 재로그인에서는 서버가 두 값을 보지 않는다.
