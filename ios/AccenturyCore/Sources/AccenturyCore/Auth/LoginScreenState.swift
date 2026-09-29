@@ -1,11 +1,12 @@
 import Combine
 import Foundation
 
-/// 가입 시 동의받는 개인정보처리방침의 버전 (KAN-224, 서버 형식 `[A-Za-z0-9._-]{1,32}`).
+/// 가입 시 동의받는 개인정보처리방침의 버전 (KAN-224, KAN-240).
 ///
-/// 안드로이드 `auth/LoginScreenState.kt`의 `PRIVACY_POLICY_VERSION`과 **같은 값**이다 — 게시된 방침(서버 레포
-/// `infra/privacy/privacy.html`)의 마지막 본문 개정일. 방침이 다시 게시되면 두 플랫폼을 같은 커밋에서 올린다.
-public let privacyPolicyVersion = "2026-09-15"
+/// 안드로이드 `auth/LoginScreenState.kt`의 `PRIVACY_POLICY_VERSION`과 **같은 값**이다. 게시된 방침(서버 레포
+/// `infra/privacy/privacy.html`의 `accentury-policy-version` 메타)의 버전이고, 서버는 이 값과 정확히 같은
+/// 동의만 받는다(다르면 400 AUTH_CONSENT_REQUIRED). 방침이 개정되면 두 플랫폼을 같은 커밋에서 올린다.
+public let privacyPolicyVersion = "2026-09-29"
 
 /// 방침 문서 주소. 웹·안드로이드와 같은 값이고 같은 이유로 **환경과 무관하게 prod 문서다** — 디버그의
 /// WEB_URL(로컬 Vite)에는 이 정적 파일이 없고, 법적 고지는 정본이 하나여야 한다.

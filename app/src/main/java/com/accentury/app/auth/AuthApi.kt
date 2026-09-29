@@ -146,7 +146,7 @@ class AuthApi(
     /**
      * 소셜 로그인 = 가입 겸용 (§3.9).
      *
-     * @param privacyPolicyVersion 사용자가 동의한 개인정보처리방침 버전 (`[A-Za-z0-9._-]{1,32}`).
+     * @param privacyPolicyVersion 사용자가 동의한 개인정보처리방침 버전. 서버가 게시 중인 버전과 같아야 한다 (KAN-240).
      *   동의는 로그인 화면이 받으므로 이 호출은 늘 `privacyConsent: true`로 나간다 — 동의 없이 로그인
      *   버튼이 눌릴 수 없다는 것이 화면의 전제다. 기존 계정 재로그인에서는 서버가 두 값을 보지 않는다.
      */
