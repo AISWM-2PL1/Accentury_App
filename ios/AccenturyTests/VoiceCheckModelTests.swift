@@ -28,8 +28,11 @@ final class VoiceCheckModelTests: XCTestCase {
         model.leave()
 
         await waitUntil("화면을 떠났는데 캡처가 열려 있다") { source.isReleased }
-        if case .listening = model.state {
-            XCTFail("마이크를 놓았는데 아직 듣는 중이다")
+        // 반납이 먼저이고 상태 전이는 engine.record가 돌아온 뒤라, 반납을 본 즉시 상태를 읽으면 느린
+        // 러너에서 .listening을 본다 (Core VoiceCheckRunnerTests와 같은 경합, PR #11 CI에서 재현). 상태도 기다린다.
+        await waitUntil("마이크를 놓았는데 아직 듣는 중이다") {
+            if case .listening = model.state { return false }
+            return true
         }
     }
 
