@@ -149,6 +149,8 @@ MainActivity는 onPause로 내려가지만, WebView의 JS 타이머는 `WebView.
               (셋 다) preload()
   onProceed  = proceedRetest(): sessionGate.beginRetest() → POST /v0/sessions(previousToken) → 인트로 리로드 / onRetestFailed
   onDismissed = onRetestFailed({code:"AD_DISMISSED", message:"광고를 끝까지 보시면 다시 테스트할 수 있어요", retryable:true, retryAfterMs:null})
+
+실패 출구 (KAN-248): startRetestAfterFailure() → AccenturyBridge.startRetestAfterFailure() → MainActivity.startRetestAfterFailure() → proceedRetest() — 광고 건너뜀, AD_DISMISSED 없음
 ```
 
 - 갈래는 순수 상태기계 `RewardedRetestGate`가 정하고 JVM 테스트가 못박는다 (`RewardedRetestGateTest`).
@@ -248,6 +250,7 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
 | `setAdConsent` 거름 | `granted`/`denied`만, 그 외 Crashlytics | 같음 (`BridgeDispatcher`) |
 | `AD_DISMISSED` | `adDismissedRetestFailure()` | Core `adDismissedRetestFailure()` — JSON까지 테스트로 대조 |
 | 재응시 | `MainActivity.startRetest` → `RewardedRetestAd.run` → `proceedRetest` | `TestFlowView.handleRetest` → `AdsController.runRewardedRetest` → `proceedRetest` → `TestFlowModel.startRetest`(여기서 `beginRetest`) |
+| 실패 출구 재응시 (KAN-248) | `MainActivity.startRetestAfterFailure` → `proceedRetest` — 광고 건너뜀 | `TestFlowView.handleRetestAfterFailure` → `proceedRetest` → `TestFlowModel.startRetest` — 광고 건너뜀, `AD_DISMISSED` 없음 |
 
 ### 7.5 ATT — 시트 동의와 프롬프트의 순서 (4단계 결정)
 

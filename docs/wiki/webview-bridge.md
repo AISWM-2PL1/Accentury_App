@@ -45,6 +45,7 @@
 | `requestMicPermission()` | KAN-98 | 네이티브 마이크 권한 게이트를 연다 | 웹이 직접 `getUserMedia` |
 | `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0}` | 웹 녹음기(`WebVoiceRecorder`) |
 | `startRetest()` | KAN-34 | 이전 세션·결과를 버리고 새 세션으로 인트로 리로드. **인자 없음** — 폐기할 토큰은 네이티브가 들고 있다 | 쿼리를 걷어내고 인트로로 (`goToIntro`) |
+| `startRetestAfterFailure()` | KAN-248 | 실패 출구의 재응시. `startRetest`와 같되 **보상형 광고만 건너뛴다**. 인자도 회신 규칙 차이도 없다 (§8.6) | `startRetest()` — 구버전 앱에서는 광고가 떠도 감수. 그것도 없으면 `goToIntro` |
 | `shareResult(payloadJson)` | KAN-30 | 카카오 피드 템플릿으로 공유. payload = `{imageUrl, text, webTestUrl}` — 점수·세션 id·등급 코드 없음 | `navigator.share` → 링크 복사 |
 | `logEvent(name, paramsJson)` | KAN-33 | 계측 이벤트를 네이티브 Firebase로. 앱 안 이벤트를 웹 gtag로 보내면 앱 사용자가 웹 트래픽으로 세어진다 | gtag 경로 |
 | `openExternalUrl(url)` | KAN-177 | 앱 **밖** 브라우저로 링크를 연다 (§4) | `<a>`의 기본 동작 |
@@ -59,7 +60,7 @@
 | 슬롯 | 티켓 | 하는 일 |
 |---|---|---|
 | `onItemResult(payloadJson)` | KAN-100 | 네이티브 녹음이 끝난 문항 결과 |
-| `onRetestFailed(payloadJson)` | KAN-34 | 재응시 실패. **성공은 오지 않는다** — 성공하면 페이지가 리로드된다. KAN-196부터 보상형 광고를 중간에 닫은 경우도 이 슬롯이다: `{code:'AD_DISMISSED', message:'광고를 끝까지 보시면 다시 테스트할 수 있어요', retryable:true, retryAfterMs:null}` (§8) |
+| `onRetestFailed(payloadJson)` | KAN-34 | 재응시 실패 (`startRetest`·`startRetestAfterFailure` 공통). **성공은 오지 않는다** — 성공하면 페이지가 리로드된다. KAN-196부터 보상형 광고를 중간에 닫은 경우도 이 슬롯이다: `{code:'AD_DISMISSED', message:'광고를 끝까지 보시면 다시 테스트할 수 있어요', retryable:true, retryAfterMs:null}` (§8) |
 
 슬롯 단위로 갈아끼운다. 객체를 통째로 교체하면 나중에 설치한 수신자가 먼저 설치된 것을 지운다.
 
@@ -270,6 +271,8 @@ https://accentury.app/privacy.html
 문구 정본은 네이티브다 (`RetestFailure` 계약 그대로). 웹은 `message`를 그대로 그리고 코드로
 문구를 고르지 않는다 — `AD_DISMISSED`도 예외가 아니다.
 
+실패 출구(문항 중 세션 만료·분석 막다른 상태)의 재응시는 이 광고를 건너뛴다 — KAN-248, §8.6.
+
 ### 8.3 전면 광고가 fire-and-forget인 이유
 
 `showInterstitialAd()`는 인자도 회신도 없다. 광고가 떴는지·언제 닫혔는지·로드에 실패했는지에
@@ -283,8 +286,10 @@ StrictMode 이중 실행·재녹음 뒤 리렌더·재마운트로 여러 번 �
 
 ### 8.4 라벨 규칙
 
-결과 화면·대기 화면의 재응시 버튼 라벨은 `readAdConsent() !== null`이면 **[광고 보고 다시
-테스트하기]**, 아니면 예전 그대로 [다시 테스트하기]다 (`result/RetestAction.tsx`). 동의 값이
+재응시 버튼 라벨은 **광고 경로(`RetestControl.adGated`)이고** `readAdConsent() !== null`이면
+**[광고 보고 다시 테스트하기]**, 아니면 예전 그대로 [다시 테스트하기]다 (`result/RetestAction.tsx`).
+`adGated`는 결과 화면(`from === 'result'`)에서만 참이다 — 대기 화면 막다른 상태와 문항 화면의
+실패 출구는 광고를 건너뛰므로(§8.6) 동의 유무와 무관하게 [다시 테스트하기]다. 동의 값이
 아니라 **유무**를 보는 이유는 값이 무엇이든 광고는 나오기 때문이다(허용 → 맞춤형, 거부 →
 일반). null인 실행(웹 단독·구버전 앱)에서는 광고가 뜨지 않으니 "광고 보고"라고 적으면
 거짓말이 된다.
@@ -296,6 +301,7 @@ StrictMode 이중 실행·재녹음 뒤 리렌더·재마운트로 여러 번 �
 | `getAdConsent()` | 저장소 값을 `'granted' \| 'denied' \| 'unknown'` 문자열로. 저장된 적 없으면 `'unknown'`. origin 거부는 빈 문자열(§2) | `AccenturyBridge.getAdConsent` → `SharedPreferencesAdConsentStore` (파일 `ad_consent`, 키 `state`) | 토큰과 같은 심 — 문서 변수 `adConsent`, `WebViewHost.pushAdConsent`가 origin 통과 문서에만 민다. 저장소 `UserDefaultsAdConsentStore` (키 `ad_consent.state`) |
 | `setAdConsent(state)` | `'granted' \| 'denied'`만 받는다. 그 밖의 값(`'unknown'` 포함)은 §5 규칙대로 조용히 버리고 Crashlytics 흔적 | `AccenturyBridge.setAdConsent` → `AdsController.setConsent` (저장 + 프리로드 시작) | `BridgeDispatcher` `"setAdConsent"` → `AdsController.shared.setConsent` (저장 + `granted`면 ATT → 프리로드) |
 | `showInterstitialAd()` | 전면 광고 표시. 받아 둔 것이 없으면 아무 일 없음. 회신 없음 | `InterstitialGate.show` | `AdsController.showInterstitial` → `InterstitialGate.show` (`present(from:)` 최상단 VC) |
+| `startRetestAfterFailure()` (KAN-248) | 보상형 광고 게이트 없이 곧바로 기존 재응시 흐름. 회신·잠금(`retestInFlight`)·세션 생성 규칙은 `startRetest`와 같다 (§8.6) | `AccenturyBridge.startRetestAfterFailure` → `MainActivity.startRetestAfterFailure` → `proceedRetest` (광고 게이트 `RewardedRetestAd` 우회). 잠금은 `proceedRetest` 안의 `beginRetest()`라 `startRetest`와 같은 잠금을 지난다 | `BridgeUserScript` 객체 리터럴 → `BridgeDispatcher` `"startRetestAfterFailure"` (origin 검증) → `TestFlowView.handleRetestAfterFailure` → `proceedRetest` → `TestFlowModel.startRetest` (광고 게이트 `AdsController.runRewardedRetest` 우회). 잠금은 `TestFlowModel.startRetest` 안의 `beginRetest()`라 `startRetest`와 같은 잠금을 지난다 |
 | `startRetest()` | 보상형 광고 완주 후에만 기존 재응시 흐름. 중도 닫힘 → `onRetestFailed` `AD_DISMISSED` (`retryable:true`, `retryAfterMs:null`). 로드·표시 실패 → 광고 없이 통과 | `MainActivity.startRetest` → `RewardedRetestAd.run` (상태기계 `RewardedRetestGate`) → `proceedRetest`. 회신 payload는 `adDismissedRetestFailure()` | `TestFlowView.handleRetest` → `AdsController.runRewardedRetest` → `RewardedRetestAd.run` (Core `RewardedRetestGate`, 같은 표) → `proceedRetest` → `TestFlowModel.startRetest`. payload는 Core `adDismissedRetestFailure()` |
 | 동의 → SDK | `granted`만 맞춤형. `denied`·`unknown`은 npa 요청(`AdRequest` extras `npa=1`). **`unknown`이면 요청을 아예 내지 않는다** — 첫 `setAdConsent`가 프리로드의 시작점 | `AdRequests.kt` `personalizationAllowed`·`buildAdRequest`, 프리로드 조건은 `AdsController.preloadIfConsented` | Core `personalizationAllowed`, `AdRequests.make` (`Extras.additionalParameters["npa"]="1"`), `AdsController.preloadIfConsented` |
 | SDK 초기화 | 앱 시작에 한 번. 아동 대상 아님·동의 연령 미만 아님 명시 | `AccenturyApplication` → `AdsController.initialize` (백그라운드 스레드) | `AccenturyApp.init` → `AdsController.shared.start` (`MobileAds.shared.start`, SDK가 비동기) |
@@ -311,3 +317,35 @@ JS `.click()`으로 누르므로 시트의 막에 걸리지는 않지만, 동의
 `adsSuppressed`로 전면은 no-op, 보상형은 광고 없이 통과(proceed)시킨다 — Debug 한정, 로그
 `ADS: smoke consent=denied suppressed=true`. Android 스모크에는 아직 같은 사전 세팅이 없다. 웹 쪽
 `nativeSmokeSelectors.test.ts`는 구동기가 보는 클래스만 지키므로 이 조건을 잡지 못한다.
+
+### 8.6 실패 출구는 광고를 건너뛴다 — `startRetestAfterFailure` (KAN-248)
+
+사용자 잘못이 아닌 실패 때문에 다시 하는 재응시에는 광고를 물리지 않는다 (팀장 결정). 웹은
+`useRetest`의 `from`([RetestOrigin])으로 어느 메서드를 부를지 가른다 (`result/useRetest.ts`
+`isAdGated`). 라벨(§8.4)도 같은 판정을 본다.
+
+| 출구 | `from` | 부르는 메서드 | 광고 |
+|---|---|---|---|
+| 결과 화면 [다시 테스트하기] (정상 완주 뒤) | `'result'` | `startRetest()` | 있음 |
+| 결과 화면의 결과 만료 상태 | `'result'` | `startRetest()` | 있음 — 이미 완주·결과를 본 뒤의 정상 재응시 (팀 결정 2026-09-28) |
+| 문항 중 세션 만료·제출 실패 (`VoiceItemScreen`·`VocabularyItemScreen`·`WebVoiceRecorder`·`TestFlowScreen`) | `'item'` | `startRetestAfterFailure()` | 없음 |
+| 분석 대기 막다른 상태 (`AnalysisWaitingScreen` FAILED·손댈 문항 없음) | `'waiting'` | `startRetestAfterFailure()` | 없음 |
+
+성공·실패 회신은 `startRetest`와 완전히 같다 — 성공은 인트로 리로드, 실패는 `onRetestFailed`.
+광고가 없으니 `AD_DISMISSED`가 올 일이 없을 뿐이다. 네이티브의 재응시 잠금(`retestInFlight`)과
+세션 생성 규칙(KAN-107)도 그대로다.
+
+**`startRetest({reason})`처럼 인자로 가르지 않은 이유.** Android `@JavascriptInterface`는 이름과
+인자 개수로 메서드를 찾는다. 인자 없는 `startRetest()`만 가진 구버전 앱에 인자를 넘기면
+"Method not found" 예외가 나 재응시 자체가 죽는다 — 광고를 빼려다 출구를 없애는 셈이다. 별도
+메서드는 웹이 `typeof`로 유무를 가려 없으면 `startRetest()`로 내려갈 수 있다. 메서드 추가라
+계약 버전도 그대로 2다 (§1).
+
+구버전 조합:
+
+| 웹 | 앱 | 실패 출구에서 일어나는 일 |
+|---|---|---|
+| 새 웹 | 새 앱 | `startRetestAfterFailure()` — 광고 없음 |
+| 새 웹 | 구버전 앱 (`startRetestAfterFailure` 없음) | 래퍼가 `startRetest()`로 폴백 — 광고가 뜬다. 재응시가 막히는 것보다 나아 감수한다. 라벨은 [다시 테스트하기]라 광고가 예고 없이 뜰 수 있다 |
+| 구버전 웹 | 새 앱 | 구버전 웹은 인자 없는 `startRetest()`만 부른다 — 광고가 뜬다 (예전 동작 그대로) |
+| — | 브리지 없음 (브라우저 단독) | 래퍼 false → `goToIntro` 폴백. 광고 없음 |

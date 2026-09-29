@@ -15,7 +15,8 @@ import com.accentury.app.bridge.parseVoiceItemStart
  * 웹 → 네이티브 브리지 (webview-layer.md §8). `window.AccenturyBridge`로 주입된다.
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
- * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)까지 필요한 열한 메서드만 둔다.
+ * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)까지 필요한
+ * 열두 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -34,6 +35,8 @@ import com.accentury.app.bridge.parseVoiceItemStart
  * @param sessionToken 세션 토큰 공급자 (KAN-13)
  * @param onStartRetest 결과 화면의 [다시 테스트하기] (KAN-34). 중복 호출 무시는 이 콜백 너머의
  *   상태 머신이 맡는다 — 진행 중이라는 사실의 주인이 둘이면 어긋난다 (SessionGateController.retestInFlight)
+ * @param onStartRetestAfterFailure 실패 출구의 재응시 (KAN-248). [onStartRetest]와 같되 보상형 광고만
+ *   건너뛴다 — 중복 호출 무시도 같은 상태 머신이 맡는다 (webview-bridge.md §8.6)
  * @param onShareResult 결과 화면의 [친구에게 공유하기] (KAN-30). 카드 자산은 웹이 실어 보내고
  *   (서버가 정한 값이다) 어느 통로로 나갈지는 네이티브가 정한다 (ResultSharer)
  * @param onLogEvent 웹이 센 계측 이벤트 (KAN-33). 이름·파라미터는 검증을 통과한 값이고, 어디로
@@ -55,6 +58,7 @@ class AccenturyBridge(
     private val onRequestMicPermission: () -> Unit,
     private val onStartVoiceItem: (VoiceItemStart) -> Unit,
     private val onStartRetest: () -> Unit,
+    private val onStartRetestAfterFailure: () -> Unit,
     private val onShareResult: (SharePayload) -> Unit,
     private val onLogEvent: (String, Map<String, EventParam>) -> Unit,
     private val onOpenExternalUrl: (String) -> Unit,
@@ -100,6 +104,23 @@ class AccenturyBridge(
     fun startRetest() {
         postToMain {
             if (isCurrentUrlAllowed()) onStartRetest()
+        }
+    }
+
+    /**
+     * 실패 출구(문항 중 세션 만료·제출 실패, 분석 대기 막다른 상태)의 재응시 (KAN-248, §8.6).
+     *
+     * 사용자 잘못이 아닌 실패로 다시 하는 재응시에는 광고를 물리지 않는다 (팀장 결정). 그 밖의
+     * 규칙은 [startRetest]와 같다 — 인자 없음, origin 검증, 회신은 onRetestFailed. 인자로 가르지
+     * 않고 메서드를 따로 둔 이유: @JavascriptInterface는 인자 개수로 메서드를 찾아서, 구버전 앱에
+     * `startRetest(reason)`을 보내면 재응시 자체가 죽는다. 별도 메서드면 웹이 유무를 보고 폴백한다.
+     *
+     * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5).
+     */
+    @JavascriptInterface
+    fun startRetestAfterFailure() {
+        postToMain {
+            if (isCurrentUrlAllowed()) onStartRetestAfterFailure()
         }
     }
 

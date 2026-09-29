@@ -29,6 +29,18 @@ export interface AccenturyBridge {
    */
   startRetest?(): void
   /**
+   * 실패 출구의 재응시 (KAN-248). [startRetest]와 같되 보상형 광고 게이트만 건너뛴다 — 세션
+   * 만료·제출 실패·분석 막다른 상태처럼 사용자 잘못이 아닌 실패에 광고를 물리지 않는다(팀장
+   * 결정). 회신 규칙·재응시 잠금·세션 생성 규칙(KAN-107)은 [startRetest]와 같다.
+   *
+   * `startRetest({reason})`처럼 인자로 가르지 않고 메서드를 따로 둔 이유: Android
+   * `@JavascriptInterface`는 이름과 인자 개수로 메서드를 찾는다. 인자 없는 `startRetest()`만
+   * 가진 구버전 앱에 인자를 넘기면 "Method not found" 예외로 재응시 자체가 죽는다. 별도
+   * 메서드는 `typeof`로 유무를 가릴 수 있어 없으면 `startRetest()`로 내려간다(§5 메서드 추가 규칙).
+   * [getSessionToken]과 같은 이유로 optional이다
+   */
+  startRetestAfterFailure?(): void
+  /**
    * 결과 화면의 [친구에게 공유하기] → 네이티브 카카오톡 공유 (KAN-30). 인자는 [SharePayload]의 JSON.
    * 카카오 SDK 호출은 네이티브 몫이다 — 앱 키·카톡 설치 여부·OS 공유 시트 폴백 전부 네이티브 사정이고,
    * 웹은 서버가 준 카드 자산을 그대로 건넬 뿐이다. [getSessionToken]과 같은 이유로 optional이다
@@ -319,6 +331,21 @@ export function startRetest(): boolean {
   const bridge = window.AccenturyBridge
   if (typeof bridge?.startRetest !== 'function') return false
   bridge.startRetest()
+  return true
+}
+
+/**
+ * 실패 출구의 재응시를 네이티브에 요청한다 (KAN-248) — 보상형 광고 없이 곧바로 재응시.
+ * true·false의 뜻과 회신(성공=리로드, 실패=[installRetestFailedReceiver])은 [startRetest]와 같다.
+ *
+ * 메서드를 모르는 구버전 앱에서는 [startRetest]로 내려간다. 그 앱에서는 광고가 뜨지만 재응시가
+ * 막히는 것보다 낫다(팀 결정 — 구버전 앱의 광고는 감수). 인자를 넘기는 방식을 버린 이유는
+ * [AccenturyBridge.startRetestAfterFailure] 주석.
+ */
+export function startRetestAfterFailure(): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.startRetestAfterFailure !== 'function') return startRetest()
+  bridge.startRetestAfterFailure()
   return true
 }
 

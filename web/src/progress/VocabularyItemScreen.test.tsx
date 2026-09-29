@@ -185,6 +185,7 @@ describe('제출 수명주기', () => {
       pending: false,
       message: null,
       retryAfterSec: 0,
+      adGated: false,
     }
     const { onSubmitted } = renderScreen(async () => {
       throw new VocabSubmitError('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.', 'SESSION_EXPIRED', false)
@@ -210,6 +211,7 @@ describe('제출 수명주기', () => {
       pending: false,
       message: null,
       retryAfterSec: 0,
+      adGated: false,
     }
     renderScreen(async () => {
       throw new VocabSubmitError('답안을 처리하지 못했습니다', 'INVALID_CHOICE', false)
