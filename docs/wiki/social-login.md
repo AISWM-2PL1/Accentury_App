@@ -183,8 +183,10 @@ OAuth 클라이언트는 한 프로젝트 안에 셋 이상을 만든다.
    Secret이 앱에 박히는 것은 네이버 SDK의 설계다(기기에서 토큰 교환을 한다).
 4. **개발 중 상태에서는 [멤버 관리]에 등록한 네이버 ID만 로그인된다.** 실기기 실증(§6) 전에 테스터 ID를
    등록하고, 출시 전에 **검수 요청**을 넣는다.
-5. 서버에는 네이버 설정값이 없다. 네이버에는 카카오 `app_id` 같은 발급 앱 조회 API가 없어 서버는
-   `/v1/nid/me` 응답만 확인한다 (KAN-223 요구 6).
+5. 서버에도 같은 Client ID와 Secret을 넣는다 (KAN-243). 네이버에는 카카오 `app_id` 같은 발급 앱 조회 API가
+   없어서, 앱이 로그인 요청에 SDK Refresh 토큰(`refreshToken`)을 함께 싣고 서버가 그것을 우리 Client로 교환해
+   성공해야 우리 앱의 토큰으로 본다. 교환으로 받은 Access 토큰으로 `/v1/nid/me`를 부른다. 서버 쪽 이름은
+   아래 표의 `naver-client-id`, `naver-client-secret`이다.
 
 ### 애플 (Apple Developer › Certificates, Identifiers & Profiles)
 
@@ -210,11 +212,14 @@ OAuth 클라이언트는 한 프로젝트 안에 셋 이상을 만든다.
 | `google-client-id` | `ACCENTURY_AUTH_GOOGLECLIENTID` | 구글 **웹** 클라이언트 ID | `GOOGLE_SERVER_CLIENT_ID` (같은 값) |
 | `apple-bundle-id` | `ACCENTURY_AUTH_APPLEBUNDLEID` | `com.accentury.app` | 번들 ID |
 | `kakao-app-id` | `ACCENTURY_AUTH_KAKAOAPPID` | 카카오 **앱 ID(숫자)** | `KAKAO_NATIVE_APP_KEY`와 같은 앱 |
+| `naver-client-id` | `ACCENTURY_AUTH_NAVERCLIENTID` | 네이버 **Client ID** (KAN-243) | 앱 `NAVER_CLIENT_ID`와 같은 값 |
+| `naver-client-secret` | `ACCENTURY_AUTH_NAVERCLIENTSECRET` (SecureString) | 네이버 **Client Secret** (KAN-243) | 앱 `NAVER_CLIENT_SECRET`과 같은 값 |
 | `jwt-secret` | `ACCENTURY_AUTH_JWTSECRET` (SecureString) | Access JWT 서명 키 32바이트 이상 | — |
 | `fake-idp` | `ACCENTURY_AUTH_FAKEIDP` | 로컬만 `true`. deploy 프로파일에서 켜면 기동 실패 (`AuthConfig`) | 앱 `FAKE_IDP` |
 
-세 IdP 값은 비밀이 아니다. 비어 있거나 자리 표시 값이면 **그 IdP 로그인만** 401 `AUTH_IDP_TOKEN_INVALID`이고
-다른 IdP와 응시는 영향이 없다. 네이버는 서버 값이 없다(위 네이버 5번).
+네이버 Client Secret을 뺀 IdP 값은 비밀이 아니다. 비어 있거나 자리 표시 값이면 **그 IdP 로그인만** 401
+`AUTH_IDP_TOKEN_INVALID`이고 다른 IdP와 응시는 영향이 없다. 네이버는 ID와 Secret 중 하나만 빠져도 네이버 로그인이
+401이다(위 네이버 5번).
 
 ## 4. 키 주입
 
@@ -262,7 +267,7 @@ IdP 콘솔 없이 게이트·추가 정보 화면을 돌리는 길이다. 서버
 - 켜면 설정과 무관하게 버튼이 다 보이고, 누르면 SDK를 건너뛰고 `fake:dev-<provider>`(소문자, 예:
   `fake:dev-kakao`)를 보낸다. 제공자마다 sub가 달라 버튼마다 다른 계정이 된다.
 - 토큰은 진짜와 같은 칸에 싣는다 — 구글·애플은 `idToken`, 카카오·네이버는 `accessToken`. 서버가 필수 필드
-  검사를 가짜 판정보다 먼저 하기 때문이다.
+  검사를 가짜 판정보다 먼저 하기 때문이다. 네이버는 `refreshToken`에도 같은 가짜 값을 싣는다 (KAN-243).
 - **애플 가짜 로그인도 nonce를 싣는다.** 애플이면 nonce가 필수라 빠뜨리면 가짜 로그인도 400
   `VALIDATION_FAILED`다. iOS `fakeLoginCredential`이 새 원문 nonce를 만든다.
 - 같은 계정으로 처음부터 다시 보려면 서버 DB의 `app_user`에서 그 행(`provider_user_id = 'dev-<provider>'`)을

@@ -113,7 +113,7 @@ private object KakaoSignIn : IdpSignIn {
 
 /**
  * 네이버 (KAN-224). SDK 5.x의 `NidOAuth` — 성공 콜백은 신호뿐이고 토큰은 [NidOAuth.getAccessToken]으로 꺼낸다.
- * 서버로는 네이버 Access 토큰을 보낸다. 초기화는 AccenturyApplication이 한다(설정이 있을 때만).
+ * 서버로는 네이버 Access 토큰과 Refresh 토큰을 보낸다 (KAN-243). 초기화는 AccenturyApplication이 한다(설정이 있을 때만).
  * https://github.com/naver/naveridlogin-sdk-android
  */
 private object NaverSignIn : IdpSignIn {
@@ -122,11 +122,13 @@ private object NaverSignIn : IdpSignIn {
             activity,
             object : NidOAuthCallback {
                 override fun onSuccess() {
+                    // Refresh 토큰도 함께 꺼낸다. 서버가 이것을 우리 Client로 교환해 발급 앱을 확인한다 (KAN-243).
                     val token = NidOAuth.getAccessToken()
-                    val outcome = if (token.isNullOrBlank()) {
+                    val refreshToken = NidOAuth.getRefreshToken()
+                    val outcome = if (token.isNullOrBlank() || refreshToken.isNullOrBlank()) {
                         IdpOutcome.Failed
                     } else {
-                        IdpOutcome.Credential(loginCredentialOf(Provider.NAVER, token))
+                        IdpOutcome.Credential(loginCredentialOf(Provider.NAVER, token, refreshToken))
                     }
                     if (cont.isActive) cont.resume(outcome)
                 }

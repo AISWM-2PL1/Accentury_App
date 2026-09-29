@@ -62,6 +62,8 @@ enum class ProfileStatus { COMPLETE, INCOMPLETE }
  *
  * @property idToken GOOGLE·APPLE
  * @property accessToken KAKAO·NAVER의 IdP Access 토큰 (우리 서버 토큰이 아니다)
+ * @property refreshToken NAVER 필수. 네이버 SDK의 Refresh 토큰이다. 서버가 우리 Client ID와 Secret으로 교환해 우리 앱이
+ *   발급받은 토큰인지 확인한다 (KAN-243). 우리 서버의 Refresh 토큰(`rt_...`)이 아니고, 앱은 저장하지 않는다.
  * @property nonce APPLE 필수 (서버가 ID 토큰의 nonce와 대조한다)
  * @property name APPLE이 최초 로그인에만 주는 이름. 다른 제공자는 null
  */
@@ -69,6 +71,7 @@ data class LoginCredential(
     val provider: Provider,
     val idToken: String? = null,
     val accessToken: String? = null,
+    val refreshToken: String? = null,
     val nonce: String? = null,
     val name: String? = null,
 ) {
@@ -155,6 +158,7 @@ class AuthApi(
             provider = credential.provider,
             idToken = credential.idToken,
             accessToken = credential.accessToken,
+            refreshToken = credential.refreshToken,
             nonce = credential.nonce,
             user = credential.name?.let(::LoginUserBody),
             privacyConsent = true,
@@ -247,6 +251,7 @@ private data class LoginBody(
     val provider: Provider,
     val idToken: String? = null,
     val accessToken: String? = null,
+    val refreshToken: String? = null,
     val nonce: String? = null,
     val user: LoginUserBody? = null,
     val privacyConsent: Boolean,

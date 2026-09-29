@@ -27,10 +27,14 @@ interface IdpSignIn {
  * 제공자별로 토큰을 싣는 칸을 가른다 — 서버 계약(§3.9, 서버 `AuthService.credential`)이 GOOGLE·APPLE은
  * `idToken`, KAKAO·NAVER는 `accessToken`을 읽는다. 다른 칸에 실으면 400 `VALIDATION_FAILED`다.
  */
-fun loginCredentialOf(provider: Provider, token: String): LoginCredential = when (provider) {
-    Provider.GOOGLE, Provider.APPLE -> LoginCredential(provider, idToken = token)
-    Provider.KAKAO, Provider.NAVER -> LoginCredential(provider, accessToken = token)
-}
+fun loginCredentialOf(provider: Provider, token: String, refreshToken: String? = null): LoginCredential =
+    when (provider) {
+        Provider.GOOGLE, Provider.APPLE -> LoginCredential(provider, idToken = token)
+        Provider.KAKAO -> LoginCredential(provider, accessToken = token)
+        // 네이버는 Refresh 토큰도 필수다 (KAN-243). 네이버 사용자 조회 API는 토큰의 발급 앱을 알려 주지 않아서, 서버가
+        // 이 Refresh 토큰을 우리 Client로 교환해 봐야 우리 앱의 토큰인지 가릴 수 있다. 없으면 400 `VALIDATION_FAILED`다.
+        Provider.NAVER -> LoginCredential(provider, accessToken = token, refreshToken = refreshToken)
+    }
 
 /**
  * 가짜 IdP의 자격 (KAN-224, 디버그 `BuildConfig.FAKE_IDP`). 서버가 `accentury.auth.fake-idp=true`면
@@ -38,8 +42,11 @@ fun loginCredentialOf(provider: Provider, token: String): LoginCredential = when
  * 칸은 진짜 토큰과 같은 규칙을 탄다 — 서버가 필수 필드 검사를 가짜 판정보다 먼저 하기 때문이다.
  * 제공자마다 sub가 달라 세 버튼이 서로 다른 계정이 된다. iOS(3단계)도 같은 형식을 쓴다.
  */
-fun fakeLoginCredential(provider: Provider): LoginCredential =
-    loginCredentialOf(provider, "fake:dev-${provider.name.lowercase()}")
+fun fakeLoginCredential(provider: Provider): LoginCredential {
+    val token = "fake:dev-${provider.name.lowercase()}"
+    // 네이버는 Refresh 칸도 채운다. 서버가 필수 필드 검사를 가짜 판정보다 먼저 하기 때문이다 (KAN-243).
+    return loginCredentialOf(provider, token, refreshToken = token.takeIf { provider == Provider.NAVER })
+}
 
 /** 가짜 IdP — SDK 화면 없이 곧장 [fakeLoginCredential]을 돌려준다. */
 class FakeIdpSignIn(private val provider: Provider) : IdpSignIn {

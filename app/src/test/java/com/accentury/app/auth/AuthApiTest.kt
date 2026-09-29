@@ -38,7 +38,8 @@ class AuthApiTest {
 
     private fun credential(provider: Provider) = when (provider) {
         Provider.GOOGLE, Provider.APPLE -> LoginCredential(provider, idToken = "fake:g")
-        Provider.KAKAO, Provider.NAVER -> LoginCredential(provider, accessToken = "fake:k")
+        Provider.KAKAO -> LoginCredential(provider, accessToken = "fake:k")
+        Provider.NAVER -> loginCredentialOf(provider, "fake:n", refreshToken = "fake:nr")
     }
 
     @Test
@@ -71,6 +72,21 @@ class AuthApiTest {
         val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals(setOf("provider", "accessToken", "privacyConsent", "privacyPolicyVersion"), body.keys)
         assertEquals("fake:k", body["accessToken"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `로그인 바디 - 네이버는 accessToken과 refreshToken을 함께 보낸다`() = runTest {
+        server.enqueue(MockResponse().setBody(loginBody))
+
+        api.login(credential(Provider.NAVER), privacyPolicyVersion = "v1")
+
+        val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(
+            setOf("provider", "accessToken", "refreshToken", "privacyConsent", "privacyPolicyVersion"),
+            body.keys,
+        )
+        assertEquals("fake:n", body["accessToken"]!!.jsonPrimitive.content)
+        assertEquals("fake:nr", body["refreshToken"]!!.jsonPrimitive.content)
     }
 
     @Test

@@ -26,7 +26,8 @@ final class AuthApiTests: XCTestCase {
     private func credential(_ provider: Provider) -> LoginCredential {
         switch provider {
         case .GOOGLE, .APPLE: return LoginCredential(provider: provider, idToken: "fake:g")
-        case .KAKAO, .NAVER: return LoginCredential(provider: provider, accessToken: "fake:k")
+        case .KAKAO: return LoginCredential(provider: provider, accessToken: "fake:k")
+        case .NAVER: return LoginCredential(provider: provider, accessToken: "fake:n", refreshToken: "fake:nr")
         }
     }
 
@@ -63,6 +64,20 @@ final class AuthApiTests: XCTestCase {
         let body = try lastBody().json
         XCTAssertEqual(["provider", "accessToken", "privacyConsent", "privacyPolicyVersion"], Set(body.keys))
         XCTAssertEqual("fake:k", body["accessToken"] as? String)
+    }
+
+    func test로그인_바디_네이버는_accessToken과_refreshToken을_함께_보낸다() async throws {
+        MockURLProtocol.respond(status: 200, body: loginBody)
+
+        _ = await api.login(credential(.NAVER), privacyPolicyVersion: "v1")
+
+        let body = try lastBody().json
+        XCTAssertEqual(
+            ["provider", "accessToken", "refreshToken", "privacyConsent", "privacyPolicyVersion"],
+            Set(body.keys)
+        )
+        XCTAssertEqual("fake:n", body["accessToken"] as? String)
+        XCTAssertEqual("fake:nr", body["refreshToken"] as? String)
     }
 
     func test로그인_바디_이름과_nonce는_줬을_때만_싣는다_애플_최초_로그인() async throws {

@@ -88,6 +88,20 @@ final class LoginScreenStateTests: XCTestCase {
         XCTAssertEqual("fake:dev-apple", fakeLoginCredential(.APPLE).idToken)
     }
 
+    /// 서버는 네이버면 refreshToken을 필수로 본다 (KAN-243). 가짜 판정보다 필드 검사가 먼저다.
+    func test가짜_네이버는_refreshToken도_채우고_다른_제공자는_비운다() {
+        XCTAssertEqual("fake:dev-naver", fakeLoginCredential(.NAVER).refreshToken)
+        XCTAssertNil(fakeLoginCredential(.KAKAO).refreshToken)
+        XCTAssertNil(fakeLoginCredential(.GOOGLE).refreshToken)
+    }
+
+    func test네이버_자격은_두_토큰을_싣고_description에_토큰이_없다() {
+        let credential = loginCredential(of: .NAVER, token: "naver-access", refreshToken: "naver-refresh")
+        XCTAssertEqual("naver-access", credential.accessToken)
+        XCTAssertEqual("naver-refresh", credential.refreshToken)
+        XCTAssertFalse(credential.description.contains("naver-"))
+    }
+
     /// 서버는 애플이면 nonce를 필수로 본다 — 가짜 판정보다 필드 검사가 먼저다.
     func test가짜_애플도_nonce를_싣고_다른_제공자는_싣지_않는다() {
         XCTAssertEqual(64, fakeLoginCredential(.APPLE).nonce?.count)

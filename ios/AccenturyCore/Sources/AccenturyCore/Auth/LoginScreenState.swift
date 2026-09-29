@@ -38,12 +38,22 @@ public enum IdpOutcome: Equatable, Sendable {
 
 /// 제공자별로 토큰을 싣는 칸을 가른다 — 서버 계약(§3.9, 서버 `AuthService.credential`)이 GOOGLE·APPLE은
 /// `idToken`, KAKAO·NAVER는 `accessToken`을 읽는다. 다른 칸에 실으면 400 `VALIDATION_FAILED`다.
-public func loginCredential(of provider: Provider, token: String, nonce: String? = nil, name: String? = nil) -> LoginCredential {
+public func loginCredential(
+    of provider: Provider,
+    token: String,
+    refreshToken: String? = nil,
+    nonce: String? = nil,
+    name: String? = nil
+) -> LoginCredential {
     switch provider {
     case .GOOGLE, .APPLE:
         return LoginCredential(provider: provider, idToken: token, nonce: nonce, name: name)
-    case .KAKAO, .NAVER:
+    case .KAKAO:
         return LoginCredential(provider: provider, accessToken: token)
+    case .NAVER:
+        // 네이버는 Refresh 토큰도 필수다 (KAN-243). 네이버 사용자 조회 API는 토큰의 발급 앱을 알려 주지 않아서, 서버가
+        // 이 Refresh 토큰을 우리 Client로 교환해 봐야 우리 앱의 토큰인지 가릴 수 있다. 없으면 400 `VALIDATION_FAILED`다.
+        return LoginCredential(provider: provider, accessToken: token, refreshToken: refreshToken)
     }
 }
 
@@ -53,9 +63,12 @@ public func loginCredential(of provider: Provider, token: String, nonce: String?
 /// **애플은 nonce도 싣는다.** 서버가 필수 필드 검사(애플이면 nonce 필수)를 가짜 판정보다 먼저 한다 — 빠뜨리면
 /// 가짜 로그인도 400 `VALIDATION_FAILED`다. 값은 진짜 흐름과 같이 새로 만든 원문 nonce다.
 public func fakeLoginCredential(_ provider: Provider) -> LoginCredential {
-    loginCredential(
+    let token = "fake:dev-\(provider.rawValue.lowercased())"
+    // 네이버는 Refresh 칸도 채운다. 서버가 필수 필드 검사를 가짜 판정보다 먼저 하기 때문이다 (KAN-243).
+    return loginCredential(
         of: provider,
-        token: "fake:dev-\(provider.rawValue.lowercased())",
+        token: token,
+        refreshToken: provider == .NAVER ? token : nil,
         nonce: provider == .APPLE ? AppleNonce.make() : nil
     )
 }
