@@ -55,19 +55,30 @@ public enum ProfileStatus: String, Codable, Sendable {
 ///
 /// - `idToken`: GOOGLE·APPLE
 /// - `accessToken`: KAKAO·NAVER의 IdP Access 토큰 (우리 서버 토큰이 아니다)
+/// - `refreshToken`: NAVER 필수. 네이버 SDK의 Refresh 토큰이다. 서버가 우리 Client ID와 Secret으로 교환해 우리 앱이
+///   발급받은 토큰인지 확인한다 (KAN-243). 우리 서버의 Refresh 토큰(`rt_...`)이 아니고, 앱은 저장하지 않는다.
 /// - `nonce`: APPLE 필수 — **원문**이다. 애플 요청에는 SHA-256을 실었고 서버가 ID 토큰의 nonce와 대조한다
 /// - `name`: APPLE이 최초 로그인에만 주는 이름. 다른 제공자는 nil
 public struct LoginCredential: Equatable, Sendable, CustomStringConvertible {
     public let provider: Provider
     public let idToken: String?
     public let accessToken: String?
+    public let refreshToken: String?
     public let nonce: String?
     public let name: String?
 
-    public init(provider: Provider, idToken: String? = nil, accessToken: String? = nil, nonce: String? = nil, name: String? = nil) {
+    public init(
+        provider: Provider,
+        idToken: String? = nil,
+        accessToken: String? = nil,
+        refreshToken: String? = nil,
+        nonce: String? = nil,
+        name: String? = nil
+    ) {
         self.provider = provider
         self.idToken = idToken
         self.accessToken = accessToken
+        self.refreshToken = refreshToken
         self.nonce = nonce
         self.name = name
     }
@@ -188,6 +199,7 @@ public struct AuthApi: Sendable {
             provider: credential.provider,
             idToken: credential.idToken,
             accessToken: credential.accessToken,
+            refreshToken: credential.refreshToken,
             nonce: credential.nonce,
             user: credential.name.map(LoginUserBody.init),
             privacyConsent: true,
@@ -288,6 +300,7 @@ private struct LoginBody: Encodable, CustomStringConvertible {
     let provider: Provider
     let idToken: String?
     let accessToken: String?
+    let refreshToken: String?
     let nonce: String?
     let user: LoginUserBody?
     let privacyConsent: Bool

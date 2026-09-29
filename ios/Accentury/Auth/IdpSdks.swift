@@ -117,7 +117,7 @@ private enum KakaoIdp {
 }
 
 /// 네이버 (KAN-224). Swift SDK 5.x의 `NidOAuth` — 네이버 앱이 있으면 앱으로, 없으면 인앱 브라우저로 간다(기본 동작).
-/// 서버로는 네이버 Access 토큰을 보낸다. 초기화는 ``initializeIdpSdks()``가 한다.
+/// 서버로는 네이버 Access 토큰과 Refresh 토큰을 보낸다 (KAN-243). 초기화는 ``initializeIdpSdks()``가 한다.
 /// https://github.com/naver/naveridlogin-sdk-ios-swift
 private enum NaverIdp {
     @MainActor
@@ -126,8 +126,14 @@ private enum NaverIdp {
             NidOAuth.shared.requestLogin { result in
                 switch result {
                 case .success(let login):
+                    // Refresh 토큰도 함께 싣는다. 서버가 이것을 우리 Client로 교환해 발급 앱을 확인한다 (KAN-243).
                     let token = login.accessToken.tokenString
-                    continuation.resume(returning: token.isEmpty ? .failed : .credential(loginCredential(of: .NAVER, token: token)))
+                    let refreshToken = login.refreshToken.tokenString
+                    continuation.resume(
+                        returning: token.isEmpty || refreshToken.isEmpty
+                            ? .failed
+                            : .credential(loginCredential(of: .NAVER, token: token, refreshToken: refreshToken))
+                    )
                 case .failure(.clientError(.canceledByUser)):
                     continuation.resume(returning: .cancelled)
                 case .failure:
