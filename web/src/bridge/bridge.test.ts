@@ -22,6 +22,7 @@ import {
   type SharePayload,
   type VoiceItemStart,
 } from './bridge'
+import type { HapticType } from './bridge'
 import { REAL_GUIDE_F0, REAL_GUIDE_F0_ITEM } from '../recording/guideF0Fixture'
 import type { ItemResult } from './itemResult'
 import type { RetestFailure } from './retestFailure'
@@ -535,5 +536,14 @@ describe('haptic — 햅틱 요청 (KAN-258)', () => {
     window.AccenturyBridge = fakeBridge() // haptic 없음
 
     expect(haptic('tap')).toBe(false)
+  })
+  it('계약 밖 값은 네이티브로 넘기지 않고 false다', () => {
+    const vibrate = vi.fn()
+    window.AccenturyBridge = fakeBridge({ haptic: vibrate })
+
+    for (const bad of ['TAP', 'vibrate', 'success ', '', null, 1, {}]) {
+      expect(haptic(bad as unknown as HapticType)).toBe(false)
+    }
+    expect(vibrate).not.toHaveBeenCalled()
   })
 })

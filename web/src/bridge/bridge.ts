@@ -123,7 +123,8 @@ export interface AccenturyBridge {
  * - `tap`: Primary 버튼·녹음 버튼·객관식 선택의 가벼운 탭
  * - `success`·`error`: 녹음 완료·실패처럼 결과가 정해지는 순간
  */
-export type HapticType = 'tap' | 'success' | 'error'
+export const HAPTIC_TYPES = ['tap', 'success', 'error'] as const
+export type HapticType = (typeof HAPTIC_TYPES)[number]
 
 /**
  * 맞춤형 광고 동의의 세 상태 (KAN-196). 네이티브 저장소의 값을 그대로 미러한다.
@@ -495,6 +496,9 @@ export function showInterstitialAd(): boolean {
  * 브라우저 단독 실행에서 false인 것은 의도다 — `navigator.vibrate`로 메우지 않는다 (인터페이스 주석).
  */
 export function haptic(type: HapticType): boolean {
+  // 타입 유니온은 런타임 검사가 아니다 — 계약 밖 값은 네이티브까지 보내지 않고 여기서 끊는다.
+  // 네이티브도 같은 allowlist로 버리지만(§5), 웹이 먼저 거르면 Crashlytics에 헛기록이 쌓이지 않는다.
+  if (!(HAPTIC_TYPES as readonly unknown[]).includes(type)) return false
   const bridge = window.AccenturyBridge
   if (typeof bridge?.haptic !== 'function') return false
   bridge.haptic(type)
