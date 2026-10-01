@@ -484,7 +484,9 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
             onLogEvent: { [weak self] name, params in self?.onLogEvent(name, params) },
             onOpenExternalUrl: { [weak self] url in self?.onOpenExternalUrl(url) },
             onSetAdConsent: { [weak self] consent in self?.onSetAdConsent(consent) },
-            onShowInterstitialAd: { [weak self] in self?.onShowInterstitialAd() }
+            onShowInterstitialAd: { [weak self] in self?.onShowInterstitialAd() },
+            // 화면·모델과 무관한 출력이라 위 콜백들처럼 호출자에서 내려받지 않는다 (KAN-258).
+            onHaptic: { HapticPlayer.play($0) }
         )
     )
 

@@ -15,7 +15,11 @@ struct ChoiceButton: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Papercut.radiusMD, style: .continuous)
-        Button(action: action) {
+        Button {
+            // 고를 때 가벼운 탭 (KAN-258) — 웹 객관식 선택과 같은 규칙이다
+            HapticPlayer.play(.tap)
+            action()
+        } label: {
             Text(label)
                 .papercutType(.title)
                 .foregroundColor(Papercut.ink)

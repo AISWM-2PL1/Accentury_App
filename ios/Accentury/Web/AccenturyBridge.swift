@@ -6,8 +6,8 @@ import WebKit
 /// 안드로이드 `AccenturyBridge.kt`의 이식본이고, JS 쪽 절반은 ``BridgeUserScript``다.
 ///
 /// 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
-/// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)까지 필요한 열두
-/// 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
+/// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)·햅틱(KAN-258)까지
+/// 필요한 열세 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
 /// 그중 값을 돌려주는 셋(`getContractVersion`·`getSessionToken`·`getAdConsent`)은 여기로 오지
 /// 않는다 — JS 안에서 끝난다 (``BridgeUserScript`` 참고).
 ///
@@ -56,6 +56,10 @@ struct BridgeDispatcher {
 
     /// 분석 대기 화면의 전면 광고 (KAN-196). 인자도 회신도 없다 (``InterstitialGate``).
     let onShowInterstitialAd: () -> Void
+
+    /// 웹 버튼의 햅틱 (KAN-258). 계약 안 세 값만 온다 — 어떻게 떨지는 창구 너머가 정한다
+    /// (``HapticPlayer``).
+    let onHaptic: (Haptic) -> Void
 
     /// 메시지 한 건을 처리한다. 조건에 맞지 않으면 **조용히** 아무 일도 하지 않는다.
     ///
@@ -169,6 +173,23 @@ struct BridgeDispatcher {
             // 인자도 회신도 없다 (§8.3) — 광고가 떴는지·닫혔는지·실패했는지에 따라 대기 화면이
             // 달라질 것이 없다. 세션당 한 번은 웹이 센다. 받아 둔 광고가 없으면 아무 일도 없다.
             onShowInterstitialAd()
+
+        case "haptic":
+            /*
+             * 웹 버튼의 햅틱 (KAN-258, §9). `tap`·`success`·`error`만 받는다. 회신은 없다 — 떨었는지
+             * (시스템 「햅틱」이 꺼져 있으면 안 떤다)에 따라 웹이 달리할 것이 없다.
+             *
+             * 검증 순서는 `setAdConsent`와 같다 — origin을 통과한 값만 판정하고, 계약 밖 값은 조용히
+             * 버리되 흔적을 남긴다(§5). 버튼마다 불리는 메서드라도 우리 웹은 세 값만 보내므로, 이 흔적이
+             * 쌓인다면 소음이 아니라 웹과 앱이 계약을 다르게 알고 있다는 신호다. 문자열이 아닌 payload는
+             * 다른 case처럼 흔적 없이 버린다 — 주입 스크립트를 우회한 직접 호출이다.
+             */
+            guard let raw = payload as? String else { return }
+            guard let haptic = Haptic(bridgeValue: raw) else {
+                CrashReports.recordBridgeParseFailure("haptic")
+                return
+            }
+            onHaptic(haptic)
 
         default:
             // 모르는 메서드. 신버전 웹이 구버전 앱에 보낸 호출일 수도 있고(메서드 추가는
