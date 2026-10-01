@@ -52,6 +52,7 @@
 | `getAdConsent(): string` | KAN-196 | 맞춤형 광고 동의 상태. `'granted' \| 'denied' \| 'unknown'` 중 하나를 동기 반환 (§8). origin이 allowlist 밖이면 `getSessionToken`처럼 빈 문자열 | 래퍼 `readAdConsent()`가 null — 시트도 링크도 광고 라벨도 없다. 계약 밖 문자열도 null |
 | `setAdConsent(state)` | KAN-196 | 동의를 네이티브 저장소에 쓴다. 인자는 `'granted' \| 'denied'` — `'unknown'`으로 되돌리는 길은 없다 | 래퍼 false. `readAdConsent()`가 null인 실행에서는 애초에 부르지 않는다 |
 | `showInterstitialAd()` | KAN-196 | 분석 대기 화면의 전면 광고. **인자도 회신도 없다** (`shareResult`와 같은 규칙) | 래퍼 false — 광고 없이 대기 화면만 |
+| `haptic(type)` | KAN-258 | 가벼운 탭·성공·실패 햅틱. 인자는 `'tap' \| 'success' \| 'error'`, 그 밖은 네이티브가 무시. 회신 없음. OS 「터치 진동」 설정을 따른다 (§9) | 래퍼 false — 무동작 (브라우저 단독·구버전 앱) |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
@@ -349,3 +350,35 @@ JS `.click()`으로 누르므로 시트의 막에 걸리지는 않지만, 동의
 | 새 웹 | 구버전 앱 (`startRetestAfterFailure` 없음) | 래퍼가 `startRetest()`로 폴백 — 광고가 뜬다. 재응시가 막히는 것보다 나아 감수한다. 라벨은 [다시 테스트하기]라 광고가 예고 없이 뜰 수 있다 |
 | 구버전 웹 | 새 앱 | 구버전 웹은 인자 없는 `startRetest()`만 부른다 — 광고가 뜬다 (예전 동작 그대로) |
 | — | 브리지 없음 (브라우저 단독) | 래퍼 false → `goToIntro` 폴백. 광고 없음 |
+
+## 9. 햅틱 (KAN-258)
+
+버튼 누름과 결과 순간에 짧은 햅틱을 준다. 계약 버전은 2 그대로다 — 메서드 추가라 하위호환이다(§1).
+`haptic`을 모르는 앱에서는 래퍼가 false를 주고 버튼은 진동 없이 그대로 눌린다.
+
+**`navigator.vibrate`가 아니라 브리지인 이유.** iOS WKWebView에는 `navigator.vibrate`가 없다.
+Android WebView는 있지만 VIBRATE 권한이 필요하고 길이(ms)만 정할 수 있어, OS 햅틱처럼 짧고
+가볍게 떨리지 않는다. 화면 대부분이 웹 버튼이라 웹이 네이티브 햅틱을 브리지로 부른다. 브라우저
+단독 실행에서는 햅틱이 없다 — `navigator.vibrate`로 메우지 않는다.
+
+**범위 (B안, 팀 결정).** 햅틱은 아껴 쓸 때만 뜻이 남는다(Apple HIG). 그래서 붙이는 곳을 좁혔다.
+
+| 자리 | 종류 | 구현 위치 |
+|---|---|---|
+| Primary 버튼 (`Button` `variant="primary"`) | `tap` | 웹 `ui/Button.tsx` |
+| 객관식 선택 (어휘 문항·출신 지역 라디오) | `tap` | 웹 `VocabularyItemScreen.tsx`·`RegionSelectScreen.tsx` |
+| 녹음 버튼 | `tap` | 네이티브 녹음 화면 (2·3단계) |
+| 녹음 완료·실패 | `success`·`error` | 네이티브 녹음 화면 (2·3단계) — 앱 안 녹음 실패는 웹에 회신되지 않는다 |
+| Secondary·text 버튼 | 없음 | — |
+
+**종류 → 플랫폼 매핑.** 네이티브 행은 2·3단계에서 확정한다.
+
+| `type` | Android (2단계에서 확정) | iOS (3단계에서 확정) |
+|---|---|---|
+| `tap` | `View.performHapticFeedback` 가벼운 상수 — 미정 | `UIImpactFeedbackGenerator(style: .light)` |
+| `success` | 미정 | `UINotificationFeedbackGenerator` `.success` |
+| `error` | 미정 | `UINotificationFeedbackGenerator` `.error` |
+
+**allowlist.** 네이티브는 `tap`·`success`·`error` 세 값만 받는다. 그 밖의 값은 §5 규칙대로 조용히
+버린다 — 웹 `HapticType`과 양 플랫폼 allowlist가 같은 세 값이어야 하고, 하나를 늘리면 셋을 함께
+고친다. OS 「터치 진동」 설정이 꺼져 있으면 떨지 않는 판단도 네이티브 몫이라 웹은 설정을 묻지 않는다.

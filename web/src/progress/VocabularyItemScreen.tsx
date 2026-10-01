@@ -24,6 +24,7 @@ import type { VocabularyItem } from './testDefinition'
 import { newIdempotencyKey, VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
 import { RetestAction } from '../result/RetestAction'
 import type { RetestControl } from '../result/useRetest'
+import { haptic } from '../bridge/bridge'
 import { Button, StatusBlock } from '../ui'
 import { CheckIcon } from '../ui/icons'
 import { itemCaption } from './itemBadge'
@@ -129,7 +130,11 @@ export function VocabularyItemScreen({
                 checked={checked}
                 // 제출 중 잠금 — 요청이 나간 답과 화면의 답이 달라지는 순간을 만들지 않는다
                 disabled={submitting}
-                onChange={() => setSelected(choice.choiceId)}
+                // 객관식 선택은 가벼운 탭 햅틱 (KAN-258) — 고른 순간을 손끝으로도 알린다
+                onChange={() => {
+                  haptic('tap')
+                  setSelected(choice.choiceId)
+                }}
               />
               <span>{choice.text}</span>
               {/*

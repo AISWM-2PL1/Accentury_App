@@ -30,6 +30,7 @@
  */
 
 import { useState } from 'react'
+import { haptic } from '../bridge/bridge'
 import { Button } from '../ui'
 import { CheckIcon } from '../ui/icons'
 import { REGIONS, type RegionCode } from './regions'
@@ -105,7 +106,12 @@ export function RegionSelectScreen({ onDone }: RegionSelectScreenProps) {
                   name="region"
                   value={code}
                   checked={checked}
-                  onChange={() => setSelected(code)}
+                  // 객관식 선택의 탭 햅틱 (KAN-258) — 어휘 문항과 같은 규칙. 이 화면은 웹 단독
+                  // 실행에만 있어 지금은 래퍼가 false로 지나가지만, 규칙을 화면마다 다르게 두지 않는다
+                  onChange={() => {
+                    haptic('tap')
+                    setSelected(code)
+                  }}
                 />
                 <span>{label}</span>
                 {/* 고른 것을 색 말고도 알린다 — 어휘 문항과 같은 규칙 (WCAG 1.4.1) */}
