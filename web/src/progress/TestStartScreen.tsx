@@ -20,7 +20,7 @@
  * 읽히는 고정 문구를 `role="status"`로 두고, 링과 숫자 블록은 통째로 `aria-hidden`이다.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { haptic } from '../bridge/bridge'
 import { TextHero } from '../ui/TextHero'
 
@@ -62,10 +62,14 @@ export function TestStartScreen({ secondsLeft }: TestStartScreenProps) {
   /*
    * 숫자가 바뀔 때마다 가벼운 탭 (KAN-258, 사용자 요청 2026-10-01). 숫자가 뜨는 순간과 손의
    * 진동이 같이 와야 "3, 2, 1"이 박자로 느껴진다. 시계는 부모 것이라 여기서는 받은 값이 바뀌는
-   * 순간에만 반응한다. 0 이하는 부모가 이 화면을 내리는 값이라 떨지 않는다.
+   * 순간에만 반응한다. 0 이하는 부모가 이 화면을 내리는 값이라 떨지 않는다. 마지막으로 떤 숫자를
+   * ref에 두는 이유: 개발 StrictMode가 마운트 effect를 두 번 돌려 첫 "3"이 두 번 울린다.
    */
+  const lastTapped = useRef<number | null>(null)
   useEffect(() => {
-    if (secondsLeft > 0) haptic('tap')
+    if (secondsLeft <= 0 || lastTapped.current === secondsLeft) return
+    lastTapped.current = secondsLeft
+    haptic('tap')
   }, [secondsLeft])
 
   return (
