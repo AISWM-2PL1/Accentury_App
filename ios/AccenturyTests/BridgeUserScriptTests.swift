@@ -23,7 +23,7 @@ final class BridgeUserScriptTests: XCTestCase {
         XCTAssertTrue(bumped.contains("return \(bridgeContractVersion + 1);"))
     }
 
-    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 열두 이름. 하나라도 빠지면
+    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 열세 이름. 하나라도 빠지면
     /// 웹 래퍼가 false로 내려가 그 경로가 조용히 죽는다 — 광고 셋(KAN-196)은 `readAdConsent()`가
     /// null이 되어 시트도 링크도 광고도 없는 "웹 단독" 모양으로 떨어진다.
     func testAllContractMethodsAreDefined() {
@@ -40,6 +40,7 @@ final class BridgeUserScriptTests: XCTestCase {
             "getAdConsent",
             "setAdConsent",
             "showInterstitialAd",
+            "haptic",
         ] {
             XCTAssertTrue(source.contains("\(method):"), "브리지 객체에 \(method)이(가) 없다")
         }
@@ -102,6 +103,8 @@ final class BridgeUserScriptTests: XCTestCase {
         // 광고 (KAN-196): 동의는 문자열 하나, 전면 광고는 인자 없음. `getAdConsent`는 JS 안에서 끝난다.
         XCTAssertTrue(source.contains(#"post("setAdConsent", String(s))"#))
         XCTAssertTrue(source.contains(#"post("showInterstitialAd")"#))
+        // 햅틱 (KAN-258): 종류 문자열 하나. 회신이 없다.
+        XCTAssertTrue(source.contains(#"post("haptic", String(t))"#))
         XCTAssertTrue(source.contains("getAdConsent: function(){ return adConsent; }"))
     }
 

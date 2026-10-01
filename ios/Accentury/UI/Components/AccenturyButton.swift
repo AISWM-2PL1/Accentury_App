@@ -57,7 +57,8 @@ struct AccenturyButton: View {
             .opacity(enabled ? 1 : Papercut.opacityDisabled)
 
         case .primary, .secondary:
-            Button(action: action) {
+            // 주동작에만 가벼운 탭 (KAN-258 B안). 햅틱은 아껴 써야 뜻이 남아서 보조·텍스트 버튼은 떨지 않는다.
+            Button(action: variant == .primary ? { HapticPlayer.play(.tap); action() } : action) {
                 // 주 CTA 라벨은 Jua 20(`title`)에 자간 0.4다 — 이 화면에서 눌러야 할 것이
                 // 제목만큼 크고, 굵기를 못 올리는 폰트라 자간이 무게를 대신한다 (KAN-178).
                 // 보조는 본문 글꼴 15(`bodySmall`)로, 안드로이드 `bodyMedium` 자리다.

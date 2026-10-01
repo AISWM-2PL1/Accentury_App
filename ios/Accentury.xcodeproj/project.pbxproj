@@ -77,6 +77,7 @@
 		BF78AD13B4C7F9B0F49C0A59 /* WebViewHostPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F992496097E1162874666B6 /* WebViewHostPolicyTests.swift */; };
 		C51B1AC0B01DF054FC0A23EA /* RecordingSmokeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C2427E4D1A062E023DB7E1 /* RecordingSmokeModel.swift */; };
 		C86DC74651CBF6524F5B6F65 /* WebViewLifecycleNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36CE5E56B2476309F75325D5 /* WebViewLifecycleNotifier.swift */; };
+		C9933411C92942471B0A25CA /* HapticPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC2F25E1BEDC7547F4F9774 /* HapticPlayer.swift */; };
 		CE859D348B567FDC59344882 /* InterstitialGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5B2EC49F376A2A11A2F468 /* InterstitialGate.swift */; };
 		D1525C5A8620F9800627CBFB /* CrashReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262A6550B61CC0F6093B9FA2 /* CrashReports.swift */; };
 		D1B7F74966AF95157A3892E3 /* HalftoneGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2942DF00F77DB7DE3B8AB95 /* HalftoneGrid.swift */; };
@@ -179,6 +180,7 @@
 		A2CE5A25F0FDE137C0C1ACE8 /* AccenturyBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyBridge.swift; sourceTree = "<group>"; };
 		A70A4F9127A4AF354E2D3DB3 /* VoiceCheckScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCheckScreen.swift; sourceTree = "<group>"; };
 		AC5E217157A2E9F6D8CCB49A /* AccenturyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyButton.swift; sourceTree = "<group>"; };
+		ACC2F25E1BEDC7547F4F9774 /* HapticPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticPlayer.swift; sourceTree = "<group>"; };
 		B1BE31A25BA4409D0D087717 /* BridgeUserScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeUserScriptTests.swift; sourceTree = "<group>"; };
 		B3EDE12F5A897637266581E2 /* TestCrash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestCrash.swift; sourceTree = "<group>"; };
 		B57DE3B353CB86958672731A /* WebViewLifecycleNotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewLifecycleNotifierTests.swift; sourceTree = "<group>"; };
@@ -308,6 +310,7 @@
 				EEFAA2F91C5F7AC6DA739755 /* AccenturyTextField.swift */,
 				6298D373DA76C71D8F4D814B /* ChoiceButton.swift */,
 				B886426FC063688254DDCEB6 /* CurveLane.swift */,
+				ACC2F25E1BEDC7547F4F9774 /* HapticPlayer.swift */,
 				678FAE681AA8637F3AA3B4ED /* HeroIcon.swift */,
 				0F692C86E93A83A08A00B810 /* PaperShadow.swift */,
 				773A982B19B83B94B4234083 /* ProgressIndicator.swift */,
@@ -716,6 +719,7 @@
 				E1222128CC32A2AE5817FA25 /* FirebaseEventSink.swift in Sources */,
 				EA2AD6CC5E227A113595DC9B /* GuideCurveCache.swift in Sources */,
 				D1B7F74966AF95157A3892E3 /* HalftoneGrid.swift in Sources */,
+				C9933411C92942471B0A25CA /* HapticPlayer.swift in Sources */,
 				5BA4AD39A52498A1CA365979 /* HeroIcon.swift in Sources */,
 				831180EA6C1300F0C2F07647 /* IdpSdks.swift in Sources */,
 				CE859D348B567FDC59344882 /* InterstitialGate.swift in Sources */,

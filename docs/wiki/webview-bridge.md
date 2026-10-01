@@ -367,13 +367,13 @@ Android WebView는 있지만 VIBRATE 권한이 필요하고 길이(ms)만 정할
 |---|---|---|
 | Primary 버튼 (`Button` `variant="primary"`) | `tap` | 웹 `ui/Button.tsx` |
 | 객관식 선택 (어휘 문항·출신 지역 라디오) | `tap` | 웹 `VocabularyItemScreen.tsx`·`RegionSelectScreen.tsx` |
-| 녹음 버튼 | `tap` | 네이티브 녹음 화면 (2·3단계) |
-| 녹음 완료·실패 | `success`·`error` | 네이티브 녹음 화면 (2·3단계) — 앱 안 녹음 실패는 웹에 회신되지 않는다 |
+| 녹음 버튼 | `tap` | 네이티브 녹음 화면 (Android `RecordButton.kt`, iOS `RecordButton.swift`) |
+| 녹음 완료·실패 | `success`·`error` | 네이티브 녹음 화면 (`RecordingScreen`) — 앱 안 녹음 실패는 웹에 회신되지 않는다 |
 | Secondary·text 버튼 | 없음 | — |
 
-**종류 → 플랫폼 매핑.** Android는 2단계에서 확정했다. iOS 행은 3단계에서 확정한다.
+**종류 → 플랫폼 매핑.**
 
-| `type` | Android (API 30+ / API 29 폴백) | iOS (3단계에서 확정) |
+| `type` | Android (API 30+ / API 29 폴백) | iOS (16+) |
 |---|---|---|
 | `tap` | `VIRTUAL_KEY` / 같음 | `UIImpactFeedbackGenerator(style: .light)` |
 | `success` | `CONFIRM` / `VIRTUAL_KEY` | `UINotificationFeedbackGenerator` `.success` |
@@ -388,10 +388,25 @@ API 30부터라 minSdk 29에서는 androidx.core가 위 폴백으로 바꿔 부�
 `VIRTUAL_KEY`로 고른 이유: 뜻("화면 위 키를 눌렀다")이 버튼 탭과 같고, `CONTEXT_CLICK`은 마우스
 우클릭용이라 제조사마다 세기가 들쭉날쭉하다.
 
+iOS는 `UI/Components/HapticPlayer.swift`의 `HapticPlayer.play` 한 곳이 매핑을 쥔다. 브리지 디스패처와
+네이티브 SwiftUI 버튼(Primary `AccenturyButton`·`ChoiceButton`·`RecordButton`)이 같은 함수를 부르고,
+종류 자체(`Haptic`)와 allowlist 판정(`Haptic(bridgeValue:)`)은 `AccenturyCore`에 있어 `swift test`가 본다.
+SwiftUI `.sensoryFeedback`이 아니라 UIKit 생성기인 이유는 배포 타깃이다 — 그쪽은 iOS 17부터다.
+UIKit 생성기는 시스템 「햅틱」 설정을 따르므로 우리가 설정을 다시 묻지 않는다. 생성기는 부를 때마다
+만들고 `prepare()`(Taptic Engine 예열, 선택 사항)는 부르지 않는다: 탭은 손을 뗀 뒤 울려 예열할 "직전"이
+없고, 결과 햅틱은 언제 올지 모른다.
+[UIImpactFeedbackGenerator](https://developer.apple.com/documentation/uikit/uiimpactfeedbackgenerator) ·
+[UINotificationFeedbackGenerator](https://developer.apple.com/documentation/uikit/uinotificationfeedbackgenerator) ·
+[prepare()](https://developer.apple.com/documentation/uikit/uifeedbackgenerator/prepare())
+
 **녹음 결과 트리거.** `Review`로 들어가면 `canProceed`(품질 NORMAL)일 때 `success`, 아니면 `error`.
-`Failed`로 들어가면 `error`. 판정은 순수 함수 `recordingResultHaptic`이 하고, 녹음 화면은 상태가
+`Failed`로 들어가면 `error`. 판정은 순수 함수 `recordingResultHaptic`이 하고(Android
+`RecordingScreen.kt`, iOS `AccenturyCore` `Recording/RecordingResultHaptic.swift`), 녹음 화면은 상태가
 바뀔 때마다 한 번 보되 **화면이 처음 본 상태는 건너뛴다**. 회전으로 액티비티가 다시 만들어져도
-뷰모델은 살아 있어 같은 결과가 다시 들어오는데, 그것은 새 결과가 아니라서 떨지 않는다. 정지 버튼의
+뷰모델은 살아 있어 같은 결과가 다시 들어오는데, 그것은 새 결과가 아니라서 떨지 않는다. 이 규칙의
+구현이 플랫폼마다 다르다: Android는 `LaunchedEffect(state)`가 첫 값에도 돌아서 `primed` 플래그로 첫
+번을 건너뛰고, iOS는 iOS 16의 한 인자 `.onChange(of: model.uiState)`가 처음 나타날 때의 값으로는
+불리지 않아 플래그 없이 같은 동작이 나온다(iOS 17의 `initial:` 인자는 쓰지 않는다). 정지 버튼의
 `tap`과 결과의 `success`·`error`는 짧은 간격(체감상 거의 연달아)으로 이어서 난다(정지 요청 → 엔진이 다음 청크
 경계에서 끝내고 품질 판정). "눌렀다 → 결과가 정해졌다"는 두 사건이라 합치지 않는다. 10초 자동
 종료는 탭 없이 결과 햅틱만 난다.

@@ -23,7 +23,11 @@ struct RecordButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            // 시작·정지 모두 가벼운 탭 (KAN-258). 결과의 성공·실패는 녹음 화면이 따로 낸다
+            HapticPlayer.play(.tap)
+            action()
+        } label: {
             ZStack {
                 if recording {
                     /*

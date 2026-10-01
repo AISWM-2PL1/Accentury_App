@@ -27,6 +27,7 @@ final class AccenturyBridgeTests: XCTestCase {
         var externalUrls: [String] = []
         var consents: [AdConsent] = []
         var interstitialCalls = 0
+        var haptics: [Haptic] = []
     }
 
     private func makeDispatcher(
@@ -43,7 +44,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onLogEvent: { sink.events.append((name: $0, params: $1)) },
             onOpenExternalUrl: { sink.externalUrls.append($0) },
             onSetAdConsent: { sink.consents.append($0) },
-            onShowInterstitialAd: { sink.interstitialCalls += 1 }
+            onShowInterstitialAd: { sink.interstitialCalls += 1 },
+            onHaptic: { sink.haptics.append($0) }
         )
     }
 
@@ -382,6 +384,7 @@ final class AccenturyBridgeTests: XCTestCase {
         )
         dispatcher.handle(method: "setAdConsent", payload: "denied")
         dispatcher.handle(method: "showInterstitialAd", payload: nil)
+        dispatcher.handle(method: "haptic", payload: "tap")
 
         XCTAssertEqual(1, sink.micPermissionCalls)
         XCTAssertEqual(1, sink.retestCalls)
@@ -391,6 +394,7 @@ final class AccenturyBridgeTests: XCTestCase {
         XCTAssertEqual(1, sink.events.count)
         XCTAssertEqual([.denied], sink.consents)
         XCTAssertEqual(1, sink.interstitialCalls)
+        XCTAssertEqual([.tap], sink.haptics)
     }
 
     // MARK: openExternalUrl (KAN-177)
@@ -494,5 +498,40 @@ final class AccenturyBridgeTests: XCTestCase {
         dispatcher.handle(method: "showInterstitialAd", payload: "s_1")
         dispatcher.handle(method: "showInterstitialAd", payload: nil)
         XCTAssertEqual(2, sink.interstitialCalls)
+    }
+
+    // MARK: haptic (KAN-258)
+
+    /// 안드로이드 `AccenturyBridgeTest`의 햅틱 케이스와 같은 판정이다 — 계약 안 세 값은 그대로 넘긴다.
+    func testEachHapticKindReachesItsCallbackFromAnAllowedOrigin() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+        for raw in ["tap", "success", "error"] {
+            dispatcher.handle(method: "haptic", payload: raw)
+        }
+        XCTAssertEqual([.tap, .success, .error], sink.haptics)
+    }
+
+    /// 임의 페이지가 기기를 떨게 두지 않는다 — 다른 메서드와 같은 origin 게이트다.
+    func testHapticIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
+        for raw in ["tap", "success", "error"] {
+            dispatcher.handle(method: "haptic", payload: raw)
+        }
+        XCTAssertTrue(sink.haptics.isEmpty)
+    }
+
+    /// 계약 밖 값은 버린다 (대소문자·공백까지 계약이다). 문자열이 아닌 payload도 마찬가지다.
+    func testHapticValuesOutsideTheContractAreDropped() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+        for raw in ["", "TAP", "vibrate", "success ", "warning"] {
+            dispatcher.handle(method: "haptic", payload: raw)
+        }
+        dispatcher.handle(method: "haptic", payload: nil)
+        dispatcher.handle(method: "haptic", payload: 1)
+        dispatcher.handle(method: "haptic", payload: ["type": "tap"])
+        XCTAssertTrue(sink.haptics.isEmpty)
     }
 }
