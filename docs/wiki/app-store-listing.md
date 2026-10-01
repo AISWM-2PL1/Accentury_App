@@ -27,7 +27,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 개발자 계정 | **이성주 개인 계정**. 팀 ID `559P9SYY57` |
 | 등록비 | 연 99달러 (Apple Developer Program, 매년 갱신) |
 | 번들 ID | `com.accentury.app` (`ios/Accentury/Config/Base.xcconfig`, Android `applicationId`와 같다) |
-| 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 6까지 올라가 있다 (빌드 6은 C2 아이콘, 2026-09-23) |
+| 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
 | 빌드 번호 | `CURRENT_PROJECT_VERSION` = **7**. 빌드 6은 C2 아이콘으로 올라갔고 7이 확정 도상 D3를 싣는 첫 빌드다 (2026-09-23). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
@@ -218,17 +218,27 @@ Apple Distribution 인증서·프로비저닝 프로파일을 스스로 만드�
 
 #### 러너 실행 기록 (2026-09-23)
 
-시크릿 7개가 등록된 뒤 러너에서 세 번 돌렸다. 각 실행 4분 안팎이다.
+ASC 키 셋이 등록된 뒤 러너에서 다섯 번 돌렸다. AdMob iOS 셋은 1차와 2차 사이에 붙어
+시크릿이 7개(ASC 셋 + AdMob iOS 셋 + 카카오)가 됐다. 각 실행 4~6분이다.
 
 | # | 실행 | 입력 | 결과 |
 |---|---|---|---|
 | 1차 | [35833056059](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35833056059) | `allow_test_ads=true`, `upload=false` | **통과**. AdMob 시크릿 없이 아카이브·서명 경로가 사는지만 봤다 |
 | 2차 | [35833732628](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35833732628) | 실 광고 ID(`REQUIRE_ADMOB_IDS=YES`), `upload=false` | **통과**. 빗장을 켠 채로 검증 스텝까지 전부 |
 | 3차 | [35834152345](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35834152345) | 실 광고 ID, `upload=true` | **업로드에서 거절**. 앞 스텝은 모두 통과하고 TestFlight 업로드만 exit 70 |
+| 4차 | [35835642727](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35835642727) | 실 광고 ID, `upload=true` | **통과**. 링커 서명 제거를 붙인 뒤 첫 업로드 성공 — 버전 `1.0` 빌드 `6`, 서명 `Apple Distribution: Seongju Lee (559P9SYY57)` |
+| 5차 | [35838851454](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35838851454) | 실 광고 ID, `upload=true` | **통과**. 빌드 `7`(아이콘 D3) 업로드 — 브랜치 `chore/KAN-175-build-7` |
 
 3차의 거절 사유가 위 「링커 서명 제거」다 — 프레임워크 넷 전부에 `Invalid Signature … is not
 properly signed`가 떴다. 검증 스텝이 못 잡은 것은 그때 DR을 보지 않았기 때문이고, 이번에 DR
-검사를 붙였다. 1·2차가 통과한 것은 업로드를 하지 않아 애플 검증을 거치지 않아서다.
+검사를 붙였다. 1·2차가 통과한 것은 업로드를 하지 않아 애플 검증을 거치지 않아서다. 4·5차가
+그 수정으로 애플 업로드 검증까지 통과한 실행이고, 둘의 업로드 수정과 빌드 7은 PR #3으로
+Dev에 들어갔다 (2026-09-28).
+
+**이 기록 뒤에 시크릿 요구가 늘었다.** KAN-224가 `GOOGLE_IOS_CLIENT_ID`·
+`GOOGLE_SERVER_CLIENT_ID`·`GOOGLE_REVERSED_CLIENT_ID` 빗장을 붙였고 그 셋은 아직 저장소
+시크릿에 없다. 5차까지의 실행은 빗장이 붙기 전이라 통과했고, **지금 다시 돌리면 ③
+입력·시크릿 검사에서 멈춘다.** 등록은 KAN-224 몫이다.
 
 그 전 기록: 2026-09-22에 **로컬에서 워크플로의 셸 스텝을 그대로 떼어 돌렸다**. Release
 아카이브(무서명) → `ExportOptions.plist`로 export → 검증 스크립트. 결과는 서명
@@ -786,16 +796,16 @@ soon as the request finishes. It is never stored or shared.
 
 ## 9. 콘솔 작업 순서
 
-- [ ] 앱 레코드 확인 (번들 `com.accentury.app`) — KAN-108에서 생성됨
+- [x] 앱 레코드 확인 (번들 `com.accentury.app`) — KAN-108에서 생성됨
 - [ ] **숫자 Apple ID 확인해 §1 표와 §3 스토어 URL에 기록** — 앱 정보 › 일반 정보 › Apple ID
-- [ ] 사용자 및 액세스 › 통합에서 App Store Connect API 키 발급 (App Manager), `.p8` 1회 다운로드 → GitHub 시크릿 3개 등록 (§2)
+- [x] 사용자 및 액세스 › 통합에서 App Store Connect API 키 발급 (App Manager), `.p8` 1회 다운로드 → GitHub 시크릿 3개 등록 (§2) — 2026-09-23 완료, AdMob iOS 셋도 같이 등록
 - [ ] 앱 정보 — 이름·부제·카테고리·저작권·개인정보 처리방침 URL (§3)
 - [ ] 가격 및 사용 가능 여부 — 무료, 대한민국 (그 밖 지역은 팀 결정)
 - [ ] 버전별 정보 — 프로모션 텍스트·설명·키워드·지원 URL·마케팅 URL (§3)
 - [ ] 스크린샷 6.7"·6.1" 각 4장 업로드 (§4)
 - [ ] **앱 개인정보 보호 — §6.2 표 그대로 입력.** 「추적」 = 예
 - [ ] 연령 등급 설문 (§7) — 「광고」 체크 잊지 말 것
-- [ ] 빌드 7 업로드 → TestFlight 처리 완료 대기 → 버전에 빌드 선택
+- [x] 빌드 7 업로드 — 2026-09-23 러너 5차가 TestFlight에 올렸다 (§2 「러너 실행 기록」). 버전에 그 빌드를 고르는 것은 위 「버전별 정보」와 같이 한다
 - [ ] 수출 규정 — `ITSAppUsesNonExemptEncryption=false`가 plist에 있어 콘솔에서 다시 묻지 않는다 (`Info-Release.plist:11-12`)
 - [ ] 앱 심사 정보 — §8 영어 메모, 연락처, 로그인 없음
 - [ ] 심사 제출 (§10 선행 조건을 먼저 전부 닫는다)
@@ -810,17 +820,18 @@ soon as the request finishes. It is never stored or shared.
 | 막는 것 | 누가·어디서 | 티켓 | 상태 |
 |---|---|---|---|
 | prod 스택과 방침 본문 게시 | 인프라 · **Accentury_Server** `scripts/publish-privacy.sh prod` | KAN-176 · KAN-209 | **해결** — `https://accentury.app/privacy.html` 200 (2026-09-21 확인). 확장자 `.html` 필수, `/privacy`는 SPA 재작성에 걸린다 |
-| 방침 시행일 자리표시자 | 계정 소유자 · **Accentury_Server** `infra/privacy/privacy.html` 102·710행 | KAN-176 | **미해결** — 게시 당일 날짜로 두 자리 모두 교체 (같은 레포 `docs/wiki/privacy-policy.md` §3 게이트 6행) |
+| 방침 시행일 자리표시자 | 계정 소유자 · **Accentury_Server** `infra/privacy/privacy.html` 두 자리 | KAN-176 | **진행 중** — 브랜치 `chore/KAN-176-privacy-effective-date`가 두 자리를 실제 날짜로 채웠다(현재 `2026-09-29`, PR 전). 남은 것은 머지와 `scripts/publish-privacy.sh prod` 실행이고, 게시가 밀리면 게시 당일로 다시 맞춘다 (같은 레포 `docs/wiki/privacy-policy.md` §3 게이트 6행) |
 | 방침의 스토어 답안 일치 | 개발 · **Accentury_Server** `docs/wiki/privacy-policy.md` §2 | KAN-175 | **이 문서가 닫는다** — §6이 정본 (같은 파일 §3 게이트 7행) |
-| AdMob iOS 실 광고 단위 ID | 계정 소유자 · AdMob 콘솔 → GitHub 시크릿 `ADMOB_IOS_APP_ID`·`ADMOB_IOS_INTERSTITIAL_ID`·`ADMOB_IOS_REWARDED_ID` | KAN-196 | **미해결** — 지금 빌드는 Google 테스트 ID로 나간다. 테스트 ID가 스토어로 가면 AdMob 정책 위반이다. 아카이브에 `ADMOB_APP_ID=… ADMOB_INTERSTITIAL_ID=… ADMOB_REWARDED_ID=… REQUIRE_ADMOB_IDS=YES`를 준다 (`ads-admob.md` §3·§7.2) |
-| 카카오 콘솔 iOS 플랫폼 등록 + `KAKAO_NATIVE_APP_KEY` | 계정 소유자 · 카카오 개발자 콘솔 | KAN-180 | **미해결(확인 필요)** — 키가 없으면 공유가 시스템 공유 시트로 떨어진다. 설명 §3이 카카오톡 공유를 약속하므로 키 없이 제출하면 문안과 동작이 갈린다 (`ResultSharer.swift:62`) |
+| AdMob iOS 실 광고 단위 ID | 계정 소유자 · AdMob 콘솔 → GitHub 시크릿 `ADMOB_IOS_APP_ID`·`ADMOB_IOS_INTERSTITIAL_ID`·`ADMOB_IOS_REWARDED_ID` | KAN-196 | **해결(2026-09-23)** — 시크릿 셋 등록 완료. 러너 2~5차가 `REQUIRE_ADMOB_IDS=YES`로 돌아 산출물 검증이 Google 테스트 퍼블리셔 ID가 아님을 확인했다. TestFlight에 올라간 빌드 6·7은 실 ID 빌드다 (`ads-admob.md` §3·§7.2) |
+| 카카오 콘솔 iOS 플랫폼 등록 + `KAKAO_NATIVE_APP_KEY` | 계정 소유자 · 카카오 개발자 콘솔 | KAN-180 | **해결(2026-10-01 확인)** — iOS 플랫폼에 번들 ID가 등록돼 있고 시크릿은 KAN-163의 네이티브 앱 키를 그대로 쓴다. 산출물 검증이 번들 `Info.plist`의 키 길이를 보므로 빈 값으로 나갈 수는 없다 (`ResultSharer.swift:62`) |
 | Universal Links AASA 게시 | 인프라 · **Accentury_Server** `infra/well-known/*/.well-known/apple-app-site-association` | KAN-32 | 게시됨. 심사를 막지는 않지만 딥링크가 조용히 죽는다 (`app-links.md`) |
 | 빌드 번호 7 이상 | 개발 · `CURRENT_PROJECT_VERSION` | KAN-175 3단계 | **해결(2026-09-23)** — iOS·Android 둘 다 7. 빌드 6이 C2 아이콘으로 소모돼 D3 빌드는 7부터다. 규칙과 검사는 `ios/Accentury/Config/Base.xcconfig` 주석과 `AccenturyCoreTests/ReleaseVersionParityTests` |
 | `APP_STORE_URL`·`STORE_LISTING_READY` 주입 | 계정 소유자 · GitHub environment 변수 (prod·staging **각각**) | KAN-175 2단계 | **미해결** — 배선은 끝났다 (`.github/workflows/web-deploy.yml`가 둘 다 빌드로 넘기고 `web/src/audio/storeLink.ts`가 받는다). 남은 것은 값 등록뿐 — `APP_STORE_URL=https://apps.apple.com/app/id<숫자>`, 게시 뒤 `STORE_LISTING_READY=true` (§9 마지막 항목) |
-| 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **부분 해결(2026-09-22)** — 워크플로는 있다(§2 「릴리스 워크플로」). 남은 것은 시크릿 6개 등록과 러너에서의 첫 실행이다 |
+| 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **해결(2026-09-23)** — 시크릿 7개 등록 뒤 러너에서 5회 돌아 빌드 6·7이 TestFlight에 올라갔다(§2 「러너 실행 기록」). 업로드 수정과 빌드 7은 PR #3으로 Dev에 반영됐다(2026-09-28). 그 뒤 KAN-224가 구글 시크릿 셋 빗장을 붙였으니 다음 실행 전에 그 셋을 등록한다 |
 
-심사를 **직접** 막는 것은 AdMob 실 ID와 방침 시행일 둘이다. 나머지는 막지는 않되
-제출 전에 닫아 두는 쪽이 낫다.
+심사를 **직접** 막는 것은 이제 **방침 본문의 prod 게시 하나**다 — 시행일을 채운 브랜치를
+머지하고 `publish-privacy.sh prod`를 돌리면 닫힌다. 나머지 미완은 콘솔 입력(숫자 Apple ID와
+그 ID로 만드는 `APP_STORE_URL`·`STORE_LISTING_READY`)이고 그쪽은 게시 뒤에야 값이 생긴다.
 
 ## 11. 관련
 
