@@ -276,10 +276,11 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 7인 이유는 iOS 사정이다: TestFlight에 1.0 빌드 5까지 올라가 있었고 빌드 6은 C2
-        // 아이콘으로 올라갔다(2026-09-23). 다음 업로드는 7부터여야 받아지고, 7이 확정 도상 D3를
-        // 싣는 첫 빌드다 (xcconfig 주석). Play에는 아직 아무것도 올라가지 않았다.
-        versionCode = 7
+        // 8인 이유는 iOS 사정이다: TestFlight에 1.0 빌드 7까지 올라가 있어 다음 업로드는 8부터여야
+        // 받아진다. 빌드 7(2026-09-23)은 소셜 로그인 게이트(KAN-224) 이전 커밋이라 심사에 제출할 수
+        // 없고, 8이 현재 Dev(로그인·가입 동의·세션 만료 출구·실패 재응시 포함)를 싣는 첫 빌드다
+        // (xcconfig 주석). Play에는 아직 아무것도 올라가지 않았다.
+        versionCode = 8
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
