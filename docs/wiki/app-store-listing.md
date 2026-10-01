@@ -248,6 +248,10 @@ Dev에 들어갔다 (2026-09-28).
 
 ## 3. 스토어 등록 정보 문안
 
+> ⚠️ **KAN-224 소셜 로그인 도입(2026-09-28) 이후 재검토 필요.** 아래 문안은 「회원가입도 로그인도
+> 없다」를 전제로 쓴 것이고 지금 Dev는 구글·카카오·네이버 로그인과 가입 동의를 담고 있다.
+> 고치기 전에는 제출하지 않는다 (§10 마지막 문단).
+
 콘솔에 그대로 붙여 넣는 값이다. 글자 수는 실제로 센 값이고 전부 제한 안에 든다.
 
 | 필드 | 값 | 제한 |
@@ -405,6 +409,10 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 비맞춤 광고(`npa=1`)로 전 기능이 그대로 돈다. 이 사실을 §8의 심사 노트에 명시한다.
 
 ## 6. 앱 개인정보 보호 세부사항 (Privacy Nutrition Label)
+
+> ⚠️ **KAN-224 소셜 로그인 도입(2026-09-28) 이후 재검토 필요.** 아래 문안은 「회원가입도 로그인도
+> 없다」를 전제로 쓴 것이고 지금 Dev는 구글·카카오·네이버 로그인과 가입 동의를 담고 있다.
+> 고치기 전에는 제출하지 않는다 (§10 마지막 문단).
 
 **이 절이 KAN-175의 무게중심이다.** Accentury_Server `docs/wiki/privacy-policy.md` §2의 App Store 표는
 2026-09-11 시점 스냅샷이고, 지금부터 **이 절이 정본**이다. 코드가 바뀌면 여기부터 고치고
@@ -705,6 +713,10 @@ Kakao SDK 2.29.0의 매니페스트가 `OtherDataTypes`를 `Linked=true`·`Track
 
 ## 8. 심사 노트 (App Review Information)
 
+> ⚠️ **KAN-224 소셜 로그인 도입(2026-09-28) 이후 재검토 필요.** 아래 문안은 「회원가입도 로그인도
+> 없다」를 전제로 쓴 것이고 지금 Dev는 구글·카카오·네이버 로그인과 가입 동의를 담고 있다.
+> 고치기 전에는 제출하지 않는다 (§10 마지막 문단).
+
 ### 콘솔 필드
 
 | 필드 | 값 |
@@ -805,7 +817,7 @@ soon as the request finishes. It is never stored or shared.
 - [ ] 스크린샷 6.7"·6.1" 각 4장 업로드 (§4)
 - [ ] **앱 개인정보 보호 — §6.2 표 그대로 입력.** 「추적」 = 예
 - [ ] 연령 등급 설문 (§7) — 「광고」 체크 잊지 말 것
-- [x] 빌드 7 업로드 — 2026-09-23 러너 5차가 TestFlight에 올렸다 (§2 「러너 실행 기록」). 버전에 그 빌드를 고르는 것은 위 「버전별 정보」와 같이 한다
+- [x] 빌드 7 업로드 — 2026-09-23 러너 5차가 TestFlight에 올렸다 (§2 「러너 실행 기록」). **→ 빌드 8로 재업로드 필요** — 빌드 7은 KAN-224 로그인 게이트 이전이라 제출 빌드로 쓸 수 없다 (§10). 버전에 빌드를 고르는 것은 위 「버전별 정보」와 같이 한다
 - [ ] 수출 규정 — `ITSAppUsesNonExemptEncryption=false`가 plist에 있어 콘솔에서 다시 묻지 않는다 (`Info-Release.plist:11-12`)
 - [ ] 앱 심사 정보 — §8 영어 메모, 연락처, 로그인 없음
 - [ ] 심사 제출 (§10 선행 조건을 먼저 전부 닫는다)
@@ -819,19 +831,24 @@ soon as the request finishes. It is never stored or shared.
 
 | 막는 것 | 누가·어디서 | 티켓 | 상태 |
 |---|---|---|---|
-| prod 스택과 방침 본문 게시 | 인프라 · **Accentury_Server** `scripts/publish-privacy.sh prod` | KAN-176 · KAN-209 | **해결** — `https://accentury.app/privacy.html` 200 (2026-09-21 확인). 확장자 `.html` 필수, `/privacy`는 SPA 재작성에 걸린다 |
-| 방침 시행일 자리표시자 | 계정 소유자 · **Accentury_Server** `infra/privacy/privacy.html` 두 자리 | KAN-176 | **진행 중** — 브랜치 `chore/KAN-176-privacy-effective-date`가 두 자리를 실제 날짜로 채웠다(현재 `2026-09-29`, PR 전). 남은 것은 머지와 `scripts/publish-privacy.sh prod` 실행이고, 게시가 밀리면 게시 당일로 다시 맞춘다 (같은 레포 `docs/wiki/privacy-policy.md` §3 게이트 6행) |
+| prod 스택과 방침 URL | 인프라 · **Accentury_Server** `scripts/publish-privacy.sh prod` | KAN-176 · KAN-209 | **해결** — `https://accentury.app/privacy.html` 200 (2026-09-21 확인). 확장자 `.html` 필수, `/privacy`는 SPA 재작성에 걸린다. **URL은 살았고 본문이 옛 버전이다** — 아래 행 |
+| 방침 본문 prod 게시 | 인프라 · **Accentury_Server** `scripts/publish-privacy.sh prod` | KAN-176 · KAN-240 | **레포 기재 완료 · prod 게시 미완** — 레포의 `infra/privacy/privacy.html`은 시행일·방침 버전이 `2026-09-29`다(KAN-240, 자리표시자 없음). 그런데 `https://accentury.app/privacy.html`은 아직 「정식 게시일에 기재합니다 (초안 2026-09-07)」 버전이다. 게시 날짜는 앱 상수 `privacyPolicyVersion`(iOS `ios/AccenturyCore/Sources/AccenturyCore/Auth/LoginScreenState.swift`)·`PRIVACY_POLICY_VERSION`(Android `app/src/main/java/com/accentury/app/auth/LoginScreenState.kt`)과 같은 값이어야 한다 — 서버가 가입 동의 버전을 게시 버전과 대조하므로 어긋나면 로그인이 막힌다 (같은 레포 `docs/wiki/privacy-policy.md` §3 게이트 6행) |
 | 방침의 스토어 답안 일치 | 개발 · **Accentury_Server** `docs/wiki/privacy-policy.md` §2 | KAN-175 | **이 문서가 닫는다** — §6이 정본 (같은 파일 §3 게이트 7행) |
 | AdMob iOS 실 광고 단위 ID | 계정 소유자 · AdMob 콘솔 → GitHub 시크릿 `ADMOB_IOS_APP_ID`·`ADMOB_IOS_INTERSTITIAL_ID`·`ADMOB_IOS_REWARDED_ID` | KAN-196 | **해결(2026-09-23)** — 시크릿 셋 등록 완료. 러너 2~5차가 `REQUIRE_ADMOB_IDS=YES`로 돌아 산출물 검증이 Google 테스트 퍼블리셔 ID가 아님을 확인했다. TestFlight에 올라간 빌드 6·7은 실 ID 빌드다 (`ads-admob.md` §3·§7.2) |
 | 카카오 콘솔 iOS 플랫폼 등록 + `KAKAO_NATIVE_APP_KEY` | 계정 소유자 · 카카오 개발자 콘솔 | KAN-180 | **해결(2026-10-01 확인)** — iOS 플랫폼에 번들 ID가 등록돼 있고 시크릿은 KAN-163의 네이티브 앱 키를 그대로 쓴다. 산출물 검증이 번들 `Info.plist`의 키 길이를 보므로 빈 값으로 나갈 수는 없다 (`ResultSharer.swift:62`) |
 | Universal Links AASA 게시 | 인프라 · **Accentury_Server** `infra/well-known/*/.well-known/apple-app-site-association` | KAN-32 | 게시됨. 심사를 막지는 않지만 딥링크가 조용히 죽는다 (`app-links.md`) |
 | 빌드 번호 7 이상 | 개발 · `CURRENT_PROJECT_VERSION` | KAN-175 3단계 | **해결(2026-09-23)** — iOS·Android 둘 다 7. 빌드 6이 C2 아이콘으로 소모돼 D3 빌드는 7부터다. 규칙과 검사는 `ios/Accentury/Config/Base.xcconfig` 주석과 `AccenturyCoreTests/ReleaseVersionParityTests` |
 | `APP_STORE_URL`·`STORE_LISTING_READY` 주입 | 계정 소유자 · GitHub environment 변수 (prod·staging **각각**) | KAN-175 2단계 | **미해결** — 배선은 끝났다 (`.github/workflows/web-deploy.yml`가 둘 다 빌드로 넘기고 `web/src/audio/storeLink.ts`가 받는다). 남은 것은 값 등록뿐 — `APP_STORE_URL=https://apps.apple.com/app/id<숫자>`, 게시 뒤 `STORE_LISTING_READY=true` (§9 마지막 항목) |
+| 제출 빌드가 현재 Dev를 담아야 한다 | 개발 · `CURRENT_PROJECT_VERSION` · `versionCode` → 워크플로 `upload` | KAN-175 | **미해결** — TestFlight의 빌드 7은 2026-09-23 것이고 **KAN-224 소셜 로그인 게이트·KAN-240 가입 동의·KAN-237·KAN-248보다 앞선다** (그 뒤 Dev에 33커밋, iOS를 건드린 것이 11개). 로그인 없는 빌드를 제출하면서 방침과 라벨은 계정 데이터를 말하게 된다. 둘을 8로 올리고 워크플로를 `upload=true`로 돌려 **빌드 8**을 올린다 |
 | 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **해결(2026-09-23)** — 시크릿 7개 등록 뒤 러너에서 5회 돌아 빌드 6·7이 TestFlight에 올라갔다(§2 「러너 실행 기록」). 업로드 수정과 빌드 7은 PR #3으로 Dev에 반영됐다(2026-09-28). 그 뒤 KAN-224가 구글 시크릿 셋 빗장을 붙였으니 다음 실행 전에 그 셋을 등록한다 |
 
-심사를 **직접** 막는 것은 이제 **방침 본문의 prod 게시 하나**다 — 시행일을 채운 브랜치를
-머지하고 `publish-privacy.sh prod`를 돌리면 닫힌다. 나머지 미완은 콘솔 입력(숫자 Apple ID와
-그 ID로 만드는 `APP_STORE_URL`·`STORE_LISTING_READY`)이고 그쪽은 게시 뒤에야 값이 생긴다.
+심사를 **직접** 막는 것은 셋이다 — ① 방침 본문의 prod 게시(`publish-privacy.sh prod`),
+② 빌드 8 업로드, ③ **로그인 도입에 따른 이 문서 §3·§6·§8 재검토**. 세 번째가 이번에 새로
+생긴 것인데, KAN-224가 들어오기 전에 쓴 문안이라 §3 설명은 「회원가입도 로그인도 없어요」라고
+하고 §6은 계정 데이터 라벨이 없고 §8은 「데모 계정 불필요」라고 적고 있다. 지금 Dev는 구글·
+카카오·네이버 로그인을 담고 있으니 셋 다 고쳐야 신고와 동작이 맞는다 — 어긋난 라벨은 그
+자체가 정책 위반이다. 나머지 미완은 콘솔 입력(숫자 Apple ID와 그 ID로 만드는
+`APP_STORE_URL`·`STORE_LISTING_READY`)이고 그쪽은 게시 뒤에야 값이 생긴다.
 
 ## 11. 관련
 
