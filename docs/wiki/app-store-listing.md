@@ -807,35 +807,32 @@ national ID, or other means of age assurance」를 든다
 | 필드 | 값 |
 |---|---|
 | 로그인 필요 | **예** (KAN-224) |
-| 데모 계정 | **팀 결정 필요** — 아래 「데모 계정」 |
+| 데모 계정 | **제공** — 카카오 1·네이버 1 테스트 계정. 팀이 만들어 **콘솔 심사 정보에만** 입력한다. 아이디·비밀번호를 레포·문서·커밋에 적지 않는다 (2026-10-01 팀장 결정) |
 | 연락처 이름 | 이성주 |
 | 연락처 이메일 | `team2pl1@gmail.com` |
 | 연락처 전화 | (계정 소유자가 콘솔에서 직접 입력) |
 | 첨부 파일 | 없음 |
 
-### 데모 계정 — 팀이 정할 것
+### 데모 계정 — 카카오·네이버 테스트 계정을 제공한다 (2026-10-01 팀장 결정)
 
 가이드라인 2.1(a)가 「include demo account info (and turn on your back-end service!) if your app
 includes a login」을 요구한다 (<https://developer.apple.com/app-store/review/guidelines/>,
 2026-10-01 확인). 로그인이 생겼으니 이 요구가 우리에게 붙는다.
 
-심사관이 **Sign in with Apple로 자기 Apple ID로 들어올 수 있다.** 애플 로그인은 iOS에 있고
-(`ios/Accentury/Accentury.entitlements:31`, `social-login.md` §1), 그 경로는 우리가 아무 계정도
-주지 않아도 끝까지 돈다 — 추가 정보 다섯 칸은 심사관이 직접 채운다. 가이드라인 4.8이 요구하는
-「동등한 로그인」을 그 버튼이 채우는 것과 같은 사실이다.
+애플 버튼만으로도 심사관은 **자기 Apple ID로** 전 기능을 볼 수 있다
+(`ios/Accentury/Accentury.entitlements:31`, `social-login.md` §1) — 추가 정보 다섯 칸은 직접
+채운다. 가이드라인 4.8이 요구하는 「동등한 로그인」을 채우는 것과 같은 버튼이다. 그런데
+카카오·네이버 버튼은 한국 서비스 계정이 있어야 눌러 볼 수 있다. 넷 중 둘이 막힌 채로 제출하면
+2.1(a) 불완전으로 읽힐 위험이 남아 **둘의 테스트 계정을 만들어 준다.**
 
-**그런데 카카오·네이버 버튼은 심사관이 눌러 볼 수 없다.** 둘 다 한국 서비스 계정이 있어야
-하고, 심사관이 그 계정을 만들 이유가 없다. 넷 중 둘이 심사관에게 막힌 상태로 제출하는 것이
-2.1(a)를 만족하는지가 **팀 결정이다.**
+같이 검토한 대안 둘은 접었다. 데모 계정 없이 애플 경로만 안내하는 쪽은 그 위험을 그대로 안고
+가고, 디버그의 가짜 IdP 경로(`social-login.md` §5)를 심사용으로 여는 쪽은 스토어 빌드에 우회로를
+두는 일이다.
 
-| 선택 | 무엇을 하나 | 비용·위험 |
-|---|---|---|
-| A. 데모 계정 없이 제출 | 심사 노트에 「애플 로그인으로 전 기능 확인 가능, 카카오·네이버는 한국 계정 전용」을 적는다 | 심사관이 카카오·네이버를 확인하지 못한 것을 2.1 불완전으로 볼 위험. 거절되면 그때 B로 간다 |
-| B. 카카오·네이버 데모 계정을 만들어 적는다 | 각 제공자에 테스트 계정을 하나씩 만들고 아이디·비밀번호를 심사 노트에 넣는다 | 계정 관리 부담과 제공자 약관(계정 공유) 확인이 필요하다 |
-| C. 가짜 IdP 빌드를 따로 준다 | 디버그의 `FAKE_IDP` 경로(`social-login.md` §5)를 심사용으로 연다 | 스토어 빌드에 우회로를 두는 것이라 **권하지 않는다** |
-
-**지금 문안은 A를 전제로 썼다.** B로 가면 아래 메모의 「애플 로그인으로…」 문단을 계정 정보로
-바꾼다.
+**자격 증명은 레포에 들어오지 않는다.** 아이디·비밀번호는 App Store Connect의 심사 정보 칸에만
+넣는다. 이 문서·커밋 메시지·`.env`에 적지 않는다 — 심사 정보 칸은 애플만 보고, 레포는 그렇지
+않다 (§2 「시크릿」의 `.p8` 규칙과 같은 이유다). 계정을 만들 때 각 제공자 약관의 계정 공유
+조항을 한 번 확인한다.
 
 ### 메모 (한국어 원안)
 
@@ -844,8 +841,9 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 
 [로그인]
 구글, 카카오, 네이버, 애플 중 하나로 로그인해야 테스트를 시작할 수 있습니다. 심사에는
-Sign in with Apple을 써 주시면 심사관님의 Apple ID로 전체 기능을 확인하실 수 있고, 별도
-데모 계정이 필요하지 않습니다. 카카오와 네이버는 한국 서비스의 계정이 있어야 하는 경로입니다.
+심사관님의 Apple ID로 Sign in with Apple을 쓰시거나, 이 심사 정보에 함께 적어 둔 카카오·네이버
+테스트 계정으로 로그인해 주세요. 카카오와 네이버는 한국 서비스의 계정이 필요한 경로라 저희가
+테스트 계정을 준비했습니다.
 첫 로그인에서 개인정보처리방침 동의를 받고, 이어지는 추가 정보 화면에서 이메일, 이름,
 생년월일, 성별, 출신 지역을 입력받습니다. 다섯 칸이 다 차야 테스트로 넘어갑니다.
 만 14세 미만은 가입할 수 없고, 생년월일 때문에 거절되면 추가 정보 화면의
@@ -889,8 +887,9 @@ This app measures how strongly a speaker's accent matches the Gyeongnam dialect 
 
 [Sign-in]
 A sign-in is required before the test. Four providers are offered: Google, Kakao, Naver and
-Apple. Please use Sign in with Apple - your own Apple ID gives you the full flow, so no demo
-account is needed. Kakao and Naver require an account with those Korean services. On the first
+Apple. Please sign in with your own Apple ID via Sign in with Apple, or with the Kakao and Naver
+test accounts provided in this review information. Kakao and Naver require an account with those
+Korean services, so we prepared test accounts for them. On the first
 sign-in the user agrees to the privacy policy, and the next screen collects email, name, date of
 birth, gender and home region. All five are required before the test starts. Users under 14
 cannot sign up; if the date of birth is rejected, the screen offers "sign in with a different
@@ -929,10 +928,10 @@ region, and is kept until the user deletes it. Account deletion is available in 
 Settings.
 ```
 
-> **이 영어 메모는 앱 내 탈퇴가 붙은 뒤에만 그대로 쓸 수 있다.** 마지막 문단이 「Settings에서
-> 탈퇴할 수 있다」고 말하는데 지금 앱에는 그 화면이 없다 (§10 「앱 내 계정 삭제」). 탈퇴 UI가
-> KAN-241·KAN-247로 들어오기 전에 제출한다면 이 문단을 사실대로 고쳐야 하고, 그러면
-> 가이드라인 5.1.1(v)에 걸린다. 순서는 **탈퇴 UI → 제출**이다.
+> **마지막 문단의 「Settings」는 KAN-251이 머지된 뒤 실제 화면에 맞춰 재확인한다.** 탈퇴 UI는
+> KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI) 순서로 들어온다 (§10 「앱 내 계정 삭제」). 화면
+> 이름과 경로가 확정되면 한국어·영어 두 메모의 그 문단을 그 말로 맞추고, 그때까지는 제출하지
+> 않는다 — 가이드라인 5.1.1(v)가 앱 안의 삭제 경로를 요구한다.
 
 권한 거부 분기는 실제 코드 그대로 적었다 —
 `ios/Accentury/Permission/PermissionGateView.swift:85-87`이 `permanentlyDenied` 상태에서
@@ -959,7 +958,7 @@ Settings.
 - [ ] 연령 등급 설문 (§7) — 「광고」 체크 잊지 말 것
 - [x] 빌드 7 업로드 — 2026-09-23 러너 5차가 TestFlight에 올렸다 (§2 「러너 실행 기록」). **→ 빌드 8로 재업로드 필요** — 빌드 7은 KAN-224 로그인 게이트 이전이라 제출 빌드로 쓸 수 없다 (§10). 버전에 빌드를 고르는 것은 위 「버전별 정보」와 같이 한다
 - [ ] 수출 규정 — `ITSAppUsesNonExemptEncryption=false`가 plist에 있어 콘솔에서 다시 묻지 않는다 (`Info-Release.plist:11-12`)
-- [ ] 앱 심사 정보 — §8 영어 메모, 연락처, **로그인 필요 = 예**, 데모 계정(§8 팀 결정)
+- [ ] 앱 심사 정보 — §8 영어 메모, 연락처, **로그인 필요 = 예**, 카카오·네이버 테스트 계정 2개 입력 (§8, 자격 증명은 콘솔에만)
 - [ ] 심사 제출 (§10 선행 조건을 먼저 전부 닫는다)
 - [ ] **게시 뒤** 숫자 Apple ID로 App Store URL 확정 → GitHub environment 변수 `APP_STORE_URL` 등록 + `STORE_LISTING_READY=true` (prod·staging **각각**) → 재배포
 
@@ -980,13 +979,14 @@ Settings.
 | 빌드 번호 7 이상 | 개발 · `CURRENT_PROJECT_VERSION` | KAN-175 3단계 | **해결(2026-09-23)** — iOS·Android 둘 다 7. 빌드 6이 C2 아이콘으로 소모돼 D3 빌드는 7부터다. 규칙과 검사는 `ios/Accentury/Config/Base.xcconfig` 주석과 `AccenturyCoreTests/ReleaseVersionParityTests` |
 | `APP_STORE_URL`·`STORE_LISTING_READY` 주입 | 계정 소유자 · GitHub environment 변수 (prod·staging **각각**) | KAN-175 2단계 | **미해결** — 배선은 끝났다 (`.github/workflows/web-deploy.yml`가 둘 다 빌드로 넘기고 `web/src/audio/storeLink.ts`가 받는다). 남은 것은 값 등록뿐 — `APP_STORE_URL=https://apps.apple.com/app/id<숫자>`, 게시 뒤 `STORE_LISTING_READY=true` (§9 마지막 항목) |
 | 제출 빌드가 현재 Dev를 담아야 한다 | 개발 · `CURRENT_PROJECT_VERSION` · `versionCode` → 워크플로 `upload` | KAN-175 | **미해결** — TestFlight의 빌드 7은 2026-09-23 것이고 **KAN-224 소셜 로그인 게이트·KAN-240 가입 동의·KAN-237·KAN-248보다 앞선다** (그 뒤 Dev에 33커밋, iOS를 건드린 것이 11개). 로그인 없는 빌드를 제출하면서 방침과 라벨은 계정 데이터를 말하게 된다. 둘을 8로 올리고 워크플로를 `upload=true`로 돌려 **빌드 8**을 올린다 |
-| **앱 내 계정 삭제** | 개발 · 설정 화면 → `POST /v0/users/me/withdrawal` | KAN-241 · KAN-247 | **미해결** — 가이드라인 5.1.1(v)가 「If your app supports account creation, you must also offer account deletion within the app」을 요구한다 (2026-10-01 확인). 서버 탈퇴 API는 있다(Accentury_Server `backend/.../auth/UserController.java:56`, KAN-241). **앱에는 그 버튼이 없다** — 레포 전체에 「탈퇴」·`withdraw` 문자열이 없고 로그아웃조차 KAN-247 몫이다(`social-login.md` §1 「결정」). 계정을 만드는 앱이 삭제 경로 없이 제출하면 거절된다 |
+| **앱 내 계정 삭제** | 개발 · 설정 화면 → `POST /v0/users/me/withdrawal` | **KAN-251** (FR-AC-09) · 선행 KAN-247 · 서버 KAN-241 | **미해결** — 가이드라인 5.1.1(v)가 「If your app supports account creation, you must also offer account deletion within the app」을 요구한다 (2026-10-01 확인). 서버 탈퇴 API는 있다(Accentury_Server `backend/.../auth/UserController.java:56`, KAN-241). **앱에는 그 버튼이 없다** — 레포 전체에 「탈퇴」·`withdraw` 문자열이 없다. 순서는 **KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI)**이고, 2026-10-01에 KAN-251을 따로 떼어 열었다. 계정을 만드는 앱이 삭제 경로 없이 제출하면 거절된다 |
 | 구글 로그인 시크릿 3개 | 계정 소유자 · GitHub 시크릿 `GOOGLE_IOS_CLIENT_ID`·`GOOGLE_REVERSED_CLIENT_ID`·`GOOGLE_SERVER_CLIENT_ID` | KAN-224 | **미해결(2026-10-01 `gh secret list` 기준)** — 셋 다 없다. 네이버 셋·카카오 1·ASC 셋·AdMob iOS 셋은 등록돼 있다. 워크플로가 `REQUIRE_IDP_CONFIG=YES`로 빈 값을 막으므로 ③ 입력·시크릿 검사에서 멈추고 **빌드 8을 만들 수 없다** (§2 「러너 실행 기록」) |
 | 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **해결(2026-09-23)** — 시크릿 7개 등록 뒤 러너에서 5회 돌아 빌드 6·7이 TestFlight에 올라갔다(§2 「러너 실행 기록」). 업로드 수정과 빌드 7은 PR #3으로 Dev에 반영됐다(2026-09-28). 그 뒤 KAN-224가 구글 시크릿 셋 빗장을 붙였으니 다음 실행 전에 그 셋을 등록한다 |
 
 심사를 **직접** 막는 것은 넷이다.
 
-1. **앱 내 계정 삭제** (5.1.1(v)) — 로그인을 만든 쪽이 지지 않은 빚이고 코드가 필요하다
+1. **앱 내 계정 삭제** (5.1.1(v)) — **KAN-251**이 맡는다. KAN-247이 설정 화면을 먼저 세우고
+   그 안에 탈퇴를 넣는 순서다. 코드가 필요한 유일한 차단 항목이다
 2. **방침 본문의 prod 게시** (`publish-privacy.sh prod`) — 앱 상수와 같은 `2026-09-29`가 떠 있어야
    서버가 가입 동의를 받는다. 로그인 자체가 prod에서 돌지 않는다는 뜻이라 사실상 1순위다
 3. **빌드 8 업로드** — 그 전에 구글 로그인 시크릿 3개 등록
