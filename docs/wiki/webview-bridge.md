@@ -371,14 +371,34 @@ Android WebView는 있지만 VIBRATE 권한이 필요하고 길이(ms)만 정할
 | 녹음 완료·실패 | `success`·`error` | 네이티브 녹음 화면 (2·3단계) — 앱 안 녹음 실패는 웹에 회신되지 않는다 |
 | Secondary·text 버튼 | 없음 | — |
 
-**종류 → 플랫폼 매핑.** 네이티브 행은 2·3단계에서 확정한다.
+**종류 → 플랫폼 매핑.** Android는 2단계에서 확정했다. iOS 행은 3단계에서 확정한다.
 
-| `type` | Android (2단계에서 확정) | iOS (3단계에서 확정) |
+| `type` | Android (API 30+ / API 29 폴백) | iOS (3단계에서 확정) |
 |---|---|---|
-| `tap` | `View.performHapticFeedback` 가벼운 상수 — 미정 | `UIImpactFeedbackGenerator(style: .light)` |
-| `success` | 미정 | `UINotificationFeedbackGenerator` `.success` |
-| `error` | 미정 | `UINotificationFeedbackGenerator` `.error` |
+| `tap` | `VIRTUAL_KEY` / 같음 | `UIImpactFeedbackGenerator(style: .light)` |
+| `success` | `CONFIRM` / `VIRTUAL_KEY` | `UINotificationFeedbackGenerator` `.success` |
+| `error` | `REJECT` / `LONG_PRESS` | `UINotificationFeedbackGenerator` `.error` |
+
+Android는 `ui/components/Haptic.kt`의 `View.performHaptic` 한 곳이 매핑을 쥔다. 브리지(WebView)와
+네이티브 Compose 버튼(`LocalView.current`)이 같은 함수를 부르고, Compose `HapticFeedbackType`은 쓰지
+않는다(매핑이 둘이 된다). 호출은 `ViewCompat.performHapticFeedback`이다 — `CONFIRM`·`REJECT`는
+API 30부터라 minSdk 29에서는 androidx.core가 위 폴백으로 바꿔 부른다. 그래서 API 29에서 성공은 탭과
+같은 느낌이다. 플래그 없는 호출이라 OS 「터치 진동」 설정을 따르고, VIBRATE 권한도 필요 없다
+(`Vibrator`·`FLAG_IGNORE_GLOBAL_SETTING`을 쓰지 않는다). `tap`을 `CONTEXT_CLICK`이 아니라
+`VIRTUAL_KEY`로 고른 이유: 뜻("화면 위 키를 눌렀다")이 버튼 탭과 같고, `CONTEXT_CLICK`은 마우스
+우클릭용이라 제조사마다 세기가 들쭉날쭉하다.
+
+**녹음 결과 트리거.** `Review`로 들어가면 `canProceed`(품질 NORMAL)일 때 `success`, 아니면 `error`.
+`Failed`로 들어가면 `error`. 판정은 순수 함수 `recordingResultHaptic`이 하고, 녹음 화면은 상태가
+바뀔 때마다 한 번 보되 **화면이 처음 본 상태는 건너뛴다**. 회전으로 액티비티가 다시 만들어져도
+뷰모델은 살아 있어 같은 결과가 다시 들어오는데, 그것은 새 결과가 아니라서 떨지 않는다. 정지 버튼의
+`tap`과 결과의 `success`·`error`는 짧은 간격(체감상 거의 연달아)으로 이어서 난다(정지 요청 → 엔진이 다음 청크
+경계에서 끝내고 품질 판정). "눌렀다 → 결과가 정해졌다"는 두 사건이라 합치지 않는다. 10초 자동
+종료는 탭 없이 결과 햅틱만 난다.
 
 **allowlist.** 네이티브는 `tap`·`success`·`error` 세 값만 받는다. 그 밖의 값은 §5 규칙대로 조용히
 버린다 — 웹 `HapticType`과 양 플랫폼 allowlist가 같은 세 값이어야 하고, 하나를 늘리면 셋을 함께
 고친다. OS 「터치 진동」 설정이 꺼져 있으면 떨지 않는 판단도 네이티브 몫이라 웹은 설정을 묻지 않는다.
+계약 밖 값도 §5대로 Crashlytics 비치명 이벤트(`bridge_parse_failed: haptic`)로 남긴다. 버튼마다
+불리는 메서드라 소음을 걱정할 수 있지만, 우리 웹은 `HapticType` 세 값만 보내므로 이 기록이 쌓인다면
+그것은 계약이 어긋났다는 신호다.

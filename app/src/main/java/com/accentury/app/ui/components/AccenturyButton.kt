@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,6 +85,9 @@ fun AccenturyButton(
     val pressed by interaction.collectIsPressedAsState()
 
     val isPrimary = variant == ButtonVariant.Primary
+    // 주동작에만 가벼운 탭 (KAN-258 B안). 햅틱은 아껴 써야 뜻이 남아서 보조·텍스트 버튼은 떨지 않는다.
+    val view = LocalView.current
+    val click = if (isPrimary) ({ view.performHaptic(Haptic.Tap); onClick() }) else onClick
     val shape = RoundedCornerShape(Radius.md)
 
     // 눌림은 0..1 한 값이다 - 본체가 내려가는 거리를 x·y 따로 애니메이션하면 두 축이
@@ -117,7 +121,7 @@ fun AccenturyButton(
                 color = colors.controlBorder,
                 shape = shape,
             )
-            .clickableButton(enabled, interaction, onClick)
+            .clickableButton(enabled, interaction, click)
             .padding(horizontal = Spacing.x6),
         contentAlignment = Alignment.Center,
     ) {
