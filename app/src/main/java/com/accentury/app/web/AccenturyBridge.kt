@@ -10,13 +10,14 @@ import com.accentury.app.bridge.SharePayload
 import com.accentury.app.bridge.VoiceItemStart
 import com.accentury.app.bridge.parseSharePayload
 import com.accentury.app.bridge.parseVoiceItemStart
+import com.accentury.app.ui.components.Haptic
 
 /**
  * 웹 → 네이티브 브리지 (webview-layer.md §8). `window.AccenturyBridge`로 주입된다.
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
- * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)까지 필요한
- * 열두 메서드만 둔다.
+ * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
+ * 햅틱(KAN-258)까지 필요한 열세 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -49,6 +50,8 @@ import com.accentury.app.bridge.parseVoiceItemStart
  *   프리로드는 창구 너머가 한다 (AdsController.setConsent)
  * @param onShowInterstitialAd 대기 화면의 전면 광고 (KAN-196). 로드된 것이 없으면 아무 일도 없다
  *   (InterstitialGate)
+ * @param onHaptic 웹 버튼의 햅틱 (KAN-258). 계약 안 세 값만 온다 — 어떻게 떨지는 창구 너머가 정한다
+ *   (WebViewHost의 [com.accentury.app.ui.components.performHaptic])
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -65,6 +68,7 @@ class AccenturyBridge(
     private val readAdConsent: () -> AdConsent,
     private val onSetAdConsent: (AdConsent) -> Unit,
     private val onShowInterstitialAd: () -> Unit,
+    private val onHaptic: (Haptic) -> Unit,
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -281,6 +285,28 @@ class AccenturyBridge(
     fun showInterstitialAd() {
         postToMain {
             if (isCurrentUrlAllowed()) onShowInterstitialAd()
+        }
+    }
+
+    /**
+     * 웹 버튼의 햅틱 (KAN-258, §9). `tap`·`success`·`error`만 받는다. fire-and-forget이라 회신이 없다 —
+     * 떨었는지(OS 「터치 진동」이 꺼져 있으면 안 떤다)에 따라 웹이 달리할 것이 없다.
+     *
+     * `navigator.vibrate`가 아니라 브리지인 이유는 §9에 있다 (VIBRATE 권한, iOS 부재).
+     *
+     * 검증 순서는 [setAdConsent]와 같다 — origin을 통과한 값만 판정하고, 계약 밖 값은 조용히 버리되
+     * 흔적을 남긴다(§5). 버튼마다 불리는 메서드라도 우리 웹은 [Haptic]의 세 값만 보내므로, 이 흔적이
+     * 쌓인다면 그것은 소음이 아니라 웹과 앱이 계약을 다르게 알고 있다는 신호다.
+     */
+    @JavascriptInterface
+    fun haptic(type: String) {
+        postToMain {
+            if (!isCurrentUrlAllowed()) return@postToMain
+            val haptic = Haptic.fromBridgeValue(type) ?: run {
+                CrashReports.recordBridgeParseFailure("haptic")
+                return@postToMain
+            }
+            onHaptic(haptic)
         }
     }
 }

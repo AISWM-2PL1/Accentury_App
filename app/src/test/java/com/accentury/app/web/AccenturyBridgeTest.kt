@@ -6,6 +6,7 @@ import com.accentury.app.bridge.GuideF0
 import com.accentury.app.recording.GuideF0Fixture
 import com.accentury.app.bridge.SharePayload
 import com.accentury.app.bridge.VoiceItemStart
+import com.accentury.app.ui.components.Haptic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -54,6 +55,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.startVoiceItem(payloadJson)
         queue.drain()
@@ -79,6 +81,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.requestMicPermission()
         queue.drain()
@@ -104,6 +107,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.requestMicPermission()
         queue.drain()
@@ -132,6 +136,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.requestMicPermission() // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -158,6 +163,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.startRetest()
         queue.drain()
@@ -196,6 +202,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.startRetest() // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -228,6 +235,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.startRetest()
         bridge.startRetest()
@@ -256,6 +264,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.startRetestAfterFailure()
         queue.drain()
@@ -291,6 +300,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         assertEquals(BRIDGE_CONTRACT_VERSION, bridge.getContractVersion())
     }
@@ -311,6 +321,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
     )
 
     @Test
@@ -443,6 +454,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.startVoiceItem(payload()) // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -470,6 +482,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.shareResult(payloadJson)
         queue.drain()
@@ -534,6 +547,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.logEvent(name, paramsJson)
         queue.drain()
@@ -606,6 +620,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = {},
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.openExternalUrl(url)
         queue.drain()
@@ -662,6 +677,7 @@ class AccenturyBridgeTest {
                 setCalls++
             },
             onShowInterstitialAd = { interstitialShown++ },
+            onHaptic = {},
         )
     }
 
@@ -737,6 +753,7 @@ class AccenturyBridgeTest {
             readAdConsent = { AdConsent.Unknown },
             onSetAdConsent = { setCalls++ },
             onShowInterstitialAd = {},
+            onHaptic = {},
         )
         bridge.setAdConsent("granted") // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -769,4 +786,46 @@ class AccenturyBridgeTest {
         h.queue.drain()
         assertEquals(2, h.interstitialShown)
     }
+
+    /** haptic을 values 순서대로 부르고 onHaptic이 받은 값을 돌려준다 (KAN-258). */
+    private fun haptics(vararg values: String, allowed: Boolean = true): List<Haptic> {
+        val queue = FakeMainQueue()
+        val received = mutableListOf<Haptic>()
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = { allowed },
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = { received += it },
+        )
+        values.forEach { bridge.haptic(it) }
+        queue.drain()
+        return received
+    }
+
+    @Test
+    fun `허용된 origin이면 계약 안 햅틱 세 값이 그대로 넘어간다`() {
+        assertEquals(listOf(Haptic.Tap, Haptic.Success, Haptic.Error), haptics("tap", "success", "error"))
+    }
+
+    @Test
+    fun `allowlist 밖 origin에서는 햅틱을 내지 않는다`() {
+        assertEquals(emptyList<Haptic>(), haptics("tap", "success", "error", allowed = false))
+    }
+
+    @Test
+    fun `계약 밖 햅틱 값은 버린다 - 대소문자·공백을 보정하지 않는다`() {
+        assertEquals(emptyList<Haptic>(), haptics("", "TAP", "vibrate", "success "))
+    }
 }
+

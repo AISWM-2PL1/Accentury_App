@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,7 @@ fun ChoiceButton(
     enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(Radius.md)
+    val view = LocalView.current
     Box(
         modifier = modifier
             .paperShadow(MaterialTheme.accenturyColors.primaryDim, Radius.md, visible = selected)
@@ -53,7 +55,11 @@ fun ChoiceButton(
                 color = MaterialTheme.accenturyColors.controlBorder,
                 shape = shape,
             )
-            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton) {
+                // 고를 때 가벼운 탭 (KAN-258) — 웹 객관식 선택과 같은 규칙이다
+                view.performHaptic(Haptic.Tap)
+                onClick()
+            }
             .padding(horizontal = Spacing.x3),
         contentAlignment = Alignment.Center,
     ) {
