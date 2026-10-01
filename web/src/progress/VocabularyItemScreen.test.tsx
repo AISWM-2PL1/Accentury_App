@@ -1,9 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { VocabularyItemScreen } from './VocabularyItemScreen'
 import { VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
 import type { VocabularyItem } from './testDefinition'
 import type { RetestControl } from '../result/useRetest'
+import { REQUIRED_BRIDGE_VERSION } from '../bridge/bridge'
+
+afterEach(() => {
+  delete window.AccenturyBridge
+})
 
 /** 더미 확정본(KAN-13 댓글, 2026-08-05)의 1번 문항 모양 그대로 */
 function vocabularyItem(): VocabularyItem {
@@ -100,6 +105,21 @@ describe('선택과 [다음]', () => {
     expect(screen.getByRole('radio', { name: '시금치' })).toBeChecked()
     expect(screen.getByRole('radio', { name: '부추' })).not.toBeChecked()
     expect(screen.getAllByRole('radio').filter((radio) => (radio as HTMLInputElement).checked)).toHaveLength(1)
+  })
+
+  it('선택지를 고르면 탭 햅틱을 요청한다 (KAN-258)', () => {
+    const vibrate = vi.fn()
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      haptic: vibrate,
+    }
+    renderScreen()
+
+    choose('부추')
+    expect(vibrate).toHaveBeenCalledTimes(1)
+    expect(vibrate).toHaveBeenCalledWith('tap')
   })
 
   it('[다음]은 바꾼 뒤의 최종 선택을 제출한다 (제출 전 변경 허용)', async () => {

@@ -103,7 +103,27 @@ export interface AccenturyBridge {
    * [getSessionToken]과 같은 이유로 optional이다.
    */
   showInterstitialAd?(): void
+  /**
+   * 햅틱 한 번을 요청한다 (KAN-258). 인자는 `'tap' | 'success' | 'error'` — 가벼운 탭,
+   * 결과 순간의 성공·실패다. 회신은 없다 ([showInterstitialAd]와 같은 fire-and-forget).
+   *
+   * 웹 표준 `navigator.vibrate`를 쓰지 않는 이유: iOS WKWebView에는 그 API가 없고, Android는
+   * VIBRATE 권한이 필요한 데다 길이(ms)만 정할 수 있어 OS 햅틱처럼 짧게 떨리지 않는다.
+   * 화면 대부분이 웹 버튼이라 네이티브 햅틱을 이 창구로 부른다.
+   *
+   * 네이티브는 allowlist 밖 값을 조용히 버리고, OS 「터치 진동」 설정이 꺼져 있으면 떨지 않는다 —
+   * 그 판단은 네이티브 몫이라 웹은 설정을 묻지 않는다. [getSessionToken]과 같은 이유로 optional이다.
+   */
+  haptic?(type: string): void
 }
+
+/**
+ * 햅틱 종류 (KAN-258). 네이티브 allowlist와 같은 세 값이다 — 늘리려면 양 플랫폼 allowlist도 같이 고친다.
+ *
+ * - `tap`: Primary 버튼·녹음 버튼·객관식 선택의 가벼운 탭
+ * - `success`·`error`: 녹음 완료·실패처럼 결과가 정해지는 순간
+ */
+export type HapticType = 'tap' | 'success' | 'error'
 
 /**
  * 맞춤형 광고 동의의 세 상태 (KAN-196). 네이티브 저장소의 값을 그대로 미러한다.
@@ -223,6 +243,9 @@ declare global {
  * `onRetestFailed` payload 모양 그대로(`code: 'AD_DISMISSED'`)라 의미 변경도 없다. 이 세
  * 메서드가 없는 앱에서는 `readAdConsent`가 null을 줘 웹이 동의 시트도 광고 호출도 하지 않는다 —
  * 광고 하나 때문에 응시할 수 있는 앱을 업데이트 안내로 막을 이유가 없다 (`logEvent`와 같은 판단).
+ *
+ * KAN-258의 `haptic`도 추가라 2를 유지한다. 이 메서드가 없는 앱에서는 래퍼가 false를 주고
+ * 버튼은 진동 없이 그대로 눌린다 — 햅틱 하나 때문에 업데이트 안내로 막을 이유가 없다.
  */
 export const REQUIRED_BRIDGE_VERSION = 2
 
@@ -461,6 +484,20 @@ export function showInterstitialAd(): boolean {
   const bridge = window.AccenturyBridge
   if (typeof bridge?.showInterstitialAd !== 'function') return false
   bridge.showInterstitialAd()
+  return true
+}
+
+/**
+ * 햅틱을 네이티브에 요청한다 (KAN-258). 넘겼으면 true, 여기서는 갈 수 없으면 false다 —
+ * [showInterstitialAd]와 같은 규칙이고, true도 "떨렸다"는 뜻이 아니다. OS 「터치 진동」이 꺼져
+ * 있으면 네이티브가 조용히 건너뛰고 웹에는 알리지 않는다.
+ *
+ * 브라우저 단독 실행에서 false인 것은 의도다 — `navigator.vibrate`로 메우지 않는다 (인터페이스 주석).
+ */
+export function haptic(type: HapticType): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.haptic !== 'function') return false
+  bridge.haptic(type)
   return true
 }
 
