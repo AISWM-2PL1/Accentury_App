@@ -63,6 +63,20 @@ class VoiceCheckViewModel(
         listeningJob?.cancel()
     }
 
+    /**
+     * 마이크를 놓고 판정도 처음으로 되돌린다 (KAN-247). 로그아웃으로 응시가 통째로 끝날 때 부른다 —
+     * [stop]만 하면 끝난 판정(Ready와 그 곡선)이 이 뷰모델에 남아, 다음 계정의 점검 화면이 이전
+     * 사용자의 결과로 곧장 뜨고 [start]도 듣지 않는다.
+     *
+     * 취소된 캡처가 뒤늦게 상태를 덮지 않는 근거: 듣기와 이 호출이 모두 메인 스레드라, 취소 뒤의
+     * 다음 중단점에서 바로 예외로 빠지고 when(outcome)까지 오지 않는다.
+     */
+    fun reset() {
+        stop()
+        controller.restart()
+        _state.value = controller.state
+    }
+
     @RequiresPermission(android.Manifest.permission.RECORD_AUDIO)
     private fun listen() {
         /*
