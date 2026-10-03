@@ -54,8 +54,35 @@ struct AuthGateView: View {
             )
                 .id(user.id)
 
-        case .signedIn:
-            TestFlowView()
+        case .signedIn(let user):
+            SignedInScreen(user: user, onLogout: { await gate.logout { await IdpLogout.all() } })
+        }
+    }
+}
+
+/// 로그인된 동안의 화면 — 흐름 화면과 그 위에 덮이는 설정 화면 (KAN-247). 안드로이드 `AuthGate`의
+/// `is AuthGateState.SignedIn -> { ... }` 분기 자리다.
+///
+/// 설정 화면은 ``TestFlowView``를 내리지 않고 위에 덮는다 — WebView는 한 인스턴스로 살아야 한다(TestFlowView 주석).
+/// `fullScreenCover`가 아니라 `ZStack`인 이유도 같다: 덮는 동안 흐름 화면이 화면에서 내려간 것으로 치지 않게.
+/// 열림 상태를 이 뷰에 두어 로그아웃으로 `signedIn`을 벗어나면 함께 버려진다 — 다음 로그인이 설정 화면부터 열리지 않는다.
+private struct SignedInScreen: View {
+
+    let user: AuthUser
+    /// 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야 다음 로그인에서 계정을 다시
+    /// 고를 수 있다.
+    let onLogout: () async -> Void
+
+    @State private var settingsOpen = false
+
+    var body: some View {
+        ZStack {
+            TestFlowView(onOpenSettings: { settingsOpen = true })
+                // 덮인 동안 스크린 리더가 아래 웹 화면으로 내려가지 않게 한다.
+                .accessibilityHidden(settingsOpen)
+            if settingsOpen {
+                SettingsScreen(user: user, onClose: { settingsOpen = false }, onLogout: onLogout)
+            }
         }
     }
 }

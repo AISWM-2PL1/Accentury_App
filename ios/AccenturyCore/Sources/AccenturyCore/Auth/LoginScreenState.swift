@@ -23,6 +23,19 @@ public func visibleProviders(configured: Set<Provider>, fakeIdp: Bool) -> [Provi
     loginProviders.filter { fakeIdp || configured.contains($0) }
 }
 
+/// 설정 화면의 로그인 방식 표기 (KAN-247, 안드로이드 `auth/SettingsScreen.kt`의 `providerName`과 같은 값).
+/// 로그인 버튼의 라벨(앱 타깃 `LoginScreen`의 `providerLabel`, "Google로 계속하기" 꼴)과 따로 두는 이유: 저쪽은 각 사
+/// 버튼 가이드의 표기를 따르고, 여기는 사용자가 읽는 한국어 문장 속 값이다. Core에 두는 것은 `swift test`로 넷을 다
+/// 확인하려고다 (``Gender/label``과 같은 자리).
+public func providerName(_ provider: Provider) -> String {
+    switch provider {
+    case .GOOGLE: return "구글"
+    case .KAKAO: return "카카오"
+    case .NAVER: return "네이버"
+    case .APPLE: return "애플"
+    }
+}
+
 /// IdP SDK 로그인 한 번의 결말 (KAN-224).
 public enum IdpOutcome: Equatable, Sendable {
 

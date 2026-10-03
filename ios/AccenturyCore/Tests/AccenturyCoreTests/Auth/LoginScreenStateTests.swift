@@ -75,6 +75,10 @@ final class LoginScreenStateTests: XCTestCase {
         XCTAssertEqual([], visibleProviders(configured: [], fakeIdp: false))
     }
 
+    func test설정_화면의_로그인_방식은_네_제공자_모두_한국어로_읽힌다() {
+        XCTAssertEqual(["구글", "카카오", "네이버", "애플"], Provider.allCases.map(providerName))
+    }
+
     func test가짜_IdP면_설정이_없어도_넷_다_보인다() {
         XCTAssertEqual([.GOOGLE, .KAKAO, .NAVER, .APPLE], visibleProviders(configured: [], fakeIdp: true))
     }
