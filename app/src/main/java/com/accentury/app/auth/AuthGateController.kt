@@ -198,18 +198,19 @@ class AuthGateController(
      * @param idpLogout IdP SDK 쪽 로그아웃 (카카오·네이버 SDK 세션 정리 등). 서버 로그아웃 뒤에 부르고,
      *   던져도 로컬 토큰은 지워진 채로 예외가 호출자에게 간다.
      *
-     * 화면 스코프에서 불려 도중에 취소돼도(회전) 로컬 정리는 끝낸다 — 취소된 코루틴에서는 DataStore 쓰기가
-     * 곧장 취소 예외를 던져 상태 반영까지 건너뛴다.
+     * **시작하면 취소되지 않는다(서버 폐기 → IdP 정리 → 로컬 정리 전부).** 설정·프로필 화면은 화면
+     * 스코프(rememberCoroutineScope)에서 부르고, Activity에 configChanges가 없어 회전하면 그 스코프가
+     * 취소된다. 서버 요청 중에 끊기면 IdP 정리를 건너뛰어 토큰은 지워졌는데 카카오·네이버·구글 SDK 세션은
+     * 살아 있는 반쪽 로그아웃이 된다(AC 3 위반 — KAN-247 리뷰 P1). 로그아웃은 짧고 HTTP 타임아웃으로
+     * 상한이 있으니 끝까지 마치는 쪽이 낫다.
      */
-    suspend fun logout(idpLogout: suspend () -> Unit = {}) {
+    suspend fun logout(idpLogout: suspend () -> Unit = {}): Unit = withContext(NonCancellable) {
         try {
             store.read()?.let { api.logout(it.refreshToken) }
             idpLogout()
         } finally {
-            withContext(NonCancellable) {
-                store.clear()
-                _state.value = AuthGateState.SignedOut()
-            }
+            store.clear()
+            _state.value = AuthGateState.SignedOut()
         }
     }
 

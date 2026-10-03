@@ -14,6 +14,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -344,7 +345,7 @@ class AuthGateControllerTest {
     }
 
     @Test
-    fun `로그아웃이 서버 응답 대기 중 취소돼도 로컬 정리와 로그인 화면 전환은 끝낸다`() = runTest {
+    fun `로그아웃이 서버 응답 대기 중 취소돼도 IdP 정리와 로컬 정리, 로그인 화면 전환까지 끝낸다`() = runTest {
         val memory = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         // 실제 저장소(DataStore 쓰기)처럼 비우기가 중단점을 지난다 — 취소된 코루틴이면 여기서 취소 예외가 난다.
         val store = object : TokenStore by memory {
@@ -354,12 +355,15 @@ class AuthGateControllerTest {
             }
         }
         val gate = controller(store)
-        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        // 응답을 늦춰 취소가 서버 요청 도중에 닿게 한다 — 회전으로 화면 스코프가 끊기는 경우(KAN-247 리뷰 P1).
+        server.enqueue(MockResponse().setResponseCode(204).setHeadersDelay(300, TimeUnit.MILLISECONDS))
+        var idpLoggedOut = false
 
-        val screen = launch { gate.logout() }
+        val screen = launch { gate.logout { idpLoggedOut = true } }
         withContext(Dispatchers.IO) { server.takeRequest() }
         screen.cancelAndJoin()
 
+        assertTrue(idpLoggedOut)
         assertNull(memory.tokens)
         assertEquals(AuthGateState.SignedOut(), gate.state.value)
     }
