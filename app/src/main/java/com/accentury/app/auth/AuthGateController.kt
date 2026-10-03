@@ -2,6 +2,7 @@ package com.accentury.app.auth
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /** 봉투를 읽을 수 있을 때의 요청 제한 코드 (§2.5). */
 private const val CODE_RATE_LIMITED = "RATE_LIMITED"
@@ -17,6 +21,15 @@ private const val CODE_RATE_LIMITED = "RATE_LIMITED"
 private const val CODE_UNDER_AGE = "AUTH_UNDER_AGE"
 
 private const val STATUS_UNAUTHORIZED = 401
+
+/**
+ * 로그아웃 서버 폐기 상한. 로그아웃은 취소되지 않으니 상한이 없으면 서버가 응답을 찔끔찔끔 흘릴 때
+ * 로컬 정리가 무기한 밀린다(OkHttp callTimeout 기본 0 — KAN-247 리뷰 재검증). 연결·읽기 타임아웃과 같은 10초.
+ */
+private val LOGOUT_SERVER_TIMEOUT = 10.seconds
+
+/** IdP SDK 로그아웃 상한. SDK 콜백이 안 와도 로컬 정리로 넘어간다 — 최선 노력이라 서버보다 짧게 5초. */
+private val LOGOUT_IDP_TIMEOUT = 5.seconds
 
 /** 서버가 준 밀리초를 사용자에게 읽어 줄 초로 올림한다 — SessionGateController와 같은 규칙. */
 private fun ceilSeconds(millis: Long): Long = (millis + 999) / 1_000
@@ -85,6 +98,8 @@ class AuthGateController(
     private val store: TokenStore,
     private val refresher: TokenRefresher,
     private val scope: CoroutineScope,
+    private val logoutServerTimeout: Duration = LOGOUT_SERVER_TIMEOUT,
+    private val logoutIdpTimeout: Duration = LOGOUT_IDP_TIMEOUT,
 ) {
 
     private var checkJob: Job? = null
@@ -196,18 +211,24 @@ class AuthGateController(
      * 패밀리를 폐기하므로(모르는 토큰도 204) 결과는 같다.
      *
      * @param idpLogout IdP SDK 쪽 로그아웃 (카카오·네이버 SDK 세션 정리 등). 서버 로그아웃 뒤에 부르고,
-     *   던져도 로컬 토큰은 지워진 채로 예외가 호출자에게 간다.
+     *   던져도 로컬 토큰은 지워진 채로 예외가 호출자에게 간다. 상한([logoutIdpTimeout])을 넘기면 버리고 넘어간다.
      *
      * **시작하면 취소되지 않는다(서버 폐기 → IdP 정리 → 로컬 정리 전부).** 설정·프로필 화면은 화면
      * 스코프(rememberCoroutineScope)에서 부르고, Activity에 configChanges가 없어 회전하면 그 스코프가
      * 취소된다. 서버 요청 중에 끊기면 IdP 정리를 건너뛰어 토큰은 지워졌는데 카카오·네이버·구글 SDK 세션은
-     * 살아 있는 반쪽 로그아웃이 된다(AC 3 위반 — KAN-247 리뷰 P1). 로그아웃은 짧고 HTTP 타임아웃으로
-     * 상한이 있으니 끝까지 마치는 쪽이 낫다.
+     * 살아 있는 반쪽 로그아웃이 된다(AC 3 위반 — KAN-247 리뷰 P1). 반쪽 로그아웃보다 끝까지
+     * 마치는 쪽이 낫다. 대신 단계마다 상한을 둔다(서버 10초·SDK 5초) — 취소 불가에 상한까지 없으면 무응답 서버·SDK가 로컬
+     * 정리를 무기한 붙잡는다(KAN-247 리뷰 재검증). 상한이 지나면 그 단계만 버리고 로컬 정리는 한다.
+     *
+     * 서버 단계는 IO에서 잰다 — 실제 네트워크를 기다리는 상한이라 호출자 디스패처의 가상 시간(runTest)에
+     * 묶이면 응답이 오기 전에 바로 만료된다. IdP 단계는 SDK가 메인 스레드를 기대할 수 있어 호출자 디스패처에 둔다.
      */
     suspend fun logout(idpLogout: suspend () -> Unit = {}): Unit = withContext(NonCancellable) {
         try {
-            store.read()?.let { api.logout(it.refreshToken) }
-            idpLogout()
+            withContext(Dispatchers.IO) {
+                withTimeoutOrNull(logoutServerTimeout) { store.read()?.let { api.logout(it.refreshToken) } }
+            }
+            withTimeoutOrNull(logoutIdpTimeout) { idpLogout() }
         } finally {
             store.clear()
             _state.value = AuthGateState.SignedOut()

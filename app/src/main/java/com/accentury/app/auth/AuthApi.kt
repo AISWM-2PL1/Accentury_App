@@ -5,7 +5,7 @@ import com.accentury.app.net.decodeErrorEnvelope
 import com.accentury.app.net.isRetryableStatus
 import com.accentury.app.net.retryAfterMsOf
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
@@ -215,7 +215,9 @@ class AuthApi(
         decode: (String) -> T,
     ): AuthResult<T> = try {
         client.await(request).use { response ->
-            val body = withContext(Dispatchers.IO) { response.body.string() }
+            // 취소되면 읽는 스레드를 인터럽트해 본문 읽기를 끊는다 — 막힌 읽기는 그대로 기다려서 찔끔 흘리는
+            // 응답이 로그아웃 상한을 무시했다(KAN-247 리뷰 재검증).
+            val body = runInterruptible(Dispatchers.IO) { response.body.string() }
             val status = response.code
             if (status in 200..299) {
                 // 성공 본문을 못 읽으면 세션 생성과 같은 규칙으로 재시도 가능한 거절이다. 본문은 토큰을
