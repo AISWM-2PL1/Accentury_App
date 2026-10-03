@@ -29,9 +29,20 @@ final class AuthGateControllerTests: XCTestCase {
         super.tearDown()
     }
 
-    private func controller(_ store: TokenStore) -> (AuthGateController, AuthClients) {
+    private func controller(
+        _ store: TokenStore,
+        logoutServerTimeout: Duration = .seconds(10),
+        logoutIdpTimeout: Duration = .seconds(5)
+    ) -> (AuthGateController, AuthClients) {
         let clients = AuthClients(baseURL: "https://api.test/", store: store, session: MockURLProtocol.makeSession())
-        return (AuthGateController(api: clients.api, store: store, refresher: clients.refresher), clients)
+        let gate = AuthGateController(
+            api: clients.api,
+            store: store,
+            refresher: clients.refresher,
+            logoutServerTimeout: logoutServerTimeout,
+            logoutIdpTimeout: logoutIdpTimeout
+        )
+        return (gate, clients)
     }
 
     func test저장된_토큰이_없으면_서버에_묻지_않고_로그인_화면이다() async {
@@ -178,6 +189,62 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertNil(store.tokens)
         XCTAssertTrue(idpLoggedOut)
         XCTAssertEqual(.signedOut(nil), gate.state)
+    }
+
+    // 로그아웃 단계별 시간 상한 (KAN-247). 안드로이드 `AuthGateControllerTest`의 시간 상한 테스트와 짝이다.
+    func testIdP_로그아웃_콜백이_끝내_안_와도_상한_뒤_저장소를_비우고_로그인_화면이다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store, logoutIdpTimeout: .milliseconds(100))
+        MockURLProtocol.respondInOrder([(204, "")])
+        let started = ContinuousClock.now
+
+        // SDK가 콜백을 부르지 않는 경우 — 붙잡아 두고 재개하지 않는 continuation이다. 취소에도 응하지 않는다.
+        var sdkCallback: CheckedContinuation<Void, Never>?
+        await gate.logout { await withCheckedContinuation { sdkCallback = $0 } }
+
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(2))
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+        sdkCallback?.resume() // 뒤에 남은 작업을 풀어 준다 — 버리면 continuation 누수 경고가 뜬다
+    }
+
+    func test서버가_답하지_않아도_상한_뒤_IdP_로그아웃을_부르고_로그인_화면이다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store, logoutServerTimeout: .milliseconds(100))
+        MockURLProtocol.hang()
+        var idpLoggedOut = false
+        let started = ContinuousClock.now
+
+        await gate.logout { idpLoggedOut = true }
+
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(2))
+        XCTAssertTrue(idpLoggedOut)
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+        XCTAssertEqual("/v0/auth/logout", MockURLProtocol.requests().first?.url?.path)
+    }
+
+    func test시간_상한_작업이_먼저_끝나면_기다리지_않고_돌아온다() async {
+        var finished = false
+        let started = ContinuousClock.now
+
+        await withDeadline(.seconds(5)) { finished = true }
+
+        XCTAssertTrue(finished)
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(1))
+    }
+
+    func test시간_상한을_넘기면_작업을_두고_돌아온다() async {
+        var finished = false
+        let started = ContinuousClock.now
+
+        await withDeadline(.milliseconds(100)) {
+            try? await Task.sleep(for: .seconds(5))
+            finished = true
+        }
+
+        XCTAssertFalse(finished)
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(2))
     }
 
     func test로그아웃_전송이_실패해도_저장소를_비우고_로그인_화면이다() async {

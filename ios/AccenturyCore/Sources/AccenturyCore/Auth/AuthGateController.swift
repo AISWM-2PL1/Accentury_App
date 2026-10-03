@@ -75,11 +75,25 @@ public final class AuthGateController: ObservableObject {
     private let api: AuthApi
     private let store: TokenStore
     private let refresher: TokenRefresher
+    private let logoutServerTimeout: Duration
+    private let logoutIdpTimeout: Duration
 
-    public init(api: AuthApi, store: TokenStore, refresher: TokenRefresher) {
+    /// - Parameters:
+    ///   - logoutServerTimeout: 로그아웃의 서버 폐기 단계 상한. 안드로이드 `LOGOUT_SERVER_TIMEOUT`(10초)과 같다
+    ///   - logoutIdpTimeout: 로그아웃의 IdP SDK 정리 단계 상한. 안드로이드 `LOGOUT_IDP_TIMEOUT`(5초)과 같다.
+    ///     둘 다 테스트가 짧게 줄이려고 주입한다
+    public init(
+        api: AuthApi,
+        store: TokenStore,
+        refresher: TokenRefresher,
+        logoutServerTimeout: Duration = .seconds(10),
+        logoutIdpTimeout: Duration = .seconds(5)
+    ) {
         self.api = api
         self.store = store
         self.refresher = refresher
+        self.logoutServerTimeout = logoutServerTimeout
+        self.logoutIdpTimeout = logoutIdpTimeout
     }
 
     /// 어떤 요청에서든 Refresh가 거절되면 저장소는 이미 비었다 — 화면도 로그인으로 돌린다.
@@ -170,12 +184,20 @@ public final class AuthGateController: ObservableObject {
     ///
     /// 부르는 곳은 추가 정보 화면의 [다른 계정으로 로그인]과 설정 화면의 [로그아웃](KAN-247) 둘이다.
     ///
+    /// 단계마다 시간 상한을 둔다 — 서버 ``logoutServerTimeout``, IdP ``logoutIdpTimeout`` (KAN-247, 안드로이드와 같은 계약).
+    /// 카카오·네이버 SDK 로그아웃은 콜백을 continuation으로 기다리는데, 콜백이 끝내 안 오면 로그아웃이 영영 끝나지 않아
+    /// 설정 화면의 두 버튼이 잠긴 채 남았다. 상한을 넘긴 단계는 버리고 다음으로 간다 — 순서는 서버 → IdP → 로컬 정리 그대로다.
+    ///
     /// - Parameter idpLogout: IdP SDK 쪽 로그아웃 (앱 타깃 `IdpLogout.all`). 서버 로그아웃 뒤에 부른다
-    public func logout(idpLogout: @MainActor () async -> Void = {}) async {
-        if let tokens = await store.read() {
-            _ = await api.logout(tokens.refreshToken)
+    public func logout(idpLogout: @escaping @MainActor () async -> Void = {}) async {
+        let api = api
+        let store = store
+        await withDeadline(logoutServerTimeout) {
+            if let tokens = await store.read() {
+                _ = await api.logout(tokens.refreshToken)
+            }
         }
-        await idpLogout()
+        await withDeadline(logoutIdpTimeout, idpLogout)
         await store.clear()
         state = .signedOut(nil)
     }
@@ -204,5 +226,45 @@ public final class AuthGateController: ObservableObject {
             if status == statusUnauthorized { return AuthFailure(.retry) }
             return AuthFailure(retryable ? .retryLater : .unsupported)
         }
+    }
+}
+
+/// `operation`과 `limit` 중 먼저 끝나는 쪽에서 돌아온다 (KAN-247, 안드로이드 `withTimeoutOrNull` 자리).
+///
+/// 태스크 그룹 경주로는 안 된다 — 그룹은 자식이 전부 끝나야 빠져나오고, 콜백을 기다리는 `withCheckedContinuation`은
+/// 취소를 무시하므로 상한이 지나도 그룹이 함께 매달린다. 그래서 둘을 따로 띄우고 continuation 하나를 먼저 도착한 쪽이
+/// 한 번만 재개한다. 상한에 진 `operation`은 멈추지 않고 뒤에서 계속 돈다 — 취소에 응하지 않는 작업을 멈출 방법이
+/// 없고, 로그아웃에서는 늦게 끝나도 해가 없다(서버 폐기·SDK 세션 정리일 뿐이다).
+@MainActor
+func withDeadline(_ limit: Duration, _ operation: @escaping @MainActor () async -> Void) async {
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        let once = ResumeOnce(continuation)
+        let timer = Task {
+            try? await Task.sleep(for: limit)
+            once.resume()
+        }
+        Task { @MainActor in
+            await operation()
+            timer.cancel()
+            once.resume()
+        }
+    }
+}
+
+/// continuation을 두 번 재개하면 크래시다 — 어느 쪽이 먼저 와도 한 번만 넘긴다. 타이머는 메인 밖에서 오므로 잠근다.
+private final class ResumeOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(_ continuation: CheckedContinuation<Void, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume() {
+        lock.lock()
+        let pending = continuation
+        continuation = nil
+        lock.unlock()
+        pending?.resume()
     }
 }

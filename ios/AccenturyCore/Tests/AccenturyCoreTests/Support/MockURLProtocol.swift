@@ -26,6 +26,7 @@ final class MockURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var handler: Handler?
     private static var recorded: [Recorded] = []
+    private static var hangs = false
 
     /// 이 세션의 요청은 전부 가짜 서버로 간다. 테스트마다 새로 만들어 쓴다.
     static func makeSession() -> URLSession {
@@ -38,6 +39,7 @@ final class MockURLProtocol: URLProtocol {
         lock.lock()
         handler = nil
         recorded = []
+        hangs = false
         lock.unlock()
     }
 
@@ -81,6 +83,13 @@ final class MockURLProtocol: URLProtocol {
         setHandler { _ in throw error }
     }
 
+    /// 요청을 받고 끝내 답하지 않는다 — 서버가 매달린 경우 (KAN-247, 로그아웃 시간 상한).
+    static func hang() {
+        lock.lock()
+        hangs = true
+        lock.unlock()
+    }
+
     static func setHandler(_ handler: @escaping Handler) {
         lock.lock()
         self.handler = handler
@@ -116,7 +125,10 @@ final class MockURLProtocol: URLProtocol {
             )
         )
         let handler = Self.handler
+        let hangs = Self.hangs
         Self.lock.unlock()
+
+        if hangs { return }
 
         guard let handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
