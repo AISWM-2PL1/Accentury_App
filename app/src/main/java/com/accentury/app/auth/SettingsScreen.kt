@@ -2,7 +2,6 @@ package com.accentury.app.auth
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +33,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.accentury.app.R
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
@@ -57,7 +55,7 @@ internal fun providerName(provider: Provider): String = when (provider) {
  * 웹 화면 위에 뜨는 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹·브리지를 건드리지 않고 네이티브가 WebView 위에
  * 얹는다 — 진입점을 웹 화면마다 만들면 브리지 계약이 하나 늘고 iOS까지 같이 바뀐다.
  *
- * 모양은 [com.accentury.app.ui.components.HeroIcon]과 같은 재질(크림 원 + 잉크 테두리)이고 그림자는 없다 —
+ * 모양은 크림 원에 톱니만 얹고 테두리·그림자는 없다(테두리는 팀장 요청으로 뺐다, 2026-10-03) —
  * 웹 화면의 주 버튼보다 무게가 앞서면 안 된다. 터치 영역은 ux-ui.md §5 최소선 48dp다.
  */
 @Composable
@@ -67,7 +65,6 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .size(Dimens.touchTargetMin)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.background)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

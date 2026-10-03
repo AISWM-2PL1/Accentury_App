@@ -886,14 +886,15 @@ private fun TestFlow(
             }
 
             /*
-             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면이 보일 때만 선다 — 위 네이티브 화면(시작 게이트
-             * 세 칸·문항 권한·녹음)이 WebView를 덮는 동안 띄우면 녹음 도중에 설정으로 빠지는 길이 생긴다.
-             * 조건은 위 `when`의 분기 조건을 그대로 모은 것이라 거기를 고치면 여기도 고친다.
+             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+             * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
+             * 계속 돈다(설정은 TestFlow를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+             * 덮는 동안은 숨긴다. 조건은 위 `when`의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
+             * 녹음 오버레이 뒤에 그려 그 위에 선다. 녹음 화면 본문은 위 64dp부터라 톱니(8~56dp)와 겹치지 않는다.
              * 시스템 바 여백은 Scaffold의 innerPadding이 이미 뺐다.
              */
             val nativeCovering = (startRequested && session == null) ||
-                phase is TestFlowPhase.NeedsPermission ||
-                (overlayStart != null && uploadViewModel != null)
+                phase is TestFlowPhase.NeedsPermission
             if (!nativeCovering) {
                 SettingsGearButton(
                     onClick = onOpenSettings,

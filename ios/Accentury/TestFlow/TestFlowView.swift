@@ -120,9 +120,11 @@ struct TestFlowView: View {
                 overlay
 
                 /*
-                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면이 보일 때만 선다 — 위 네이티브 화면(시작 게이트
-                 * 세 칸·문항 권한·녹음)이 WebView를 덮는 동안 띄우면 녹음 도중에 설정으로 빠지는 길이 생긴다.
-                 * 조건은 `overlay` 사슬의 분기 조건을 그대로 모은 것이라 거기를 고치면 여기도 고친다.
+                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+                 * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
+                 * 계속 돈다(설정은 TestFlowView를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+                 * 덮는 동안은 숨긴다. 조건은 `overlay` 사슬의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
+                 * `overlay` 뒤에 놓여 녹음 화면 위에 선다. 녹음 화면 본문은 위 64부터라 톱니(8~56)와 겹치지 않는다.
                  * 안전 영역은 이 ZStack이 이미 안쪽이다.
                  */
                 if !nativeCovering {
@@ -385,11 +387,12 @@ struct TestFlowView: View {
         }
     }
 
-    /// 네이티브 화면이 WebView를 덮고 있는가 — `overlay` 사슬의 분기 조건 셋을 모은 것이다 (KAN-247 톱니 숨김).
+    /// 톱니를 숨길 네이티브 화면이 WebView를 덮고 있는가 — `overlay` 사슬의 시작 게이트·문항 권한 분기 조건이다
+    /// (KAN-247). 녹음 화면은 팀장 요청(2026-10-03)으로 톱니를 보이므로 뺐다.
     private var nativeCovering: Bool {
         if model.startRequested, model.session == nil { return true }
         if case .needsPermission = model.phase { return true }
-        return overlayStart != nil
+        return false
     }
 
     /// 녹음·제출 두 페이즈는 같은 화면을 쓰고 아래쪽만 다르다 (KAN-146).
