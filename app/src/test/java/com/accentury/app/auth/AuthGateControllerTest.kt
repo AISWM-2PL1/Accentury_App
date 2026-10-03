@@ -10,17 +10,25 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.SocketPolicy
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 class AuthGateControllerTest {
 
@@ -47,9 +55,12 @@ class AuthGateControllerTest {
     }
 
     /** 앱 수명 스코프 자리는 테스트의 backgroundScope다 — 테스트가 끝나면 함께 정리된다. */
-    private fun TestScope.controller(store: TokenStore): AuthGateController {
+    private fun TestScope.controller(
+        store: TokenStore,
+        logoutServerTimeout: Duration = 10.seconds,
+    ): AuthGateController {
         val clients = AuthClients(server.url("/").toString(), store)
-        return AuthGateController(clients.api, store, clients.refresher, backgroundScope)
+        return AuthGateController(clients.api, store, clients.refresher, backgroundScope, logoutServerTimeout)
     }
 
     @Test
@@ -355,16 +366,58 @@ class AuthGateControllerTest {
             }
         }
         val gate = controller(store)
-        // 응답을 늦춰 취소가 서버 요청 도중에 닿게 한다 — 회전으로 화면 스코프가 끊기는 경우(KAN-247 리뷰 P1).
-        server.enqueue(MockResponse().setResponseCode(204).setHeadersDelay(300, TimeUnit.MILLISECONDS))
+        // 취소가 반드시 서버 응답 전에 닿도록 응답을 문으로 막는다 — 회전으로 화면 스코프가 끊기는 경우(KAN-247 리뷰 P1).
+        val requested = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                requested.countDown()
+                release.await()
+                return MockResponse().setResponseCode(204)
+            }
+        }
         var idpLoggedOut = false
 
         val screen = launch { gate.logout { idpLoggedOut = true } }
-        withContext(Dispatchers.IO) { server.takeRequest() }
-        screen.cancelAndJoin()
+        withContext(Dispatchers.IO) { requested.await() }
+        screen.cancel()
+        assertFalse(idpLoggedOut) // 서버 응답 전이라 아직 IdP 정리 전이다 — 취소가 서버 대기 중에 닿았다
+        release.countDown()
+        screen.join()
 
         assertTrue(idpLoggedOut)
         assertNull(memory.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
+    fun `로그아웃 서버 응답이 끝없이 흘러와도 상한 뒤 IdP 정리와 로컬 정리를 끝낸다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store, logoutServerTimeout = 300.milliseconds)
+        // 헤더는 첫 0.1초 안에 오고 본문을 0.1초에 10바이트씩 10초 동안 흘린다 — 읽기 타임아웃(10초)에 안 걸리는
+        // 찔끔 응답. 상한(0.3초)이 본문 읽기 도중에 닿는다(KAN-247 리뷰 재검증).
+        server.enqueue(MockResponse().setBody("x".repeat(1_000)).throttleBody(10, 100, TimeUnit.MILLISECONDS))
+        var idpLoggedOut = false
+
+        val start = TimeSource.Monotonic.markNow()
+        gate.logout { idpLoggedOut = true }
+        val elapsed = start.elapsedNow()
+
+        assertTrue("상한을 넘겨 기다렸다: $elapsed", elapsed < 5.seconds)
+        assertTrue(idpLoggedOut)
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
+    fun `IdP 로그아웃이 끝나지 않아도 상한 뒤 로컬 정리와 로그인 화면 전환은 끝낸다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        gate.logout { awaitCancellation() }
+
+        assertNull(store.tokens)
         assertEquals(AuthGateState.SignedOut(), gate.state.value)
     }
 }

@@ -43,7 +43,7 @@ stateDiagram-v2
 안드로이드의 시작 확인과 [다시 시도]는 둘 다 `AuthGateController.retry()`로 Application의 앱 수명 스코프에서
 돈다. 화면 스코프에서 돌리면 회전이 확인을 취소해 스플래시가 영영 안 걷혔다. `bootstrap()` 자체도 취소되면
 CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남거나 앱이 죽지 않는다. 로그인 성공 뒤 저장과
-로그아웃은 시작하면 서버 폐기·IdP 정리·로컬 정리 전부가 `NonCancellable`로 끝까지 간다(KAN-247 리뷰 P1 — 서버 요청 중 회전으로 끊기면 IdP 세션만 남는 반쪽 로그아웃이 됐다). iOS는 비구조 `Task`라 뷰가 사라져도 취소되지 않아 같은 문제가 없다.
+로그아웃은 시작하면 서버 폐기·IdP 정리·로컬 정리 전부가 `NonCancellable`로 끝까지 간다(KAN-247 리뷰 P1 — 서버 요청 중 회전으로 끊기면 IdP 세션만 남는 반쪽 로그아웃이 됐다). 대신 단계별 상한(서버 10초·IdP SDK 5초)을 둬 무응답 서버·SDK가 로컬 정리를 무기한 붙잡지 못한다 — OkHttp `callTimeout`은 기본 0이라 찔끔 흘리는 응답에 상한이 없었다. 상한이 본문 읽기 도중에도 먹도록 `AuthApi`는 본문을 `runInterruptible`로 읽는다(KAN-247 리뷰 재검증). iOS는 비구조 `Task`라 뷰가 사라져도 취소되지 않아 같은 문제가 없다.
 
 테스트 흐름은 `SignedIn`일 때만 화면에 있다. 로그인이나 추가 정보 화면으로 밀려나면 흐름 화면이 통째로
 내려가고, iOS는 저장해 둔 시작 게이트·세션도 지운다(`TestFlowModel.clearSavedState()`). 진행 중이던 응시를
@@ -58,7 +58,7 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
 | 히어로 배치 | 웹 인트로 히어로(워드마크·두 줄 제목·곡선 밑줄·부제)를 버튼 묶음 위 남은 칸의 세로 가운데 | 2026-09-28 팀장 결정 (커밋 cdfa46d) |
 | 설정 없는 IdP | 버튼을 숨긴다 | 눌러야 SDK 오류로 떨어질 버튼을 세울 이유가 없다 (`visibleProviders`). 그래서 릴리스 빗장이 필요하다 (§4) |
 | IdP 화면 취소 | 오류 안내 없이 로그인 화면으로 | 로그인하지 않겠다는 뜻이지 실패가 아니다 (`IdpOutcome.Cancelled`) |
-| 로그아웃 화면 | **KAN-247 설정 화면 — Android(1단계)·iOS(2단계) 구현.** 웹 화면·녹음 화면 오른쪽 위 네이티브 톱니(팀 결정 A안: 웹·브리지 무변경, 시작 게이트·문항 권한 화면이 덮는 동안엔 숨김. 녹음 화면 표시·원 테두리 제거는 팀장 요청 2026-10-03 — 녹음 중 설정을 열면 녹음은 아래에서 계속됨) → 설정 화면(계정: 이름·이메일·로그인 방식) → [로그아웃] → 확인 창 → `logout { IdpLogout.all }` → 로그인 화면. 설정 화면은 TestFlow 위에 덮어 WebView를 살려 둔다(Android `auth/SettingsScreen.kt`, iOS `Auth/SettingsScreen.swift` — `AuthGateView`의 `ZStack`). 추가 정보 화면의 [다른 계정으로 로그인](Text 버튼)도 그대로 | 추가 정보 화면 출구는 만 14세 미만 거절·계정 잘못 고른 사용자가 갇히지 않게 하는 것. 계정 값은 게이트의 `SignedIn.user`라 별도 `/v0/users/me` 호출 없음. 서버 폐기가 실패해도 로컬 토큰은 지운다(`AuthGateController.logout`). 안드로이드는 화면 스코프에서 불러도 시작하면 취소되지 않는다(회전 중에도 IdP 정리까지 끝냄 — KAN-247 리뷰 P1). [회원 탈퇴]는 계정 섹션 맨 아래에 **KAN-251** |
+| 로그아웃 화면 | **KAN-247 설정 화면 — Android(1단계)·iOS(2단계) 구현.** 웹 화면·녹음 화면 오른쪽 위 네이티브 톱니(팀 결정 A안: 웹·브리지 무변경, 시작 게이트·문항 권한 화면이 덮는 동안엔 숨김. 녹음 화면 표시·원 테두리 제거는 팀장 요청 2026-10-03 — 녹음 중 설정을 열면 녹음은 아래에서 계속됨) → 설정 화면(계정: 이름·이메일·로그인 방식) → [로그아웃] → 확인 창 → `logout { IdpLogout.all }` → 로그인 화면. 설정 화면은 TestFlow 위에 덮어 WebView를 살려 둔다(Android `auth/SettingsScreen.kt`, iOS `Auth/SettingsScreen.swift` — `AuthGateView`의 `ZStack`). 추가 정보 화면의 [다른 계정으로 로그인](Text 버튼)도 그대로 | 추가 정보 화면 출구는 만 14세 미만 거절·계정 잘못 고른 사용자가 갇히지 않게 하는 것. 계정 값은 게이트의 `SignedIn.user`라 별도 `/v0/users/me` 호출 없음. 서버 폐기가 실패해도 로컬 토큰은 지운다(`AuthGateController.logout`). 안드로이드는 화면 스코프에서 불러도 시작하면 취소되지 않고(회전 중에도 IdP 정리까지 끝냄 — KAN-247 리뷰 P1), 단계별 상한 10초·5초를 넘기면 그 단계만 버리고 로컬 정리로 간다(리뷰 재검증). [회원 탈퇴]는 계정 섹션 맨 아래에 **KAN-251** |
 | 실패 후 재응시 광고 | 이 티켓 밖, **KAN-248** | |
 | 개인정보처리방침 버전 | `2026-09-29` (Android `PRIVACY_POLICY_VERSION`, iOS `privacyPolicyVersion`) | **KAN-240 확정 (2026-09-29).** 계정 수집 항목을 반영한 방침 개정본의 버전이고 시행일과 같은 날짜다. 서버는 게시 중인 버전(`AccenturyProperties.Auth.PRIVACY_POLICY_VERSION`)과 정확히 같은 값만 동의로 받고, 다르면 400 `AUTH_CONSENT_REQUIRED`다. 방침을 개정하면 서버 상수, privacy.html, 두 플랫폼 상수를 함께 올린다. 서버가 먼저 바뀌면 그동안 옛 빌드의 새 가입이 막힌다 |
 
