@@ -5,8 +5,8 @@ import SwiftUI
 /// `SettingsGearButton` 이식본이다. 웹·브리지를 건드리지 않고 네이티브가 WebView 위에 얹는다 — 진입점을 웹 화면마다
 /// 만들면 브리지 계약이 하나 늘고 두 플랫폼이 같이 바뀐다.
 ///
-/// 모양은 ``HeroIcon``과 같은 재질(크림 원 + 잉크 테두리)이고 그림자는 없다 — 웹 화면의 주 버튼보다 무게가 앞서면
-/// 안 된다. 터치 영역은 ``Papercut/touchTargetMin``(48, HIG 44 이상)이다. 그림은 SF Symbol `gearshape`라 자산을
+/// 모양은 크림 원에 톱니만 얹고 테두리·그림자는 없다(테두리는 팀장 요청으로 뺐다, 2026-10-03) — 웹 화면의 주
+/// 버튼보다 무게가 앞서면 안 된다. 터치 영역은 ``Papercut/touchTargetMin``(48, HIG 44 이상)이다. 그림은 SF Symbol `gearshape`라 자산을
 /// 늘리지 않는다(안드로이드는 같은 그림의 벡터 `outline_settings_24`).
 struct SettingsGearButton: View {
 
@@ -19,7 +19,6 @@ struct SettingsGearButton: View {
                 .foregroundColor(Papercut.ink)
                 .frame(width: Papercut.touchTargetMin, height: Papercut.touchTargetMin)
                 .background(Circle().fill(Papercut.cream))
-                .overlay(Circle().stroke(Papercut.ink, lineWidth: Papercut.borderHairline))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
