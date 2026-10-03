@@ -92,6 +92,8 @@ import com.accentury.app.auth.LoginScreen
 import com.accentury.app.auth.PRIVACY_POLICY_URL
 import com.accentury.app.auth.PRIVACY_POLICY_VERSION
 import com.accentury.app.auth.ProfileScreen
+import com.accentury.app.auth.SettingsGearButton
+import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.configuredProviders
 import com.accentury.app.auth.idpSignInFor
 import com.accentury.app.auth.visibleProviders
@@ -269,12 +271,31 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             modifier = modifier,
         )
 
-        is AuthGateState.SignedIn -> TestFlow(
-            appLink = appLink,
-            authedClient = authClients.authedClient,
-            onProfileIncomplete = gate::onProfileIncomplete,
-            modifier = modifier,
-        )
+        is AuthGateState.SignedIn -> {
+            /*
+             * 설정 화면 (KAN-247). TestFlow를 내리지 않고 위에 덮는다 — WebView는 한 인스턴스로 살아야 한다
+             * (TestFlow KDoc). 이 분기 안에 두어 로그아웃으로 SignedIn을 벗어나면 열림 상태도 함께 버려진다 —
+             * 다음 로그인이 설정 화면부터 열리지 않는다. 회전에는 남는다.
+             */
+            var settingsOpen by rememberSaveable { mutableStateOf(false) }
+            Box(modifier = modifier) {
+                TestFlow(
+                    appLink = appLink,
+                    authedClient = authClients.authedClient,
+                    onProfileIncomplete = gate::onProfileIncomplete,
+                    onOpenSettings = { settingsOpen = true },
+                )
+                if (settingsOpen) {
+                    SettingsScreen(
+                        user = state.user,
+                        onClose = { settingsOpen = false },
+                        // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야
+                        // 다음 로그인에서 계정을 다시 고를 수 있다.
+                        onLogout = { gate.logout { IdpLogout.all(context) } },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -290,12 +311,14 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
  * @param appLink App Link 진입 (KAN-32). Activity가 Intent에서 읽어 흘려보낸다
  * @param authedClient 세션 생성에 계정 Access 토큰을 싣는 클라이언트 (KAN-224, AuthClients.authedClient)
  * @param onProfileIncomplete 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224)
+ * @param onOpenSettings 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(AuthGate)가 이 위에 덮는다 (KAN-247)
  */
 @Composable
 private fun TestFlow(
     appLink: StateFlow<AppLinkEntry?>,
     authedClient: OkHttpClient,
     onProfileIncomplete: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -860,6 +883,22 @@ private fun TestFlow(
                         },
                     )
                 }
+            }
+
+            /*
+             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면이 보일 때만 선다 — 위 네이티브 화면(시작 게이트
+             * 세 칸·문항 권한·녹음)이 WebView를 덮는 동안 띄우면 녹음 도중에 설정으로 빠지는 길이 생긴다.
+             * 조건은 위 `when`의 분기 조건을 그대로 모은 것이라 거기를 고치면 여기도 고친다.
+             * 시스템 바 여백은 Scaffold의 innerPadding이 이미 뺐다.
+             */
+            val nativeCovering = (startRequested && session == null) ||
+                phase is TestFlowPhase.NeedsPermission ||
+                (overlayStart != null && uploadViewModel != null)
+            if (!nativeCovering) {
+                SettingsGearButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
+                )
             }
         }
 

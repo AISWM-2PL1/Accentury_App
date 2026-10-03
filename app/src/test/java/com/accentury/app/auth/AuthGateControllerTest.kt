@@ -220,6 +220,45 @@ class AuthGateControllerTest {
     }
 
     @Test
+    fun `설정 화면 로그아웃은 서버가 받으면 저장소를 비우고 IdP 로그아웃 뒤 로그인 화면이다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setResponseCode(204))
+        var idpLoggedOut = false
+
+        gate.logout { idpLoggedOut = true }
+
+        assertNull(store.tokens)
+        assertTrue(idpLoggedOut)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
+    fun `로그아웃 전송이 실패해도 저장소를 비우고 로그인 화면이다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.shutdown()
+
+        gate.logout()
+
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
+    fun `IdP 로그아웃이 던져도 저장소는 비고 로그인 화면이며 예외는 호출자에게 간다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val thrown = runCatching { gate.logout { throw IllegalStateException("SDK") } }.exceptionOrNull()
+
+        assertTrue(thrown is IllegalStateException)
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
     fun `다른 요청에서 Refresh가 거절되면 게이트가 로그인 화면으로 돌아간다`() = runTest {
         val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         val clients = AuthClients(server.url("/").toString(), store)
