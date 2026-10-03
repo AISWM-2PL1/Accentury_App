@@ -110,6 +110,22 @@ class VoiceCheckViewModelTest {
         advanceUntilIdle()
     }
 
+    @Test
+    fun `reset은 마이크를 놓고 쌓인 판정을 비운다 - 다음 계정이 이전 결과를 물려받지 않는다`() = runTest(dispatcher) {
+        val events = mutableListOf<String>()
+        val vm = viewModelWith(SlowReleaseSource(events))
+
+        vm.start()
+        dispatcher.scheduler.advanceTimeBy(500)
+        assertTrue((vm.state.value as VoiceCheckState.Listening).frames.isNotEmpty())
+
+        vm.reset()
+        advanceUntilIdle()
+
+        assertEquals(listOf("open1", "release1"), events)
+        assertTrue((vm.state.value as VoiceCheckState.Listening).frames.isEmpty())
+    }
+
     private companion object {
         const val CHUNK_INTERVAL_MS = 32L
         const val RELEASE_MS = 200L

@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -500,6 +501,31 @@ private fun TestFlow(
         VoiceCheckViewModel.factory(defaultPcmSource(appContext))
     }
     val voiceCheckViewModel: VoiceCheckViewModel = viewModel(factory = voiceCheckFactory)
+
+    /*
+     * TestFlow가 내려가면 응시도 끝난다 — 마이크와 진행 중 상태를 여기서 놓는다 (KAN-247).
+     *
+     * 위 뷰모델들은 Activity 범위라 TestFlow보다 오래 산다. 로그아웃(SignedIn → SignedOut)으로
+     * TestFlow가 빠져도 녹음 오버레이의 되감기(continuesFrom)는 flow.phase가 그대로라 "이어짐"으로
+     * 보고 reset하지 않는다 — 녹음 화면에 톱니가 생기면서(KAN-247, 팀장 요청 10/3) 열린 경로다.
+     * 그대로 두면 로그인 화면에서도 마이크가 최대 길이까지 켜져 있고, 다음 계정이 이전 녹음·점검
+     * 상태와 이전 세션의 업로드 바이트를 물려받는다 (FR-DP-02). iOS는 .onDisappear에서 무조건 reset한다.
+     *
+     * 회전은 제외한다 — 이 앱은 configChanges를 두지 않아 회전마다 Activity가 다시 서며 TestFlow도
+     * 함께 내려가는데, 그때 진행 중인 녹음을 죽이면 안 된다(뷰모델이 Activity 범위인 이유가 그것이다).
+     *
+     * 업로드는 최신 인스턴스를 본다 — 인트로에서 등록된 이 이펙트가 잡은 값은 세션 전의 null이다.
+     */
+    val currentUploadViewModel by rememberUpdatedState(uploadViewModel)
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!activity.isChangingConfigurations) {
+                viewModel.reset()
+                voiceCheckViewModel.reset()
+                currentUploadViewModel?.clearAll()
+            }
+        }
+    }
 
     /*
      * 브리지 getSessionToken(KAN-13)이 읽을 토큰 자리 (KAN-34).
