@@ -165,6 +165,32 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertEqual("/v0/auth/logout", MockURLProtocol.requests().first?.url?.path)
     }
 
+    // 설정 화면 로그아웃 (KAN-247). 안드로이드 `AuthGateControllerTest`의 같은 이름 테스트와 짝이다. IdP 로그아웃이
+    // 던지는 경우는 iOS에 없다 — `idpLogout`이 던지지 않는 시그니처다(`IdpLogout.all`이 SDK 실패를 삼킨다).
+    func test설정_화면_로그아웃은_서버가_받으면_저장소를_비우고_IdP_로그아웃_뒤_로그인_화면이다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([(204, "")])
+        var idpLoggedOut = false
+
+        await gate.logout { idpLoggedOut = true }
+
+        XCTAssertNil(store.tokens)
+        XCTAssertTrue(idpLoggedOut)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+    }
+
+    func test로그아웃_전송이_실패해도_저장소를_비우고_로그인_화면이다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.fail(with: URLError(.notConnectedToInternet))
+
+        await gate.logout()
+
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+    }
+
     func test추가_정보_화면에서_다른_계정으로_로그인하면_저장소를_비우고_로그인_화면이다() async {
         let store = InMemoryTokenStore()
         let (gate, _) = controller(store)

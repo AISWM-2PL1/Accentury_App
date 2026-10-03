@@ -23,6 +23,13 @@ import WebKit
 /// `ignoresSafeArea()`로 상태 바·홈 인디케이터 자리까지 넓힌다 — 자세한 이유는 `body`의 주석.
 struct TestFlowView: View {
 
+    /// 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(``AuthGateView``)가 이 위에 덮는다 (KAN-247)
+    private let onOpenSettings: () -> Void
+
+    init(onOpenSettings: @escaping () -> Void) {
+        self.onOpenSettings = onOpenSettings
+    }
+
     @StateObject private var model = TestFlowModel()
 
     /// 녹음·목소리 점검·업로드의 주인. 화면 값이 다시 만들어져도 살아남아야 하는 것들이라
@@ -111,6 +118,18 @@ struct TestFlowView: View {
                 )
 
                 overlay
+
+                /*
+                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면이 보일 때만 선다 — 위 네이티브 화면(시작 게이트
+                 * 세 칸·문항 권한·녹음)이 WebView를 덮는 동안 띄우면 녹음 도중에 설정으로 빠지는 길이 생긴다.
+                 * 조건은 `overlay` 사슬의 분기 조건을 그대로 모은 것이라 거기를 고치면 여기도 고친다.
+                 * 안전 영역은 이 ZStack이 이미 안쪽이다.
+                 */
+                if !nativeCovering {
+                    SettingsGearButton(action: onOpenSettings)
+                        .padding(Papercut.space2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -364,6 +383,13 @@ struct TestFlowView: View {
                 }
             )
         }
+    }
+
+    /// 네이티브 화면이 WebView를 덮고 있는가 — `overlay` 사슬의 분기 조건 셋을 모은 것이다 (KAN-247 톱니 숨김).
+    private var nativeCovering: Bool {
+        if model.startRequested, model.session == nil { return true }
+        if case .needsPermission = model.phase { return true }
+        return overlayStart != nil
     }
 
     /// 녹음·제출 두 페이즈는 같은 화면을 쓰고 아래쪽만 다르다 (KAN-146).
