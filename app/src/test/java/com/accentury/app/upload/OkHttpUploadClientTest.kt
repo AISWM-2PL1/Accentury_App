@@ -143,6 +143,28 @@ class OkHttpUploadClientTest {
     }
 
     @Test
+    fun `봉투의 missingItems를 Rejected에 싣는다 - 보관 음성 유실 (KAN-261)`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(409).setBody(
+                """{"code":"VOICE_SLOT_MISSING","message":"","retryable":false,"missingItems":["item-1","item-2"]}""",
+            ),
+        )
+
+        val result = client().upload("sess-1", "token-1", request)
+
+        assertEquals(
+            UploadResult.Rejected(
+                code = "VOICE_SLOT_MISSING",
+                message = "",
+                retryable = false,
+                retryAfterMs = null,
+                missingItems = listOf("item-1", "item-2"),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `봉투 없는 500은 상태 코드 기준으로 재시도 가능한 Rejected가 된다`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("<html>Bad Gateway</html>"))
 
