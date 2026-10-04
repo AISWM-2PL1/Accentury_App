@@ -292,8 +292,8 @@ struct TestFlowView: View {
                 VoiceItemStart(
                     itemId: "it_debug_overlay",
                     prompt: "오늘 날씨가 정말 좋네요",
-                    itemNumber: 3,
-                    totalItems: 10,
+                    itemNumber: 2,
+                    totalItems: 7,
                     maxDurationMs: RecordingEngine.maxDurationMs,
                     guideF0: debugGuideF0
                 )

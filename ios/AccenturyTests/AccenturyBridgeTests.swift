@@ -60,7 +60,7 @@ final class AccenturyBridgeTests: XCTestCase {
         itemId: String = "item_1",
         prompt: String = "마! 니 어데 가노?",
         itemNumber: Int = 1,
-        totalItems: Int = 10,
+        totalItems: Int = 7,
         maxDurationMs: Int64 = 15_000
     ) -> String {
         """
@@ -164,7 +164,7 @@ final class AccenturyBridgeTests: XCTestCase {
                     itemId: "item_1",
                     prompt: "마! 니 어데 가노?",
                     itemNumber: 1,
-                    totalItems: 10,
+                    totalItems: 7,
                     maxDurationMs: 15_000
                 )
             ],
@@ -196,7 +196,7 @@ final class AccenturyBridgeTests: XCTestCase {
         }
         // 화면을 그릴 수 없는 값도 같은 자리에서 걸린다 (판정은 Core parseVoiceItemStart).
         dispatcher.handle(method: "startVoiceItem", payload: voicePayload(itemId: "   "))
-        dispatcher.handle(method: "startVoiceItem", payload: voicePayload(itemNumber: 11, totalItems: 10))
+        dispatcher.handle(method: "startVoiceItem", payload: voicePayload(itemNumber: 8, totalItems: 7))
 
         XCTAssertTrue(sink.starts.isEmpty)
     }
@@ -206,7 +206,7 @@ final class AccenturyBridgeTests: XCTestCase {
         let sink = Sink()
         makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(
             method: "startVoiceItem",
-            payload: #"{"itemId":"item_1","prompt":"\"밥은\" 뭇나?\n마!","itemNumber":2,"totalItems":10,"maxDurationMs":15000}"#
+            payload: #"{"itemId":"item_1","prompt":"\"밥은\" 뭇나?\n마!","itemNumber":2,"totalItems":7,"maxDurationMs":15000}"#
         )
         XCTAssertEqual("\"밥은\" 뭇나?\n마!", sink.starts.first?.prompt)
     }

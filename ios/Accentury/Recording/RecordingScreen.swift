@@ -74,7 +74,7 @@ struct RecordingScreen: View {
                 VStack(spacing: Papercut.space6) {
                     /*
                      * 웹 진행바와 같은 컴포넌트, 같은 값, 같은 폭이다. `note`가 "음성"인 것도
-                     * 같은 이유다 — 웹 캡션이 "3 / 10 · 음성"이라, 여기서만 종류를 빼면 같은
+                     * 같은 이유다 — 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를 빼면 같은
                      * 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
                      */
                     ProgressIndicator(current: questionIndex, total: totalQuestions, note: "음성")

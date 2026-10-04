@@ -13,7 +13,7 @@ import org.junit.Test
 class PromptCaptionTest {
     @Test
     fun `번호를 알면 진행과 안내를 한 줄로 붙인다`() {
-        assertEquals("3 / 10 · 이 문장을 읽어주세요", promptCaption(3, 10))
+        assertEquals("4 / 7 · 이 문장을 읽어주세요", promptCaption(4, 7))
         assertEquals("1 / 5 · 이 문장을 읽어주세요", promptCaption(1, 5))
     }
 

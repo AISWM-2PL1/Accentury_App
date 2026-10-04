@@ -21,7 +21,7 @@ final class ProgressDotStateTests: XCTestCase {
     /// 현재 칸보다 뒤는 미완료다.
     func testPositionsAfterCurrentAreTodo() {
         XCTAssertEqual(.todo, progressDotState(position: 4, current: 3))
-        XCTAssertEqual(.todo, progressDotState(position: 10, current: 3))
+        XCTAssertEqual(.todo, progressDotState(position: 7, current: 3))
     }
 
     /// 첫 문항은 첫 칸이 현재다 — 시작도 안 한 화면으로 보이지 않는다.
@@ -32,8 +32,8 @@ final class ProgressDotStateTests: XCTestCase {
 
     /// 마지막 문항을 끝내면 모든 칸이 완료다.
     func testFinishingTheLastQuestionFillsEveryDot() {
-        for position in 1...10 {
-            XCTAssertEqual(.done, progressDotState(position: position, current: 11))
+        for position in 1...7 {
+            XCTAssertEqual(.done, progressDotState(position: position, current: 8))
         }
     }
 }

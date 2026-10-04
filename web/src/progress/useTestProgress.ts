@@ -39,7 +39,7 @@ export interface UseTestProgressResult {
   state: ProgressState
   /** 지금 풀어야 할 문항. 전부 제출한 뒤에는 null (= 분석 대기) */
   current: TestItem | null
-  /** 진행바용 n/N. 첫 문항이 1/10이다 (endowed progress — ux-ui.md §3 Goal-Gradient) */
+  /** 진행바용 n/N. 첫 문항이 1/7이다(분모는 정의가 주는 문항 수, KAN-261) (endowed progress — ux-ui.md §3 Goal-Gradient) */
   progress: Progress
   /**
    * 현재 문항의 제출 완료 통지. 상태 머신이 거부하면 아무 일도 일어나지 않는다.

@@ -73,7 +73,7 @@ final class ContinuesFromTests: XCTestCase {
             itemId: itemId,
             prompt: "밥 뭇나?",
             itemNumber: number,
-            totalItems: 10,
+            totalItems: 7,
             maxDurationMs: 10_000,
             guideF0: GuideF0(unit: "semitone", frameIntervalMs: 10, values: [0.0, 1.0])
         )
