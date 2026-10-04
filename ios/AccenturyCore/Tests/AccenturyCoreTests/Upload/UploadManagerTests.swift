@@ -173,6 +173,34 @@ final class UploadManagerTests: XCTestCase {
     }
 
     /*
+     * 서버가 보관하던 앞 음성을 잃었다 (KAN-261). 칸이 비어 있는 한 같은 바이트는 같은 거절이라
+     * 재녹음 쪽이고, 앞 문항부터 다시 열 수 있게 빠진 문항을 그대로 싣는다. 서버 문구가 비면 기본 안내.
+     */
+    func test보관_음성_유실은_빠진_문항을_실은_재녹음이고_빈_문구는_기본_안내로_채운다() async {
+        await withManager { fake, manager in
+            await manager.enqueue(requestOf("at-1"))
+            await awaitCall(fake, "at-1")
+            await fake.respond(
+                "at-1",
+                .rejected(
+                    code: "VOICE_SLOT_MISSING",
+                    message: "",
+                    retryable: false,
+                    retryAfterMs: nil,
+                    missingItems: ["item-1", "item-2"]
+                )
+            )
+
+            await awaitState(manager, "at-1", .failed(
+                retryable: false,
+                message: "앞서 녹음한 음성을 다시 녹음해 주세요",
+                rerecord: true,
+                missingItems: ["item-1", "item-2"]
+            ))
+        }
+    }
+
+    /*
      * 녹음과 무관한 서버 거절은 재녹음으로 보내지 않는다 (KAN-147, B안). 자동 전환을 걸면 사용자가
      * 읽어야 할 서버 안내가 녹음 화면에 밀려 사라지고, 그 문항은 다시 녹음해도 같은 거절을 받는다.
      */

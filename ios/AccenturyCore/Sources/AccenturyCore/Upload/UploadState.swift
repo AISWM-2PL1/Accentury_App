@@ -20,6 +20,8 @@ public enum UploadState: Equatable, Sendable {
     /// - `rerecord`: 같은 바이트를 다시 보내봐야 소용없고 녹음을 새로 해야 한다는 뜻 (KAN-147).
     ///   서버가 녹음 자체를 거절한 코드(길이·용량·음량)에만 붙는다. 호출자가 이 값을 보고
     ///   업로드를 폐기하고 그 문항의 녹음 화면을 다시 연다.
+    /// - `missingItems`: 이 문항보다 먼저 다시 녹음해야 하는 앞 문항들 (KAN-261 `VOICE_SLOT_MISSING`).
+    ///   서버가 보관하던 음성을 잃었을 때만 채워지고, 그 외에는 빈 배열이다.
     ///
     /// `retryable`과 `rerecord`는 동시에 true가 되지 않는다 — 재전송과 재녹음은 서로 다른 복구
     /// 경로라, 둘을 함께 세우면 화면이 어느 쪽을 권하는지 말할 수 없다.
@@ -27,6 +29,7 @@ public enum UploadState: Equatable, Sendable {
         public let retryable: Bool
         public let message: String?
         public let rerecord: Bool
+        public let missingItems: [String]
 
         /// 문서로만 둔 불변식은 리팩터링 한 번에 깨진다. 만드는 자리에서 막아 두 복구 경로가
         /// 한 화면에 겹치는 상태 자체가 생기지 않게 한다.
@@ -34,7 +37,7 @@ public enum UploadState: Equatable, Sendable {
         /// 안드로이드는 `require`로 `IllegalArgumentException`을 던지고, 이쪽은 `precondition`으로
         /// 중단한다 — 둘 다 "프로그래머 실수"라는 같은 판정이다. 다만 트랩은 테스트가 잡을 수
         /// 없어서, 같은 판정을 ``isRepresentable(retryable:rerecord:)``로 한 번 더 노출한다.
-        public init(retryable: Bool, message: String?, rerecord: Bool = false) {
+        public init(retryable: Bool, message: String?, rerecord: Bool = false, missingItems: [String] = []) {
             precondition(
                 UploadState.isRepresentable(retryable: retryable, rerecord: rerecord),
                 "재전송(retryable)과 재녹음(rerecord)은 함께 설 수 없다"
@@ -42,12 +45,18 @@ public enum UploadState: Equatable, Sendable {
             self.retryable = retryable
             self.message = message
             self.rerecord = rerecord
+            self.missingItems = missingItems
         }
     }
 
     /// 안드로이드 `UploadState.Failed(...)` 호출 자리를 그대로 옮기기 위한 편의 생성자.
-    public static func failed(retryable: Bool, message: String?, rerecord: Bool = false) -> UploadState {
-        .failed(Failure(retryable: retryable, message: message, rerecord: rerecord))
+    public static func failed(
+        retryable: Bool,
+        message: String?,
+        rerecord: Bool = false,
+        missingItems: [String] = []
+    ) -> UploadState {
+        .failed(Failure(retryable: retryable, message: message, rerecord: rerecord, missingItems: missingItems))
     }
 
     /// ``Failure``의 불변식. 생성 자리(트랩)와 검증 자리(테스트)가 같은 판정을 읽게 한다.

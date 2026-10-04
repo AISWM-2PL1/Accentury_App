@@ -825,6 +825,87 @@ final class TestFlowControllerTests: XCTestCase {
         XCTAssertNil(TestFlowController.restored(from: "{not json"))
     }
 
+    /*
+     * 보관 음성 유실 복구 (KAN-261 2단계). 세 번째 음성(4번 문항)이 VOICE_SLOT_MISSING으로 거절되면
+     * 빠진 앞 문항을 번호 순서로 다시 열고, 마지막에 거절당한 문항을 다시 연다.
+     */
+    private func rejectThirdVoice(_ controller: TestFlowController) -> [VoiceItemStart] {
+        let starts = [voiceItem(itemId: "item_1", number: 1), voiceItem(itemId: "item_2", number: 2),
+                      voiceItem(itemId: "item_4", number: 4)]
+        for (index, start) in starts.enumerated() {
+            controller.onStartVoiceItem(start, micGranted: true)
+            controller.onRecordingFinished(attemptId: "at_\(index)", durationMs: 3_200, quality: .normal)
+            if index < 2 {
+                controller.onUploadsChanged(["at_\(index)": .done(analysisJobId: "job_\(index)")])
+                controller.onResultDelivered(attemptId: "at_\(index)")
+            }
+        }
+        controller.onUploadsChanged(["at_2": .failed(retryable: false, message: "칸 없음", rerecord: true)])
+        return starts
+    }
+
+    func testLostVoiceSlotsReopenMissingItemsInOrderThenTheRejectedOne() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+        let message = "앞서 녹음한 음성을 다시 녹음해 주세요"
+
+        // 순서를 뒤집고 어휘 id를 섞어 보낸다 — 기억한 음성 요청만 번호 순서로 연다
+        XCTAssertTrue(controller.onUploadGivenUp(
+            attemptId: "at_2", micGranted: true, message: message, missingItems: ["item_2", "item_3", "item_1"]
+        ))
+        XCTAssertEqual(.recording(starts[0], afterUploadFailure: true, failureMessage: message), controller.phase)
+
+        controller.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.recording(starts[1], afterUploadFailure: true, failureMessage: message), controller.phase)
+
+        controller.onRecordingFinished(attemptId: "redo_2", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.recording(starts[2], afterUploadFailure: true, failureMessage: message), controller.phase)
+
+        // 거절당한 문항의 새 녹음은 평소처럼 결과가 나갈 때까지 붙든다
+        controller.onRecordingFinished(attemptId: "redo_4", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.submitting(starts[2], attemptId: "redo_4"), controller.phase)
+        let results = controller.onUploadsChanged([
+            "redo_1": .done(analysisJobId: "j1"),
+            "redo_2": .done(analysisJobId: "j2"),
+            "redo_4": .done(analysisJobId: "j4"),
+        ])
+        XCTAssertEqual(["item_1", "item_2", "item_4"], results.map(\.itemId))
+    }
+
+    func testUnknownMissingItemsFallBackToReopeningOnlyTheRejectedItem() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+
+        controller.onUploadGivenUp(attemptId: "at_2", micGranted: true, message: "m", missingItems: ["item_9"])
+
+        XCTAssertEqual(.recording(starts[2], afterUploadFailure: true, failureMessage: "m"), controller.phase)
+        controller.onRecordingFinished(attemptId: "redo_4", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.submitting(starts[2], attemptId: "redo_4"), controller.phase)
+    }
+
+    func testLegacyRestoreWithoutRememberedStartsStillReopensTheRejectedItem() {
+        let legacy = """
+        {"phase":"WEB","attempts":[{"itemId":"item_4","attemptId":"at_2","durationMs":3200,"quality":"NORMAL",\
+        "start":{"itemId":"item_4","prompt":"p","itemNumber":4,"totalItems":7,"maxDurationMs":15000}}]}
+        """
+        let restored = TestFlowController.restored(from: legacy)!
+
+        restored.onUploadGivenUp(attemptId: "at_2", micGranted: true, message: "m", missingItems: ["item_1"])
+
+        guard case .recording(let recording) = restored.phase else { return XCTFail("녹음 화면이 아님") }
+        XCTAssertEqual("item_4", recording.start.itemId)
+    }
+
+    func testRememberedStartsSurviveRecreation() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+
+        let restored = recreate(controller)
+        restored.onUploadGivenUp(attemptId: "at_2", micGranted: true, message: "m", missingItems: ["item_1"])
+
+        XCTAssertEqual(.recording(starts[0], afterUploadFailure: true, failureMessage: "m"), restored.phase)
+    }
+
     /// 저장 → 복원. 안드로이드 `rememberSaveable`이 구성 변경에서 하는 일을 그대로 흉내 낸다.
     private func recreate(_ controller: TestFlowController) -> TestFlowController {
         guard let restored = TestFlowController.restored(from: controller.saved()) else {

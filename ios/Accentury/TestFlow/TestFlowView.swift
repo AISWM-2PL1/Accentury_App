@@ -471,7 +471,12 @@ struct TestFlowView: View {
         for entry in uploads.entries {
             guard case .failed(let failure) = entry.state, failure.rerecord else { continue }
             // 서버 문구를 그대로 실어 보낸다 — 왜 다시 녹음해야 하는지는 서버만 안다.
-            if model.onUploadGivenUp(attemptId: entry.attemptId, message: failure.message) {
+            // 빠진 앞 문항(KAN-261)이 있으면 컨트롤러가 그 문항들부터 차례로 다시 연다.
+            if model.onUploadGivenUp(
+                attemptId: entry.attemptId,
+                message: failure.message,
+                missingItems: failure.missingItems
+            ) {
                 uploads.discard(entry.attemptId)
             }
         }

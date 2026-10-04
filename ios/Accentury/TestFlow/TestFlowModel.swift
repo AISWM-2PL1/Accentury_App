@@ -436,9 +436,14 @@ final class TestFlowModel: ObservableObject {
     ///
     /// - Returns: 컨트롤러가 시도를 거둬갔는가. true면 호출자가 그 업로드의 바이트를 폐기한다.
     @discardableResult
-    func onUploadGivenUp(attemptId: String, message: String?) -> Bool {
+    func onUploadGivenUp(attemptId: String, message: String?, missingItems: [String] = []) -> Bool {
         // 권한이 그새 회수됐을 수 있다 — 다시 열 화면이 녹음인지 권한 게이트인지를 이 값이 가른다.
-        let taken = flow.onUploadGivenUp(attemptId: attemptId, micGranted: isMicGranted(), message: message)
+        let taken = flow.onUploadGivenUp(
+            attemptId: attemptId,
+            micGranted: isMicGranted(),
+            message: message,
+            missingItems: missingItems
+        )
         syncFlow()
         return taken
     }

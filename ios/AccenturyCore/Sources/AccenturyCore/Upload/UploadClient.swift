@@ -9,7 +9,8 @@ public enum UploadResult: Equatable, Sendable {
 
     case accepted(analysisJobId: String)
 
-    case rejected(code: String?, message: String?, retryable: Bool, retryAfterMs: Int64?)
+    /// `missingItems`는 봉투의 같은 필드다 (KAN-261 `VOICE_SLOT_MISSING`). 없으면 빈 배열이다.
+    case rejected(code: String?, message: String?, retryable: Bool, retryAfterMs: Int64?, missingItems: [String] = [])
 
     /// 응답이 아예 오지 않은 전송 실패. 의미상 항상 재시도 가능.
     ///

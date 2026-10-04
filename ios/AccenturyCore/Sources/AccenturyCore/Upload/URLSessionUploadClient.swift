@@ -163,7 +163,8 @@ public final class URLSessionUploadClient: UploadClient, Sendable {
             message: envelope?.message ?? "오류 봉투 없는 응답(\(status))",
             // 봉투가 없으면 재시도 여부를 서버가 알려주지 않으므로 상태 코드로 판단한다.
             retryable: envelope?.retryable ?? isRetryableStatus(status),
-            retryAfterMs: envelope?.retryAfterMs
+            retryAfterMs: envelope?.retryAfterMs,
+            missingItems: envelope?.missingItems ?? []
         )
     }
 
