@@ -121,9 +121,10 @@ fun continuesFrom(shown: TestFlowPhase, current: TestFlowPhase): Boolean = when 
 class TestFlowController private constructor(
     initialPhase: TestFlowPhase,
     restoredAttempts: List<PendingAttempt>,
+    restoredVoiceStarts: List<VoiceItemStart>,
 ) {
 
-    constructor() : this(TestFlowPhase.Web, emptyList())
+    constructor() : this(TestFlowPhase.Web, emptyList(), emptyList())
 
     /**
      * 대기 시도 하나. [meta]는 결과 조립에 쓰는 브리지 계약 값이고, [start]는 그 시도가 어느 문항의
@@ -147,6 +148,29 @@ class TestFlowController private constructor(
     }
 
     /**
+     * 이번 세션에서 웹이 연 음성 문항의 원본 요청, itemId별 마지막 값 (KAN-261 2단계).
+     *
+     * 서버가 보관하던 앞 음성을 잃으면(`VOICE_SLOT_MISSING`) 이미 끝난 앞 문항의 녹음 화면을 다시
+     * 열어야 하는데, 그 문항의 시도는 결과가 나가면서 [pendingAttempts]에서 빠졌다. 웹에 다시 열어
+     * 달라고 할 브리지 메시지는 없고(계약 버전을 올리지 않는다, §5), 문항 문구·번호·가이드 곡선은
+     * 웹이 [onStartVoiceItem]으로 이미 한 번씩 넘겨줬으므로 그것을 기억해 둔다.
+     *
+     * 저장 형식에도 싣는다 — 회전만으로도 Activity가 다시 서므로, 여기가 비면 거절당한 문항만
+     * 다시 녹음하게 되고 그 업로드가 같은 이유로 또 거절된다.
+     */
+    private val voiceStarts = LinkedHashMap<String, VoiceItemStart>().apply {
+        restoredVoiceStarts.forEach { put(it.itemId, it) }
+    }
+
+    /**
+     * 보관 음성 유실 복구에서 지금 화면 다음에 열 녹음 화면들 (KAN-261). 마지막은 거절당한 문항이다.
+     * 저장하지 않는다 — 복구 중 프로세스가 죽으면 웹은 거절당한 문항에 머물러 있어
+     * [녹음 화면 다시 열기]로 그 문항을 다시 녹음하고, 빠진 칸이 남았으면 서버가 다시 알려준다.
+     */
+    private val redoQueue = ArrayDeque<VoiceItemStart>()
+    private var redoMessage: String? = null
+
+    /**
      * 웹이 VOICE 문항에 진입했다. 녹음 중이거나 권한 게이트가 서 있으면 무시한다 — 브리지 콜백은
      * 임의 타이밍에 오고(§8) 웹 리로드·이중 호출로 같은 요청이 두 번 들어올 수 있는데, 뒤늦은
      * 요청이 진행 중인 녹음을 갈아치우면 이미 녹음된 음성을 잃는다.
@@ -161,6 +185,7 @@ class TestFlowController private constructor(
      * 흐름이고, 중복 제출은 웹 상태 머신의 가드가 거른다.
      */
     fun onStartVoiceItem(start: VoiceItemStart, micGranted: Boolean) {
+        voiceStarts[start.itemId] = start
         when (phase) {
             is TestFlowPhase.Recording, is TestFlowPhase.NeedsPermission -> return
             else -> Unit
@@ -222,7 +247,14 @@ class TestFlowController private constructor(
             ),
             start = start,
         )
-        phase = TestFlowPhase.Submitting(start, attemptId)
+        // 보관 음성 유실 복구 중이면(KAN-261) 제출을 붙들지 않고 다음 문항의 녹음 화면을 곧장 연다.
+        // 웹은 거절당한 문항에 머물러 있어 이 앞 문항들의 결과로는 진행이 밀리지 않는다 - 붙들 화면이 없다.
+        val next = redoQueue.removeFirstOrNull()
+        phase = if (next != null) {
+            TestFlowPhase.Recording(next, afterUploadFailure = true, failureMessage = redoMessage)
+        } else {
+            TestFlowPhase.Submitting(start, attemptId)
+        }
         return superseded
     }
 
@@ -250,18 +282,35 @@ class TestFlowController private constructor(
      * @param message 서버가 이 녹음을 거절하며 준 문구. 다시 열리는 녹음 화면이 그대로 보여준다 -
      *   왜 다시 녹음해야 하는지는 서버만 아는 것이라, 앱이 지어낸 일반 문구로 덮으면 사용자가
      *   같은 실패를 반복한다. null이면 화면이 기본 안내를 쓴다.
+     * @param missingItems 서버가 잃은 앞 음성 문항 (KAN-261 `VOICE_SLOT_MISSING`). 기억해 둔 요청이 있는
+     *   것만 seq(=번호) 순서로 먼저 다시 열고, 마지막에 거절당한 이 문항을 연다. 음성이 아니거나 모르는
+     *   id는 기억한 요청이 없어 걸러진다. 남는 게 없으면 예전처럼 이 문항만 다시 연다.
      * @return 이 컨트롤러가 시도를 거둬갔는가. false면 이미 밀려났거나 모르는 시도라 할 일이 없다.
      *   true면 호출자가 그 업로드의 바이트와 상태를 폐기한다.
      */
-    fun onUploadGivenUp(attemptId: String, micGranted: Boolean, message: String? = null): Boolean {
+    fun onUploadGivenUp(
+        attemptId: String,
+        micGranted: Boolean,
+        message: String? = null,
+        missingItems: List<String> = emptyList(),
+    ): Boolean {
         val dropped = pendingAttempts.remove(attemptId) ?: return false
         when (phase) {
             is TestFlowPhase.Recording, is TestFlowPhase.NeedsPermission -> Unit
             else -> {
                 // start가 없는 것은 구버전 형식에서 복원된 시도뿐이다. 다시 열 화면을 만들 수 없어
                 // 웹의 [녹음 화면 다시 열기]에 맡긴다 - 업로드 폐기는 그대로 진행한다.
-                val start = dropped.start
-                if (start != null) {
+                val rejected = dropped.start
+                if (rejected != null) {
+                    // ponytail: X도 재녹음한다. KAN-262가 같은 키 재전송을 보장하면 X는 재전송으로 바꾼다
+                    val queue = missingItems.distinct()
+                        .mapNotNull { voiceStarts[it] }
+                        .filter { it.itemId != rejected.itemId }
+                        .sortedBy { it.itemNumber } + rejected
+                    val start = queue.first()
+                    redoQueue.clear()
+                    redoQueue.addAll(queue.drop(1))
+                    redoMessage = message
                     // 권한이 회수됐으면 게이트가 먼저 서지만 사유는 게이트가 들고 간다 -
                     // 통과 직후 열리는 녹음 화면이 그대로 이어받는다.
                     phase = if (micGranted) {
@@ -405,6 +454,7 @@ class TestFlowController private constructor(
         attempts = pendingAttempts.values.map {
             SavedAttempt(it.meta.itemId, it.meta.attemptId, it.meta.durationMs, it.meta.quality, it.start)
         },
+        voiceStarts = voiceStarts.values.toList(),
     )
 
     companion object {
@@ -459,6 +509,7 @@ class TestFlowController private constructor(
                         start = it.start,
                     )
                 },
+                restoredVoiceStarts = flow.voiceStarts,
             )
         }
     }
@@ -486,6 +537,8 @@ private data class SavedFlow(
      */
     val failureMessage: String? = null,
     val attempts: List<SavedAttempt> = emptyList(),
+    /** 앞 문항을 다시 열 원본 요청들 (KAN-261). 기본값은 이 필드가 생기기 전 형식을 그대로 복원되게 한다. */
+    val voiceStarts: List<VoiceItemStart> = emptyList(),
 )
 
 @Serializable

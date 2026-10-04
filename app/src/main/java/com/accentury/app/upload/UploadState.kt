@@ -16,6 +16,9 @@ sealed interface UploadState {
      *   서버가 녹음 자체를 거절한 코드(길이·용량·음량)에만 붙는다. 호출자(MainActivity)가 이 값을 보고
      *   업로드를 폐기하고 그 문항의 녹음 화면을 다시 연다.
      *
+     * @property missingItems 이 문항보다 먼저 다시 녹음해야 하는 앞 문항들 (KAN-261 `VOICE_SLOT_MISSING`).
+     *   서버가 보관하던 음성을 잃었을 때만 채워지고, 그 외에는 빈 목록이다.
+     *
      * [retryable]과 [rerecord]는 동시에 true가 되지 않는다 - 재전송과 재녹음은 서로 다른 복구
      * 경로라, 둘을 함께 세우면 화면이 어느 쪽을 권하는지 말할 수 없다.
      */
@@ -23,6 +26,7 @@ sealed interface UploadState {
         val retryable: Boolean,
         val message: String?,
         val rerecord: Boolean = false,
+        val missingItems: List<String> = emptyList(),
     ) : UploadState {
         init {
             // 문서로만 둔 불변식은 리팩터링 한 번에 깨진다. 만드는 자리에서 막아 두 복구 경로가

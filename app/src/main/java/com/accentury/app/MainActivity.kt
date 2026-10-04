@@ -478,7 +478,14 @@ private fun TestFlow(
         uploads.forEach { (attemptId, state) ->
             if (state !is UploadState.Failed || !state.rerecord) return@forEach
             // 서버 문구를 그대로 실어 보낸다 - 왜 다시 녹음해야 하는지는 서버만 안다.
-            if (flow.onUploadGivenUp(attemptId, micGranted = isMicGranted(), message = state.message)) {
+            // 빠진 앞 문항(KAN-261)이 있으면 컨트롤러가 그 문항들부터 차례로 다시 연다.
+            val givenUp = flow.onUploadGivenUp(
+                attemptId,
+                micGranted = isMicGranted(),
+                message = state.message,
+                missingItems = state.missingItems,
+            )
+            if (givenUp) {
                 uploadViewModel?.discard(attemptId)
             }
         }
