@@ -12,10 +12,17 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { AD_CONSENT_DENY, AD_CONSENT_TITLE } from '../../src/ads/adConsentText'
 import { STORE_PENDING_CAPTION } from '../../src/audio/storeText'
+import { VOCABULARY_ITEM_COUNT, VOICE_ITEM_COUNT } from '../../src/intro/introText'
 import { itemCaption } from '../../src/progress/itemBadge'
 
-/** 정의가 내려주는 문항 수 (음성 5 + 어휘 5). 진행 캡션의 분모이기도 하다 */
-export const TOTAL_ITEMS = 10
+/**
+ * 정의가 내려주는 문항 수. 진행 캡션의 분모이기도 하다.
+ *
+ * 실서버 정의 gn-2026.10.1(KAN-261)은 음성 3 + 어휘 4 = 7문항이다. 정의 응답에서 읽지 않고
+ * 인트로 상수에서 합하는 이유: 정의는 [startTest] 안에서 받아 이 헬퍼가 들고 있지 않고, 인트로
+ * 상수가 같은 정의 값을 사용자에게 약속한 정본이라(`introText.ts`) 둘이 어긋나면 그 자체가 결함이다.
+ */
+export const TOTAL_ITEMS = VOICE_ITEM_COUNT + VOCABULARY_ITEM_COUNT
 
 /**
  * 녹음 길이. 품질 게이트의 하한이 1초이고(`quality.ts`의 `MIN_DURATION_MS`) 문항 상한이
@@ -194,7 +201,7 @@ export async function startTest(page: Page): Promise<void> {
  * 아직 남아 있는 순간에 유형을 판정하면 방금 지나온 문항을 한 번 더 풀게 된다.
  *
  * 캡션을 정규식이 아니라 [itemCaption]이 지은 **문자열 전체**로 잡는다. 화면 위쪽 진행
- * 표시(`ProgressIndicator`)도 "1 / 10 · 음성"이라는 닮은 줄을 그려서, 앞부분만 보는 정규식은
+ * 표시(`ProgressIndicator`)도 "1 / 7 · 음성"이라는 닮은 줄을 그려서, 앞부분만 보는 정규식은
  * 둘을 한꺼번에 집는다. 어차피 유형까지 알아야 하므로 캡션 두 개를 만들어 어느 쪽이 떴는지
  * 보는 편이 판정과 대기를 한 번에 끝낸다.
  */
@@ -274,7 +281,7 @@ function submitButton(page: Page): Locator {
 }
 
 /**
- * 10문항 전부. 화면에 뜬 것을 보고 갈라 가며 끝까지 간다.
+ * 정의의 문항 전부. 화면에 뜬 것을 보고 갈라 가며 끝까지 간다.
  *
  * @returns 실제로 지나온 문항의 유형 (순서 검증용 - 정의가 바뀌면 이 값이 달라진다)
  */

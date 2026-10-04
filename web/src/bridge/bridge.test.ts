@@ -46,7 +46,7 @@ const voiceStart: VoiceItemStart = {
   itemId: REAL_GUIDE_F0_ITEM.itemId,
   prompt: REAL_GUIDE_F0_ITEM.prompt,
   itemNumber: 1,
-  totalItems: 10,
+  totalItems: 7,
   maxDurationMs: 15_000,
   // 발행본 실문항의 곡선이다 (KAN-194). 240점에 무성 null 14개가 섞여 있어,
   // JSON.stringify가 null을 그대로 실어 보내는지와 실데이터 크기가 함께 덮인다 (KAN-102)

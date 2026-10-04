@@ -39,7 +39,7 @@ function renderScreen(
     <VoiceItemScreen
       item={voiceItem()}
       itemNumber={1}
-      totalItems={10}
+      totalItems={7}
       webRecording={{ upload, capture: capture.factory }}
       onWebUploaded={onWebUploaded}
       retest={extra.retest}
@@ -125,7 +125,7 @@ describe('대기 문구 단일화 (KAN-146)', () => {
 
     expect(screen.getByText('"밥 뭇나?"를 평소 말투로 읽어 주세요')).toBeInTheDocument()
     // 카드 아래 따로 있던 지시문이 캡션 한 줄로 합쳐졌다 (KAN-161 3단계)
-    expect(screen.getByText('1 / 10 · 이 문장을 읽어주세요')).toBeInTheDocument()
+    expect(screen.getByText('1 / 7 · 이 문장을 읽어주세요')).toBeInTheDocument()
   })
 })
 

@@ -10,11 +10,12 @@ import { describe, expect, it } from 'vitest'
 import { ESTIMATED_MINUTES, VOCABULARY_ITEM_COUNT, VOICE_ITEM_COUNT } from './introText'
 
 describe('인트로 상수', () => {
-  it('음성과 어휘를 합치면 KAN-10 확정값 10문항이다', () => {
-    expect(VOICE_ITEM_COUNT + VOCABULARY_ITEM_COUNT).toBe(10)
+  it('정의 gn-2026.10.1과 같은 음성 3 + 어휘 4 = 7문항이다 (KAN-261)', () => {
+    expect(VOICE_ITEM_COUNT).toBe(3)
+    expect(VOCABULARY_ITEM_COUNT).toBe(4)
   })
 
-  it('예상 시간은 ux-ui.md의 "진입→결과 3분" 목표와 같다', () => {
+  it('예상 시간은 ux-ui.md의 "진입→결과 3분" 목표이자 정의의 estimatedDurationSec 180과 같다', () => {
     expect(ESTIMATED_MINUTES).toBe(3)
   })
 })

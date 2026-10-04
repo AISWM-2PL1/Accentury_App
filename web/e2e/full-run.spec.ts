@@ -17,6 +17,7 @@
 
 import { expect, test } from '@playwright/test'
 import { FEEDBACK_OPEN } from '../src/feedback/feedbackText'
+import { VOCABULARY_ITEM_COUNT, VOICE_ITEM_COUNT } from '../src/intro/introText'
 import {
   answerAllItems,
   expectAppDownloadCta,
@@ -58,7 +59,7 @@ test.skip(
  */
 const TIER_NAMES = ['외지인', '여행객', '사투리 호소인', '명예주민', '경남 토박이']
 
-test('웹 단독 완주 - 10문항을 풀고 분석을 기다려 결과 등급·점수까지 본다', async ({ page }) => {
+test('웹 단독 완주 - 정의의 문항을 전부 풀고 분석을 기다려 결과 등급·점수까지 본다', async ({ page }) => {
   page.on('console', (message) => {
     if (message.type() === 'error') console.log(`[browser:error] ${message.text()}`)
   })
@@ -69,13 +70,13 @@ test('웹 단독 완주 - 10문항을 풀고 분석을 기다려 결과 등급·
   const seen = await answerAllItems(page)
   expect(seen).toHaveLength(TOTAL_ITEMS)
   /*
-   * 유형 구성만 확인하고 순서는 보지 않는다. 지금 정의는 음성·어휘가 번갈아 나오지만 그건
-   * 정의의 사정이라(`gn-2026.08.1`), 순서를 박아 두면 문항을 재배치하는 날 이 스펙이
+   * 유형 구성만 확인하고 순서는 보지 않는다. 순서(지금 `gn-2026.10.1`은 음성, 음성, 어휘, 음성,
+   * 어휘, 어휘, 어휘)는 정의의 사정이라, 순서를 박아 두면 문항을 재배치하는 날 이 스펙이
    * "완주가 깨졌다"고 거짓 신호를 낸다. 반대로 개수는 계약이다 — 인트로가 상수로 약속한
-   * 음성 5 + 어휘 5가 그대로 나와야 한다 (`introText.ts`).
+   * 음성 3 + 어휘 4가 그대로 나와야 한다 (`introText.ts`, KAN-261).
    */
-  expect(seen.filter((type) => type === 'VOICE')).toHaveLength(5)
-  expect(seen.filter((type) => type === 'VOCABULARY')).toHaveLength(5)
+  expect(seen.filter((type) => type === 'VOICE')).toHaveLength(VOICE_ITEM_COUNT)
+  expect(seen.filter((type) => type === 'VOCABULARY')).toHaveLength(VOCABULARY_ITEM_COUNT)
   const submittedAt = Date.now()
 
   /*

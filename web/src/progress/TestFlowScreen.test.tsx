@@ -16,8 +16,14 @@ const WEB_TOKEN = 'web-token'
 /** 브라우저 녹음이 담는 길이. 품질 게이트(1초)를 넉넉히 넘긴다 */
 const VOICE_DURATION_MS = 2_000
 
+/**
+ * 정의 gn-2026.10.1(KAN-261)의 음성 seq. 나머지는 어휘라 1~7이 음성, 음성, 어휘, 음성, 어휘,
+ * 어휘, 어휘 순이다 — 같은 유형이 연달아 오는 전환(음성→음성, 어휘→어휘)이 픽스처에 들어 있다.
+ */
+const VOICE_SEQS = [1, 2, 4]
+
 function item(seq: number): TestItem {
-  if (seq % 2 === 1) {
+  if (VOICE_SEQS.includes(seq)) {
     return {
       itemId: `item-${seq}`,
       seq,
@@ -36,13 +42,13 @@ function item(seq: number): TestItem {
   }
 }
 
-function tenItemDefinition(): TestDefinition {
+function sevenItemDefinition(): TestDefinition {
   return {
     testVersion: TEST_VERSION,
     scoreVersion: 'sv-0.3',
     dialect: 'GYEONGNAM',
     estimatedDurationSec: 180,
-    items: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(item),
+    items: [1, 2, 3, 4, 5, 6, 7].map(item),
   }
 }
 
@@ -73,7 +79,7 @@ function okFetch(): ReturnType<typeof vi.fn<FetchLike>> {
         headers: { get: (name: string) => (name === '' ? '' : null) },
         json: async () => ({
           pollAfterMs: 800,
-          items: [1, 3, 5, 7, 9].map((seq) => ({ itemId: `item-${seq}`, status: 'PROCESSING' })),
+          items: VOICE_SEQS.map((seq) => ({ itemId: `item-${seq}`, status: 'PROCESSING' })),
         }),
       } as Response
     }
@@ -88,7 +94,7 @@ function okFetch(): ReturnType<typeof vi.fn<FetchLike>> {
     return {
       ok: true,
       status: 200,
-      json: async () => tenItemDefinition(),
+      json: async () => sevenItemDefinition(),
     } as Response
   })
 }
@@ -298,9 +304,9 @@ async function advance(capture: FakeCapture) {
   await act(async () => {})
 }
 
-/** 브리지 없는 환경에서 10문항을 끝까지 민다 */
+/** 브리지 없는 환경에서 정의의 문항(7개)을 끝까지 민다 */
 async function finishAllItems(capture: FakeCapture) {
-  for (let i = 0; i < 10; i += 1) await advance(capture)
+  for (let i = 0; i < 7; i += 1) await advance(capture)
 
   // 마지막 제출 뒤 대기 화면이 마운트되고 첫 회차(analyses → complete)가 순서대로 돈다.
   // 두 요청이 직렬이라 microtask를 한 번 더 비워야 완료 판정까지 반영된다.
@@ -308,10 +314,10 @@ async function finishAllItems(capture: FakeCapture) {
   await act(async () => {})
 }
 
-/** 브리지가 붙은 환경에서 10문항을 끝까지 민다 — 음성은 네이티브 결과 수신, 어휘는 선택 + [다음] */
+/** 브리지가 붙은 환경에서 정의의 문항(7개)을 끝까지 민다 — 음성은 네이티브 결과 수신, 어휘는 선택 + [다음] */
 async function finishAllItemsWithBridge() {
-  for (let seq = 1; seq <= 10; seq += 1) {
-    if (seq % 2 === 1) deliverResult(`item-${seq}`)
+  for (let seq = 1; seq <= 7; seq += 1) {
+    if (VOICE_SEQS.includes(seq)) deliverResult(`item-${seq}`)
     else answerVocabulary()
     await act(async () => {})
   }
@@ -341,7 +347,7 @@ function waitingFetch(handlers: {
       return ok(
         handlers.analyses?.() ?? {
           pollAfterMs: 800,
-          items: [1, 3, 5, 7, 9].map((seq) => ({ itemId: `item-${seq}`, status: 'PROCESSING' })),
+          items: VOICE_SEQS.map((seq) => ({ itemId: `item-${seq}`, status: 'PROCESSING' })),
         },
       )
     }
@@ -349,12 +355,12 @@ function waitingFetch(handlers: {
     // 브리지가 붙은 경로에서는 어휘 답안이 실제로 서버로 나간다 (KAN-13)
     if (url.endsWith('/answer')) return ok({ accepted: true })
     if (url.endsWith('/recording')) return ok({ analysisJobId: 'job-web' })
-    return ok(tenItemDefinition())
+    return ok(sevenItemDefinition())
   })
 }
 
 /**
- * 분석이 **막다른 상태**로 끝나는 대역 (KAN-191). 음성 5문항은 전부 끝났는데 서버가 어휘
+ * 분석이 **막다른 상태**로 끝나는 대역 (KAN-191). 음성 문항은 전부 끝났는데 서버가 어휘
  * 문항 미제출로 422를 준다 — 대기 화면 목록에는 음성만 있으므로 손댈 줄이 하나도 없다.
  */
 function deadEndFetch(): ReturnType<typeof vi.fn<FetchLike>> {
@@ -371,7 +377,7 @@ function deadEndFetch(): ReturnType<typeof vi.fn<FetchLike>> {
     if (url.endsWith('/analyses')) {
       return res(200, {
         pollAfterMs: 800,
-        items: [1, 3, 5, 7, 9].map((seq) => ({
+        items: VOICE_SEQS.map((seq) => ({
           itemId: `item-${seq}`,
           status: 'COMPLETED',
           quality: 'OK',
@@ -385,12 +391,12 @@ function deadEndFetch(): ReturnType<typeof vi.fn<FetchLike>> {
         retryable: false,
         retryAfterMs: null,
         correlationId: 'c_test',
-        missingItems: ['item-10'],
+        missingItems: ['item-7'],
       })
     }
     if (url.endsWith('/answer')) return res(200, { accepted: true })
     if (url.endsWith('/recording')) return res(202, { analysisJobId: 'job-web' })
-    return res(200, tenItemDefinition())
+    return res(200, sevenItemDefinition())
   })
 }
 
@@ -417,7 +423,7 @@ describe('정의 로딩', () => {
       .fn<FetchLike>()
       .mockImplementationOnce(async () => ({ ok: false, status: 503, json: async () => ({}) }) as Response)
       .mockImplementationOnce(
-        async () => ({ ok: true, status: 200, json: async () => tenItemDefinition() }) as Response,
+        async () => ({ ok: true, status: 200, json: async () => sevenItemDefinition() }) as Response,
       )
     renderScreen(fetchImpl)
 
@@ -432,36 +438,49 @@ describe('정의 로딩', () => {
 })
 
 describe('문항 진행', () => {
-  it('진행바가 첫 문항을 1/10으로 보여준다 (endowed progress)', async () => {
+  it('진행바가 첫 문항을 1/7로 보여준다 (endowed progress)', async () => {
     renderScreen(okFetch())
     await findFirstItem()
 
     const bar = screen.getByRole('progressbar', { name: '문항 진행률' })
     expect(bar).toHaveAttribute('aria-valuenow', '1')
-    expect(bar).toHaveAttribute('aria-valuemax', '10')
-    expect(screen.getByText('1 / 10 · 음성')).toBeInTheDocument()
+    expect(bar).toHaveAttribute('aria-valuemax', '7')
+    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
   })
 
   it('카드 캡션이 문항 번호와 할 일을 따라간다', async () => {
     // 유형 배지("🎤 음성 문항")가 지시문 캡션으로 바뀌었다 (KAN-161 3단계, 아트보드)
     const { capture } = renderScreen(okFetch())
     await findRecordButton()
-    expect(screen.getByText('1 / 10 · 이 문장을 읽어주세요')).toBeInTheDocument()
+    expect(screen.getByText('1 / 7 · 이 문장을 읽어주세요')).toBeInTheDocument()
+
+    // 음성 → 음성 (KAN-261 정의는 1·2번이 연달아 음성이다) — 같은 유형이라도 번호는 오른다
+    await advance(capture)
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('2 / 7 · 이 문장을 읽어주세요')).toBeInTheDocument()
 
     await advance(capture)
 
-    expect(await screen.findByText('어휘 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 10 · 이 말은 무슨 뜻일까요?')).toBeInTheDocument()
+    expect(await screen.findByText('어휘 문항 3')).toBeInTheDocument()
+    expect(screen.getByText('3 / 7 · 이 말은 무슨 뜻일까요?')).toBeInTheDocument()
+
+    // 어휘 → 어휘 (5·6·7번) — 같은 유형이 이어져도 캡션 번호가 따라간다
+    await advance(capture)
+    await advance(capture)
+    expect(await screen.findByText('어휘 문항 5')).toBeInTheDocument()
+    await advance(capture)
+    expect(await screen.findByText('어휘 문항 6')).toBeInTheDocument()
+    expect(screen.getByText('6 / 7 · 이 말은 무슨 뜻일까요?')).toBeInTheDocument()
   })
 
-  it('제출을 통지하면 다음 문항과 2/10이 된다', async () => {
+  it('제출을 통지하면 다음 문항과 2/7이 된다', async () => {
     const { capture } = renderScreen(okFetch())
     await findRecordButton()
 
     await advance(capture)
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 10 · 단어')).toBeInTheDocument()
+    expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: '문항 진행률' })).toHaveAttribute('aria-valuenow', '2')
   })
 
@@ -471,11 +490,12 @@ describe('문항 진행', () => {
 
     await finishAllItems(capture)
 
-    // 진행률이 분석 기준으로 바뀌고 음성 5문항이 목록으로 선다.
-    // 번호는 전체 10문항 기준이라 홀수 자리(정의가 음성·어휘를 번갈아 둔다)로 나온다
+    // 진행률이 분석 기준으로 바뀌고 음성 문항이 목록으로 선다.
+    // 번호는 정의 전체 문항 기준이라 음성이 놓인 자리(gn-2026.10.1은 1·2·4번)로 나온다
     expect(screen.getByRole('progressbar', { name: '분석 진행률' })).toBeInTheDocument()
     expect(screen.getByText('1번 문항')).toBeInTheDocument()
-    expect(screen.getByText('9번 문항')).toBeInTheDocument()
+    expect(screen.getByText('2번 문항')).toBeInTheDocument()
+    expect(screen.getByText('4번 문항')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '녹음' })).not.toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: '보기1' })).not.toBeInTheDocument()
   })
@@ -495,8 +515,8 @@ describe('문항 진행', () => {
 
     renderScreen(okFetch(), { storage })
 
-    expect(await screen.findByText('음성 문항 3')).toBeInTheDocument()
-    expect(screen.getByText('3 / 10 · 음성')).toBeInTheDocument()
+    expect(await screen.findByText('어휘 문항 3')).toBeInTheDocument()
+    expect(screen.getByText('3 / 7 · 단어')).toBeInTheDocument()
   })
 })
 
@@ -511,7 +531,7 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
       itemId: 'item-1',
       prompt: '음성 문항 1',
       itemNumber: 1,
-      totalItems: 10,
+      totalItems: 7,
       maxDurationMs: 10_000,
       // 가이드 곡선은 정의가 든 그대로 실려 간다 (KAN-102) — 가공되면 이 대조가 깨진다
       guideF0: { unit: 'semitone', frameIntervalMs: 10, values: [0, 1] },
@@ -525,8 +545,8 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
 
     deliverResult('item-1')
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 10 · 단어')).toBeInTheDocument()
+    expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
   })
 
   it('다음 음성 문항에서는 그 문항의 순번으로 다시 호출한다', async () => {
@@ -535,12 +555,18 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
     renderScreen(okFetch(), { sessionId: 'sess-1' })
     await findRecordingWait()
 
+    // 음성 → 음성 (KAN-261 정의의 1·2번) — 유형이 같아도 문항이 바뀌면 네이티브를 다시 연다
     deliverResult('item-1')
-    answerVocabulary() // 어휘 문항 2
-
-    expect(await screen.findByText('음성 문항 3')).toBeInTheDocument()
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
     expect(startVoiceItem).toHaveBeenCalledTimes(2)
-    expect(JSON.parse(startVoiceItem.mock.calls[1][0])).toMatchObject({ itemId: 'item-3', itemNumber: 3 })
+    expect(JSON.parse(startVoiceItem.mock.calls[1][0])).toMatchObject({ itemId: 'item-2', itemNumber: 2 })
+
+    deliverResult('item-2')
+    answerVocabulary() // 어휘 문항 3
+
+    expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
+    expect(startVoiceItem).toHaveBeenCalledTimes(3)
+    expect(JSON.parse(startVoiceItem.mock.calls[2][0])).toMatchObject({ itemId: 'item-4', itemNumber: 4 })
   })
 
   it('StrictMode에서도 같은 문항을 두 번 알리지 않는다', async () => {
@@ -588,7 +614,7 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
           }),
         } as unknown as Response
       }
-      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+      return { ok: true, status: 200, json: async () => sevenItemDefinition() } as Response
     })
     renderScreen(fetchImpl, { retestFallback })
     await findRecordingWait()
@@ -643,7 +669,7 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
           }),
         } as unknown as Response
       }
-      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+      return { ok: true, status: 200, json: async () => sevenItemDefinition() } as Response
     })
     renderScreen(fetchImpl, { retestFallback: vi.fn() })
     await findRecordingWait()
@@ -659,12 +685,12 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
     renderScreen(okFetch())
     await findRecordingWait()
 
-    deliverResult('item-7') // 순서 위반
+    deliverResult('item-4') // 순서 위반
     deliverResult('item-1')
     deliverResult('item-1') // 중복
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 10 · 단어')).toBeInTheDocument()
+    expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
   })
 
   it('브리지가 없으면(브라우저 단독) 웹 녹음 패널이 그 자리를 맡는다 (KAN-56 Stage 3)', async () => {
@@ -677,7 +703,7 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
 
     await advance(capture)
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
   })
 
   it('화면을 떠나면 결과 수신자를 해제한다', async () => {
@@ -758,7 +784,7 @@ describe('VOICE 문항 — 브라우저 녹음 업로드 (KAN-56 Stage 3)', () =
 
     await recordAndSend(capture)
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
 
     const uploads = fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/recording'))
     expect(uploads).toHaveLength(1)
@@ -795,7 +821,7 @@ describe('VOICE 문항 — 브라우저 녹음 업로드 (KAN-56 Stage 3)', () =
     await act(async () => {})
 
     expect(screen.getByText('음성 문항 1')).toBeInTheDocument()
-    expect(screen.getByText('1 / 10 · 음성')).toBeInTheDocument()
+    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
     expect(fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/recording'))).toHaveLength(0)
   })
 
@@ -812,7 +838,7 @@ describe('VOICE 문항 — 브라우저 녹음 업로드 (KAN-56 Stage 3)', () =
           },
         } as unknown as Response
       }
-      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+      return { ok: true, status: 200, json: async () => sevenItemDefinition() } as Response
     })
     const { capture } = renderScreen(fetchImpl)
     await findRecordButton()
@@ -843,7 +869,7 @@ describe('VOICE 문항 — 브라우저 녹음 업로드 (KAN-56 Stage 3)', () =
           }),
         } as unknown as Response
       }
-      return { ok: true, status: 200, json: async () => tenItemDefinition() } as Response
+      return { ok: true, status: 200, json: async () => sevenItemDefinition() } as Response
     })
     const { capture } = renderScreen(fetchImpl, { retestFallback })
     await findRecordButton()
@@ -867,12 +893,13 @@ describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {
     renderScreen(okFetch(), { sessionId: 'sess-1' })
     await findRecordingWait()
     deliverResult('item-1')
+    deliverResult('item-2')
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('어휘 문항 3')).toBeInTheDocument()
     answerVocabulary()
 
-    expect(await screen.findByText('음성 문항 3')).toBeInTheDocument()
-    expect(screen.getByText('3 / 10 · 음성')).toBeInTheDocument()
+    expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
+    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
   })
 
   it('어휘 문항에서는 네이티브 전환을 부르지 않는다', async () => {
@@ -880,9 +907,10 @@ describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {
     renderScreen(okFetch())
     await findRecordingWait()
     deliverResult('item-1')
+    deliverResult('item-2')
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
-    expect(startVoiceItem).toHaveBeenCalledTimes(1) // 문항 1의 호출 그대로
+    expect(screen.getByText('어휘 문항 3')).toBeInTheDocument()
+    expect(startVoiceItem).toHaveBeenCalledTimes(2) // 음성 문항 1·2의 호출 그대로
   })
 
   it('앱(브리지 존재)에서는 답안이 브리지 토큰을 싣고 서버로 제출된다 (KAN-13)', async () => {
@@ -891,15 +919,16 @@ describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {
     renderScreen(fetchImpl, { sessionId: 'sess-1' })
     await findRecordingWait()
     deliverResult('item-1')
+    deliverResult('item-2')
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('어휘 문항 3')).toBeInTheDocument()
     answerVocabulary()
 
     // 정의 조회(1) + 답안 제출(2). 제출 성공 후에만 다음 문항으로 넘어간다 (AC 2항)
-    expect(await screen.findByText('음성 문항 3')).toBeInTheDocument()
+    expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
     expect(fetchImpl).toHaveBeenCalledTimes(2)
     const [url, init] = fetchImpl.mock.calls[1]
-    expect(url).toBe(`${API_BASE}/v0/sessions/sess-1/vocab-items/item-2/answer`)
+    expect(url).toBe(`${API_BASE}/v0/sessions/sess-1/vocab-items/item-3/answer`)
     expect(init?.method).toBe('POST')
     expect(init?.headers).toMatchObject({ Authorization: 'Bearer stub-token' })
     expect((init?.headers as Record<string, string>)['Idempotency-Key']).toBeTruthy()
@@ -908,7 +937,7 @@ describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {
 
   /*
    * KAN-31 이전에는 브리지가 없으면 답안이 서버로 나가지 않고 진행만 밀었다(개발용 통로).
-   * 웹 단독 실행이 정식 경로가 된 지금 그 통로는 곧 어휘 5문항이 채점에서 통째로 빠지는
+   * 웹 단독 실행이 정식 경로가 된 지금 그 통로는 곧 어휘 문항이 채점에서 통째로 빠지는
    * 길이라 지웠다 — 그 사실을 여기서 못 박는다.
    */
   it('웹 단독 실행에서도 답안이 웹 세션 토큰을 싣고 서버로 제출된다 (KAN-31)', async () => {
@@ -916,16 +945,17 @@ describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {
     const { capture } = renderScreen(fetchImpl)
     await findRecordButton()
     await advance(capture) // 음성 문항 1 — 녹음 업로드
+    await advance(capture) // 음성 문항 2 — 녹음 업로드
 
-    expect(screen.getByText('어휘 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('어휘 문항 3')).toBeInTheDocument()
     answerVocabulary()
 
-    expect(await screen.findByText('음성 문항 3')).toBeInTheDocument()
+    expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
     const answers = fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/answer'))
     expect(answers).toHaveLength(1)
-    expect(answers[0][0]).toBe(`${API_BASE}/v0/sessions/sess-1/vocab-items/item-2/answer`)
+    expect(answers[0][0]).toBe(`${API_BASE}/v0/sessions/sess-1/vocab-items/item-3/answer`)
     expect(answers[0][1]?.headers).toMatchObject({ Authorization: `Bearer ${WEB_TOKEN}` })
-    expect(urls(fetchImpl).filter((url) => url.endsWith('/recording'))).toHaveLength(1)
+    expect(urls(fetchImpl).filter((url) => url.endsWith('/recording'))).toHaveLength(2)
   })
 })
 
@@ -952,7 +982,7 @@ describe('세션 격리 — 다른 세션의 진행을 이어받지 않는다', 
     renderScreen(okFetch(), { storage, sessionId: 'sess-2' })
 
     expect(await findFirstItem()).toBeInTheDocument()
-    expect(screen.getByText('1 / 10 · 음성')).toBeInTheDocument()
+    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
     // 세션 1의 기록은 지워지지 않는다 — 남의 진행을 폐기할 권리가 없다는 것이 키 분리의 이유다
     expect(storage.getItem(snapshotKey('sess-1'))).not.toBeNull()
   })
@@ -973,18 +1003,18 @@ describe('폴링 부재 — 문항 진행 중에는 요청이 없다 (KAN-14 규
       const { capture } = renderScreen(fetchImpl)
       await findRecordButton()
 
-      // 마지막 한 문항을 남긴다 — 열 번째를 제출하면 분석 대기 화면이 서고, 그 화면의 폴링은
+      // 마지막 한 문항을 남긴다 — 일곱 번째를 제출하면 분석 대기 화면이 서고, 그 화면의 폴링은
       // 여기서 재는 대상이 아니다 (KAN-31 이후 웹 단독 실행도 폴링이 실제로 돈다)
-      for (let i = 0; i < 9; i += 1) await advance(capture)
+      for (let i = 0; i < 6; i += 1) await advance(capture)
 
       const requested = urls(fetchImpl)
       expect(
         requested.filter((url) => url.endsWith(`/v0/tests/${TEST_VERSION}?voiceSet=${VOICE_SET}`)),
       ).toHaveLength(1)
-      // 음성 5문항 × 업로드 1건, 어휘 4문항 × 답안 1건. 둘 다 [다음]이 부른 일회성 요청이다
-      expect(requested.filter((url) => url.endsWith('/recording'))).toHaveLength(5)
-      expect(requested.filter((url) => url.endsWith('/answer'))).toHaveLength(4)
-      expect(requested).toHaveLength(10)
+      // 음성 3문항 × 업로드 1건, 어휘 3문항(마지막 7번 제외) × 답안 1건. 둘 다 [다음]이 부른 일회성 요청이다
+      expect(requested.filter((url) => url.endsWith('/recording'))).toHaveLength(3)
+      expect(requested.filter((url) => url.endsWith('/answer'))).toHaveLength(3)
+      expect(requested).toHaveLength(7)
       expect(globalFetch).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
@@ -1023,7 +1053,7 @@ describe('분석 대기 결선 (KAN-14)', () => {
       waitingFetch({
         analyses: () => ({
           pollAfterMs: 800,
-          items: [1, 3, 5, 7, 9].map((seq) => ({
+          items: VOICE_SEQS.map((seq) => ({
             itemId: `item-${seq}`,
             status: 'RETRYABLE_FAILED',
             error: { code: 'AUDIO_TOO_QUIET', retryable: true },
@@ -1072,13 +1102,11 @@ describe('분석 대기 결선 (KAN-14)', () => {
           items: [
             { itemId: 'item-1', status: 'COMPLETED', quality: 'OK' },
             {
-              itemId: 'item-3',
+              itemId: 'item-2',
               status: 'RETRYABLE_FAILED',
               error: { code: 'AUDIO_TOO_QUIET', retryable: true },
             },
-            { itemId: 'item-5', status: 'COMPLETED', quality: 'OK' },
-            { itemId: 'item-7', status: 'COMPLETED', quality: 'OK' },
-            { itemId: 'item-9', status: 'COMPLETED', quality: 'OK' },
+            { itemId: 'item-4', status: 'COMPLETED', quality: 'OK' },
           ],
         }),
       }),
@@ -1091,11 +1119,11 @@ describe('분석 대기 결선 (KAN-14)', () => {
     fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
 
     expect(startVoiceItem).toHaveBeenCalledTimes(1)
-    // 첫 녹음 때와 같은 순번을 준다 — 사용자가 "3번 문항"으로 기억한다
+    // 첫 녹음 때와 같은 순번을 준다 — 사용자가 "2번 문항"으로 기억한다
     expect(JSON.parse(startVoiceItem.mock.calls[0][0])).toMatchObject({
-      itemId: 'item-3',
-      itemNumber: 3,
-      totalItems: 10,
+      itemId: 'item-2',
+      itemNumber: 2,
+      totalItems: 7,
     })
   })
 
@@ -1139,7 +1167,7 @@ describe('분석 대기 결선 (KAN-14)', () => {
     await finishAllItemsWithBridge()
 
     const before = fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/analyses')).length
-    deliverResult('item-3')
+    deliverResult('item-2')
     await act(async () => {})
 
     const after = fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/analyses')).length
@@ -1157,7 +1185,7 @@ describe('문항 퍼널 계측 (KAN-33)', () => {
     const { capture } = renderScreen(okFetch())
     await findRecordButton()
 
-    // 첫 문항은 1번 음성이다 (정의가 홀수 자리에 음성을 둔다)
+    // 첫 문항은 1번 음성이다 (정의 gn-2026.10.1은 1·2·4번에 음성을 둔다)
     expect(events).toEqual([{ event: 'item_shown', item_seq: 1, item_type: 'VOICE' }])
 
     await recordAndSend(capture)
@@ -1169,13 +1197,16 @@ describe('문항 퍼널 계측 (KAN-33)', () => {
     expect(events).toEqual([
       { event: 'item_shown', item_seq: 1, item_type: 'VOICE' },
       { event: 'item_submitted', item_seq: 1, item_type: 'VOICE' },
-      { event: 'item_shown', item_seq: 2, item_type: 'VOCABULARY' },
+      { event: 'item_shown', item_seq: 2, item_type: 'VOICE' },
     ])
+
+    await recordAndSend(capture)
+    expect(events).toContainEqual({ event: 'item_shown', item_seq: 3, item_type: 'VOCABULARY' })
 
     answerVocabulary()
     await act(async () => {})
 
-    expect(events).toContainEqual({ event: 'item_submitted', item_seq: 2, item_type: 'VOCABULARY' })
+    expect(events).toContainEqual({ event: 'item_submitted', item_seq: 3, item_type: 'VOCABULARY' })
   })
 
   it('재녹음 결과가 다시 들어와도 제출은 한 번만 센다', async () => {
@@ -1312,8 +1343,8 @@ describe('시작 대기 카운트다운 (KAN-216)', () => {
 
     // 시계를 밀지 않았는데도 문항이다 — 이미 하던 시험에 "곧 시작합니다"가 다시 뜨면 처음부터인 줄 안다
     expect(screen.queryByRole('heading', { name: '곧 시작합니다' })).toBeNull()
-    expect(screen.getByText('음성 문항 3')).toBeInTheDocument()
-    expect(screen.getByText('3 / 10 · 음성')).toBeInTheDocument()
+    expect(screen.getByText('어휘 문항 3')).toBeInTheDocument()
+    expect(screen.getByText('3 / 7 · 단어')).toBeInTheDocument()
     // 0초에서 시작하면 이펙트가 타이머를 아예 잡지 않는다 — 안 보이는 것이 아니라 안 도는 것이다
     expect(vi.getTimerCount()).toBe(0)
   })

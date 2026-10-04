@@ -194,10 +194,10 @@ describe('App — 스큐 판정 분기', () => {
     // 인트로의 h1은 텍스트 히어로다 (KAN-178) — 같은 말을 되풀이하던 제목을 걷어냈다
     expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
     // KAN-148에서 한 문장이던 표기가 숫자 칸으로 갈렸다 - 확인하는 값은 그대로다
-    expect(screen.getByText('10문항')).toBeInTheDocument()
+    expect(screen.getByText('7문항')).toBeInTheDocument()
     expect(screen.getByText('~3분')).toBeInTheDocument()
     // 이모지를 뺀 한 줄로 합쳤다 (KAN-161 3단계, 아트보드 `Main.dc.html`)
-    expect(screen.getByText('음성 5 + 단어 5')).toBeInTheDocument()
+    expect(screen.getByText('음성 3 + 단어 4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
   })
 

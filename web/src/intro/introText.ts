@@ -1,9 +1,11 @@
-// KAN-10 활성 테스트 정의 API 연동 시 서버가 내려주는 값으로 교체된다.
-// 그때까지는 KAN-10 확정값(음성 5 + 어휘 5 = 10문항)을 상수로 둔다.
-export const VOICE_ITEM_COUNT = 5
-export const VOCABULARY_ITEM_COUNT = 5
+// 인트로는 세션을 만들기 전이라 테스트 정의를 읽을 수 없어 문항 구성을 상수로 둔다
+// (KAN-261 팀 결정, 2026-10-04 — 인트로용 정의 조회 흐름은 새로 만들지 않는다).
+// 값은 서버 정의 gn-2026.10.1(음성 3 + 어휘 4 = 7문항)과 같다. 정의가 바뀌면 함께 고친다.
+export const VOICE_ITEM_COUNT = 3
+export const VOCABULARY_ITEM_COUNT = 4
 
-// ux-ui.md "진입→결과 3분 이내" 목표에서 온 값. 이것도 KAN-10 연동 시 교체 대상이다.
+// ux-ui.md "진입→결과 3분 이내" 목표에서 온 값. 정의 gn-2026.10.1의 estimatedDurationSec 180과
+// 같아 KAN-261에서도 그대로 둔다.
 export const ESTIMATED_MINUTES = 3
 
 /**
