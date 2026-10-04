@@ -27,7 +27,7 @@ class ProgressDotStateTest {
     @Test
     fun `현재 칸보다 뒤는 미완료다`() {
         assertEquals(ProgressDotState.Todo, dotState(position = 4, current = 3))
-        assertEquals(ProgressDotState.Todo, dotState(position = 10, current = 3))
+        assertEquals(ProgressDotState.Todo, dotState(position = 7, current = 3))
     }
 
     @Test
@@ -38,8 +38,8 @@ class ProgressDotStateTest {
 
     @Test
     fun `마지막 문항을 끝내면 모든 칸이 완료다`() {
-        (1..10).forEach { position ->
-            assertEquals(ProgressDotState.Done, dotState(position = position, current = 11))
+        (1..7).forEach { position ->
+            assertEquals(ProgressDotState.Done, dotState(position = position, current = 8))
         }
     }
 }

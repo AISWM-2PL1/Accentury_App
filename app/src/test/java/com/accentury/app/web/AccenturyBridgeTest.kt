@@ -30,7 +30,7 @@ class AccenturyBridgeTest {
         itemId: String = "item_1",
         prompt: String = "마! 니 어데 가노?",
         itemNumber: Int = 1,
-        totalItems: Int = 10,
+        totalItems: Int = 7,
         maxDurationMs: Long = 15_000L,
         extra: String = "",
     ) = """{"itemId":"$itemId","prompt":"$prompt","itemNumber":$itemNumber,""" +
@@ -342,7 +342,7 @@ class AccenturyBridgeTest {
                 itemId = "item_1",
                 prompt = "마! 니 어데 가노?",
                 itemNumber = 1,
-                totalItems = 10,
+                totalItems = 7,
                 maxDurationMs = 15_000L,
             ),
             startVoiceItem(payload()),
@@ -370,8 +370,8 @@ class AccenturyBridgeTest {
         assertNull(startVoiceItem(payload(totalItems = 0)))
         assertNull(startVoiceItem(payload(maxDurationMs = 0L)))
         assertNull(startVoiceItem(payload(maxDurationMs = -1L)))
-        // 진행 표기가 "11/10"이 되는 조합. 정의를 읽는 쪽의 계산 착오이므로 화면을 띄우지 않는다.
-        assertNull(startVoiceItem(payload(itemNumber = 11, totalItems = 10)))
+        // 진행 표기가 "8/7"이 되는 조합. 정의를 읽는 쪽의 계산 착오이므로 화면을 띄우지 않는다.
+        assertNull(startVoiceItem(payload(itemNumber = 8, totalItems = 7)))
     }
 
     @Test
@@ -595,7 +595,7 @@ class AccenturyBridgeTest {
     fun `프롬프트의 따옴표나 유니코드가 값 그대로 전달된다`() {
         val start = startVoiceItem(
             """{"itemId":"item_1","prompt":"\"밥은\" 뭇나?\n마!","itemNumber":2,""" +
-                """"totalItems":10,"maxDurationMs":15000}""",
+                """"totalItems":7,"maxDurationMs":15000}""",
         )
 
         assertEquals("\"밥은\" 뭇나?\n마!", start?.prompt)

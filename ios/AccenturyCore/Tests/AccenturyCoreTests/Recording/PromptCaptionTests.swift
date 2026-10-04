@@ -11,7 +11,7 @@ import XCTest
 final class PromptCaptionTests: XCTestCase {
 
     func test번호를_알면_진행과_안내를_한_줄로_붙인다() {
-        XCTAssertEqual("3 / 10 · 이 문장을 읽어주세요", promptCaption(questionIndex: 3, totalQuestions: 10))
+        XCTAssertEqual("4 / 7 · 이 문장을 읽어주세요", promptCaption(questionIndex: 4, totalQuestions: 7))
         XCTAssertEqual("1 / 5 · 이 문장을 읽어주세요", promptCaption(questionIndex: 1, totalQuestions: 5))
     }
 

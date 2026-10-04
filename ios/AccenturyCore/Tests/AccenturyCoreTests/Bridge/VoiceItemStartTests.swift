@@ -14,7 +14,7 @@ final class VoiceItemStartTests: XCTestCase {
         itemId: String = "item_1",
         prompt: String = "마! 니 어데 가노?",
         itemNumber: Int = 1,
-        totalItems: Int = 10,
+        totalItems: Int = 7,
         maxDurationMs: Int64 = 15_000,
         extra: String = ""
     ) -> String {
@@ -28,7 +28,7 @@ final class VoiceItemStartTests: XCTestCase {
                 itemId: "item_1",
                 prompt: "마! 니 어데 가노?",
                 itemNumber: 1,
-                totalItems: 10,
+                totalItems: 7,
                 maxDurationMs: 15_000
             ),
             parseVoiceItemStart(payload())
@@ -49,8 +49,8 @@ final class VoiceItemStartTests: XCTestCase {
         XCTAssertNil(parseVoiceItemStart(payload(totalItems: 0)))
         XCTAssertNil(parseVoiceItemStart(payload(maxDurationMs: 0)))
         XCTAssertNil(parseVoiceItemStart(payload(maxDurationMs: -1)))
-        // 진행 표기가 "11/10"이 되는 조합. 정의를 읽는 쪽의 계산 착오이므로 화면을 띄우지 않는다.
-        XCTAssertNil(parseVoiceItemStart(payload(itemNumber: 11, totalItems: 10)))
+        // 진행 표기가 "8/7"이 되는 조합. 정의를 읽는 쪽의 계산 착오이므로 화면을 띄우지 않는다.
+        XCTAssertNil(parseVoiceItemStart(payload(itemNumber: 8, totalItems: 7)))
     }
 
     func testGuideF0ParsesValuesIncludingUnvoicedNulls() {
@@ -110,7 +110,7 @@ final class VoiceItemStartTests: XCTestCase {
     func testQuotesAndUnicodeInPromptSurviveVerbatim() {
         let start = parseVoiceItemStart(
             "{\"itemId\":\"item_1\",\"prompt\":\"\\\"밥은\\\" 뭇나?\\n마!\",\"itemNumber\":2,"
-                + "\"totalItems\":10,\"maxDurationMs\":15000}"
+                + "\"totalItems\":7,\"maxDurationMs\":15000}"
         )
 
         XCTAssertEqual("\"밥은\" 뭇나?\n마!", start?.prompt)

@@ -36,7 +36,7 @@ const WAITING_MESSAGE = '잠시만요…'
 
 export interface VoiceItemScreenProps {
   item: VoiceItem
-  /** 진행 표기용 1-기반 순번. 네이티브 녹음 화면이 "3/10"을 그리는 데 쓴다 */
+  /** 진행 표기용 1-기반 순번. 네이티브 녹음 화면이 "2/7"을 그리는 데 쓴다 */
   itemNumber: number
   totalItems: number
   /** 브리지가 없는 환경(브라우저 단독)의 녹음 업로드 결선 */
