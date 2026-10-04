@@ -383,6 +383,44 @@ function TestRunner({
   )
 
   /*
+   * 보관 음성 유실 복구 (KAN-261 2단계) — 브라우저 녹음 경로의 앞 문항 재녹음 대기열.
+   *
+   * 세 번째 음성 업로드가 `VOICE_SLOT_MISSING`으로 거절되면, 서버가 잃은 앞 문항(missingItems)의
+   * 녹음 화면을 seq 순서로 다시 연 뒤 거절당한 지금 문항으로 돌아온다. 브라우저에는 앞 문항으로
+   * 돌아가는 수단이 없어(대기 화면 재녹음도 브리지가 있을 때만 연결된다) 이 대기열이 그 최소 경로다.
+   *
+   * 진행 상태 머신은 건드리지 않는다(`retake` 주석과 같은 원칙). 대기열이 비어 있지 않은 동안
+   * 녹음 화면만 앞 문항으로 바꿔 끼우고, 진행률은 그대로 지금 문항을 가리킨다. 앞 문항의 새 업로드는
+   * 같은 `receiveResult`로 들어오지만 이미 제출된 문항이라 상태 머신이 거부해 진행이 밀리지 않는다.
+   * 대기열이 비면 지금 문항(거절당한 문항)이 새 녹음 화면으로 다시 선다.
+   *
+   * 음성이 아닌 id·모르는 id·지금 문항 id는 거른다. 남는 게 없으면 대기열이 비어 지금 문항만 다시
+   * 녹음하는 기존 재녹음으로 떨어진다(막다른 길 금지).
+   */
+  const [redoQueue, setRedoQueue] = useState<string[]>([])
+  const currentItemId = current?.itemId
+  const queueMissingItems = useCallback(
+    (missingItems: string[]) => {
+      // ponytail: 거절당한 문항(X)도 재녹음한다. KAN-262가 같은 키 재전송을 보장하면 X는 재전송으로 바꾼다
+      setRedoQueue(
+        state.items
+          .filter((item) => item.type === 'VOICE' && item.itemId !== currentItemId && missingItems.includes(item.itemId))
+          .map((item) => item.itemId),
+      )
+    },
+    [state.items, currentItemId],
+  )
+  const redoIndex = redoQueue.length > 0 ? state.items.findIndex((item) => item.itemId === redoQueue[0]) : -1
+  const redoItem = redoIndex >= 0 ? state.items[redoIndex] : undefined
+  const receiveRedoResult = useCallback(
+    (result: ItemResult) => {
+      receiveResult(result)
+      setRedoQueue((queue) => queue.slice(1))
+    },
+    [receiveResult],
+  )
+
+  /*
    * 막다른 상태의 [다시 테스트하기] (KAN-191 분석 대기, KAN-237 문항 제출).
    *
    * **수신자 설치가 이 자리인 이유가 §8이다.** 재응시 실패 회신(`onRetestFailed`)은 부모가
@@ -487,7 +525,22 @@ function TestRunner({
         본문은 유형이 정한다. 두 화면 모두 문항이 바뀔 때 새로 마운트되도록 itemId를 key로 준다 —
         음성 화면은 그 마운트가 곧 "네이티브에 전환을 알리는" 시점이다.
       */}
-      {current.type === 'VOICE' ? (
+      {redoItem !== undefined && redoItem.type === 'VOICE' ? (
+        /*
+          보관 음성 유실 복구 중인 앞 문항 (KAN-261). key가 지금 문항과 달라 지금 문항의 녹음 화면은
+          내려가고, 대기열이 비면 같은 key로 새로 마운트돼 빈 녹음 화면으로 돌아온다.
+        */
+        <VoiceItemScreen
+          key={`redo:${redoItem.itemId}`}
+          item={redoItem}
+          itemNumber={redoIndex + 1}
+          totalItems={progress.total}
+          webRecording={{ upload: uploadWebRecording, capture, userCurveCenterHz }}
+          onWebUploaded={receiveRedoResult}
+          retest={retestFallback === undefined ? undefined : retest}
+          probeSession={probeSession}
+        />
+      ) : current.type === 'VOICE' ? (
         <VoiceItemScreen
           key={current.itemId}
           item={current}
@@ -498,6 +551,7 @@ function TestRunner({
           /* 대기 화면과 같은 가드다 — 폴백 없는 호출자에게는 죽은 버튼을 주지 않는다 (KAN-237) */
           retest={retestFallback === undefined ? undefined : retest}
           probeSession={probeSession}
+          onSlotMissing={queueMissingItems}
         />
       ) : (
         <VocabularyItemScreen

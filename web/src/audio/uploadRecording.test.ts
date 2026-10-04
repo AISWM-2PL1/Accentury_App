@@ -210,6 +210,27 @@ describe('응답 해석', () => {
     })
   })
 
+  it('VOICE_SLOT_MISSING은 빠진 문항을 싣고, 서버 문구가 비면 기본 안내를 쓴다 (KAN-261)', async () => {
+    const fetchImpl = stubFetch(
+      response(409, { code: 'VOICE_SLOT_MISSING', message: '', retryable: false, missingItems: ['item-1', 'item-2'] }),
+    )
+
+    await expect(uploadRecording(upload(), fetchImpl)).rejects.toMatchObject({
+      code: 'VOICE_SLOT_MISSING',
+      message: '앞서 녹음한 음성을 다시 녹음해 주세요',
+      retryable: false,
+      missingItems: ['item-1', 'item-2'],
+    })
+  })
+
+  it('다른 코드의 missingItems는 싣지 않는다 — 재녹음 대상은 VOICE_SLOT_MISSING만 말한다', async () => {
+    const fetchImpl = stubFetch(
+      response(422, { code: 'AUDIO_TOO_QUIET', message: '목소리가 작아요', retryable: true, missingItems: ['item-1'] }),
+    )
+
+    await expect(uploadRecording(upload(), fetchImpl)).rejects.toMatchObject({ missingItems: [] })
+  })
+
   it('429는 대기 시간을 함께 싣는다', async () => {
     const fetchImpl = stubFetch(
       response(429, { code: 'RATE_LIMITED', message: '잠시 후 다시 시도해 주세요', retryable: true, retryAfterMs: 3_000 }),

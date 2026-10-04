@@ -65,6 +65,8 @@ export interface VoiceItemScreenProps {
    * 탭에서만 부른다 — 이유는 `reopen` 주석. 없으면 탭은 예전처럼 곧바로 녹음 화면을 다시 연다.
    */
   probeSession?: () => Promise<'ALIVE' | 'EXPIRED'>
+  /** 브라우저 녹음 경로의 보관 음성 유실 거절 (KAN-261). [WebVoiceRecorder]에 그대로 넘긴다 */
+  onSlotMissing?: (missingItems: string[]) => void
 }
 
 export function VoiceItemScreen({
@@ -75,6 +77,7 @@ export function VoiceItemScreen({
   onWebUploaded,
   retest,
   probeSession,
+  onSlotMissing,
 }: VoiceItemScreenProps) {
   /*
    * 브리지 호출 결과. `null`은 아직 부르기 전이라는 뜻이다 — 호출은 effect에서 일어나므로
@@ -194,6 +197,7 @@ export function VoiceItemScreen({
           capture={webRecording.capture}
           userCurveCenterHz={webRecording.userCurveCenterHz}
           retest={retest}
+          onSlotMissing={onSlotMissing}
         />
       ) : sessionExit && retest !== undefined ? (
         /*
