@@ -6,15 +6,16 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 
 /**
- * 가입 시 동의받는 개인정보처리방침의 버전 (KAN-224, KAN-240).
+ * 가입 시 동의받는 개인정보처리방침의 버전 (KAN-224, KAN-240, KAN-269).
  *
  * 값은 게시된 방침(서버 레포 `infra/privacy/privacy.html`의 `accentury-policy-version` 메타, 시행일과 같은
- * 날짜)이다. 계정 수집 항목을 반영한 개정본이 2026-09-29 버전이다 (KAN-240). **서버는 게시 중인 버전과
+ * 날짜)이다. 음성 저장과 AI 모델 학습 활용의 선택 동의를 반영한 개정본이 2026-10-04 버전이다
+ * (KAN-269, 그 앞은 계정 수집 항목을 반영한 KAN-240의 2026-09-29). **서버는 게시 중인 버전과
  * 정확히 같은 값만 동의로 받고 다르면 400 AUTH_CONSENT_REQUIRED다** - 방침을 개정하면 서버 레포의
  * `AccenturyProperties.Auth.PRIVACY_POLICY_VERSION`, privacy.html, iOS `LoginScreenState.swift`와 이 값을 함께
  * 올린다. 어긋난 동안에는 새 가입이 전부 막힌다 (재로그인은 동의 필드를 보지 않아 영향이 없다).
  */
-const val PRIVACY_POLICY_VERSION = "2026-09-29"
+const val PRIVACY_POLICY_VERSION = "2026-10-04"
 
 /**
  * 방침 문서 주소. 웹(`web/src/legal/privacyPolicy.ts`의 DEFAULT_PRIVACY_POLICY_URL)과 같은 값이고 같은
