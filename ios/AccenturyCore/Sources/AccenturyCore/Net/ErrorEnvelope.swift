@@ -14,6 +14,8 @@ struct ErrorEnvelope: Decodable {
     let retryable: Bool
     let retryAfterMs: Int64?
     let correlationId: String?
+    /// 서버가 잃은 앞 음성 문항 (KAN-261, KAN-262 확정 전 가칭). 422 `RESULT_INCOMPLETE`와 같은 확장 필드 이름이다.
+    let missingItems: [String]?
 }
 
 extension String {
