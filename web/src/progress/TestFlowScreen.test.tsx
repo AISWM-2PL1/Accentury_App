@@ -966,6 +966,71 @@ describe('VOICE 문항 — 보관 음성 유실 복구 (KAN-261)', () => {
     expect(await screen.findByText('어휘 문항 5')).toBeInTheDocument()
     expect(recordingItems(fetchImpl)).toEqual(['item-1', 'item-2', 'item-4', 'item-4'])
   })
+
+  /** n번째 `/recording` 업로드(0부터)만 주어진 봉투로 거절하고 나머지는 okFetch로 (KAN-261 리뷰 P0-1) */
+  function rejectUploads(rejections: Record<number, { status: number; body: object }>) {
+    const base = okFetch()
+    let uploads = 0
+    return vi.fn<FetchLike>(async (input, init) => {
+      const rejection = String(input).endsWith('/recording') ? rejections[uploads++] : undefined
+      if (rejection !== undefined) {
+        return {
+          ok: false,
+          status: rejection.status,
+          headers: { get: () => null },
+          json: async () => rejection.body,
+        } as unknown as Response
+      }
+      return base(input, init)
+    })
+  }
+
+  it('재녹음 중인 앞 문항이 다시 VOICE_SLOT_MISSING이면 그 문항과 새로 빠진 문항을 seq 순서로 녹음한 뒤 4번으로 돌아온다', async () => {
+    const slotMissing = (missingItems: string[]) => ({
+      status: 409,
+      body: { code: 'VOICE_SLOT_MISSING', message: '', retryable: false, missingItems },
+    })
+    // 업로드 순서: 1, 2, 4(거절 [1]), 1 재녹음(거절 [2]), ...
+    const fetchImpl = rejectUploads({ 2: slotMissing(['item-1']), 3: slotMissing(['item-2']) })
+    const { capture } = renderScreen(fetchImpl)
+    await reachRejectedFourth(capture)
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+    expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
+    await recordAndSend(capture)
+
+    // 1번 재녹음도 거절됐다 — 같은 복구 갈래가 서고 [다시 녹음]이 대기열을 다시 세운다
+    expect(screen.getByText('음성 문항 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+    // 1번(거절된 재녹음 문항)이 다시 서고, 이어서 2번, 마지막에 4번
+    expect(screen.getByText('음성 문항 1')).toBeInTheDocument()
+    await recordAndSend(capture)
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+    await recordAndSend(capture)
+    expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
+    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
+    await recordAndSend(capture)
+
+    expect(await screen.findByText('어휘 문항 5')).toBeInTheDocument()
+    expect(recordingItems(fetchImpl)).toEqual(['item-1', 'item-2', 'item-4', 'item-1', 'item-1', 'item-2', 'item-4'])
+  })
+
+  it('재녹음 중인 앞 문항 업로드가 세션 만료로 거절되면 [다시 테스트하기]가 선다', async () => {
+    const retestFallback = vi.fn()
+    const fetchImpl = rejectUploads({
+      2: { status: 409, body: { code: 'VOICE_SLOT_MISSING', message: '', retryable: false, missingItems: ['item-1'] } },
+      3: { status: 401, body: { code: 'SESSION_EXPIRED', message: '세션이 만료되었습니다.', retryable: false } },
+    })
+    const { capture } = renderScreen(fetchImpl, { retestFallback })
+    await reachRejectedFourth(capture)
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+    expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
+
+    await recordAndSend(capture)
+
+    expect(screen.getByText('세션이 만료되었습니다.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+    expect(retestFallback).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {

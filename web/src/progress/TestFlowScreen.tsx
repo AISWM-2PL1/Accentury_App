@@ -396,15 +396,25 @@ function TestRunner({
    *
    * 음성이 아닌 id·모르는 id·지금 문항 id는 거른다. 남는 게 없으면 대기열이 비어 지금 문항만 다시
    * 녹음하는 기존 재녹음으로 떨어진다(막다른 길 금지).
+   *
+   * 앞 문항 재녹음 화면의 업로드가 다시 `VOICE_SLOT_MISSING`으로 거절되면(KAN-261 리뷰 P0-1) 기존
+   * 대기열(맨 앞이 지금 재녹음 중이던 문항)에 새 missingItems를 합쳐 seq 순서로 다시 세운다 — 덮어쓰면
+   * 거절된 재녹음 문항이나 남은 문항이 빠진다. 앞 문항의 재업로드는 성공해야 대기열을 넘기므로, 다음
+   * 녹음 중에 앞 업로드 실패가 도착하는 네이티브의 경합은 여기 없다.
    */
   const [redoQueue, setRedoQueue] = useState<string[]>([])
   const currentItemId = current?.itemId
   const queueMissingItems = useCallback(
     (missingItems: string[]) => {
       // ponytail: 거절당한 문항(X)도 재녹음한다. KAN-262가 같은 키 재전송을 보장하면 X는 재전송으로 바꾼다
-      setRedoQueue(
+      setRedoQueue((queue) =>
         state.items
-          .filter((item) => item.type === 'VOICE' && item.itemId !== currentItemId && missingItems.includes(item.itemId))
+          .filter(
+            (item) =>
+              item.type === 'VOICE' &&
+              item.itemId !== currentItemId &&
+              (missingItems.includes(item.itemId) || queue.includes(item.itemId)),
+          )
           .map((item) => item.itemId),
       )
     },
@@ -539,6 +549,7 @@ function TestRunner({
           onWebUploaded={receiveRedoResult}
           retest={retestFallback === undefined ? undefined : retest}
           probeSession={probeSession}
+          onSlotMissing={queueMissingItems}
         />
       ) : current.type === 'VOICE' ? (
         <VoiceItemScreen
