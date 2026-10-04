@@ -886,6 +886,88 @@ describe('VOICE 문항 — 브라우저 녹음 업로드 (KAN-56 Stage 3)', () =
   })
 })
 
+describe('VOICE 문항 — 보관 음성 유실 복구 (KAN-261)', () => {
+  /** 4번 문항(세 번째 음성)의 첫 업로드만 `VOICE_SLOT_MISSING`으로 거절하고 나머지는 okFetch로 */
+  function slotMissingFetch(missingItems: string[]) {
+    const base = okFetch()
+    let rejected = false
+    return vi.fn<FetchLike>(async (input, init) => {
+      if (String(input).endsWith('/voice-items/item-4/recording') && !rejected) {
+        rejected = true
+        return {
+          ok: false,
+          status: 409,
+          headers: { get: () => null },
+          json: async () => ({ code: 'VOICE_SLOT_MISSING', message: '', retryable: false, missingItems }),
+        } as unknown as Response
+      }
+      return base(input, init)
+    })
+  }
+
+  /** 1·2(음성), 3(어휘)을 지나 4번 문항을 녹음해 올린다 */
+  async function reachRejectedFourth(capture: FakeCapture) {
+    await findRecordButton()
+    for (let i = 0; i < 3; i += 1) await advance(capture)
+    expect(screen.getByText('음성 문항 4')).toBeInTheDocument()
+    await recordAndSend(capture)
+  }
+
+  function recordingItems(fetchImpl: ReturnType<typeof vi.fn<FetchLike>>): string[] {
+    return urls(fetchImpl)
+      .filter((url) => url.endsWith('/recording'))
+      .map((url) => url.split('/voice-items/')[1].split('/')[0])
+  }
+
+  it('안내와 [다시 녹음]을 보이고, 빠진 문항을 seq 순서로 다시 녹음한 뒤 거절당한 문항으로 돌아온다', async () => {
+    // 순서를 뒤집고 어휘 문항 id를 섞어 보낸다 — seq 순서로 정렬하고 음성이 아닌 것은 거른다
+    const fetchImpl = slotMissingFetch(['item-2', 'item-3', 'item-1'])
+    const { capture } = renderScreen(fetchImpl)
+    await reachRejectedFourth(capture)
+
+    expect(screen.getByText('앞서 녹음한 음성을 다시 녹음해 주세요')).toBeInTheDocument()
+    // 같은 바이트를 다시 보내도 칸이 비어 있어 같은 거절이다 — 재전송 버튼은 없다
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+
+    expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
+    // 진행률은 흔들리지 않는다 — 지금 문항은 여전히 4번이다
+    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
+    await recordAndSend(capture)
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+    await recordAndSend(capture)
+    expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
+    await recordAndSend(capture)
+
+    expect(await screen.findByText('어휘 문항 5')).toBeInTheDocument()
+    expect(recordingItems(fetchImpl)).toEqual(['item-1', 'item-2', 'item-4', 'item-1', 'item-2', 'item-4'])
+  })
+
+  it('missingItems가 비면 기존 [재녹음]으로 거절당한 문항만 다시 녹음한다', async () => {
+    const { capture } = renderScreen(slotMissingFetch([]))
+    await reachRejectedFourth(capture)
+
+    expect(screen.queryByRole('button', { name: '다시 녹음' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '재녹음' }))
+
+    expect(screen.getByText('음성 문항 4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '녹음' })).toBeInTheDocument()
+  })
+
+  it('missingItems가 모르는 id뿐이면 거절당한 문항의 녹음 화면으로 남는다 — 막다른 길이 없다', async () => {
+    const fetchImpl = slotMissingFetch(['item-99'])
+    const { capture } = renderScreen(fetchImpl)
+    await reachRejectedFourth(capture)
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+    expect(screen.getByText('음성 문항 4')).toBeInTheDocument()
+    await recordAndSend(capture)
+
+    expect(await screen.findByText('어휘 문항 5')).toBeInTheDocument()
+    expect(recordingItems(fetchImpl)).toEqual(['item-1', 'item-2', 'item-4', 'item-4'])
+  })
+})
+
 describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {
   it('보기를 고르고 [다음]을 누르면 다음 문항으로 넘어간다', async () => {
     stubBridge()

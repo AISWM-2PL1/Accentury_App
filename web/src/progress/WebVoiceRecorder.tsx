@@ -27,7 +27,7 @@ import type { RetakeReason } from '../analytics/events'
 import { track } from '../analytics/track'
 import { useRecorder, type CaptureFactory, type QualityStatus, type Recording } from '../audio'
 import { PitchTracker, type PitchFrame } from '../audio/pitchTracker'
-import { UploadError, type UploadAccepted } from '../audio/uploadRecording'
+import { UploadError, VOICE_SLOT_MISSING, type UploadAccepted } from '../audio/uploadRecording'
 import type { ItemResult } from '../bridge/itemResult'
 import { newIdempotencyKey } from '../net/idempotencyKey'
 import { CurveCard } from '../recording/CurveCard'
@@ -68,13 +68,19 @@ export interface WebVoiceRecorderProps {
   userCurveCenterHz?: number | null
   /** 업로드가 세션 만료로 거절됐을 때의 [다시 테스트하기] (KAN-237). 없으면 예전처럼 [재녹음]만 남는다 */
   retest?: RetestControl
+  /**
+   * 서버가 앞서 보관한 음성을 잃어 이 업로드를 거절했다 (`VOICE_SLOT_MISSING`, KAN-261).
+   * 빠진 문항 id를 받아 그 문항들의 녹음 화면을 차례로 다시 여는 것은 호출자 몫이다 — 앞 문항을
+   * 아는 것은 진행 화면뿐이다. 없으면 이 문항만 다시 녹음하는 기존 [재녹음] 갈래로 떨어진다.
+   */
+  onSlotMissing?: (missingItems: string[]) => void
 }
 
 type UploadState =
   | { kind: 'idle' }
   | { kind: 'uploading' }
   /** `code`는 서버 봉투의 오류 코드. 봉투 없는 실패는 null — 세션 만료 판정에만 쓴다 (KAN-237) */
-  | { kind: 'failed'; message: string; retryable: boolean; code: string | null }
+  | { kind: 'failed'; message: string; retryable: boolean; code: string | null; missingItems: string[] }
 
 /**
  * 품질 판정별 안내. 전부 **다음 행동**을 말한다 — "실패했습니다"는 사용자가 할 일을 알려주지
@@ -131,6 +137,7 @@ export function WebVoiceRecorder({
   capture,
   userCurveCenterHz = null,
   retest,
+  onSlotMissing,
 }: WebVoiceRecorderProps) {
   const [uploadState, setUploadState] = useState<UploadState>({ kind: 'idle' })
 
@@ -303,6 +310,7 @@ export function WebVoiceRecorder({
           message: error instanceof Error ? error.message : String(error),
           retryable: error instanceof UploadError ? error.retryable : true,
           code: error instanceof UploadError ? error.code : null,
+          missingItems: error instanceof UploadError ? error.missingItems : [],
         })
       } finally {
         uploadingRef.current = false
@@ -339,6 +347,7 @@ export function WebVoiceRecorder({
           uploadState={uploadState}
           retest={retest}
           onRetake={retake}
+          onSlotMissing={onSlotMissing}
           onSend={() => void send(state.recording)}
         />
       )
@@ -432,6 +441,7 @@ function ReviewPanel({
   uploadState,
   retest,
   onRetake,
+  onSlotMissing,
   onSend,
 }: {
   recording: Recording
@@ -439,6 +449,7 @@ function ReviewPanel({
   retest: RetestControl | undefined
   /** 재녹음. 사유는 누른 자리가 정한다 (`retake` 주석) */
   onRetake: (reason: RetakeReason) => void
+  onSlotMissing: ((missingItems: string[]) => void) | undefined
   onSend: () => void
 }) {
   if (uploadState.kind === 'uploading') {
@@ -458,6 +469,39 @@ function ReviewPanel({
      * 할 일을 이미 한 줄에 담고 있다. `retest`가 없는 호출자(폴백 없음)는 아래 기존 갈래를 탄다.
      */
     return <StatusBlock tone="error" message={uploadState.message} action={<RetestAction retest={retest} />} />
+  }
+
+  if (
+    uploadState.kind === 'failed' &&
+    uploadState.code === VOICE_SLOT_MISSING &&
+    uploadState.missingItems.length > 0 &&
+    onSlotMissing !== undefined
+  ) {
+    /*
+     * 서버가 앞서 보관한 음성을 잃었다 (KAN-261). 이 문항을 다시 보내도 칸이 비어 있어 같은 거절이라
+     * [다시 시도]는 두지 않는다. [다시 녹음]은 이 녹음을 버리고(기존 재녹음) 빠진 문항들의 녹음
+     * 화면을 차례로 연 뒤 이 문항으로 돌아온다 — 순서는 호출자(`TestFlowScreen`)가 정한다.
+     *
+     * missingItems가 비었으면 이 갈래를 타지 않고 아래 기존 [재녹음]으로 떨어진다(막다른 길 금지).
+     */
+    const missingItems = uploadState.missingItems
+    return (
+      <StatusBlock
+        tone="error"
+        message={uploadState.message}
+        action={
+          <Button
+            onClick={() => {
+              onRetake('FAILED')
+              onSlotMissing(missingItems)
+            }}
+            style={{ width: '100%' }}
+          >
+            다시 녹음
+          </Button>
+        }
+      />
+    )
   }
 
   if (uploadState.kind === 'failed') {
