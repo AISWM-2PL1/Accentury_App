@@ -622,6 +622,8 @@ private fun TestFlow(
                      * 새 세션은 새 인스턴스를 받고, 끝난 응시의 업로드가 섞이지 않는다.
                      */
                     startRequested = false
+                    // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
+                    flow.onSessionReplaced()
                 }
 
                 // 결과 화면에 회신할 실패가 아니다 — 추가 정보를 받으러 간다 (KAN-224).

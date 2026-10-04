@@ -906,6 +906,136 @@ final class TestFlowControllerTests: XCTestCase {
         XCTAssertEqual(.recording(starts[0], afterUploadFailure: true, failureMessage: "m"), restored.phase)
     }
 
+    // KAN-261 리뷰 P1-2 — 복구 대기열은 화면 재생성·복원을 넘긴다.
+    func testRedoQueueSurvivesRecreationAndOpensTheNextItem() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+        controller.onUploadGivenUp(attemptId: "at_2", micGranted: true, message: "m", missingItems: ["item_1", "item_2"])
+
+        let restored = recreate(controller)
+        XCTAssertEqual(.recording(starts[0], afterUploadFailure: true, failureMessage: "m"), restored.phase)
+        restored.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+
+        XCTAssertEqual(.recording(starts[1], afterUploadFailure: true, failureMessage: "m"), restored.phase)
+    }
+
+    func testRedoQueueSurvivesRecreationAtThePermissionGate() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+        controller.onUploadGivenUp(attemptId: "at_2", micGranted: false, message: "m", missingItems: ["item_1"])
+        XCTAssertEqual(.needsPermission(starts[0], afterUploadFailure: true, failureMessage: "m"), controller.phase)
+
+        let restored = recreate(controller)
+        restored.onPermissionGranted()
+        restored.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+
+        XCTAssertEqual(.recording(starts[2], afterUploadFailure: true, failureMessage: "m"), restored.phase)
+    }
+
+    /*
+     * KAN-261 리뷰 P1-3 — 복구 사슬은 업로드를 기다리지 않고 다음 녹음을 연다. 앞 문항 재업로드의 거절이
+     * 다음 녹음 중에 도착하면 손에 든 녹음은 그대로 두고 그 문항을 대기열에 다시 넣는다.
+     */
+    func testFrontItemRejectedDuringNextRecordingIsReopenedBeforeTheRejectedOne() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+        controller.onUploadGivenUp(attemptId: "at_2", micGranted: true, message: "m", missingItems: ["item_1", "item_2"])
+        controller.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+        let inHand = TestFlowPhase.recording(starts[1], afterUploadFailure: true, failureMessage: "m")
+        XCTAssertEqual(inHand, controller.phase)
+
+        XCTAssertTrue(controller.onUploadGivenUp(attemptId: "redo_1", micGranted: true, message: "너무 작아요"))
+        XCTAssertEqual(inHand, controller.phase)
+
+        controller.onRecordingFinished(attemptId: "redo_2", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual("item_1", recordingItemId(controller))
+        controller.onRecordingFinished(attemptId: "redo_1b", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual("item_4", recordingItemId(controller))
+        controller.onRecordingFinished(attemptId: "redo_4", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.submitting(starts[2], attemptId: "redo_4"), controller.phase)
+    }
+
+    func testNewMissingItemsDuringTheLastRecordingAreMergedAndTheRejectedItemGoesLastAgain() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+        controller.onUploadGivenUp(attemptId: "at_2", micGranted: true, message: "m", missingItems: ["item_1"])
+        controller.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+        // 대기열이 비어 X(4번)를 녹음하는 중에 1번 재업로드가 2번 칸 유실로 거절된다
+        XCTAssertEqual("item_4", recordingItemId(controller))
+        controller.onUploadGivenUp(attemptId: "redo_1", micGranted: true, message: "칸 없음", missingItems: ["item_2"])
+
+        let order = ["redo_4", "redo_1b", "redo_2", "redo_4b"].map { attemptId -> String? in
+            let itemId = recordingItemId(controller)
+            controller.onRecordingFinished(attemptId: attemptId, durationMs: 3_200, quality: .normal)
+            return itemId
+        }
+
+        // X를 마친 뒤 1번, 2번을 열고 X를 다시 끝에 둔다
+        XCTAssertEqual(["item_4", "item_1", "item_2", "item_4"], order)
+        XCTAssertEqual(.submitting(starts[2], attemptId: "redo_4b"), controller.phase)
+    }
+
+    func testFrontItemRejectedWhileTheRejectedItemSubmitsReopensItThenTheRejectedOneAcrossThePermissionGate() {
+        let controller = TestFlowController()
+        let starts = rejectThirdVoice(controller)
+        controller.onUploadGivenUp(attemptId: "at_2", micGranted: true, message: "m", missingItems: ["item_1"])
+        controller.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+        controller.onRecordingFinished(attemptId: "redo_4", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.submitting(starts[2], attemptId: "redo_4"), controller.phase)
+
+        // 1번 재업로드 거절이 X 제출 중에 도착하고 권한이 회수돼 있다
+        XCTAssertTrue(controller.onUploadGivenUp(attemptId: "redo_1", micGranted: false, message: "너무 작아요"))
+        let gate = TestFlowPhase.needsPermission(starts[0], afterUploadFailure: true, failureMessage: "너무 작아요")
+        XCTAssertEqual(gate, controller.phase)
+        // 칸이 빈 채로 올라간 X는 게이트가 서 있는 동안 거절된다 — 게이트는 그대로, 바이트는 폐기
+        XCTAssertTrue(controller.onUploadGivenUp(
+            attemptId: "redo_4", micGranted: false, message: "칸 없음", missingItems: ["item_1"]
+        ))
+        XCTAssertEqual(gate, controller.phase)
+
+        let restored = recreate(controller)
+        restored.onPermissionGranted()
+        restored.onRecordingFinished(attemptId: "redo_1b", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual("item_4", recordingItemId(restored))
+        restored.onRecordingFinished(attemptId: "redo_4b", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.submitting(starts[2], attemptId: "redo_4b"), restored.phase)
+    }
+
+    func testOutsideRecoveryALateFrontGiveUpLeavesTheRecordingInHandAlone() {
+        let controller = TestFlowController()
+        let first = voiceItem(itemId: "item_1", number: 1)
+        let second = voiceItem(itemId: "item_2", number: 2)
+        controller.onStartVoiceItem(first, micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+        controller.onStartVoiceItem(second, micGranted: true)
+
+        controller.onUploadGivenUp(attemptId: "at_1", micGranted: true, message: "m")
+        controller.onRecordingFinished(attemptId: "at_2", durationMs: 3_200, quality: .normal)
+
+        XCTAssertEqual(.submitting(second, attemptId: "at_2"), controller.phase)
+    }
+
+    // KAN-261 리뷰 P1-4 — 재응시 뒤에는 이전 세션의 요청을 쓰지 않는다.
+    func testAfterSessionReplacedPreviousSessionItemIdsFallBackToTheRejectedItem() {
+        let controller = TestFlowController()
+        _ = rejectThirdVoice(controller)
+        controller.onSessionReplaced()
+
+        let retaken = voiceItem(itemId: "item_4", number: 4)
+        controller.onStartVoiceItem(retaken, micGranted: true)
+        controller.onRecordingFinished(attemptId: "new_4", durationMs: 3_200, quality: .normal)
+        controller.onUploadGivenUp(attemptId: "new_4", micGranted: true, message: "m", missingItems: ["item_1", "item_2"])
+
+        XCTAssertEqual(.recording(retaken, afterUploadFailure: true, failureMessage: "m"), controller.phase)
+        controller.onRecordingFinished(attemptId: "new_4b", durationMs: 3_200, quality: .normal)
+        XCTAssertEqual(.submitting(retaken, attemptId: "new_4b"), controller.phase)
+    }
+
+    private func recordingItemId(_ controller: TestFlowController) -> String? {
+        guard case .recording(let recording) = controller.phase else { return nil }
+        return recording.start.itemId
+    }
+
     /// 저장 → 복원. 안드로이드 `rememberSaveable`이 구성 변경에서 하는 일을 그대로 흉내 낸다.
     private func recreate(_ controller: TestFlowController) -> TestFlowController {
         guard let restored = TestFlowController.restored(from: controller.saved()) else {

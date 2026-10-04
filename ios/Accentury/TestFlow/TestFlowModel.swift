@@ -387,6 +387,8 @@ final class TestFlowModel: ObservableObject {
             // (`webUrl`) 이 한 줄이 곧 인트로 리로드다. micPassed는 되돌리지 않는다 —
             // 권한이 이미 허용이면 다시 묻지 않는 것이 KAN-34 AC다.
             startRequested = false
+            // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
+            flow.onSessionReplaced()
             return nil
         case .failed(let failure):
             return retestFailurePayload(failure)
