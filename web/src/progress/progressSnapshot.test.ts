@@ -14,9 +14,12 @@ import type { TestDefinition, TestItem } from './testDefinition'
 
 const TEST_VERSION = 'gn-2026.08.1'
 
-/** progressMachine.test.ts와 같은 규칙으로 문항을 만든다 (seq 홀짝으로 유형 분리) */
+/** 정의 gn-2026.10.1(KAN-261)의 음성 seq. 나머지는 어휘다 (음성, 음성, 어휘, 음성, 어휘, 어휘, 어휘) */
+const VOICE_SEQS = new Set([1, 2, 4])
+
+/** progressMachine.test.ts와 같은 규칙으로 문항을 만든다 (VOICE_SEQS로 유형 분리) */
 function item(seq: number): TestItem {
-  if (seq % 2 === 1) {
+  if (VOICE_SEQS.has(seq)) {
     return {
       itemId: `item-${seq}`,
       seq,
@@ -35,14 +38,14 @@ function item(seq: number): TestItem {
   }
 }
 
-/** KAN-10 확정 구성인 10문항 정의. 복귀 후 재fetch를 흉내내려고 매번 새 객체를 만든다 */
-function tenItemDefinition(testVersion = TEST_VERSION): TestDefinition {
+/** 정의 gn-2026.10.1의 7문항 구성 (KAN-261). 복귀 후 재fetch를 흉내내려고 매번 새 객체를 만든다 */
+function sevenItemDefinition(testVersion = TEST_VERSION): TestDefinition {
   return {
     testVersion,
     scoreVersion: 'sv-0.3',
     dialect: 'GYEONGNAM',
     estimatedDurationSec: 180,
-    items: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(item),
+    items: [1, 2, 3, 4, 5, 6, 7].map(item),
   }
 }
 
@@ -93,46 +96,46 @@ function throwingStorage(failing: keyof SnapshotStorage): SnapshotStorage {
 describe('왕복 — 백그라운드 복귀 후에도 현재 문항이 유지된다', () => {
   it('1문항 제출 뒤 복귀하면 다음 문항에서 이어진다', () => {
     const storage = fakeStorage()
-    const before = submitCount(createProgressState(tenItemDefinition()), 1)
+    const before = submitCount(createProgressState(sevenItemDefinition()), 1)
     saveSnapshot(storage, before, TEST_VERSION)
 
     // 프로세스 킬 → 페이지 재로드 → 정의 재fetch(Stage 3)를 흉내낸 새 정의 객체
-    const restored = restoreProgress(storage, tenItemDefinition())
+    const restored = restoreProgress(storage, sevenItemDefinition())
 
     expect(currentItem(restored!)?.itemId).toBe('item-2')
-    expect(progress(restored!)).toEqual({ current: 2, total: 10 })
+    expect(progress(restored!)).toEqual({ current: 2, total: 7 })
     expect(restored!.phase).toBe('IN_PROGRESS')
   })
 
   it('중간 진행(3문항)도 제출 여부까지 그대로 복원된다', () => {
     const storage = fakeStorage()
-    const before = submitCount(createProgressState(tenItemDefinition()), 3)
+    const before = submitCount(createProgressState(sevenItemDefinition()), 3)
     saveSnapshot(storage, before, TEST_VERSION)
 
-    const restored = restoreProgress(storage, tenItemDefinition())
+    const restored = restoreProgress(storage, sevenItemDefinition())
 
     expect(restored).toEqual(before)
-    expect(restored!.submitted).toEqual([true, true, true, false, false, false, false, false, false, false])
+    expect(restored!.submitted).toEqual([true, true, true, false, false, false, false])
   })
 
   it('아직 한 문항도 제출하지 않았으면 첫 문항 상태로 복원된다', () => {
     const storage = fakeStorage()
-    const before = createProgressState(tenItemDefinition())
+    const before = createProgressState(sevenItemDefinition())
     saveSnapshot(storage, before, TEST_VERSION)
 
-    expect(restoreProgress(storage, tenItemDefinition())).toEqual(before)
+    expect(restoreProgress(storage, sevenItemDefinition())).toEqual(before)
   })
 
   it('전부 제출한 뒤 복귀하면 분석 대기(AWAITING_ANALYSIS) 그대로 복원된다', () => {
     const storage = fakeStorage()
-    const before = submitCount(createProgressState(tenItemDefinition()), 10)
+    const before = submitCount(createProgressState(sevenItemDefinition()), 7)
     saveSnapshot(storage, before, TEST_VERSION)
 
-    const restored = restoreProgress(storage, tenItemDefinition())
+    const restored = restoreProgress(storage, sevenItemDefinition())
 
     expect(restored!.phase).toBe('AWAITING_ANALYSIS')
     expect(currentItem(restored!)).toBeNull()
-    expect(progress(restored!)).toEqual({ current: 10, total: 10 })
+    expect(progress(restored!)).toEqual({ current: 7, total: 7 })
   })
 
   it('저장은 문항 본문 없이 testVersion과 제출한 itemId만 담는다', () => {
@@ -146,7 +149,7 @@ describe('왕복 — 백그라운드 복귀 후에도 현재 문항이 유지된
         stored = null
       },
     }
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 2), TEST_VERSION)
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 2), TEST_VERSION)
 
     expect(JSON.parse(stored!)).toEqual({
       testVersion: TEST_VERSION,
@@ -157,18 +160,18 @@ describe('왕복 — 백그라운드 복귀 후에도 현재 문항이 유지된
 
 describe('복원 거부 — 믿을 수 없는 스냅샷은 폐기한다', () => {
   it('저장된 스냅샷이 없으면 null이다 (첫 진입)', () => {
-    expect(restoreProgress(fakeStorage(), tenItemDefinition())).toBeNull()
+    expect(restoreProgress(fakeStorage(), sevenItemDefinition())).toBeNull()
   })
 
   it('JSON이 깨져 있으면 null이다', () => {
-    expect(restoreProgress(fakeStorage('{"testVersion":'), tenItemDefinition())).toBeNull()
+    expect(restoreProgress(fakeStorage('{"testVersion":'), sevenItemDefinition())).toBeNull()
   })
 
   it('testVersion이 다르면 폐기한다 (세션 만료 후 새 버전으로 재시작)', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 3), 'gn-2026.07.9')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 3), 'gn-2026.07.9')
 
-    expect(restoreProgress(storage, tenItemDefinition(TEST_VERSION))).toBeNull()
+    expect(restoreProgress(storage, sevenItemDefinition(TEST_VERSION))).toBeNull()
   })
 
   it('제출 순서를 건너뛴 스냅샷은 폐기한다 (부분 복원 금지)', () => {
@@ -176,7 +179,7 @@ describe('복원 거부 — 믿을 수 없는 스냅샷은 폐기한다', () => 
       testVersion: TEST_VERSION,
       submittedItemIds: ['item-1', 'item-4'],
     })
-    expect(restoreProgress(fakeStorage(tampered), tenItemDefinition())).toBeNull()
+    expect(restoreProgress(fakeStorage(tampered), sevenItemDefinition())).toBeNull()
   })
 
   it('정의에 없는 itemId가 섞이면 폐기한다', () => {
@@ -184,7 +187,7 @@ describe('복원 거부 — 믿을 수 없는 스냅샷은 폐기한다', () => 
       testVersion: TEST_VERSION,
       submittedItemIds: ['item-1', 'item-999'],
     })
-    expect(restoreProgress(fakeStorage(tampered), tenItemDefinition())).toBeNull()
+    expect(restoreProgress(fakeStorage(tampered), sevenItemDefinition())).toBeNull()
   })
 
   it('같은 itemId가 중복으로 들어 있으면 폐기한다', () => {
@@ -192,7 +195,7 @@ describe('복원 거부 — 믿을 수 없는 스냅샷은 폐기한다', () => 
       testVersion: TEST_VERSION,
       submittedItemIds: ['item-1', 'item-1'],
     })
-    expect(restoreProgress(fakeStorage(tampered), tenItemDefinition())).toBeNull()
+    expect(restoreProgress(fakeStorage(tampered), sevenItemDefinition())).toBeNull()
   })
 
   it('문항 수보다 많은 제출 기록은 폐기한다', () => {
@@ -200,11 +203,11 @@ describe('복원 거부 — 믿을 수 없는 스냅샷은 폐기한다', () => 
       testVersion: TEST_VERSION,
       submittedItemIds: [...Array(11)].map((_, i) => `item-${i + 1}`),
     })
-    expect(restoreProgress(fakeStorage(tampered), tenItemDefinition())).toBeNull()
+    expect(restoreProgress(fakeStorage(tampered), sevenItemDefinition())).toBeNull()
   })
 
   it('필드 타입이 오염된 스냅샷은 폐기한다', () => {
-    const definition = tenItemDefinition()
+    const definition = sevenItemDefinition()
     const polluted = [
       '"just a string"',
       'null',
@@ -221,46 +224,46 @@ describe('복원 거부 — 믿을 수 없는 스냅샷은 폐기한다', () => 
 
   it('clearSnapshot 뒤에는 복원할 것이 없다', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 3), TEST_VERSION)
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 3), TEST_VERSION)
     clearSnapshot(storage)
 
-    expect(restoreProgress(storage, tenItemDefinition())).toBeNull()
+    expect(restoreProgress(storage, sevenItemDefinition())).toBeNull()
   })
 })
 
 describe('세션 격리 — 다른 세션의 스냅샷은 재생 대상이 아니다 (KAN-99 지적 이관분)', () => {
   it('sessionId가 다르면 복원하지 않는다', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 3), TEST_VERSION, 'sess-1')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 3), TEST_VERSION, 'sess-1')
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-2')).toBeNull()
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-2')).toBeNull()
   })
 
   it('같은 sessionId면 그대로 복원한다', () => {
     const storage = fakeStorage()
-    const before = submitCount(createProgressState(tenItemDefinition()), 3)
+    const before = submitCount(createProgressState(sevenItemDefinition()), 3)
     saveSnapshot(storage, before, TEST_VERSION, 'sess-1')
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toEqual(before)
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toEqual(before)
   })
 
   it('sessionId 없는 저장(과도기)과 세션별 저장은 서로 섞이지 않는다', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 1), TEST_VERSION)
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 1), TEST_VERSION)
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toBeNull()
-    expect(currentItem(restoreProgress(storage, tenItemDefinition())!)?.itemId).toBe('item-2')
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toBeNull()
+    expect(currentItem(restoreProgress(storage, sevenItemDefinition())!)?.itemId).toBe('item-2')
   })
 
   it('한 세션을 지워도 다른 세션의 진행은 남는다', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 2), TEST_VERSION, 'sess-1')
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 5), TEST_VERSION, 'sess-2')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 2), TEST_VERSION, 'sess-1')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 5), TEST_VERSION, 'sess-2')
 
     clearSnapshot(storage, 'sess-1')
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toBeNull()
-    expect(currentItem(restoreProgress(storage, tenItemDefinition(), 'sess-2')!)?.itemId).toBe('item-6')
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toBeNull()
+    expect(currentItem(restoreProgress(storage, sevenItemDefinition(), 'sess-2')!)?.itemId).toBe('item-6')
   })
 
   it('키는 접두사 뒤에 sessionId를 붙인 형태다 (sessionId가 없으면 접두사 그대로)', () => {
@@ -271,15 +274,15 @@ describe('세션 격리 — 다른 세션의 스냅샷은 재생 대상이 아�
 
 describe('graceful degrade — 저장소가 막혀도 크래시하지 않는다', () => {
   it('setItem이 던져도 저장 호출은 조용히 넘어간다 (진행은 메모리로 계속)', () => {
-    const state = submitCount(createProgressState(tenItemDefinition()), 2)
+    const state = submitCount(createProgressState(sevenItemDefinition()), 2)
     expect(() => saveSnapshot(throwingStorage('setItem'), state, TEST_VERSION)).not.toThrow()
     expect(currentItem(state)?.itemId).toBe('item-3')
   })
 
   it('getItem이 던지면 복원은 null이다', () => {
     const storage = throwingStorage('getItem')
-    expect(() => restoreProgress(storage, tenItemDefinition())).not.toThrow()
-    expect(restoreProgress(storage, tenItemDefinition())).toBeNull()
+    expect(() => restoreProgress(storage, sevenItemDefinition())).not.toThrow()
+    expect(restoreProgress(storage, sevenItemDefinition())).toBeNull()
   })
 
   it('removeItem이 던져도 삭제 호출은 조용히 넘어간다', () => {
@@ -290,7 +293,7 @@ describe('graceful degrade — 저장소가 막혀도 크래시하지 않는다'
 describe('손상된 정의 — 스냅샷 문제가 아니므로 감추지 않는다', () => {
   it('정의 자체가 손상됐으면 createProgressState의 예외를 그대로 올린다', () => {
     const valid = JSON.stringify({ testVersion: TEST_VERSION, submittedItemIds: ['item-1'] })
-    const broken: TestDefinition = { ...tenItemDefinition(), items: [] }
+    const broken: TestDefinition = { ...sevenItemDefinition(), items: [] }
     expect(() => restoreProgress(fakeStorage(valid), broken)).toThrow('문항이 없습니다')
   })
 })
@@ -298,9 +301,9 @@ describe('손상된 정의 — 스냅샷 문제가 아니므로 감추지 않는
 describe('삭제 배선 (KAN-198) — 되살릴 수 없는 스냅샷은 그 자리에서 버린다', () => {
   it('testVersion이 달라 폐기하면 그 키도 함께 사라진다', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 2), 'gn-2026.07.9', 'sess-1')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 2), 'gn-2026.07.9', 'sess-1')
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toBeNull()
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toBeNull()
     expect(storage.getItem(snapshotKey('sess-1'))).toBeNull()
   })
 
@@ -308,7 +311,7 @@ describe('삭제 배선 (KAN-198) — 되살릴 수 없는 스냅샷은 그 자�
     const storage = fakeStorage()
     storage.setItem(snapshotKey('sess-1'), '{깨진')
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toBeNull()
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toBeNull()
     expect(storage.getItem(snapshotKey('sess-1'))).toBeNull()
   })
 
@@ -316,7 +319,7 @@ describe('삭제 배선 (KAN-198) — 되살릴 수 없는 스냅샷은 그 자�
     const storage = fakeStorage()
     storage.setItem(snapshotKey('sess-1'), JSON.stringify({ testVersion: 7, submittedItemIds: [] }))
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toBeNull()
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toBeNull()
     expect(storage.getItem(snapshotKey('sess-1'))).toBeNull()
   })
 
@@ -327,26 +330,26 @@ describe('삭제 배선 (KAN-198) — 되살릴 수 없는 스냅샷은 그 자�
       JSON.stringify({ testVersion: TEST_VERSION, submittedItemIds: ['item-1', 'item-3'] }),
     )
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toBeNull()
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toBeNull()
     expect(storage.getItem(snapshotKey('sess-1'))).toBeNull()
   })
 
   it('폐기는 자기 세션 키만 건드린다 (다른 세션의 진행은 그대로)', () => {
     const storage = fakeStorage()
     storage.setItem(snapshotKey('sess-1'), '{깨진')
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 5), TEST_VERSION, 'sess-2')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 5), TEST_VERSION, 'sess-2')
 
-    expect(restoreProgress(storage, tenItemDefinition(), 'sess-1')).toBeNull()
-    expect(currentItem(restoreProgress(storage, tenItemDefinition(), 'sess-2')!)?.itemId).toBe('item-6')
+    expect(restoreProgress(storage, sevenItemDefinition(), 'sess-1')).toBeNull()
+    expect(currentItem(restoreProgress(storage, sevenItemDefinition(), 'sess-2')!)?.itemId).toBe('item-6')
   })
 })
 
 describe('접두사 훑기 (KAN-198) — 끊긴 응시가 남긴 키를 인트로가 걷는다', () => {
   it('세션별 키와 과도기 키를 모두 지운다', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 1), TEST_VERSION)
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 2), TEST_VERSION, 'sess-1')
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 3), TEST_VERSION, 'sess-2')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 1), TEST_VERSION)
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 2), TEST_VERSION, 'sess-1')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 3), TEST_VERSION, 'sess-2')
 
     sweepSnapshots(storage)
 
@@ -355,7 +358,7 @@ describe('접두사 훑기 (KAN-198) — 끊긴 응시가 남긴 키를 인트�
 
   it('접두사 밖의 키는 건드리지 않는다', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 1), TEST_VERSION, 'sess-1')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 1), TEST_VERSION, 'sess-1')
     // 같은 오리진의 남의 키. 접두사가 겹쳐 보이지만 진행 기록이 아니다
     storage.setItem('accentury:session', 'token')
     storage.setItem(`${PROGRESS_SNAPSHOT_KEY}-backup`, 'x')
@@ -369,20 +372,20 @@ describe('접두사 훑기 (KAN-198) — 끊긴 응시가 남긴 키를 인트�
 
   it('지목한 세션 키는 남긴다 (뒤로가기로 인트로에 온 진행 중 응시)', () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 2), TEST_VERSION, 'sess-1')
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 5), TEST_VERSION, 'sess-2')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 2), TEST_VERSION, 'sess-1')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 5), TEST_VERSION, 'sess-2')
 
     sweepSnapshots(storage, 'sess-1')
 
     // 남은 진행은 앞으로가기에서 그대로 복원돼야 한다
-    expect(currentItem(restoreProgress(storage, tenItemDefinition(), 'sess-1')!)?.itemId).toBe('item-3')
+    expect(currentItem(restoreProgress(storage, sevenItemDefinition(), 'sess-1')!)?.itemId).toBe('item-3')
     expect(storage.getItem(snapshotKey('sess-2'))).toBeNull()
   })
 
   it("빈 문자열은 과도기 키를 남기라는 뜻이라 null과 다르다", () => {
     const storage = fakeStorage()
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 1), TEST_VERSION)
-    saveSnapshot(storage, submitCount(createProgressState(tenItemDefinition()), 1), TEST_VERSION, 'sess-1')
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 1), TEST_VERSION)
+    saveSnapshot(storage, submitCount(createProgressState(sevenItemDefinition()), 1), TEST_VERSION, 'sess-1')
 
     sweepSnapshots(storage, '')
 

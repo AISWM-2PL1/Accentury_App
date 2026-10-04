@@ -6,9 +6,12 @@ import { useTestProgress } from './useTestProgress'
 
 const TEST_VERSION = 'gn-2026.08.1'
 
-/** progressSnapshot.test.ts와 같은 규칙 (seq 홀짝으로 유형 분리) */
+/** 정의 gn-2026.10.1(KAN-261)의 음성 seq. 나머지는 어휘다 (음성, 음성, 어휘, 음성, 어휘, 어휘, 어휘) */
+const VOICE_SEQS = new Set([1, 2, 4])
+
+/** progressSnapshot.test.ts와 같은 규칙 (VOICE_SEQS로 유형 분리) */
 function item(seq: number): TestItem {
-  if (seq % 2 === 1) {
+  if (VOICE_SEQS.has(seq)) {
     return {
       itemId: `item-${seq}`,
       seq,
@@ -27,13 +30,13 @@ function item(seq: number): TestItem {
   }
 }
 
-function tenItemDefinition(): TestDefinition {
+function sevenItemDefinition(): TestDefinition {
   return {
     testVersion: TEST_VERSION,
     scoreVersion: 'sv-0.3',
     dialect: 'GYEONGNAM',
     estimatedDurationSec: 180,
-    items: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(item),
+    items: [1, 2, 3, 4, 5, 6, 7].map(item),
   }
 }
 
@@ -82,11 +85,11 @@ afterEach(() => {
 })
 
 describe('초기화 — 새 시작과 복원', () => {
-  it('저장된 진행이 없으면 첫 문항 1/10에서 시작한다', () => {
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), spyStorage()))
+  it('저장된 진행이 없으면 첫 문항 1/7에서 시작한다', () => {
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), spyStorage()))
 
     expect(result.current.current?.itemId).toBe('item-1')
-    expect(result.current.progress).toEqual({ current: 1, total: 10 })
+    expect(result.current.progress).toEqual({ current: 1, total: 7 })
     expect(result.current.state.phase).toBe('IN_PROGRESS')
     // 첫 응시다 — 시작 대기 카운트다운(KAN-216)이 이 값을 보고 선다
     expect(result.current.resumed).toBe(false)
@@ -97,10 +100,10 @@ describe('초기화 — 새 시작과 복원', () => {
       JSON.stringify({ testVersion: TEST_VERSION, submittedItemIds: ['item-1', 'item-2', 'item-3'] }),
     )
 
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     expect(result.current.current?.itemId).toBe('item-4')
-    expect(result.current.progress).toEqual({ current: 4, total: 10 })
+    expect(result.current.progress).toEqual({ current: 4, total: 7 })
     // 이어진 마운트다 — 시작 대기 카운트다운(KAN-216)이 이 값을 보고 건너뛴다
     expect(result.current.resumed).toBe(true)
   })
@@ -108,14 +111,14 @@ describe('초기화 — 새 시작과 복원', () => {
   it('믿을 수 없는 스냅샷은 폐기하고 처음부터 시작한다', () => {
     const storage = spyStorage(JSON.stringify({ testVersion: 'gn-2026.07.9', submittedItemIds: ['item-1'] }))
 
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     expect(result.current.current?.itemId).toBe('item-1')
   })
 
   it('리렌더가 복원을 다시 돌려 진행을 되감지 않는다', () => {
     const storage = spyStorage()
-    const { result, rerender } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result, rerender } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     act(() => result.current.submit('item-1'))
     rerender()
@@ -127,19 +130,19 @@ describe('초기화 — 새 시작과 복원', () => {
 describe('submit — 진행과 저장', () => {
   it('제출할 때마다 스냅샷을 저장한다', () => {
     const storage = spyStorage()
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     act(() => result.current.submit('item-1'))
     expect(snapshotOf(storage)).toEqual({ testVersion: TEST_VERSION, submittedItemIds: ['item-1'] })
 
     act(() => result.current.submit('item-2'))
     expect(snapshotOf(storage)).toEqual({ testVersion: TEST_VERSION, submittedItemIds: ['item-1', 'item-2'] })
-    expect(result.current.progress).toEqual({ current: 3, total: 10 })
+    expect(result.current.progress).toEqual({ current: 3, total: 7 })
   })
 
   it('거부된 제출은 상태도 저장도 건드리지 않는다 (참조 동일)', () => {
     const storage = spyStorage()
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
     const before = result.current.state
 
     act(() => result.current.submit('item-5')) // 순서 위반
@@ -151,7 +154,7 @@ describe('submit — 진행과 저장', () => {
 
   it('같은 문항을 연타해도 한 번만 전진한다', () => {
     const storage = spyStorage()
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     act(() => {
       result.current.submit('item-1')
@@ -164,26 +167,26 @@ describe('submit — 진행과 저장', () => {
 
   it('마지막 문항까지 제출하면 분석 대기로 넘어간다', () => {
     const storage = spyStorage()
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
-    for (let seq = 1; seq <= 10; seq += 1) {
+    for (let seq = 1; seq <= 7; seq += 1) {
       act(() => result.current.submit(`item-${seq}`))
     }
 
     expect(result.current.state.phase).toBe('AWAITING_ANALYSIS')
     expect(result.current.current).toBeNull()
-    expect(result.current.progress).toEqual({ current: 10, total: 10 })
+    expect(result.current.progress).toEqual({ current: 7, total: 7 })
   })
 
   it('완주해도 스냅샷을 지우지 않는다 (삭제는 결과 화면 KAN-25 몫)', () => {
     const storage = spyStorage()
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
-    for (let seq = 1; seq <= 10; seq += 1) {
+    for (let seq = 1; seq <= 7; seq += 1) {
       act(() => result.current.submit(`item-${seq}`))
     }
 
-    expect(snapshotOf(storage)?.submittedItemIds).toHaveLength(10)
+    expect(snapshotOf(storage)?.submittedItemIds).toHaveLength(7)
   })
 })
 
@@ -194,7 +197,7 @@ describe('세션 격리 — 스냅샷은 세션 키에 묶인다', () => {
       snapshotKey('sess-1'),
     )
 
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage, 'sess-2'))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage, 'sess-2'))
 
     expect(result.current.current?.itemId).toBe('item-1')
   })
@@ -205,14 +208,14 @@ describe('세션 격리 — 스냅샷은 세션 키에 묶인다', () => {
       snapshotKey('sess-1'),
     )
 
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage, 'sess-1'))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage, 'sess-1'))
 
     expect(result.current.current?.itemId).toBe('item-3')
   })
 
   it('제출과 이탈 저장 모두 세션 키로 나간다', () => {
     const storage = spyStorage()
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage, 'sess-1'))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage, 'sess-1'))
 
     act(() => result.current.submit('item-1'))
     act(() => goHidden())
@@ -225,7 +228,7 @@ describe('세션 격리 — 스냅샷은 세션 키에 묶인다', () => {
 describe('화면 이탈 시 저장', () => {
   it('백그라운드로 들어가면(visibilitychange hidden) 현재 진행을 저장한다', () => {
     const storage = spyStorage()
-    const { result } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
     act(() => result.current.submit('item-1'))
     storage.writes.length = 0
 
@@ -237,7 +240,7 @@ describe('화면 이탈 시 저장', () => {
 
   it('다시 보이게 되는 전환에서는 저장하지 않는다', () => {
     const storage = spyStorage()
-    renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     act(() => goVisible())
 
@@ -246,7 +249,7 @@ describe('화면 이탈 시 저장', () => {
 
   it('pagehide에서도 저장한다 (visibilitychange가 오지 않는 이탈 경로)', () => {
     const storage = spyStorage()
-    renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     act(() => void window.dispatchEvent(new Event('pagehide')))
 
@@ -255,7 +258,7 @@ describe('화면 이탈 시 저장', () => {
 
   it('언마운트하면 리스너를 떼어 더 이상 저장하지 않는다', () => {
     const storage = spyStorage()
-    const { unmount } = renderHook(() => useTestProgress(tenItemDefinition(), storage))
+    const { unmount } = renderHook(() => useTestProgress(sevenItemDefinition(), storage))
 
     unmount()
     goHidden()
@@ -270,7 +273,7 @@ describe('폴링 금지 — 이 훅은 네트워크를 타지 않는다 (KAN-14 
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
     try {
-      const { result } = renderHook(() => useTestProgress(tenItemDefinition(), spyStorage()))
+      const { result } = renderHook(() => useTestProgress(sevenItemDefinition(), spyStorage()))
       act(() => result.current.submit('item-1'))
       act(() => goHidden())
 

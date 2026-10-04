@@ -31,12 +31,12 @@ type SubmitFn = (choiceId: string, idempotencyKey: string) => Promise<VocabSubmi
 function renderScreen(submitAnswer: SubmitFn = async () => ({ status: 'SAVED' }), retest?: RetestControl) {
   const submitSpy = vi.fn<SubmitFn>(submitAnswer)
   const onSubmitted = vi.fn<() => void>()
-  // 7 / 10 — 어휘 문항의 순번은 전체 문항 기준이다 (정의가 음성·어휘를 번갈아 둔다)
+  // 7 / 7 — 어휘 문항의 순번은 전체 문항 기준이다 (정의 gn-2026.10.1의 7번은 어휘, KAN-261)
   render(
     <VocabularyItemScreen
       item={vocabularyItem()}
       itemNumber={7}
-      totalItems={10}
+      totalItems={7}
       submitAnswer={submitSpy}
       onSubmitted={onSubmitted}
       retest={retest}
@@ -75,12 +75,12 @@ describe('표시', () => {
      * 없다. 화면에 뭔가 새로 붙으면 그게 정오 정보든 아니든 여기서 걸리고, 걸린 사람이
      * 그게 정오 유추 경로인지 판단하게 된다.
      *
-     * 카드 캡션은 KAN-161 3단계에서 유형 배지("📝 단어 문항")에서 "7 / 10 · 이 말은 무슨
+     * 카드 캡션은 KAN-161 3단계에서 유형 배지("📝 단어 문항")에서 "7 / 7 · 이 말은 무슨
      * 뜻일까요?"로 바뀌었다 - 자리와 할 일을 말하는 줄이라 정답과 무관한 것은 그대로다.
      * 고른 것의 ✓도 같은 단계에서 글자에서 SVG로 바뀌어 텍스트에 남지 않는다.
      */
     expect(document.body.textContent).toBe(
-      "7 / 10 · 이 말은 무슨 뜻일까요?'정구지'는 표준어로?부추미나리쑥갓시금치다음",
+      "7 / 7 · 이 말은 무슨 뜻일까요?'정구지'는 표준어로?부추미나리쑥갓시금치다음",
     )
   })
 })
