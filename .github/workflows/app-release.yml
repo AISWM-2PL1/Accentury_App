@@ -84,14 +84,14 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # test.yml의 app-test와 같은 21이다. 두 곳이 갈리면 PR에서 통과한 빌드가 여기서 깨진다.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
       # 아티팩트 이름과 요약에 쓸 짧은 SHA. deploy.yml의 이미지 태그와 같은 7자리 규칙이다.
       - name: 커밋 정보
@@ -296,7 +296,7 @@ jobs:
       # 필수 산출물. 하나라도 없으면 실패다 - 앞 단계가 이미 존재를 확인했으므로 여기서 걸리면
       # 경로 규칙이 바뀐 것이다.
       - name: 아티팩트 업로드 (AAB + APK)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: accentury-app-release-${{ steps.meta.outputs.sha7 }}
           path: |
@@ -309,7 +309,7 @@ jobs:
       # R8이 돌지 않아 생기지 않는다. 나중에 축소를 켜면 크래시 역난독화에 필요해지므로 미리
       # 챙겨 두되, 없다고 실패시키지는 않는다. 필수 산출물과 조건이 달라 스텝을 나눴다.
       - name: 아티팩트 업로드 (매핑, 있으면)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: accentury-app-release-${{ steps.meta.outputs.sha7 }}-mapping
           path: app/build/outputs/mapping/release/

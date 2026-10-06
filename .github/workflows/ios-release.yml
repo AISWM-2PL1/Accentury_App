@@ -136,7 +136,7 @@ jobs:
       UPLOAD: ${{ inputs.upload == true }}
       ALLOW_TEST_ADS: ${{ inputs.allow_test_ads == true }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # 러너 이미지는 예고 없이 갈린다. 실패가 우리 코드인지 도구 버전인지 가르는 첫 줄이라
       # 로그 맨 앞에 남겨 둔다 (test.yml의 ios-test와 같은 자리, 같은 이유).
@@ -548,7 +548,7 @@ jobs:
       # 크래시를 나중에 심볼화할 수 있게 아카이브의 dSYMs를 아티팩트로 챙겨 둔다.
       # export 쪽 *.dSYM은 method·옵션에 따라 나오기도 안 나오기도 해서 없어도 넘어간다.
       - name: 아티팩트 업로드 (.ipa + dSYM)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: accentury-ios-release-${{ steps.meta.outputs.sha7 }}
           path: |
