@@ -186,6 +186,27 @@ import한다 (셀렉터 규칙 「화면의 상수를 import한다」).
 Playwright가 `webServer.env`를 부모 환경 **위에** 얹으므로 셸의 값이 개발 서버까지 그대로
 간다 (`playwright.config.ts`의 `VITE_REGION_SELECT` 주석과 같은 경로).
 
+## 음성 저장 동의 화면은 늘 지난다 (KAN-270, 2026-10-06)
+
+웹 단독 시작 게이트가 [내 억양 테스트하기] → 권한 → **음성 저장 선택 동의** → 지역(staging) →
+점검 → 세션 생성이 됐다 (`web/src/legal/VoiceConsentScreen.tsx`, 설계는 [voice-consent.md](voice-consent.md)).
+지역·광고 시트와 달리 빌드 스위치가 없어 **유무를 보지 않고** 제목을 기다린다 — 안 뜨면 그 자체가
+결함이다. `startTest(page, { voiceConsent })`의 기본은 체크하지 않은 [다음]이고, 본문 단언에
+`voiceConsentVersion` 유무가 지역과 같은 방식으로 붙었다(체크했으면 게시 버전, 아니면 키 없음).
+체크박스는 지역 라디오와 달리 숨기지 않은 실물 표식이라 `check()`에 `force`가 필요 없다.
+
+`voice-consent.spec.ts`가 `voiceConsent: true`로 한 번 걷는다. **KAN-269가 들어간 서버가 있어야
+통과한다** — 버전을 모르는 서버는 400을 주고, 웹은 동의 없이 다시 만들어 응시를 잇지만 첫 응답이
+400이라 `startTest`의 201 단언에서 걸린다. 서버 버전 어긋남이 드러나는 자리다. 미동의 쪽은 다른
+스펙 전부가 기본값으로 매번 단언하므로 따로 두지 않았다. `mic-blocked.spec.ts`는 권한 거부라 동의
+화면에 닿지 않는다(그대로 통과).
+
+**실측 (2026-10-06).** 서버 origin/Dev(KAN-269 포함)를 띄운 로컬 스택에서 7 passed, 1 skipped
+(retake). 새 DB의 활성 정의는 `gn-2026.09.4`(10문항)라 완주 스펙이 7문항 캡션을 못 찾아 깨진다 —
+`active_test_version`을 `gn-2026.10.1`로 돌린 뒤 통과했다(운영은 `PUT /admin/v0/active-version`).
+retake는 `E2E_FAIL_ITEM=v3`로 돌려도 실패 없이 완주했다: 세션마다 음성 세트가 무작위라(KAN-205)
+배정된 세트에 v3가 없으면 실패 문항이 심기지 않는다. 동의 화면과 무관한 기존 한계다.
+
 ## 후기 시트는 완주 스펙의 결과 화면에서 잇는다 (KAN-211, 2026-09-15)
 
 이용 후기(`feedback.spec.ts`)는 결과 화면 위에만 뜨고, 결과 화면은 **완주한 세션에만** 있다 —
