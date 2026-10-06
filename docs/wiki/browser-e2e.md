@@ -98,6 +98,15 @@ rms를 9초 동안 0.28초 간격으로 재 봤다.
 뜬 것을 보고 갈라(라디오 그룹이 있으면 어휘) 7문항을 돈다. 반대로 **개수는 계약이라**
 단언한다 — 인트로가 상수로 약속한 음성 3 + 어휘 4(`introText.ts`)가 그대로 나와야 한다.
 
+## 스펙이 읽는 환경 변수
+
+| 변수 | 읽는 곳 | 뜻 |
+|---|---|---|
+| `E2E_BASE_URL` | `playwright.config.ts` | 있으면 그 주소(staging 등)를 두드리고 로컬 개발 서버를 띄우지 않는다 |
+| `E2E_FAIL_ITEM` | `full-run`·`retake` | AI 스텁이 실패시키는 문항. 켜지면 완주 스펙이, 꺼지면 실패 갈래 스펙이 skip (아래 절) |
+| `E2E_VOICE_CONSENT` | `full-run` 첫 스펙 | 정확히 `true`면 음성 저장 동의를 체크하고 완주한 뒤 `[e2e] sessionId=<id>`를 찍는다. 없으면 미동의 (KAN-270, AC 6 staging 저장 검증용 — [voice-consent.md](voice-consent.md) 「검증」) |
+| `VITE_REGION_SELECT` · `VITE_STORE_LISTING_READY` · `VITE_ADSENSE_*` | 로컬 개발 서버 빌드 | 빌드 변수. 셸 값이 `webServer.env`로 넘어간다. `E2E_BASE_URL` 판에서는 번들에 이미 박혀 무관하다 |
+
 ## 스택 두 상태와 대칭 스킵
 
 AI 스텁은 `ACCENTURY_AI_STUB_FAIL_ITEM`으로 특정 문항을 반드시 실패시킬 수 있다. 완주 스펙은
@@ -206,6 +215,11 @@ Playwright가 `webServer.env`를 부모 환경 **위에** 얹으므로 셸의 �
 `active_test_version`을 `gn-2026.10.1`로 돌린 뒤 통과했다(운영은 `PUT /admin/v0/active-version`).
 retake는 `E2E_FAIL_ITEM=v3`로 돌려도 실패 없이 완주했다: 세션마다 음성 세트가 무작위라(KAN-205)
 배정된 세트에 v3가 없으면 실패 문항이 심기지 않는다. 동의 화면과 무관한 기존 한계다.
+
+**저장까지 보려면 완주한다 (4단계).** 서버는 동의한 세션의 음성을 분석이 **종결될 때** 남기므로,
+시작 게이트에서 끝나는 `voice-consent.spec.ts`로는 저장이 일어나지 않는다. `E2E_VOICE_CONSENT=true`면
+`full-run.spec.ts`의 완주 스펙이 동의를 체크하고 시작해 결과까지 가고, `[e2e] sessionId=<id>`를 찍는다.
+그 값(`s_…`)을 S3 키의 세션 조각과 대조하는 절차는 [voice-consent.md](voice-consent.md) 「검증」에 있다.
 
 ## 후기 시트는 완주 스펙의 결과 화면에서 잇는다 (KAN-211, 2026-09-15)
 

@@ -245,6 +245,10 @@ https://accentury.app/privacy.html
 유무를 보는 규칙이 **앱 경로의 것**이라는 것도 바뀌지 않았다. 웹 광고 호출(AdSense 태그)은
 아직 없다 — KAN-197 3단계다.
 
+음성 저장 선택 동의(KAN-270)는 **브리지를 쓰지 않는다.** 웹 단독은 세션(생성 본문 `voiceConsentVersion`)에,
+앱은 계정(`/v0/users/me/voice-consent`)에 기록하고, WebView 안의 웹은 동의 여부를 모른다 — 인트로 고지 문장을
+"따로 동의하지 않으면 …"으로 조건부로 바꾼 이유다. 계약 버전은 2 그대로다 ([voice-consent.md](voice-consent.md)).
+
 ### 8.1 동의 저장이 네이티브인 이유
 
 세 가지가 겹친다.

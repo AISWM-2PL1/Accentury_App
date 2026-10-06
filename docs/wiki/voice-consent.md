@@ -1,5 +1,7 @@
 # 음성 저장 선택 동의 (KAN-270)
 
+> **미결 3: 문안 검토 병행 중.** 확정되면 `web/src/legal/voiceConsent.ts`·`app/src/main/java/com/accentury/app/auth/VoiceConsentText.kt`·`ios/AccenturyCore/Sources/AccenturyCore/Auth/VoiceConsentText.swift` 세 파일을 같은 커밋에서 교체한다.
+
 구현 기록 (2026-10-06, 1단계 웹). 서버 KAN-269가 세션 생성 본문의 `voiceConsentVersion`을 받아
 **동의한 세션의 음성만** AI 학습용으로 보관한다. 동의를 받는 화면이 없으면 보관되는 음성이 0건이라
 웹에 화면을 하나 더했다.
@@ -130,3 +132,63 @@ UserDefaults 키 이름은 광고 동의(`ad_consent.state`)와 같은 규칙이
 ```
 
 심사 가이드라인 5.1.1(ii)의 목적 문자열이라 처분이 사실과 맞아야 한다(`app-store-listing.md` §5).
+
+## 검증
+
+### 로컬 (2026-10-06)
+
+| 대상 | 결과 |
+|---|---|
+| 웹 vitest | 76 파일 1184 passed |
+| 웹 `tsc --noEmit` · `tsc -p e2e --noEmit` | 오류 0 |
+| Android `:app:testDebugUnitTest` | 635 tests, 실패 0 |
+| iOS `swift test` (`AccenturyCore`) | XCTest 628 tests, 실패 0 |
+| e2e 전체 (격리 스택) | 7 passed, 1 skipped(retake) · `E2E_VOICE_CONSENT=true` full-run 2 passed |
+
+e2e는 서버 origin/Dev(KAN-269 포함)를 `git archive`로 풀어 띄운 격리 스택에서 돌렸다. 로컬 서버 체크아웃의 작업
+트리를 바꾸지 않으려고 그렇게 했다. DB·Redis는 서버 `backend/docker-compose.yml`을 compose 프로젝트 이름
+`kan270e2e`로, AI는 가짜 엔진 uvicorn(8000), 백엔드는 bootRun(CORS 5174, `ai-token` 인자)이다. 새 DB의 활성 정의는
+`gn-2026.09.4`(10문항)라 완주 스펙이 7문항 캡션을 못 찾아 깨진다. **`active_test_version`을 `gn-2026.10.1`로 돌려야
+통과한다**(운영은 `PUT /admin/v0/active-version`). 로컬 서버에는 training 버킷을 설정하지 않는다. 그래서 동의 판도
+실 S3에 아무것도 쓰지 않고, 로컬 판이 보는 것은 동의 본문·201·완주·sessionId 로그까지다. 끝나면
+`docker compose -p kan270e2e down -v`.
+
+동의 판과 미동의 판을 한 번씩 돌린 뒤 DB `test_session.voice_consent_version`을 직접 봤다. 동의 판 세션에는
+`2026-10-04`가 들어갔고 미동의 판 세션은 비어 있었다. 서버가 체크 여부를 세션에 그대로 남긴다는 뜻이다.
+
+### staging 저장 (AC 6, Dev 머지 뒤)
+
+`staging.accentury.app`은 미사용 시 destroy되는 환경이라(KAN-140) 이 브랜치가 Dev에 머지돼 staging 웹이 배포된
+뒤에만 돌릴 수 있다. staging 서버에는 KAN-269가 이미 배포돼 있고 SSM에 training 버킷(`accentury-voice-325771561913`)과
+key-prefix `staging`이 들어 있다.
+
+S3 키 모양은 다음과 같다. 분석이 종결된 음성 문항마다 WAV와 라벨 JSON이 한 쌍으로 남는다.
+
+```
+<prefix>/<region|UNKNOWN>/<testVersion>/<sessionId>/<itemId>/<analysisJobId>.{wav,json}
+예) staging/UNKNOWN/gn-2026.09.4/s_…/v116/a_….json
+```
+
+세션 id와 작업 id는 원래 값이 `s_`·`a_`로 시작한다. 키 조각은 그 값 그대로다(서버 `TrainingSample.keyPrefix`). 그래서
+스펙 로그의 `sessionId=s_…`를 그대로 grep하면 된다.
+
+순서는 이렇다. staging 웹 주소는 GitHub environment 변수 `APP_DOMAIN`이다.
+
+1. Dev 머지 뒤 웹·서버 배포가 성공했는지 확인한다(Actions).
+2. 동의 판으로 완주하고, 로그의 `[e2e] sessionId=<id> voiceConsent=true`에서 id를 얻는다.
+3. 그 id로 S3를 조회해 음성 문항 수만큼 `.wav`·`.json` 쌍이 있는지 본다. staging은 지역 화면이 켜진 빌드라
+   `<region>` 자리는 스펙이 고른 지역 코드다.
+4. 대조군으로 `E2E_VOICE_CONSENT` 없이 한 번 더 완주한다. 그 sessionId는 S3에 **없어야** 한다.
+5. 앱 계정 경로는 수동이다. staging 빌드(Android staging 플레이버 또는 TestFlight)에서 로그인하고 동의한 뒤
+   완주하고, 같은 방식으로 조회한다. 앱 세션 id는 기기 로그나 서버 로그에서 얻는다.
+
+```bash
+cd web
+E2E_BASE_URL=https://<APP_DOMAIN> E2E_VOICE_CONSENT=true npx playwright test full-run -g "웹 단독 완주"
+aws s3 ls s3://accentury-voice-325771561913/staging/ --recursive | grep "/<sessionId>/"
+
+# 대조군 — grep 결과가 비어야 한다
+E2E_BASE_URL=https://<APP_DOMAIN> npx playwright test full-run -g "웹 단독 완주"
+aws s3 ls s3://accentury-voice-325771561913/staging/ --recursive | grep "/<sessionId>/"
+```
+
