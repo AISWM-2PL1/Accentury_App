@@ -135,6 +135,8 @@ private struct VoiceConsentSection: View {
     let onChange: (Bool) async -> Bool
     let onReload: () async -> Void
     let onOpenPrivacy: () -> Void
+    /// 토글 아래 안내. 익명 모드는 ``AccenturyCore/voiceConsentSettingCaptionAnonymous``
+    var caption: String = voiceConsentSettingCaption
 
     @State private var pending: Bool?
     @State private var failed = false
@@ -168,7 +170,7 @@ private struct VoiceConsentSection: View {
                     }
                 }
             }
-            Text(voiceConsentSettingCaption)
+            Text(caption)
                 .papercutType(.bodySmall)
                 .foregroundColor(Papercut.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -212,7 +214,8 @@ struct AnonymousSettingsScreen: View {
                     consented: consented,
                     onChange: { onChange($0); return true },
                     onReload: {},
-                    onOpenPrivacy: onOpenPrivacy
+                    onOpenPrivacy: onOpenPrivacy,
+                    caption: voiceConsentSettingCaptionAnonymous
                 )
             }
             .padding(.horizontal, Papercut.space6)

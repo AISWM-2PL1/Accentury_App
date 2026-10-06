@@ -120,6 +120,10 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
   생성 하나뿐이었다.
 - **철회**: 톱니는 그대로이고 `AnonymousSettingsScreen`이 「개인정보」(로컬 스위치 + 방침 링크)만 보인다.
   설정에서 바꾼 것도 "물어봤다"로 친다. 시작 전에 설정에서 켠 사람에게 동의 화면을 또 띄우지 않는다.
+- **동의는 세션 생성 시 고정**: 익명 세션은 만들 때 실은 `voiceConsentVersion`으로 끝까지 간다. 응시 중 설정에서
+  꺼도 그 세션의 남은 녹음은 저장되므로, 문구도 그 사실대로 「다음 테스트부터」라고 쓴다
+  (`VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS`, DETAILS 넷째 줄, PR #22 리뷰). 계정 모드는 서버가 업로드마다 계정
+  동의를 다시 보므로 「그 뒤의 녹음부터」가 맞다.
 - 문안은 `VOICE_CONSENT_DETAILS_ANONYMOUS`다. 1·2줄은 계정과 같고, 셋째 줄이 웹처럼 세션 만료 뒤 삭제 불가를
   말한다.
 
@@ -145,7 +149,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | `MainActivity` `AuthGate` / `AnonymousFlow` 분기 | `ContentView.rootScreen`: `AuthGateView` / `AnonymousFlowView`(`Auth/AuthGateView.swift`) |
 | `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`, `@MainActor ObservableObject`) |
 | `anonymousVoiceConsentVersion(consented)` | `anonymousVoiceConsentVersion(consented:)` (같은 파일) |
-| `VOICE_CONSENT_VERSION`·`VOICE_CONSENT_DETAILS_ANONYMOUS` | `voiceConsentVersion`·`voiceConsentDetailsAnonymous` (`VoiceConsentText.swift`) |
+| `VOICE_CONSENT_VERSION`·`VOICE_CONSENT_DETAILS_ANONYMOUS`·`VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS` | `voiceConsentVersion`·`voiceConsentDetailsAnonymous`·`voiceConsentSettingCaptionAnonymous` (`VoiceConsentText.swift`) |
 | `SessionClient.create(..., voiceConsentVersion)`·`createWithConsentFallback`·`CODE_VALIDATION_FAILED` | 프로토콜 요구사항 4인자 `create`, 확장 `createWithConsentFallback`, `codeValidationFailed` (`Session/SessionClient.swift`). 3인자 이하 `create`는 확장 오버로드 |
 | TestFlow `anonymousConsent` 인자, when 체인 동의 단계 | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`, `TestFlowView` overlay 사슬의 권한과 점검 사이 |
 | plain `OkHttpClient()` | `TestFlowModel.defaultSessionClient()`가 `loginEnabled == false`면 plain `URLSessionSessionClient(baseURL:)` (`-StubSession`은 그대로 우선) |

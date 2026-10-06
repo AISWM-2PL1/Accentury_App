@@ -211,6 +211,7 @@ fun SettingsScreen(
  *
  * @param consented 지금 값. null이면(계정 모드에서 상태를 못 받음) 스위치 대신 [다시 시도]
  * @param onChange 새 값을 남긴다. true면 성공
+ * @param caption 스위치 아래 안내. 익명 모드는 [VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS]
  */
 @Composable
 private fun VoiceConsentSection(
@@ -218,6 +219,7 @@ private fun VoiceConsentSection(
     onChange: suspend (Boolean) -> Boolean,
     onReload: suspend () -> Unit,
     onOpenPrivacy: () -> Unit,
+    caption: String = VOICE_CONSENT_SETTING_CAPTION,
 ) {
     val scope = rememberCoroutineScope()
     var pending by remember { mutableStateOf<Boolean?>(null) }
@@ -278,7 +280,7 @@ private fun VoiceConsentSection(
             if (failed) StatusBlock(tone = StatusTone.Error, message = "바꾸지 못했어요 · 잠시 후 다시 시도해 주세요")
         }
         Text(
-            VOICE_CONSENT_SETTING_CAPTION,
+            caption,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -322,6 +324,7 @@ fun AnonymousSettingsScreen(
                 onChange = { onChange(it); true },
                 onReload = {},
                 onOpenPrivacy = onOpenPrivacy,
+                caption = VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS,
             )
         }
     }
