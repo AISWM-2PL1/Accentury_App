@@ -6,6 +6,7 @@ private let pathRefresh = "v0/auth/refresh"
 private let pathLogout = "v0/auth/logout"
 private let pathMe = "v0/users/me"
 private let pathProfile = "v0/users/me/profile"
+private let pathVoiceConsent = "v0/users/me/voice-consent"
 private let jsonMediaType = "application/json"
 private let headerContentType = "Content-Type"
 private let headerCorrelationId = "X-Correlation-Id"
@@ -126,14 +127,39 @@ public struct AuthUser: Codable, Equatable, Sendable, CustomStringConvertible {
     public var description: String { "AuthUser[id=\(id)]" }
 }
 
-/// `GET /v0/users/me`·`PUT /v0/users/me/profile`의 응답 (§3.10·§3.11).
+/// 계정의 음성 저장 선택 동의 (KAN-270, 서버 KAN-269). 서버가 동의한 계정의 세션 음성만 AI 학습용으로 보관한다.
+/// 안드로이드 `auth/AuthApi.kt`의 `VoiceConsent` 이식본이다.
+///
+/// - `version`: 동의한 문안 버전. `consented`일 때만 non-nil
+/// - `consentedAt`: 동의 시각(ISO-8601). 화면에 쓰지 않아 문자열 그대로 둔다
+/// - `currentVersion`: 서버가 게시 중인 문안 버전. 동의(PUT)는 이 값을 실어야 한다 — 다르면 400 `VALIDATION_FAILED`
+public struct VoiceConsent: Codable, Equatable, Sendable {
+    public let consented: Bool
+    public let version: String?
+    public let consentedAt: String?
+    public let currentVersion: String
+
+    public init(consented: Bool, version: String? = nil, consentedAt: String? = nil, currentVersion: String) {
+        self.consented = consented
+        self.version = version
+        self.consentedAt = consentedAt
+        self.currentVersion = currentVersion
+    }
+}
+
+/// `GET /v0/users/me`·`PUT /v0/users/me/profile`·`PUT|DELETE /v0/users/me/voice-consent`의 응답 (§3.10·§3.11, KAN-269).
+///
+/// - `voiceConsent`: nil = 응답에 없었다. 로그인 응답(LoginResponse)에는 이 키가 없고, 옛 서버도 주지 않는다 —
+///   "미동의"와 "모름"을 가르려고 기본값을 두지 않는다 (KAN-270, 안드로이드와 같다)
 public struct Account: Codable, Equatable, Sendable {
     public let profileStatus: ProfileStatus
     public let user: AuthUser
+    public let voiceConsent: VoiceConsent?
 
-    public init(profileStatus: ProfileStatus, user: AuthUser) {
+    public init(profileStatus: ProfileStatus, user: AuthUser, voiceConsent: VoiceConsent? = nil) {
         self.profileStatus = profileStatus
         self.user = user
+        self.voiceConsent = voiceConsent
     }
 }
 
@@ -233,6 +259,18 @@ public struct AuthApi: Sendable {
         await call(authedSend, request(pathProfile, method: "PUT", body: input), decode: Self.decodeAccount)
     }
 
+    /// 음성 저장에 동의한다 (KAN-270, 서버 KAN-269).
+    ///
+    /// - Parameter version: 서버가 준 ``VoiceConsent/currentVersion``. 다르면 400 `VALIDATION_FAILED`
+    public func consentToVoice(version: String) async -> AuthResult<Account> {
+        await call(authedSend, request(pathVoiceConsent, method: "PUT", body: VoiceConsentBody(version: version)), decode: Self.decodeAccount)
+    }
+
+    /// 음성 저장 동의를 철회한다 (KAN-270). 그 뒤의 녹음부터 저장하지 않는다. 동의한 적 없어도 200이다.
+    public func withdrawVoiceConsent() async -> AuthResult<Account> {
+        await call(authedSend, request(pathVoiceConsent, method: "DELETE", body: Optional<RefreshBody>.none), decode: Self.decodeAccount)
+    }
+
     /// 로그아웃 (§3.13) — 그 Refresh의 패밀리를 서버에서 폐기한다. 모르는 토큰도 204다.
     public func logout(_ refreshToken: String) async -> AuthResult<Void> {
         await call(authedSend, request(pathLogout, method: "POST", body: RefreshBody(refreshToken: refreshToken))) { _ in () }
@@ -311,6 +349,10 @@ private struct LoginBody: Encodable, CustomStringConvertible {
 private struct RefreshBody: Encodable, CustomStringConvertible {
     let refreshToken: String
     var description: String { "RefreshBody[]" }
+}
+
+private struct VoiceConsentBody: Encodable {
+    let version: String
 }
 
 private struct TokenResponseBody: Decodable, CustomStringConvertible {

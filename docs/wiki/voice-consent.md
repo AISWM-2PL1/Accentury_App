@@ -93,6 +93,40 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 - 권한 거부(Denied): 발음을 들어야 분석할 수 있어요 · 음성은 따로 동의한 경우에만 보관돼요
 - 인트로 안심 문구 셋째 줄: 음성은 따로 동의한 경우에만 보관
 
-## iOS
+## iOS (3단계)
 
-KAN-270 3단계에서 추가 예정이다. Android와 같은 상태 모양·메서드 이름·문안 상수를 옮긴다.
+Android와 같은 상태 모양, 메서드 이름, 문안을 옮겼다. 상태 흐름·로컬 플래그·설정 토글의 규칙은 위 Android 절과
+같다. 판정과 저장소는 `AccenturyCore`에 두어 `swift test`로 돈다.
+
+| Android | iOS |
+|---|---|
+| `AuthApi.kt` `VoiceConsent`·`consentToVoice`·`withdrawVoiceConsent` | `AccenturyCore/Auth/AuthApi.swift` 같은 이름 (`consentToVoice(version:)`) |
+| `AuthGateState.SignedIn(user, voiceConsent)` | `.signedIn(AuthUser, voiceConsent: VoiceConsent?)` |
+| `AuthGateController.kt` `withVoiceConsent`·`setVoiceConsent`·`reloadVoiceConsent` | `AuthGateController.swift` 같은 이름 |
+| `VoiceConsentPromptStore.kt` (prefs 파일 `voice_consent_prompt`, 키 = id) | `AccenturyCore/Auth/VoiceConsentPrompt.swift` `UserDefaultsVoiceConsentPromptStore` (키 `voice_consent_prompt.<id>`) |
+| `shouldPromptVoiceConsent(state, wasPrompted)` | `shouldPromptVoiceConsent(state:wasPrompted:)` (같은 파일) |
+| `VoiceConsentText.kt` `VOICE_CONSENT_*` | `AccenturyCore/Auth/VoiceConsentText.swift` `voiceConsent*` (낙타 표기, 문장은 같다) |
+| `VoiceConsentScreen.kt` | `ios/Accentury/Auth/VoiceConsentScreen.swift` |
+| `MainActivity.kt` `AuthGate` 오버레이 | `AuthGateView.swift` `SignedInScreen`의 `ZStack` |
+| `SettingsScreen.kt` `VoiceConsentSection` | `SettingsScreen.swift` `VoiceConsentSection` |
+| `MainActivity.kt` 권한 안내 세 곳 | `Permission/PermissionGateView.swift` 세 곳 (문장 같음) |
+
+UserDefaults 키 이름은 광고 동의(`ad_consent.state`)와 같은 규칙이다. iOS에는 prefs 파일 단위가 없어 파일명과
+키를 점으로 이었다.
+
+### 체크 칸
+
+동의 화면의 체크 칸은 `Toggle`이 아니다. 로그인 화면 필수 동의 줄과 같은 그림(`ConsentCheckMark`, 잉크 테두리 칸에
+크림 체크)을 단 `Button`이다. iOS `Toggle`은 스위치로 그려져 "이 문장에 동의한다"는 뜻이 흐려진다. 한 앱에서
+동의 칸이 두 모양이 되는 것도 피했다. 접근성은 로그인 `ConsentRow`와 같다. 줄 전체가 한 요소로 읽히고 체크하면
+"선택됨"이 붙는다. 설정 화면의 켜고 끄기는 Android `Switch` 자리라 `Toggle`(잉크 색)을 그대로 쓴다.
+
+### 마이크 권한 설명 (plist)
+
+`Info-Release.plist`·`Info-Debug.plist`의 `NSMicrophoneUsageDescription`을 조건부 문장으로 바꿨다.
+
+```
+억양 분석을 위해 마이크로 목소리를 녹음해요. 따로 동의하지 않으면 녹음은 분석 뒤 바로 삭제돼요.
+```
+
+심사 가이드라인 5.1.1(ii)의 목적 문자열이라 처분이 사실과 맞아야 한다(`app-store-listing.md` §5).

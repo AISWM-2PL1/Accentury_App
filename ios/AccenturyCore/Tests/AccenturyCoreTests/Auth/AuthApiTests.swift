@@ -177,6 +177,73 @@ final class AuthApiTests: XCTestCase {
         guard case .success = result else { return XCTFail("\(result)") }
     }
 
+    // 음성 저장 선택 동의 (KAN-270). 안드로이드 `AuthApiTest`의 같은 이름 테스트와 짝이다.
+
+    func test내_정보의_음성_저장_동의를_읽는다_동의_미동의_키_없음() async {
+        let base = #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}"#
+        MockURLProtocol.respondInOrder([
+            (200, base + #","voiceConsent":{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}"#),
+            (200, base + #","voiceConsent":{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}}"#),
+            (200, base + "}"),
+        ])
+
+        guard case .success(let first) = await api.me(),
+              case .success(let second) = await api.me(),
+              case .success(let third) = await api.me() else { return XCTFail() }
+
+        XCTAssertEqual(
+            VoiceConsent(consented: true, version: "2026-10-04", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-10-04"),
+            first.voiceConsent
+        )
+        XCTAssertEqual(VoiceConsent(consented: false, currentVersion: "2026-10-04"), second.voiceConsent)
+        XCTAssertNil(third.voiceConsent)
+    }
+
+    func test음성_저장_동의는_Bearer로_버전을_실어_PUT한다() async throws {
+        MockURLProtocol.respond(
+            status: 200,
+            body: #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}"#
+        )
+
+        let result = await api.consentToVoice(version: "2026-10-04")
+
+        let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
+        XCTAssertEqual("PUT", recorded.method)
+        XCTAssertEqual("/v0/users/me/voice-consent", recorded.url?.path)
+        XCTAssertEqual("Bearer jwt_a", recorded.header("Authorization"))
+        XCTAssertEqual(#"{"version":"2026-10-04"}"#, try lastBody().raw)
+        guard case .success(let account) = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(true, account.voiceConsent?.consented)
+    }
+
+    func test음성_저장_철회는_본문_없이_DELETE한다() async throws {
+        MockURLProtocol.respond(
+            status: 200,
+            body: #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":{"consented":false,"currentVersion":"2026-10-04"}}"#
+        )
+
+        let result = await api.withdrawVoiceConsent()
+
+        let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
+        XCTAssertEqual("DELETE", recorded.method)
+        XCTAssertEqual("/v0/users/me/voice-consent", recorded.url?.path)
+        XCTAssertEqual("Bearer jwt_a", recorded.header("Authorization"))
+        XCTAssertTrue(recorded.body.isEmpty)
+        guard case .success(let account) = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(false, account.voiceConsent?.consented)
+    }
+
+    func test낡은_버전의_동의는_400_봉투_그대로_거절이다() async {
+        MockURLProtocol.respond(status: 400, body: #"{"code":"VALIDATION_FAILED","message":"m","retryable":false,"correlationId":"c"}"#)
+
+        let result = await api.consentToVoice(version: "2026-09-29")
+
+        guard case .rejected(let status, let code, _, let retryable, _) = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(400, status)
+        XCTAssertEqual("VALIDATION_FAILED", code)
+        XCTAssertFalse(retryable)
+    }
+
     func test서버가_없으면_전송_실패다() async {
         MockURLProtocol.fail(with: URLError(.cannotConnectToHost))
 

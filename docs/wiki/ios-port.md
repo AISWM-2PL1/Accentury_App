@@ -354,8 +354,8 @@ nil로 들고, 그러면 문항 결과 주입(`deliverResults`)이 매번 "받�
 
 | 어디 | 무엇 | 왜 |
 | --- | --- | --- |
-| `AccenturyCore/Auth/` | `AuthApi`·`AuthTokens`·`TokenRefresher`·`AuthorizedSession`·`AuthClients`·`AuthGateController`·`LoginScreenState`·`ProfileFormState`·`AppleNonce` | 상태 기계·갱신 줄 세우기·401 재시도·nonce는 SDK 없이 정해진다. 안드로이드 인증 테스트를 이식해 `swift test`로 돈다(동시 401 다섯 건에 갱신 한 번 포함) |
-| `Accentury/Auth/` | `KeychainTokenStore`, `IdpSdks`(구글·카카오·네이버·애플 SDK 호출과 URL 복귀, `IdpLogout`), `AuthHub`, `AuthGateView`, `LoginScreen`·`ProfileScreen`·`SettingsScreen`(KAN-247, 톱니 버튼 포함) | 키체인은 앱 번들의 entitlement에, IdP SDK는 UIKit·번들 설정에 매여 있어 Core에 들어갈 수 없다 |
+| `AccenturyCore/Auth/` | `AuthApi`·`AuthTokens`·`TokenRefresher`·`AuthorizedSession`·`AuthClients`·`AuthGateController`·`LoginScreenState`·`ProfileFormState`·`AppleNonce`, `VoiceConsentPrompt`·`VoiceConsentText`(KAN-270 음성 저장 동의 판정·표시 기록·문안) | 상태 기계·갱신 줄 세우기·401 재시도·nonce는 SDK 없이 정해진다. 안드로이드 인증 테스트를 이식해 `swift test`로 돈다(동시 401 다섯 건에 갱신 한 번 포함) |
+| `Accentury/Auth/` | `KeychainTokenStore`, `IdpSdks`(구글·카카오·네이버·애플 SDK 호출과 URL 복귀, `IdpLogout`), `AuthHub`, `AuthGateView`, `LoginScreen`·`ProfileScreen`·`SettingsScreen`(KAN-247, 톱니 버튼 포함, KAN-270 음성 저장 동의 토글)·`VoiceConsentScreen`(KAN-270) | 키체인은 앱 번들의 entitlement에, IdP SDK는 UIKit·번들 설정에 매여 있어 Core에 들어갈 수 없다 |
 | `Accentury/AppConfig.swift` | 로그인 키 여섯과 `fakeIdp` | xcconfig → `Info-*.plist` → `AppConfig` 사슬(§1의 `WEB_URL`과 같다). `fakeIdp`는 `#if DEBUG`라 Release에서는 늘 false |
 
 SDK 타입은 `IdpSdks.swift` 한 파일에 가뒀다. 화면은 제공자 이름과 `IdpOutcome`만 안다 — 카카오 SDK가

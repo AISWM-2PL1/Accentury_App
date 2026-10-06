@@ -65,7 +65,8 @@ struct PermissionGateView: View {
             case .rationale:
                 GateScreen(
                     headline: "발음 분석에 마이크가 필요해요",
-                    supporting: "음성은 분석 즉시 삭제돼요",
+                    // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+                    supporting: "따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요",
                     buttonLabel: "마이크 허용",
                     action: .request
                 )
@@ -75,7 +76,8 @@ struct PermissionGateView: View {
                 // 상태 계약을 유지하느라 남겨 둔 화면이라 문구도 정본을 그대로 쓴다.
                 GateScreen(
                     headline: "마이크를 허용해야 시작할 수 있어요",
-                    supporting: "발음을 들어야 분석할 수 있어요 · 음성은 분석 즉시 삭제돼요",
+                    // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+                    supporting: "발음을 들어야 분석할 수 있어요 · 음성은 따로 동의한 경우에만 보관돼요",
                     buttonLabel: "다시 허용하기",
                     action: .request
                 )
@@ -240,7 +242,8 @@ struct PermissionGateView: View {
     private static let assurances = [
         "실시간 억양 곡선 분석",
         "발음 정확도 점수 측정",
-        "음성은 분석 즉시 삭제",
+        // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+        "음성은 따로 동의한 경우에만 보관",
     ]
 }
 

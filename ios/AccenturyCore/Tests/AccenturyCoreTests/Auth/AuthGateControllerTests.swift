@@ -13,7 +13,20 @@ final class AuthGateControllerTests: XCTestCase {
      "profileStatus":"INCOMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}
     """
 
-    private func account(_ status: String) -> String { #"{"profileStatus":"\#(status)","user":{"id":"u-1","provider":"GOOGLE"}}"# }
+    private func account(_ status: String, voiceConsent: String? = nil) -> String {
+        #"{"profileStatus":"\#(status)","user":{"id":"u-1","provider":"GOOGLE"}"# + (voiceConsent.map { #","voiceConsent":\#($0)"# } ?? "") + "}"
+    }
+    private func consent(_ consented: Bool) -> String {
+        consented
+            ? #"{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}"#
+            : #"{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}"#
+    }
+    private let loginComplete = """
+    {"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"isNewUser":false,
+     "profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}
+    """
+    private let notConsented = VoiceConsent(consented: false, currentVersion: "2026-10-04")
+    private let consented = VoiceConsent(consented: true, version: "2026-10-04", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-10-04")
     private func tokens(_ n: Int) -> String { #"{"accessToken":"jwt_\#(n)","refreshToken":"rt_\#(n)","accessTokenExpiresInSec":900}"# }
     private func envelope(_ code: String, _ retryable: Bool) -> String {
         #"{"code":"\#(code)","message":"m","retryable":\#(retryable),"correlationId":"c"}"#
@@ -65,7 +78,7 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
 
         await gate.submitProfile(profile)
-        XCTAssertEqual(.signedIn(user), gate.state)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
         XCTAssertEqual("Bearer jwt_1", MockURLProtocol.requests()[1].header("Authorization"))
     }
 
@@ -76,7 +89,7 @@ final class AuthGateControllerTests: XCTestCase {
 
         await gate.bootstrap()
 
-        XCTAssertEqual(.signedIn(user), gate.state)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
         XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
         let requests = MockURLProtocol.requests()
         XCTAssertEqual("/v0/auth/refresh", requests[0].url?.path)
@@ -286,5 +299,128 @@ final class AuthGateControllerTests: XCTestCase {
 
         XCTAssertEqual(.signedOut(nil), gate.state)
         XCTAssertNil(store.tokens)
+    }
+    // 음성 저장 선택 동의 (KAN-270). 안드로이드 `AuthGateControllerTest`의 같은 이름 테스트와 짝이다.
+
+    func test로그인으로_곧장_들어가면_me를_한_번_더_불러_음성_동의를_채운다() async {
+        let (gate, _) = controller(InMemoryTokenStore())
+        MockURLProtocol.respondInOrder([(200, loginComplete), (200, account("COMPLETE", voiceConsent: consent(false)))])
+
+        await gate.login(google, privacyPolicyVersion: "v1")
+
+        XCTAssertEqual(.signedIn(user, voiceConsent: notConsented), gate.state)
+        let requests = MockURLProtocol.requests()
+        XCTAssertEqual("/v0/auth/login", requests[0].url?.path)
+        XCTAssertEqual("/v0/users/me", requests[1].url?.path)
+        XCTAssertEqual("Bearer jwt_1", requests[1].header("Authorization"))
+    }
+
+    func test로그인_뒤_me가_5xx여도_동의를_모르는_채_들어간다() async {
+        let store = InMemoryTokenStore()
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([(200, loginComplete), (503, envelope("AUTH_STORE_UNAVAILABLE", true))])
+
+        await gate.login(google, privacyPolicyVersion: "v1")
+
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+    }
+
+    func test시작_확인과_프로필_제출은_응답의_음성_동의를_싣는다() async {
+        let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)), (200, account("INCOMPLETE")), (200, account("COMPLETE", voiceConsent: consent(false))),
+        ])
+        await gate.bootstrap()
+
+        await gate.submitProfile(profile)
+
+        XCTAssertEqual(.signedIn(user, voiceConsent: notConsented), gate.state)
+    }
+
+    func test동의는_서버가_준_currentVersion을_PUT에_싣고_상태를_갱신한다() async throws {
+        let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)), (200, account("COMPLETE", voiceConsent: consent(false))),
+            (200, account("COMPLETE", voiceConsent: consent(true))),
+        ])
+        await gate.bootstrap()
+
+        let result = await gate.setVoiceConsent(true)
+
+        guard case .success = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(.signedIn(user, voiceConsent: consented), gate.state)
+        let put = MockURLProtocol.requests()[2]
+        XCTAssertEqual("PUT", put.method)
+        XCTAssertEqual("/v0/users/me/voice-consent", put.url?.path)
+        XCTAssertEqual(#"{"version":"2026-10-04"}"#, String(data: put.body, encoding: .utf8))
+    }
+
+    func test동의_상태를_모르면_me로_버전을_먼저_읽고_동의한다() async {
+        let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)), (200, account("COMPLETE")),
+            (200, account("COMPLETE", voiceConsent: consent(false))), (200, account("COMPLETE", voiceConsent: consent(true))),
+        ])
+        await gate.bootstrap()
+
+        _ = await gate.setVoiceConsent(true)
+
+        XCTAssertEqual(.signedIn(user, voiceConsent: consented), gate.state)
+        let requests = MockURLProtocol.requests()
+        XCTAssertEqual("/v0/users/me", requests[2].url?.path)
+        XCTAssertEqual(#"{"version":"2026-10-04"}"#, String(data: requests[3].body, encoding: .utf8))
+    }
+
+    func test철회는_DELETE_뒤_미동의로_바뀐다() async {
+        let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)), (200, account("COMPLETE", voiceConsent: consent(true))),
+            (200, account("COMPLETE", voiceConsent: consent(false))),
+        ])
+        await gate.bootstrap()
+
+        _ = await gate.setVoiceConsent(false)
+
+        XCTAssertEqual(.signedIn(user, voiceConsent: notConsented), gate.state)
+        XCTAssertEqual("DELETE", MockURLProtocol.requests()[2].method)
+    }
+
+    func test동의_변경이_실패하면_상태는_그대로이고_결과를_돌려준다() async {
+        let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)), (200, account("COMPLETE", voiceConsent: consent(false))),
+            (503, envelope("AUTH_STORE_UNAVAILABLE", true)),
+        ])
+        await gate.bootstrap()
+
+        let result = await gate.setVoiceConsent(true)
+
+        guard case .rejected = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(.signedIn(user, voiceConsent: notConsented), gate.state)
+    }
+
+    func test로그인_상태가_아니면_동의_변경은_아무것도_보내지_않는다() async {
+        let (gate, _) = controller(InMemoryTokenStore())
+        await gate.bootstrap()
+
+        let result = await gate.setVoiceConsent(true)
+        await gate.reloadVoiceConsent()
+
+        guard case .rejected = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(.signedOut(nil), gate.state)
+        XCTAssertEqual(0, MockURLProtocol.requestCount)
+    }
+
+    func test다시_읽기는_me로_동의_상태를_채운다() async {
+        let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)), (200, account("COMPLETE")), (200, account("COMPLETE", voiceConsent: consent(true))),
+        ])
+        await gate.bootstrap()
+
+        await gate.reloadVoiceConsent()
+
+        XCTAssertEqual(.signedIn(user, voiceConsent: consented), gate.state)
     }
 }
