@@ -45,7 +45,7 @@ public let voiceConsentDetailsAnonymous: [String] = [
     voiceConsentDetails[0],
     voiceConsentDetails[1],
     "익명 응시라 세션이 만료되면 어느 분의 음성인지 알 수 없어, 그 뒤에는 개별 삭제 요청을 처리할 수 없어요",
-    "동의는 설정에서 언제든 끌 수 있고, 끈 뒤의 녹음은 저장하지 않아요",
+    "동의는 설정에서 언제든 끌 수 있고, 다음 테스트부터 저장하지 않아요",
 ]
 
 public let voiceConsentPolicyLead = "자세한 내용은"
@@ -58,4 +58,12 @@ public let voiceConsentFootnote = "동의하지 않으면 녹음한 음성은 �
 public let voiceConsentSettingLabel = "음성 저장 동의 (선택)"
 public let voiceConsentSettingCaption =
     "켜면 녹음한 음성과 분석 정보를 억양 분석 AI 학습에 보관해요. 끄면 그 뒤의 녹음부터 저장하지 않아요. " +
+    "이미 저장된 음성의 처리는 개인정보처리방침 13항의 개인정보 보호책임자에게 요청해 주세요."
+
+/// 익명 모드 설정 캡션. 익명 모드만 「다음 테스트부터」라고 쓰는 이유 (PR #22 리뷰): 익명 세션의 동의는 세션을 만들 때
+/// `voiceConsentVersion`으로 고정된다. 톱니는 응시 중에도 보여서, 도중에 꺼도 그 세션의 남은 녹음은 저장된다.
+/// 계정 모드는 서버가 업로드마다 계정 동의를 다시 보므로 ``voiceConsentSettingCaption``의 「그 뒤의 녹음부터」가 맞다.
+public let voiceConsentSettingCaptionAnonymous =
+    "켜면 녹음한 음성과 분석 정보를 억양 분석 AI 학습에 보관해요. 끄면 다음 테스트부터 저장하지 않아요. " +
+    "지금 진행 중인 테스트의 녹음은 시작할 때 고른 대로 처리돼요. " +
     "이미 저장된 음성의 처리는 개인정보처리방침 13항의 개인정보 보호책임자에게 요청해 주세요."
