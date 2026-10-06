@@ -179,6 +179,82 @@ class AuthApiTest {
     }
 
     @Test
+    fun `내 정보의 음성 저장 동의를 읽는다 - 동의, 미동의, 키 없음`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
+                    """{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}""",
+            ),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
+                    """{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}}""",
+            ),
+        )
+        server.enqueue(MockResponse().setBody("""{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}"""))
+
+        assertEquals(
+            VoiceConsent(true, "2026-10-04", "2026-10-06T01:02:03Z", "2026-10-04"),
+            (api.me() as AuthResult.Success).value.voiceConsent,
+        )
+        assertEquals(VoiceConsent(false, null, null, "2026-10-04"), (api.me() as AuthResult.Success).value.voiceConsent)
+        assertEquals(null, (api.me() as AuthResult.Success).value.voiceConsent)
+    }
+
+    @Test
+    fun `음성 저장 동의는 Bearer로 버전을 실어 PUT한다`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
+                    """{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}""",
+            ),
+        )
+
+        val result = api.consentToVoice("2026-10-04")
+
+        val recorded = server.takeRequest()
+        assertEquals("PUT", recorded.method)
+        assertEquals("/v0/users/me/voice-consent", recorded.path)
+        assertEquals("Bearer jwt_a", recorded.getHeader("Authorization"))
+        assertEquals("""{"version":"2026-10-04"}""", recorded.body.readUtf8())
+        assertTrue((result as AuthResult.Success).value.voiceConsent!!.consented)
+    }
+
+    @Test
+    fun `음성 저장 철회는 본문 없이 DELETE한다`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
+                    """{"consented":false,"currentVersion":"2026-10-04"}}""",
+            ),
+        )
+
+        val result = api.withdrawVoiceConsent()
+
+        val recorded = server.takeRequest()
+        assertEquals("DELETE", recorded.method)
+        assertEquals("/v0/users/me/voice-consent", recorded.path)
+        assertEquals("Bearer jwt_a", recorded.getHeader("Authorization"))
+        assertEquals(0L, recorded.bodySize)
+        assertFalse((result as AuthResult.Success).value.voiceConsent!!.consented)
+    }
+
+    @Test
+    fun `낡은 버전의 동의는 400 봉투 그대로 거절이다`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(400)
+                .setBody("""{"code":"VALIDATION_FAILED","message":"m","retryable":false,"correlationId":"c"}"""),
+        )
+
+        val result = api.consentToVoice("2026-09-29") as AuthResult.Rejected
+
+        assertEquals(400, result.status)
+        assertEquals("VALIDATION_FAILED", result.code)
+        assertFalse(result.retryable)
+    }
+
+    @Test
     fun `로그아웃은 204를 성공으로 본다`() = runTest {
         server.enqueue(MockResponse().setResponseCode(204))
 

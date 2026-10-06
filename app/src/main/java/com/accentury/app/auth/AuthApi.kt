@@ -23,6 +23,7 @@ private const val PATH_REFRESH = "v0/auth/refresh"
 private const val PATH_LOGOUT = "v0/auth/logout"
 private const val PATH_ME = "v0/users/me"
 private const val PATH_PROFILE = "v0/users/me/profile"
+private const val PATH_VOICE_CONSENT = "v0/users/me/voice-consent"
 private const val JSON_MEDIA_TYPE = "application/json"
 private const val HEADER_CORRELATION_ID = "X-Correlation-Id"
 private const val HEADER_RETRY_AFTER = "Retry-After"
@@ -99,9 +100,29 @@ data class AuthUser(
     override fun toString(): String = "AuthUser[id=$id]"
 }
 
-/** `GET /v0/users/me`·`PUT /v0/users/me/profile`의 응답 (§3.10·§3.11). */
+/**
+ * 계정의 음성 저장 선택 동의 (KAN-270, 서버 KAN-269). 서버가 동의한 계정의 세션 음성만 AI 학습용으로 보관한다.
+ *
+ * @property version 동의한 문안 버전. [consented]일 때만 non-null
+ * @property consentedAt 동의 시각(ISO-8601). 화면에 쓰지 않아 문자열 그대로 둔다
+ * @property currentVersion 서버가 게시 중인 문안 버전. 동의(PUT)는 이 값을 실어야 한다 — 다르면 400 `VALIDATION_FAILED`
+ */
 @Serializable
-data class Account(val profileStatus: ProfileStatus, val user: AuthUser)
+data class VoiceConsent(
+    val consented: Boolean,
+    val version: String? = null,
+    val consentedAt: String? = null,
+    val currentVersion: String,
+)
+
+/**
+ * `GET /v0/users/me`·`PUT /v0/users/me/profile`·`PUT|DELETE /v0/users/me/voice-consent`의 응답 (§3.10·§3.11, KAN-269).
+ *
+ * @property voiceConsent null = 응답에 없었다. 로그인 응답(LoginResponse)에는 이 키가 없고, 옛 서버도 주지 않는다 —
+ *   "미동의"와 "모름"을 가르려고 기본값을 두지 않는다 (KAN-270)
+ */
+@Serializable
+data class Account(val profileStatus: ProfileStatus, val user: AuthUser, val voiceConsent: VoiceConsent? = null)
 
 /** 로그인 성공 (§3.9). [isNewUser]는 가입 계측용으로만 쓴다 — 화면 분기는 [account]의 profileStatus가 정한다. */
 data class LoginSuccess(val tokens: AuthTokens, val isNewUser: Boolean, val account: Account)
@@ -193,6 +214,21 @@ class AuthApi(
         return call(authedClient, request(PATH_PROFILE).put(payload).build(), ::decodeAccount)
     }
 
+    /**
+     * 음성 저장에 동의한다 (KAN-270, 서버 KAN-269).
+     *
+     * @param version 서버가 준 [VoiceConsent.currentVersion]. 다르면 400 `VALIDATION_FAILED`
+     */
+    suspend fun consentToVoice(version: String): AuthResult<Account> {
+        val payload = json.encodeToString(VoiceConsentBody.serializer(), VoiceConsentBody(version))
+            .toRequestBody(JSON_MEDIA_TYPE.toMediaType())
+        return call(authedClient, request(PATH_VOICE_CONSENT).put(payload).build(), ::decodeAccount)
+    }
+
+    /** 음성 저장 동의를 철회한다 (KAN-270). 그 뒤의 녹음부터 저장하지 않는다. 동의한 적 없어도 200이다. */
+    suspend fun withdrawVoiceConsent(): AuthResult<Account> =
+        call(authedClient, request(PATH_VOICE_CONSENT).delete().build(), ::decodeAccount)
+
     /** 로그아웃 (§3.13) — 그 Refresh의 패밀리를 서버에서 폐기한다. 모르는 토큰도 204다. */
     suspend fun logout(refreshToken: String): AuthResult<Unit> =
         call(authedClient, post(PATH_LOGOUT, refreshBody(refreshToken))) { }
@@ -266,6 +302,9 @@ private data class LoginBody(
 private data class RefreshBody(val refreshToken: String) {
     override fun toString(): String = "RefreshBody[]"
 }
+
+@Serializable
+private data class VoiceConsentBody(val version: String)
 
 @Serializable
 private data class TokenResponseBody(val accessToken: String, val refreshToken: String) {

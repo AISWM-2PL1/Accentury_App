@@ -7,17 +7,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +39,8 @@ import androidx.compose.ui.semantics.semantics
 import com.accentury.app.R
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
+import com.accentury.app.ui.components.StatusBlock
+import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
@@ -77,7 +82,7 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * 설정 화면 (KAN-247). 계정 정보와 로그아웃.
+ * 설정 화면 (KAN-247). 계정 정보, 음성 저장 동의(KAN-270), 로그아웃.
  *
  * TestFlow를 컴포지션에서 내리지 않고 **그 위를 덮는다** — WebView는 인트로부터 테스트 끝까지 한 인스턴스로
  * 살아야 하므로(TestFlow KDoc) 닫으면 보던 웹 화면 그대로다. 시스템 뒤로 가기도 닫기와 같다.
@@ -86,12 +91,20 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
  * `/v0/users/me`를 또 부를 이유가 없다.
  *
  * @param onLogout [AuthGateController.logout]. 끝나면 게이트가 SignedOut이 되어 이 화면째 로그인 화면으로 바뀐다
+ * @param voiceConsent [AuthGateState.SignedIn.voiceConsent] (KAN-270). null이면 스위치 대신 [다시 시도]를 보인다
+ * @param onVoiceConsentChange [AuthGateController.setVoiceConsent]
+ * @param onReloadVoiceConsent [AuthGateController.reloadVoiceConsent]
+ * @param onOpenPrivacy 방침 문서 (LoginScreen과 같은 호출)
  */
 @Composable
 fun SettingsScreen(
     user: AuthUser,
+    voiceConsent: VoiceConsent?,
     onClose: () -> Unit,
     onLogout: suspend () -> Unit,
+    onVoiceConsentChange: suspend (Boolean) -> AuthResult<Account>,
+    onReloadVoiceConsent: suspend () -> Unit,
+    onOpenPrivacy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -132,6 +145,8 @@ fun SettingsScreen(
                 AccountRow("로그인 방식", providerName(user.provider))
                 // [회원 탈퇴]는 KAN-251이 이 자리(계정 섹션 맨 아래)에 붙인다.
             }
+
+            VoiceConsentSection(voiceConsent, onVoiceConsentChange, onReloadVoiceConsent, onOpenPrivacy)
 
             AccenturyButton(
                 text = "로그아웃",
@@ -177,6 +192,86 @@ fun SettingsScreen(
             // 종이 면 그대로 — 기본 surfaceContainerHigh는 Papercut 팔레트 밖의 색이다.
             containerColor = MaterialTheme.colorScheme.background,
         )
+    }
+}
+
+/**
+ * 「개인정보」 섹션 — 음성 저장 선택 동의의 유일한 켜고 끄는 자리 (KAN-270, 팀 결정 2026-10-06: 건너뛴 사용자에게
+ * 동의 화면을 다시 띄우지 않는다).
+ *
+ * 스위치는 서버 값([VoiceConsent.consented])을 따른다. 누르는 동안만 새 값을 먼저 보여 주고, 실패하면 그 값을 버려
+ * 원래 자리로 돌아간 뒤 한 줄 안내를 남긴다. 서버가 받은 값이 아니면 켜진 것처럼 보이면 안 된다.
+ */
+@Composable
+private fun VoiceConsentSection(
+    voiceConsent: VoiceConsent?,
+    onChange: suspend (Boolean) -> AuthResult<Account>,
+    onReload: suspend () -> Unit,
+    onOpenPrivacy: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var pending by remember { mutableStateOf<Boolean?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    var reloading by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
+        Text(
+            "개인정보",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { heading() },
+        )
+        if (voiceConsent == null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(VOICE_CONSENT_SETTING_LABEL, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Text("상태를 불러오지 못했어요", style = MaterialTheme.typography.bodyMedium)
+            }
+            AccenturyButton(
+                text = "다시 시도",
+                onClick = {
+                    scope.launch {
+                        reloading = true
+                        try {
+                            onReload()
+                        } finally {
+                            reloading = false
+                        }
+                    }
+                },
+                variant = ButtonVariant.Text,
+                enabled = !reloading,
+            )
+        } else {
+            val checked = pending ?: voiceConsent.consented
+            // 줄 전체가 스위치 하나로 읽히고 눌린다(48dp 터치) — LoginScreen 동의 줄과 같은 구성.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = Dimens.touchTargetMin)
+                    .toggleable(value = checked, role = Role.Switch, enabled = pending == null) { next ->
+                        scope.launch {
+                            pending = next
+                            failed = false
+                            try {
+                                failed = onChange(next) !is AuthResult.Success
+                            } finally {
+                                pending = null
+                            }
+                        }
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(VOICE_CONSENT_SETTING_LABEL, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Switch(checked = checked, onCheckedChange = null, enabled = pending == null)
+            }
+            if (failed) StatusBlock(tone = StatusTone.Error, message = "바꾸지 못했어요 · 잠시 후 다시 시도해 주세요")
+        }
+        Text(
+            VOICE_CONSENT_SETTING_CAPTION,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        AccenturyButton(text = "개인정보처리방침", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
     }
 }
 

@@ -38,7 +38,20 @@ class AuthGateControllerTest {
     private val google = LoginCredential(Provider.GOOGLE, idToken = "fake:g")
     private val profile = ProfileInput("a@b.co", "이름", "2000-01-02", "MALE", "SEOUL")
 
-    private fun account(status: String) = """{"profileStatus":"$status","user":{"id":"u-1","provider":"GOOGLE"}}"""
+    private fun account(status: String, voiceConsent: String? = null) =
+        """{"profileStatus":"$status","user":{"id":"u-1","provider":"GOOGLE"}""" +
+            (voiceConsent?.let { ""","voiceConsent":$it""" } ?: "") + "}"
+    private fun consent(consented: Boolean) =
+        if (consented) {
+            """{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}"""
+        } else {
+            """{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}"""
+        }
+    private val loginComplete =
+        """{"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"isNewUser":false,""" +
+            """"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}"""
+    private val notConsented = VoiceConsent(false, null, null, "2026-10-04")
+    private val consented = VoiceConsent(true, "2026-10-04", "2026-10-06T01:02:03Z", "2026-10-04")
     private fun tokens(n: Int) = """{"accessToken":"jwt_$n","refreshToken":"rt_$n","accessTokenExpiresInSec":900}"""
     private fun envelope(code: String, retryable: Boolean) =
         """{"code":"$code","message":"m","retryable":$retryable,"correlationId":"c"}"""
@@ -419,5 +432,138 @@ class AuthGateControllerTest {
 
         assertNull(store.tokens)
         assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
+    fun `로그인으로 곧장 들어가면 me를 한 번 더 불러 음성 동의를 채운다`() = runTest {
+        val gate = controller(InMemoryTokenStore())
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(false))))
+
+        gate.login(google, privacyPolicyVersion = "v1")
+
+        assertEquals(AuthGateState.SignedIn(user, notConsented), gate.state.value)
+        assertEquals("/v0/auth/login", server.takeRequest().path)
+        val me = server.takeRequest()
+        assertEquals("/v0/users/me", me.path)
+        assertEquals("Bearer jwt_1", me.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `로그인 뒤 me가 5xx여도 동의를 모르는 채 들어간다`() = runTest {
+        val store = InMemoryTokenStore()
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setResponseCode(503).setBody(envelope("AUTH_STORE_UNAVAILABLE", true)))
+
+        gate.login(google, privacyPolicyVersion = "v1")
+
+        assertEquals(AuthGateState.SignedIn(user, voiceConsent = null), gate.state.value)
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+    }
+
+    @Test
+    fun `시작 확인과 프로필 제출은 응답의 음성 동의를 싣는다`() = runTest {
+        val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("INCOMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(false))))
+
+        gate.submitProfile(profile)
+
+        assertEquals(AuthGateState.SignedIn(user, notConsented), gate.state.value)
+    }
+
+    @Test
+    fun `동의는 서버가 준 currentVersion을 PUT에 싣고 상태를 갱신한다`() = runTest {
+        val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(false))))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(true))))
+
+        val result = gate.setVoiceConsent(true)
+
+        assertTrue(result is AuthResult.Success)
+        assertEquals(AuthGateState.SignedIn(user, consented), gate.state.value)
+        server.takeRequest()
+        server.takeRequest()
+        val put = server.takeRequest()
+        assertEquals("PUT", put.method)
+        assertEquals("/v0/users/me/voice-consent", put.path)
+        assertEquals("""{"version":"2026-10-04"}""", put.body.readUtf8())
+    }
+
+    @Test
+    fun `동의 상태를 모르면 me로 버전을 먼저 읽고 동의한다`() = runTest {
+        val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(false))))
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(true))))
+
+        gate.setVoiceConsent(true)
+
+        assertEquals(AuthGateState.SignedIn(user, consented), gate.state.value)
+        repeat(3) { server.takeRequest() }
+        assertEquals("""{"version":"2026-10-04"}""", server.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `철회는 DELETE 뒤 미동의로 바뀐다`() = runTest {
+        val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(true))))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(false))))
+
+        gate.setVoiceConsent(false)
+
+        assertEquals(AuthGateState.SignedIn(user, notConsented), gate.state.value)
+        server.takeRequest()
+        server.takeRequest()
+        assertEquals("DELETE", server.takeRequest().method)
+    }
+
+    @Test
+    fun `동의 변경이 실패하면 상태는 그대로이고 결과를 돌려준다`() = runTest {
+        val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(false))))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setResponseCode(503).setBody(envelope("AUTH_STORE_UNAVAILABLE", true)))
+
+        val result = gate.setVoiceConsent(true)
+
+        assertTrue(result is AuthResult.Rejected)
+        assertEquals(AuthGateState.SignedIn(user, notConsented), gate.state.value)
+    }
+
+    @Test
+    fun `로그인 상태가 아니면 동의 변경은 아무것도 보내지 않는다`() = runTest {
+        val gate = controller(InMemoryTokenStore())
+        gate.bootstrap()
+
+        val result = gate.setVoiceConsent(true)
+        gate.reloadVoiceConsent()
+
+        assertTrue(result is AuthResult.Rejected)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `다시 읽기는 me로 동의 상태를 채운다`() = runTest {
+        val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(true))))
+
+        gate.reloadVoiceConsent()
+
+        assertEquals(AuthGateState.SignedIn(user, consented), gate.state.value)
     }
 }
