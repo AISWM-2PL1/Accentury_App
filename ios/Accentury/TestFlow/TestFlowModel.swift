@@ -352,6 +352,21 @@ final class TestFlowModel: ObservableObject {
         anonymousConsent.flatMap { anonymousSessionRegion(consented: $0.consented(), region: $0.region()) }
     }
 
+    /// 재응시 직전의 출신 지역 단계 (KAN-270, PR #22 리뷰). 안드로이드 `retestRegionPending` 자리다.
+    ///
+    /// 시작 게이트의 지역 칸은 `session == nil`일 때만 서는데, 재응시는 세션을 든 채 결과 화면에서 새 세션을 만든다.
+    /// 그래서 처음에 건너뛴 사람이 설정에서 동의를 켠 뒤 재응시하면 지역을 묻지 못하고 라벨이 UNKNOWN으로 남았다.
+    /// ``startRetest()``가 세션 요청 앞에서 이 값을 세우고, 지역 화면의 [다음](``onRetestRegionChosen(_:)``)이 내린다.
+    ///
+    /// 디스크에는 적지 않는다. 프로세스가 죽으면 웹 결과 화면이 다시 로드되어 버튼이 열리므로 잠긴 채 남지 않는다.
+    @Published private(set) var retestRegionPending = false
+
+    /// 재응시 직전 지역 화면의 [다음]. 지역을 남기고 단계를 걷는다. 재응시는 호출자가 ``startRetest()``를 다시 불러 잇는다.
+    func onRetestRegionChosen(_ code: String) {
+        anonymousConsent?.saveRegion(code)
+        retestRegionPending = false
+    }
+
     /// 저장해 둔 흐름·세션·시작 게이트를 전부 지운다 (KAN-224).
     ///
     /// 안드로이드는 TestFlow 컴포저블이 로그인 상태(SignedIn)일 때만 살아 있어, 로그아웃·추가 정보로 넘어가면
@@ -403,6 +418,16 @@ final class TestFlowModel: ObservableObject {
     /// - Returns: 실패했으면 웹에 회신할 payload. 성공(교체)이거나 걸 요청이 없으면 nil이다 —
     ///   성공은 회신하지 않는다. 새 세션을 든 채 인트로로 돌아가므로 회신을 받을 페이지가 사라진다.
     func startRetest() async -> RetestFailure? {
+        /*
+         * 동의는 켰는데 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰). 잠금
+         * (`beginRetest()`)보다 앞이라 지역 화면이 떠 있는 동안 세션 요청도 진행 중 플래그도 없다. 웹 결과 화면은
+         * 광고를 볼 때처럼 pending으로 기다리고(시간 기반 해제가 없다), 지역을 고르면 화면이 이 함수를 다시 부른다.
+         * 회신할 실패가 아니라서 nil이다.
+         */
+        if needsAnonymousRegion {
+            retestRegionPending = true
+            return nil
+        }
         // nil이면 이미 요청이 나가 있거나 버릴 세션이 없다 — 어느 쪽이든 할 일은 없다.
         guard let previousToken = sessionGate.beginRetest() else { return nil }
         guard let sessionClient else {

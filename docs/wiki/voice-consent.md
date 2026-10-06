@@ -131,6 +131,13 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
   지역 없음). 게이트 순서는 권한 → 동의 → **지역** → 점검 → 세션이다. 설정에서 뒤늦게 동의를 켠 사람은 다음 시작 때
   자동으로 지역 칸에 걸린다. 값은 같은 prefs의 키 `region`(`saveRegion`)에 `Region.name`으로 남고, 동의를 껐다 켜도
   지우지 않는다. 설정에서 바꾸는 UI는 없다.
+- **재응시 직전에도 묻는다 (PR #22 리뷰)**: 시작 게이트의 지역 칸은 세션이 없을 때만 선다. 그런데 재응시는 세션을
+  든 채 결과 화면에서 새 세션을 만들어서, 처음에 건너뛴 사람이 설정에서 동의를 켠 뒤 앱을 다시 시작하지 않고
+  재응시하면 지역을 묻지 못하고 라벨이 `UNKNOWN`으로 남았다. 그래서 재응시 본체(`proceedRetest`, iOS
+  `TestFlowModel.startRetest()`)가 세션 요청과 잠금(`beginRetest()`) 앞에서 같은 판정(`needsAnonymousRegion`)을 보고,
+  참이면 `retestRegionPending`을 세워 결과 화면 위에 지역 화면을 덮는다. [다음]을 누르면 지역을 저장하고 멈췄던
+  재응시를 이어 간다. 광고는 그 앞에서 이미 끝났으므로 다시 보지 않는다. 웹 결과 화면은 광고 때와 같이 pending으로
+  기다린다(시간 기반 해제가 없다). 지역 화면이 떠 있는 동안 톱니는 숨긴다(`nativeCovering`).
 - **지역 화면** `AnonymousRegionScreen`: 질문은 `ProfileScreen` 지역 칸과 같은 「어느 지역 말씨가 몸에 배어
   있나요?」, 부제·캡션·[다음] 규칙은 웹 `RegionSelectScreen`과 같다(기본 선택 없음, 건너뛰기 없음, 고른 뒤 활성).
   나열은 웹 `DISPLAY_ORDER`(`REGION_DISPLAY_ORDER`) 2열이다.
