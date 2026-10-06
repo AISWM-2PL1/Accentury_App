@@ -92,10 +92,11 @@ final class TestFlowModelAuthTests: XCTestCase {
         XCTAssertFalse(store.consented())
     }
 
-    /// 익명 모드의 출신 지역 (KAN-270 7단계). 동의했고 지역이 있으면 세션 body의 region으로 가고, 고르기 전에는 지역 단계가 선다.
-    func test익명_동의와_지역을_주입하면_세션_생성에_region을_싣는다() async {
+    /// 익명 모드의 출신 지역 (KAN-270 7단계). 지역은 동의와 무관하게 묻고 싣는다 (KAN-274) — 동의하지 않은 사용자도
+    /// 고르기 전에는 지역 단계가 서고, 고른 값이 세션 body의 region으로 간다.
+    func test익명_모드는_동의하지_않아도_지역을_묻고_세션_생성에_region을_싣는다() async {
         let store = AnonymousVoiceConsentStore(defaults: defaults)
-        store.save(consented: true)
+        store.save(consented: false)
         let model = TestFlowModel(
             defaults: defaults, sessionClient: RecordingClient(), isMicGranted: { true }, onProfileIncomplete: {},
             anonymousConsent: store
@@ -113,9 +114,9 @@ final class TestFlowModelAuthTests: XCTestCase {
         XCTAssertEqual(["JEJU"], client.regions)
     }
 
-    /// 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 처음에 건너뛴 사람이 설정에서 동의를 켠 뒤 재응시하면,
-    /// 세션을 만들기 전에 지역 단계가 서고 고른 뒤의 재응시가 region을 싣는다.
-    func test동의는_켰는데_지역이_없으면_재응시가_세션을_만들기_전에_지역부터_묻는다() async {
+    /// 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 지역 없이 만들어진 세션에서 재응시하면, 동의 여부와 무관하게
+    /// 세션을 만들기 전에 지역 단계가 서고 고른 뒤의 재응시가 region을 싣는다 (KAN-274).
+    func test지역이_없으면_재응시가_세션을_만들기_전에_지역부터_묻는다() async {
         let store = AnonymousVoiceConsentStore(defaults: defaults)
         store.save(consented: false)
         let client = CreatingClient()
@@ -127,8 +128,7 @@ final class TestFlowModelAuthTests: XCTestCase {
         XCTAssertNotNil(model.session)
         XCTAssertEqual([nil], client.regions)
 
-        // 설정에서 뒤늦게 동의를 켰다. 지역은 아직 없다.
-        store.save(consented: true)
+        // 동의는 여전히 꺼져 있고 지역도 아직 없다.
         let held = await model.startRetest()
 
         XCTAssertNil(held)
@@ -140,13 +140,14 @@ final class TestFlowModelAuthTests: XCTestCase {
         _ = await model.startRetest()
 
         XCTAssertEqual([nil, "JEJU"], client.regions)
-        XCTAssertEqual([nil, "2026-10-04"], client.versions)
+        XCTAssertEqual([nil, nil], client.versions)
     }
 
-    /// 지역이 이미 있거나 미동의면 재응시는 지역 단계 없이 곧장 세션 요청으로 간다.
-    func test지역이_이미_있거나_미동의면_재응시는_지역_단계_없이_진행한다() async {
+    /// 지역이 이미 있으면 재응시는 동의 여부와 무관하게 지역 단계 없이 곧장 세션 요청으로 간다.
+    func test지역이_이미_있으면_재응시는_지역_단계_없이_진행한다() async {
         let store = AnonymousVoiceConsentStore(defaults: defaults)
         store.save(consented: false)
+        store.saveRegion("SEOUL")
         let client = CreatingClient()
         let model = TestFlowModel(
             defaults: defaults, sessionClient: client, isMicGranted: { true }, onProfileIncomplete: {},
@@ -154,17 +155,18 @@ final class TestFlowModelAuthTests: XCTestCase {
         )
         await startAndCreate(model)
 
-        // 미동의 재응시.
+        // 미동의 재응시. 지역은 동의 없이도 실린다.
         _ = await model.startRetest()
         XCTAssertFalse(model.retestRegionPending)
-        XCTAssertEqual([nil, nil], client.regions)
+        XCTAssertEqual(["SEOUL", "SEOUL"], client.regions)
+        XCTAssertEqual([nil, nil], client.versions)
 
-        // 동의했고 지역도 있는 재응시.
+        // 동의를 켠 뒤의 재응시.
         store.save(consented: true)
-        store.saveRegion("SEOUL")
         _ = await model.startRetest()
         XCTAssertFalse(model.retestRegionPending)
-        XCTAssertEqual([nil, nil, "SEOUL"], client.regions)
+        XCTAssertEqual(["SEOUL", "SEOUL", "SEOUL"], client.regions)
+        XCTAssertEqual([nil, nil, "2026-10-04"], client.versions)
     }
 
     private func startAndCreate(_ model: TestFlowModel) async {

@@ -21,19 +21,12 @@ class AnonymousVoiceConsentTest {
     }
 
     @Test
-    fun `동의했고 지역이 없으면 지역을 묻는다 (KAN-270 7단계)`() {
-        assertTrue(needsAnonymousRegion(consented = true, region = null))
+    fun `지역이 없으면 동의 여부와 무관하게 지역을 묻는다 (KAN-270 7단계, KAN-274)`() {
+        assertTrue(needsAnonymousRegion(region = null))
     }
 
     @Test
-    fun `동의했고 지역이 있으면 묻지 않는다`() {
-        assertFalse(needsAnonymousRegion(consented = true, region = "SEOUL"))
-    }
-
-    @Test
-    fun `미동의면 지역을 묻지 않고 body에도 싣지 않는다`() {
-        assertFalse(needsAnonymousRegion(consented = false, region = null))
-        assertNull(anonymousSessionRegion(consented = false, region = "SEOUL"))
-        assertEquals("SEOUL", anonymousSessionRegion(consented = true, region = "SEOUL"))
+    fun `지역이 있으면 묻지 않는다`() {
+        assertFalse(needsAnonymousRegion(region = "SEOUL"))
     }
 }

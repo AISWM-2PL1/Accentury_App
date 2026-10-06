@@ -50,14 +50,15 @@ class SessionClientConsentFallbackTest {
     }
 
     @Test
-    fun `폴백 재시도에서는 region도 함께 뺀다 (KAN-270 7단계)`() = runTest {
+    fun `폴백 재시도에서도 region은 그대로 싣는다 (KAN-274)`() = runTest {
         val client = FakeClient(validationFailed, created)
 
         client.createWithConsentFallback(
             "1.0", previousToken = null, campaignToken = null, voiceConsentVersion = "2026-10-04", region = "JEJU",
         )
 
-        assertEquals(listOf(Call(null, null, "2026-10-04", "JEJU"), Call(null, null, null, null)), client.calls)
+        // 지역은 동의와 무관한 값이다 - 동의만 빠지고 지역은 남는다
+        assertEquals(listOf(Call(null, null, "2026-10-04", "JEJU"), Call(null, null, null, "JEJU")), client.calls)
     }
 
     @Test

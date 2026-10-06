@@ -841,7 +841,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
       expect(navigate).toHaveBeenCalledTimes(1)
     })
 
-    it('동의하지 않은 세션에도 고른 지역이 실린다 — 웹의 지역은 동의와 무관하게 모두에게 묻는다', async () => {
+    it('동의하지 않은 세션에도 고른 지역이 실린다 — 지역은 동의와 무관하게 모두에게 묻는다 (KAN-274)', async () => {
       setSearch('')
       stubMicrophone()
       const fetchStub = stubSessionFetch()
@@ -857,6 +857,55 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
       const body = sessionBody(fetchStub)
       expect(body.region).toBe('JEJU')
       expect('voiceConsentVersion' in body).toBe(false)
+    })
+
+    it('동의 버전이 400으로 거절돼 동의 없이 다시 만들 때도 고른 지역은 그대로 싣는다', async () => {
+      setSearch('')
+      stubMicrophone()
+      // 첫 요청은 낡은 문안 버전으로 거절되고, 두 번째(동의 없는 재시도)가 201이다
+      const fetchStub = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'VALIDATION_FAILED',
+            message: 'voiceConsentVersion이 게시 중인 음성 저장 동의 버전과 다릅니다.',
+            retryable: false,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            sessionId: 's_web',
+            sessionToken: 'st_web',
+            testVersion: 'gn-2026.08.1',
+            voiceSet: 3,
+            scoreVersion: 'sv-0.3',
+            expiresAt: '2026-08-26T03:30:00Z',
+          }),
+        })
+      vi.stubGlobal('fetch', fetchStub)
+      const capture = createFakeCapture()
+
+      render(<App navigate={vi.fn()} voiceCheckCapture={capture.factory} />)
+      await tapStart()
+      await passVoiceConsent(true)
+      await passRegionSelect('제주')
+      await passVoiceCheck(capture)
+
+      expect(fetchStub).toHaveBeenCalledTimes(2)
+      const bodyAt = (n: number) => {
+        const [, init] = fetchStub.mock.calls[n] as unknown as [string, RequestInit]
+        return JSON.parse(init.body as string) as Record<string, unknown>
+      }
+      expect(bodyAt(0)).toMatchObject({ region: 'JEJU', voiceConsentVersion: VOICE_CONSENT_VERSION })
+      // 지역은 동의와 무관한 값이다 (KAN-274) — 서버가 동의하지 않은 익명 세션도 점수와 지역을 남긴다
+      expect('voiceConsentVersion' in bodyAt(1)).toBe(false)
+      expect(bodyAt(1).region).toBe('JEJU')
     })
 
     it('앱 안 실행에는 지역 화면이 없다 — 세션은 네이티브가 만든다', async () => {

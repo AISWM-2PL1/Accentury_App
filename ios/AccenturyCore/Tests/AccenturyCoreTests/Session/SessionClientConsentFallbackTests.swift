@@ -65,7 +65,7 @@ final class SessionClientConsentFallbackTests: XCTestCase {
         )
     }
 
-    func test폴백_재시도에서는_region도_함께_뺀다_KAN270_7단계() async {
+    func test폴백_재시도에서도_region은_그대로_싣는다_KAN274() async {
         let client = FakeClient(validationFailed, created)
 
         _ = await client.createWithConsentFallback(
@@ -75,7 +75,8 @@ final class SessionClientConsentFallbackTests: XCTestCase {
         XCTAssertEqual(
             [
                 Call(previousToken: nil, campaignToken: nil, voiceConsentVersion: "2026-10-04", region: "JEJU"),
-                Call(previousToken: nil, campaignToken: nil, voiceConsentVersion: nil, region: nil),
+                // 지역은 동의와 무관한 값이다 - 동의만 빠지고 지역은 남는다
+                Call(previousToken: nil, campaignToken: nil, voiceConsentVersion: nil, region: "JEJU"),
             ],
             client.calls
         )

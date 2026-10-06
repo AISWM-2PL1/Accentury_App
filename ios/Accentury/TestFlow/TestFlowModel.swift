@@ -337,9 +337,9 @@ final class TestFlowModel: ObservableObject {
 
     // MARK: 익명 모드의 출신 지역 (KAN-270 7단계)
 
-    /// 동의 다음에 지역 단계를 세울까. 동의했고 아직 안 골랐을 때만 — 설정에서 뒤늦게 동의를 켠 사람도 다음 시작 때 걸린다.
+    /// 동의 화면 다음에 지역 단계를 세울까. 아직 안 골랐으면 동의 화면에서 무엇을 골랐든 세운다 (KAN-274).
     var needsAnonymousRegion: Bool {
-        anonymousConsent.map { AccenturyCore.needsAnonymousRegion(consented: $0.consented(), region: $0.region()) } ?? false
+        anonymousConsent.map { AccenturyCore.needsAnonymousRegion(region: $0.region()) } ?? false
     }
 
     /// 지역 화면의 [다음]. 저장소에 region이 생겨 단계가 걷힌다.
@@ -347,9 +347,9 @@ final class TestFlowModel: ObservableObject {
         anonymousConsent?.saveRegion(code)
     }
 
-    /// 세션 body의 `region`. 동의했고 지역이 있을 때만 — 계정 모드·미동의는 nil.
+    /// 세션 body의 `region`. 지역이 있으면 동의와 무관하게 싣는다 (KAN-274) — 계정 모드는 nil.
     private var sessionRegion: String? {
-        anonymousConsent.flatMap { anonymousSessionRegion(consented: $0.consented(), region: $0.region()) }
+        anonymousConsent.flatMap { $0.region() }
     }
 
     /// 재응시 직전의 출신 지역 단계 (KAN-270, PR #22 리뷰). 안드로이드 `retestRegionPending` 자리다.
@@ -419,7 +419,7 @@ final class TestFlowModel: ObservableObject {
     ///   성공은 회신하지 않는다. 새 세션을 든 채 인트로로 돌아가므로 회신을 받을 페이지가 사라진다.
     func startRetest() async -> RetestFailure? {
         /*
-         * 동의는 켰는데 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰). 잠금
+         * 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰. KAN-274부터 동의와 무관). 잠금
          * (`beginRetest()`)보다 앞이라 지역 화면이 떠 있는 동안 세션 요청도 진행 중 플래그도 없다. 웹 결과 화면은
          * 광고를 볼 때처럼 pending으로 기다리고(시간 기반 해제가 없다), 지역을 고르면 화면이 이 함수를 다시 부른다.
          * 회신할 실패가 아니라서 nil이다.

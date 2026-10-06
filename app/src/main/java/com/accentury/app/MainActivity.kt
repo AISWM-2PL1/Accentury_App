@@ -102,7 +102,6 @@ import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
 import com.accentury.app.auth.VoiceConsentScreen
-import com.accentury.app.auth.anonymousSessionRegion
 import com.accentury.app.auth.anonymousVoiceConsentVersion
 import com.accentury.app.auth.configuredProviders
 import com.accentury.app.auth.idpSignInFor
@@ -501,7 +500,8 @@ private fun TestFlow(
     }
     // 세션 생성 순간의 값을 읽는다 — 설정에서 바꾸면 다음 생성(재응시 포함)부터 반영된다.
     fun voiceConsentVersion(): String? = anonymousConsent?.let { anonymousVoiceConsentVersion(it.consented()) }
-    fun sessionRegion(): String? = anonymousConsent?.let { anonymousSessionRegion(it.consented(), it.region()) }
+    // 지역은 동의와 무관하게 싣는다 (KAN-274) — 동의하지 않은 익명 세션도 서버가 점수와 지역을 남긴다.
+    fun sessionRegion(): String? = anonymousConsent?.region()
     val session = sessionGate.session
 
     val flow = rememberSaveable(saver = TestFlowController.saver()) { TestFlowController() }
@@ -708,13 +708,11 @@ private fun TestFlow(
      */
     fun proceedRetest() {
         /*
-         * 동의는 켰는데 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰). 잠금
+         * 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰. KAN-274부터 동의와 무관). 잠금
          * (`beginRetest()`)보다 앞이라 지역 화면이 떠 있는 동안 세션 요청도 진행 중 플래그도 없다. 웹 결과 화면은
          * 광고를 볼 때처럼 pending으로 기다리고(시간 기반 해제가 없다), 지역을 고르면 여기로 다시 들어온다.
          */
-        if (anonymousConsent != null &&
-            needsAnonymousRegion(anonymousConsent.consented(), anonymousConsent.region())
-        ) {
+        if (anonymousConsent != null && needsAnonymousRegion(anonymousConsent.region())) {
             retestRegionPending = true
             return
         }
@@ -958,11 +956,11 @@ private fun TestFlow(
                         details = VOICE_CONSENT_DETAILS_ANONYMOUS,
                     )
 
-                // 익명 모드의 출신 지역 (KAN-270 7단계) — 동의한 사용자에게 설치당 한 번. 설정에서 뒤늦게 동의를 켠
-                // 사람도 다음 시작 때 여기 걸린다. 고르면 store에 region이 생겨 조건이 풀린다.
+                // 익명 모드의 출신 지역 (KAN-270 7단계) — 설치당 한 번, 동의 화면에서 무엇을 골랐든 모두에게 묻는다
+                // (KAN-274). 고르면 store에 region이 생겨 조건이 풀린다.
                 anonymousConsent != null && startRequested && session == null && micPassed &&
                     anonymousConsent.asked() &&
-                    needsAnonymousRegion(anonymousConsent.consented(), anonymousConsent.region()) ->
+                    needsAnonymousRegion(anonymousConsent.region()) ->
                     AnonymousRegionScreen(onDone = anonymousConsent::saveRegion)
 
                 // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
