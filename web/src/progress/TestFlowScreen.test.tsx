@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetAdSenseForTests } from '../ads/adsense'
 import { createFakeCapture, sineChunk, type FakeCapture } from '../audio/testing/fakeCapture'
 import { START_COUNTDOWN_SECONDS, TestFlowScreen } from './TestFlowScreen'
 import { START_SCREEN_SUBTITLE } from './TestStartScreen'
@@ -1520,6 +1521,43 @@ describe('분석 대기 화면의 재녹음 — 실패 문항만 이어서 (KAN-
     expect(await screen.findByRole('button', { name: '녹음 화면 다시 열기' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
     expect(events).toContainEqual(expect.objectContaining({ event: 'retest_started', from: 'item' }))
+  })
+
+  it('브라우저: 재녹음 뒤 돌아온 대기 화면에는 웹 배너 자리가 없다 (티켓 Requirements §4)', async () => {
+    vi.stubEnv('VITE_ADSENSE_CLIENT_ID', 'ca-pub-1234567890123456')
+    vi.stubEnv('VITE_ADSENSE_SLOT_ID', '9876543210')
+    try {
+      // 분석이 끝나지 않은 상태(POLLING)라 히어로와 배너가 서고, 실패 줄의 [다시 녹음]도 함께 있다
+      let retaken = false
+      const fetchImpl = waitingFetch({
+        analyses: () => ({
+          pollAfterMs: 800,
+          items: VOICE_SEQS.map((seq) =>
+            seq === 2 && !retaken
+              ? { itemId: 'item-2', status: 'RETRYABLE_FAILED', error: { code: 'AUDIO_TOO_QUIET', retryable: true } }
+              : { itemId: `item-${seq}`, status: 'PROCESSING' },
+          ),
+        }),
+      })
+      const { capture } = renderScreen(fetchImpl)
+      await findRecordButton()
+      await finishAllItems(capture)
+      expect(screen.getByRole('complementary', { name: '광고' })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+      expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+      retaken = true
+      await recordAndSend(capture)
+      await act(async () => {})
+
+      expect(await screen.findByText('결과를 만들고 있어요')).toBeInTheDocument()
+      expect(screen.queryByRole('complementary', { name: '광고' })).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllEnvs()
+      resetAdSenseForTests()
+      delete window.adsbygoogle
+      document.head.querySelectorAll('script[src*="adsbygoogle"]').forEach((el) => el.remove())
+    }
   })
 
   it('재녹음 도중 다시 열면(새로고침) 대기 화면으로 돌아오고 실패 줄에서 다시 시작할 수 있다', async () => {

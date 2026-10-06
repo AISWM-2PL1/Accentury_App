@@ -429,8 +429,15 @@ function TestRunner({
    * 실제로 열릴 때 한 번 센다.
    */
   const retakeTargets = useRef(new Map<string, RetakeTarget>())
+  /*
+   * 대기 화면 재녹음을 한 번이라도 시작했는가 (KAN-271). 시작했으면 돌아온 대기 화면에 웹 배너를
+   * 다시 띄우지 않는다(티켓 Requirements §4·AC — `showBanner` 주석). 새로고침 뒤 다시 뜨는 것은 새
+   * 페이지 로드라 이 규칙의 범위 밖이다.
+   */
+  const [retakeStarted, setRetakeStarted] = useState(false)
   const startRetake = useCallback(
     (targets: RetakeTarget[]) => {
+      setRetakeStarted(true)
       const voice = targets.filter((target) =>
         state.items.some((item) => item.itemId === target.itemId && item.type === 'VOICE'),
       )
@@ -560,6 +567,7 @@ function TestRunner({
          */
         retest={retestFallback === undefined ? undefined : retest}
         refreshNonce={resultNonce}
+        showBanner={!retakeStarted}
         fetchImpl={fetchImpl}
       />
     )

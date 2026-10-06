@@ -109,6 +109,13 @@ export interface AnalysisWaitingScreenProps {
    * 변화만 본다.
    */
   refreshNonce?: number
+  /**
+   * 웹 배너를 그릴지 (KAN-271, 기본 true). 재녹음 뒤 돌아온 대기 화면에서는 배너를 다시 띄우지
+   * 않는다(티켓 Requirements §4·AC). false면 [AdSlot]을 아예 렌더하지 않는다 — 요청만 막고 상자를
+   * 남기면 빈 자리 100px가 단계 표시 아래에 뜬다. 전면 광고의 세션당 1회는 `ads/interstitial.ts`가
+   * 따로 지킨다.
+   */
+  showBanner?: boolean
   fetchImpl?: FetchLike
 }
 
@@ -175,6 +182,7 @@ export function AnalysisWaitingScreen({
   onRetake,
   retest,
   refreshNonce = 0,
+  showBanner = true,
   fetchImpl,
 }: AnalysisWaitingScreenProps) {
   const { status, items, lastError, queueAhead, restart } = useAnalysisPolling({
@@ -395,7 +403,7 @@ export function AnalysisWaitingScreen({
               없는 빌드에서는 이 컴포넌트가 아무것도 그리지 않으므로 (`AdSlot`) 여기 있는 것만
               으로 기존 화면이 달라지지 않는다.
             */}
-            <AdSlot />
+            {showBanner && <AdSlot />}
           </div>
         )}
 
