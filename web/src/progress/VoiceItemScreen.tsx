@@ -67,6 +67,19 @@ export interface VoiceItemScreenProps {
   probeSession?: () => Promise<'ALIVE' | 'EXPIRED'>
   /** 브라우저 녹음 경로의 보관 음성 유실 거절 (KAN-261). [WebVoiceRecorder]에 그대로 넘긴다 */
   onSlotMissing?: (missingItems: string[]) => void
+  /**
+   * 앱 대기 푸터에 [다시 테스트하기]를 조건 없이 함께 둔다 (KAN-271). `retest`가 있을 때만 그린다.
+   *
+   * 분석 대기 화면에서 연 재녹음에서만 켠다. 그 구간은 분석이 실패한 뒤의 복구 자리라 KAN-191이
+   * 출구를 허용하는 곳이고, 첫 응시 문항과 진행 중 복구(KAN-261)는 정상 진행이라 출구를 두지
+   * 않는다(KAN-147).
+   *
+   * 조건 없이 보이는 이유: 네이티브 업로드가 문항 시도 상한(429 `RATE_RETAKE_EXCEEDED`)에 걸리면
+   * 네이티브는 녹음 화면을 다시 열지 않고 이 푸터로 내려오는데, 브리지 계약상 실패는 웹에 오지
+   * 않는다. [probeSession]은 세션 만료만 가려내 ALIVE를 주므로, [녹음 화면 다시 열기]만 있으면
+   * 다시 녹음 → 같은 429의 막다른 길이다. 웹이 그 거절을 들을 길이 없으니 출구를 늘 둔다.
+   */
+  offerRetest?: boolean
 }
 
 export function VoiceItemScreen({
@@ -78,6 +91,7 @@ export function VoiceItemScreen({
   retest,
   probeSession,
   onSlotMissing,
+  offerRetest = false,
 }: VoiceItemScreenProps) {
   /*
    * 브리지 호출 결과. `null`은 아직 부르기 전이라는 뜻이다 — 호출은 effect에서 일어나므로
@@ -233,6 +247,10 @@ export function VoiceItemScreen({
             <Button disabled={probing} onClick={() => void reopen()} style={{ width: '100%' }}>
               {probing ? '확인 중…' : '녹음 화면 다시 열기'}
             </Button>
+          )}
+          {bridgeAccepted === true && offerRetest && retest !== undefined && (
+            /* 보조 출구 (KAN-271, `offerRetest` 주석). 주버튼은 [녹음 화면 다시 열기]라 텍스트 버튼으로 내린다 */
+            <RetestAction retest={retest} variant="text" />
           )}
         </div>
       )}
