@@ -138,6 +138,11 @@ export type AnalyticsEvent =
    *
    * **KAN-24 트리거 "대기 화면 평균 체류 10초 초과"의 측정값이다.** 이 값이 없으면 그 트리거는
    * 정의만 있고 판단할 근거가 없다.
+   *
+   * KAN-272부터 이 값의 분포가 달라진다. 서버가 혼잡을 알린 대기는 상한이 60초에서 300초로
+   * 늘어서, 예전에는 60초에 `poll_abandoned`로 빠지던 세션이 이제 끝까지 기다려 60~300초 값으로
+   * 여기에 들어온다. 평균 체류로 거는 트리거는 혼잡한 날 전보다 쉽게 켜진다 - 서버가 느려진 것이
+   * 아니라 포기하던 대기가 완주로 잡히는 것이다. 추세를 볼 때는 2026-10-06 전후를 나눠 읽는다.
    */
   | { name: 'analysis_wait_duration'; duration_ms: number; pending_item_count: number }
   /**
@@ -145,7 +150,12 @@ export type AnalyticsEvent =
    * 폴링하는 코드가 생기면 이 값이 수십 배로 튄다.
    */
   | { name: 'analysis_poll_count'; count: number; total_elapsed_ms: number }
-  /** 60초 상한에 걸려 자동 폴링을 접었다. GPU 밀림의 조기 신호다 */
+  /**
+   * 자동 폴링 상한에 걸려 폴링을 접었다. GPU 밀림의 조기 신호다.
+   *
+   * 상한은 평시 60초이고, 서버가 혼잡을 알린 대기는 300초다 (KAN-272). 그래서 `elapsed_ms`는
+   * 60초 근처와 300초 근처 두 무리로 나온다 - 300초 쪽은 안내를 받고도 끝까지 못 받은 대기다.
+   */
   | { name: 'poll_abandoned'; elapsed_ms: number; pending_item_count: number }
   /** 문항 하나가 종결 상태에 도달했다. 어떤 품질 오류가 많은지의 분포가 된다 */
   | { name: 'analysis_item_terminal'; status: TerminalItemStatus; error_code: string | null }
