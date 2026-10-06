@@ -1,0 +1,20 @@
+# Dependabot 버전 갱신 (KAN-246)
+#
+# 이 레포는 GitHub Actions를 commit SHA로 고정한다. 고정한 값은 저절로 움직이지 않으므로 갱신 PR을 올려 줄 주체가
+# 없으면 보안 패치가 들어오지 않는다. 그 역할을 Dependabot이 맡는다. Accentury_Server의 같은 파일과 주기와 묶음이
+# 같다 - 두 레포가 같은 action과 같은 AWS 배포 역할을 쓴다.
+#
+# 주기는 월 1회이고 PR 하나로 묶는다 (2026-10-06 결정). 대상 브랜치는 기본 브랜치(Dev)다.
+# 생태계는 github-actions만 켠다 (2026-10-06 결정). gradle(Android)과 npm(web)은 패키지 수가 많아 PR 양과 검토
+# 부담이 달라지므로 별도 결정이다.
+#
+# Dependabot PR의 브랜치명은 dependabot/...으로 고정이라 브랜치 네이밍 검사에 예외가 있다 (branch-name.yml).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]

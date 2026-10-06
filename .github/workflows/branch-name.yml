@@ -9,6 +9,7 @@
 #   chore/KAN-37-cicd                인프라·설정·CI 등 비기능 작업
 #   Dev                              릴리즈 PR (Dev → Release)
 #   release/v0.1.0                   (예약) 버전별 릴리즈 브랜치 — 현재는 상시 Release 브랜치 + 태그 사용
+#   dependabot/...                   Dependabot이 올린 의존성 갱신 PR (KAN-246). 브랜치명을 바꿀 수 없어 예외다
 #
 # 핵심: 접두사는 소문자, 이슈키(KAN-##)는 반드시 대문자(소문자면 Jira 연동 안 됨),
 #       설명은 영문 소문자·숫자 kebab-case.
@@ -25,8 +26,17 @@ jobs:
       - name: Validate branch name
         env:
           BRANCH: ${{ github.head_ref }}
+          # PR을 연 계정이다. github.actor는 재실행한 사람으로 바뀌므로 쓰지 않는다.
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           echo "검사 대상 브랜치: $BRANCH"
+
+          # Dependabot PR은 브랜치명이 dependabot/<생태계>/...으로 고정이다 (KAN-246). 접두사만 보면 누구나 그
+          # 이름으로 규칙을 피할 수 있으므로 PR을 연 계정이 Dependabot일 때만 통과시킨다.
+          if [ "$AUTHOR" = "dependabot[bot]" ] && echo "$BRANCH" | grep -qE '^dependabot/'; then
+            echo "✅ Dependabot 의존성 갱신 PR, 네이밍 검사 제외"
+            exit 0
+          fi
 
           if [ "$BRANCH" = "Dev" ]; then
             echo "✅ 릴리즈 PR (Dev → Release) — 네이밍 검사 제외"
