@@ -309,7 +309,7 @@ prod가 전부 이 상태이고, 거기서 첫 화면은 KAN-197 이전과 똑�
 
 ### 6.1 배포 변수 등록 — prod에만 둔다
 
-빌드 스텝이 `VITE_GA4_MEASUREMENT_ID`·`VITE_REGION_SELECT` 옆에서 두 값을 받는다
+빌드 스텝이 `VITE_GA4_MEASUREMENT_ID` 옆에서 두 값을 받는다
 (`.github/workflows/web-deploy.yml`).
 
 ```yaml
@@ -446,7 +446,7 @@ https://googleads.g.doubleclick.net/pagead/ads?npa=1&client=ca-pub-0000000000000
 남긴다(`[KAN-197] 관찰된 슬롯 요청 N건`) — 0건 통과와 실제 검증이 단언만으로는 똑같이 초록이라
 그렇다.
 
-**여기서만 빌드 변수를 읽는다.** 지역 화면은 화면에 뜬 것을 보고 가는데(`testFlow.ts`의
+**여기서만 빌드 변수를 읽는다.** 다른 스펙은 화면에 뜬 것을 보고 가는데(`testFlow.ts`의
 `startTest`), 광고는 **없는 것을 단언해야** 하는 쪽이라 화면만 봐서는 「태그 없는 빌드라 없다」와
 「태그 있는 빌드인데 안 섰다」가 갈리지 않는다 — 후자가 이 스펙이 잡아야 할 실패다. 로컬 판에서는
 그 값을 스펙이 알 수 있다: Playwright가 `webServer.env`를 부모 환경 위에 얹으므로 셸에 준

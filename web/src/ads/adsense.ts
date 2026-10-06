@@ -77,7 +77,7 @@ export interface AdSenseIds {
  * 빌드 변수에서 두 ID를 읽는다. 하나라도 비어 있으면 null — 파일 머리의 「두 ID가 다 있어야
  * 한다」 참고.
  *
- * 매번 읽는 함수로 두는 이유는 `regions.ts`의 [isRegionSelectEnabled]와 같다: 모듈 상수로
+ * 매번 읽는 함수로 두는 이유: 모듈 상수로
  * 잡으면 첫 import 시점의 값이 굳어 테스트가 `vi.stubEnv`로 갈아끼울 자리가 없어진다.
  */
 export function adSenseIdsFromEnv(): AdSenseIds | null {

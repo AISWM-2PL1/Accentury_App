@@ -87,8 +87,9 @@ export interface CreateWebSessionOptions {
   /** 재응시라면 폐기할 이전 세션의 토큰 (§3.1) */
   previousToken?: string | null
   /**
-   * 출신(모어 사투리) 지역 코드 (KAN-202, §3.1 `region`). staging 빌드의 선택 화면에서만 값이
-   * 들어오고, 그 외에는 필드째 뺀다 — prod 번들이 보내는 본문은 이 티켓 전과 같아야 한다.
+   * 출신(모어 사투리) 지역 코드 (KAN-202, §3.1 `region`). 웹 단독 실행은 늘 지역 선택 화면을 지나므로
+   * (KAN-274) 값이 들어온다. 비었거나 표에 없는 값이면 필드째 뺀다 — 서버가 400으로 거절할 값을
+   * 보내지 않는 방어다.
    */
   region?: RegionCode | null
   /**

@@ -48,6 +48,8 @@
 #   KAN-224  로그인 IdP 주입: 카카오 키와 같은 꼴이다. -PrequireNaverClient·-PrequireGoogleServerClientId가
 #        설정 단계에서 빈 값을 막고, 빌드 뒤 BuildConfig에서 값이 비지 않았는지와 FAKE_IDP가 false인지를
 #        다시 본다. 빈 값이면 로그인 화면이 그 IdP 버튼을 숨긴 채 배포된다 (auth/LoginScreenState.kt).
+#   KAN-274  로그인 끔 고정: 첫 스토어 심사는 로그인을 끈 익명 모드 빌드로 받는다 (KAN-270). 같은 자리에서
+#        릴리스 BuildConfig의 LOGIN_ENABLED가 false인지 본다. 로그인을 켜는 업데이트가 이 검사를 뒤집는다.
 #   AC4  로그에 시크릿 없음: 값을 echo하는 곳이 없다. 존재 검사는 -z로만 하고, 실패 메시지에도
 #        이름만 적는다. base64 디코딩은 명령줄 인자가 아니라 환경변수를 파이프로 넘긴다.
 
@@ -291,7 +293,16 @@ jobs:
             echo "::error title=가짜 IdP가 릴리스에 켜짐::릴리스 BuildConfig의 FAKE_IDP가 false가 아닙니다. release는 defaultConfig의 false를 써야 합니다 (app/build.gradle.kts, KAN-224)." >&2
             exit 1
           fi
-          echo "로그인 IdP 설정 확인 (구글·네이버 3개 + FAKE_IDP=false)"
+          # LOGIN_ENABLED (KAN-270, KAN-274). 첫 스토어 심사는 로그인을 끈 익명 모드 빌드로 받는다. 기본값이
+          # false라 지금도 꺼진 채 나가지만(app/build.gradle.kts의 loginEnabled()), 값을 보는 자리가 없으면
+          # 기본값이나 빌드 인자가 바뀌었을 때 로그인 관문이 든 빌드가 조용히 만들어진다. 로그인을 켜는
+          # 업데이트는 이 검사를 같은 PR에서 뒤집는다 - 켜는 일이 빌드 인자 하나가 아니라 리뷰를 거치는
+          # 변경이 된다.
+          if ! grep -qE 'boolean LOGIN_ENABLED = false;' "$bc"; then
+            echo "::error title=로그인이 릴리스에 켜짐::릴리스 BuildConfig의 LOGIN_ENABLED가 false가 아닙니다. 첫 스토어 심사 빌드는 로그인을 끈 익명 모드여야 합니다 (app/build.gradle.kts의 loginEnabled(), KAN-274). 로그인을 켜는 업데이트라면 이 검사를 같은 PR에서 뒤집으세요." >&2
+            exit 1
+          fi
+          echo "로그인 IdP 설정 확인 (구글·네이버 3개 + FAKE_IDP=false + LOGIN_ENABLED=false)"
 
       # 필수 산출물. 하나라도 없으면 실패다 - 앞 단계가 이미 존재를 확인했으므로 여기서 걸리면
       # 경로 규칙이 바뀐 것이다.

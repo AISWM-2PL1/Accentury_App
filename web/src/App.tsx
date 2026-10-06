@@ -12,7 +12,7 @@ import { getSessionToken, isBridgeCompatible, isStandaloneWeb } from './bridge/b
 import { buildIntroUrl, buildResultUrl, buildTestUrl } from './navigation/entryUrl'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
-import { isRegionSelectEnabled, type RegionCode } from './region/regions'
+import type { RegionCode } from './region/regions'
 import { RegionSelectScreen } from './region/RegionSelectScreen'
 import { ResultScreen } from './result/ResultScreen'
 import { useRetest } from './result/useRetest'
@@ -244,7 +244,8 @@ function IntroRoute({
    */
   const [micGranted, setMicGranted] = useState(false)
   /*
-   * 고른 출신 지역 (KAN-202). 스위치가 켜진 빌드(staging)에서만 값이 잡히고, 그 외에는 늘 null이다.
+   * 고른 출신 지역 (KAN-202). null은 아직 지역 화면을 지나지 않았다는 뜻이다 — 웹 단독 실행은 늘 이
+   * 화면을 지나므로(KAN-274가 빌드 스위치를 걷어냈다) 세션을 만들 때는 값이 잡혀 있다.
    * `micGranted`와 같은 이유로 URL 화면이 아니라 이 문서의 상태다 — 리로드하면 권한부터 다시
    * 받는 흐름이라 지역도 그 문서 안에서만 살면 되고, 세션을 만들 때 한 번 쓰고 나면 필요 없다
    * (`RegionSelectScreen` 헤더).
@@ -294,18 +295,21 @@ function IntroRoute({
    * 않아 실패할 구석이 없기 때문이다 — 앞에 두면 이미 발급된 세션을 든 채 점검에 붙들리는
    * 구간이 생긴다 (`VoiceCheckScreen` 헤더).
    *
-   * staging 빌드는 권한과 점검 사이에 출신 지역 선택이 하나 더 선다 (KAN-202): 권한 → **지역** →
-   * 점검 → 세션 생성. 지역도 네트워크를 쓰지 않으므로 같은 근거로 세션 앞에 둔다. 스위치가
-   * 꺼진 빌드(prod)는 이 분기를 타지 않아 이 티켓 전과 흐름이 같다.
+   * 권한과 점검 사이에 출신 지역 선택이 하나 더 선다 (KAN-202): 권한 → **지역** → 점검 → 세션
+   * 생성. 지역도 네트워크를 쓰지 않으므로 같은 근거로 세션 앞에 둔다. 예전에는 staging 빌드에만
+   * 있던 칸인데 KAN-274가 빌드 스위치를 걷어내 모든 환경에 선다.
    *
-   * 그 앞에 음성 저장 선택 동의가 선다 (KAN-270): 권한 → **동의** → 지역(staging) → 점검 → 세션
-   * 생성. 모든 빌드에 있는 칸이고, 이것도 네트워크를 쓰지 않으므로 같은 근거로 세션 앞에 둔다.
+   * 그 앞에 음성 저장 선택 동의가 선다 (KAN-270): 권한 → **동의** → 지역 → 점검 → 세션 생성.
+   * 이것도 네트워크를 쓰지 않으므로 같은 근거로 세션 앞에 둔다.
+   *
+   * 세 칸 모두 `standalone`일 때만이다. 앱 안 WebView는 인트로의 onWebStart가 비어 있어 `micGranted`가
+   * 오르지 않고, 동의와 지역은 네이티브가 묻는다.
    */
   if (standalone && micGranted && voiceConsent === null) {
     return <VoiceConsentScreen onDone={setVoiceConsent} />
   }
 
-  if (standalone && micGranted && isRegionSelectEnabled() && region === null) {
+  if (standalone && micGranted && region === null) {
     return <RegionSelectScreen onDone={setRegion} />
   }
 

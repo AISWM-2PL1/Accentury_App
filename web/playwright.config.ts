@@ -120,17 +120,16 @@ export default defineConfig({
    * 포트를 가르면 두 서버가 공존하고, `--strictPort`는 5174가 막혀 있을 때 vite가 조용히
    * 다른 포트로 옮겨 앉아 `url` 대기가 실패하는 일을 막는다.
    *
-   * `VITE_REGION_SELECT`는 **셸이 준 값만 켜고, 안 주면 빈 값으로 못 박는다** (KAN-202).
-   * Playwright는 여기 `env`를 부모 환경 위에 얹으므로(`...process.env, ...env`, 1.62 실측)
-   * 셸의 `VITE_REGION_SELECT=true npm run test:e2e`는 이 줄이 없어도 서버에 닿는다. 이 줄이
-   * 막는 것은 반대쪽이다 — Vite는 `process.env`에 있는 키를 `.env.local`보다 우선하므로
-   * (`loadEnv`), 개발자가 로컬 확인용으로 `web/.env.local`에 `VITE_REGION_SELECT=true`를 둔
-   * 채 E2E를 돌려도 여기서 `''`를 넘기면 그 파일이 무시되고 끈 빌드가 뜬다. 안 그러면 그
-   * 기계에서는 끈 판이 영영 돌지 않는다. `VITE_API_BASE: ''`가 기본값을 눌러 두는 것과 같은
-   * 모양이다. 빈 값은 `isRegionSelectEnabled()`가 false로 떨어져(정확히 `'true'`만 켠다,
-   * `regions.ts`) 이 티켓 전과 같은 흐름이고, 스펙은 어느 쪽이든 같은 코드로 돈다
-   * (`testFlow.ts`의 `startTest`). `E2E_BASE_URL`로 배포 환경을 겨눌 때는 워크플로가 빌드에
-   * 박은 값이 이미 정해져 있어 이 줄과 무관하다.
+   * `VITE_STORE_LISTING_READY`처럼 스펙의 기대를 가르는 빌드 변수는 **셸이 준 값만 켜고, 안 주면 빈
+   * 값으로 못 박는다.** Playwright는 여기 `env`를 부모 환경 위에 얹으므로(`...process.env, ...env`,
+   * 1.62 실측) 셸에 준 값은 이 줄이 없어도 서버에 닿는다. 이 줄이 막는 것은 반대쪽이다 — Vite는
+   * `process.env`에 있는 키를 `.env.local`보다 우선하므로(`loadEnv`), 개발자가 로컬 확인용으로
+   * `web/.env.local`에 값을 켜 둔 채 E2E를 돌려도 여기서 `''`를 넘기면 그 파일이 무시되고 끈 빌드가
+   * 뜬다. `VITE_API_BASE: ''`가 기본값을 눌러 두는 것과 같은 모양이다. `E2E_BASE_URL`로 배포 환경을
+   * 겨눌 때는 워크플로가 빌드에 박은 값이 이미 정해져 있어 이 줄과 무관하다.
+   *
+   * 지역 선택 화면에는 이런 변수가 없다 (KAN-274가 빌드 스위치를 걷어냈다). 웹 단독 실행이면
+   * 늘 서므로 스펙도 늘 거친다 (`testFlow.ts`의 `startTest`).
    */
   webServer: externalBaseUrl
     ? undefined
@@ -141,9 +140,8 @@ export default defineConfig({
         timeout: 60_000,
         env: {
           VITE_API_BASE: '',
-          VITE_REGION_SELECT: process.env.VITE_REGION_SELECT ?? '',
           /*
-           * `VITE_STORE_LISTING_READY`도 같은 규칙이다 (2026-09-15). 앱이 아직 스토어에 없어
+           * `VITE_STORE_LISTING_READY`가 그 규칙의 대상이다 (2026-09-15). 앱이 아직 스토어에 없어
            * 기본 빌드의 [앱 다운로드]는 링크가 아니라 비활성 버튼이고(`audio/storeLink.ts`),
            * 스펙이 그 둘을 갈라 단언하므로 **어느 쪽인지가 고정되어야 한다** — 개발자의
            * `web/.env.local`에 이 값이 켜져 있으면 끈 판이 그 기계에서 영영 돌지 않는다.
