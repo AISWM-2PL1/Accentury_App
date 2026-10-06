@@ -126,6 +126,12 @@ xcrun simctl launch --console-pty booted com.accentury.app \
   `setContent` 전에 Intent를 읽어 이 재로드가 없다. 인트로 구간이라 잃을 진행이 없어 그대로 뒀다.
 - **Associated Domains capability.** App ID에 이 권한을 붙이는 것은 자동 서명이 **첫 아카이브
   때** 해 준다. 그전에는 개발자 포털에서 보이지 않아 "설정이 빠진 것처럼" 보인다.
+- **iOS 릴리스 빌드에 권한이 빠져 있었다 (2026-10-07 수정).** 무서명 아카이브 → export 경로는 앱의
+  entitlement를 export에 넘기지 못해, 그때까지의 iOS 릴리스 빌드(TestFlight 포함)는 서명된 앱에
+  `com.apple.developer.associated-domains`가 없었다 — 프로파일에는 있었다. AASA가 맞아도 iOS가 링크를
+  앱에 넘기지 않고 사파리로 연다. `ios-release.yml`이 export 앞에서 앱을 entitlements 파일과 함께
+  ad-hoc 서명하게 고쳤고, 「산출물 검증」이 이 파일의 `applinks:` 호스트가 서명된 앱에 다 있는지 본다
+  (`app-store-listing.md` §2 「entitlement 싣기」). 이전 TestFlight 빌드로 링크를 확인했다면 그 결과는 무효다.
 - **AASA 반영 시점.** 앱은 AASA를 설치·업데이트 시점에만 받는다. 파일을 고친 뒤 기기에서 확인하려면
   앱을 지웠다 다시 깔아야 한다.
 - **`pm verify-app-links`는 재시도가 필요하다.** 안드로이드도 설치 시점에 한 번만 검증하므로,
