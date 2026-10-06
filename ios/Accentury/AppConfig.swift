@@ -35,6 +35,32 @@ enum AppConfig {
     static let admobInterstitialId: String = required("ADMOB_INTERSTITIAL_ID")
     static let admobRewardedId: String = required("ADMOB_REWARDED_ID")
 
+    /// 로그인 IdP 설정 (KAN-224). 전부 **nil이 정상 상태다** — 카카오 키와 같은 이유로 `required`가 아니다:
+    /// 설정이 빠진 IdP는 로그인 화면에서 버튼만 숨고 나머지는 멀쩡하다. 안드로이드 `BuildConfig.GOOGLE_SERVER_CLIENT_ID`·
+    /// `NAVER_CLIENT_ID`·`NAVER_CLIENT_SECRET` 자리이고, 값의 사슬은 Config/Base.xcconfig → Info-*.plist → 여기다.
+    static let googleIosClientId: String? = value(for: "GOOGLE_IOS_CLIENT_ID", in: Bundle.main.infoDictionary)
+    static let googleServerClientId: String? = value(for: "GOOGLE_SERVER_CLIENT_ID", in: Bundle.main.infoDictionary)
+    static let naverClientId: String? = value(for: "NAVER_CLIENT_ID", in: Bundle.main.infoDictionary)
+    static let naverClientSecret: String? = value(for: "NAVER_CLIENT_SECRET", in: Bundle.main.infoDictionary)
+    static let naverUrlScheme: String? = value(for: "NAVER_URL_SCHEME", in: Bundle.main.infoDictionary)
+
+    /// 가짜 IdP (KAN-224, Debug 전용). 켜면 로그인 버튼 넷이 SDK를 건너뛰고 `fake:dev-<provider>`를 보낸다.
+    /// 릴리스 바이너리에는 이 분기가 없다 — plist 키도 없고(Info-Release.plist) 여기서도 false로 접는다.
+    static var fakeIdp: Bool {
+        #if DEBUG
+        return value(for: "FAKE_IDP", in: Bundle.main.infoDictionary) == "YES"
+        #else
+        return false
+        #endif
+    }
+
+    /// 로그인 관문 스위치 (KAN-270 6단계). 안드로이드 `BuildConfig.LOGIN_ENABLED` 자리. **기본 꺼짐(익명 모드)**이고,
+    /// ``fakeIdp``와 달리 Debug·Release 모두 이 값을 본다(두 값 다 릴리스 허용) — 그래서 `#if DEBUG`가 없고 키도 두 plist에
+    /// 다 있다. 꺼지면 로그인 관문·앱 시작 Refresh 확인·계정 설정이 전부 빠지고, 음성 저장 동의는 설치당 한 번 묻고
+    /// 기기에 둔다(``AccenturyCore/AnonymousVoiceConsentStore``). 값의 사슬은 Config/Base.xcconfig의 `LOGIN_ENABLED`
+    /// → Info-*.plist → 여기다.
+    static let loginEnabled: Bool = value(for: "LOGIN_ENABLED", in: Bundle.main.infoDictionary) == "YES"
+
     /// 웹에 스큐 협상용으로 알리는 앱 버전 (`CFBundleShortVersionString` = MARKETING_VERSION).
     static let appVersionName: String = value(for: "CFBundleShortVersionString", in: Bundle.main.infoDictionary) ?? "0"
 

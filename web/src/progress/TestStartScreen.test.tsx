@@ -6,8 +6,9 @@
  * 잠근 값(문구·3초 고정)과 접근성 구조(읽히는 것 하나, 숨기는 것 하나), 링 계산식이다.
  */
 
+import { StrictMode } from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { START_COUNTDOWN_SECONDS, START_SCREEN_SUBTITLE, TestStartScreen } from './TestStartScreen'
 
 /** 링 둘레. 컴포넌트와 같은 반지름(54, `score-donut`과 같은 viewBox)으로 여기서 다시 계산한다 */
@@ -82,5 +83,32 @@ describe('TestStartScreen — 시작 대기 화면 (KAN-216)', () => {
 
     rerender(<TestStartScreen secondsLeft={-1} />)
     expect(ringOffset(container)).toBeCloseTo(CIRCUMFERENCE)
+  })
+})
+
+describe('TestStartScreen 햅틱 (KAN-258)', () => {
+  afterEach(() => {
+    delete window.AccenturyBridge
+  })
+
+  it('3·2·1 숫자가 바뀔 때마다 탭 햅틱을 한 번씩 내고, 0에서는 내지 않는다', () => {
+    const haptic = vi.fn()
+    window.AccenturyBridge = { haptic } as unknown as typeof window.AccenturyBridge
+    const { rerender } = render(<TestStartScreen secondsLeft={3} />)
+    rerender(<TestStartScreen secondsLeft={3} />) // 같은 값으로 다시 그려도 떨지 않는다
+    rerender(<TestStartScreen secondsLeft={2} />)
+    rerender(<TestStartScreen secondsLeft={1} />)
+    rerender(<TestStartScreen secondsLeft={0} />)
+
+    expect(haptic.mock.calls).toEqual([['tap'], ['tap'], ['tap']])
+  })
+
+  it('StrictMode에서도 첫 숫자를 두 번 떨지 않는다', () => {
+    const haptic = vi.fn()
+    window.AccenturyBridge = { haptic } as unknown as typeof window.AccenturyBridge
+    const { rerender } = render(<StrictMode><TestStartScreen secondsLeft={3} /></StrictMode>)
+    rerender(<StrictMode><TestStartScreen secondsLeft={2} /></StrictMode>)
+
+    expect(haptic.mock.calls).toEqual([['tap'], ['tap']])
   })
 })

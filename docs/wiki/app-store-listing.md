@@ -20,6 +20,10 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 않음」 체크박스가 있지만 App Store 라벨에는 그런 칸이 없다. 애플은 그 사정을 **「수집」의 정의
 자체**로 처리한다. 그래서 음성 항목의 답이 두 스토어에서 다르게 나온다.
 
+**2026-10-04 갱신 (KAN-269).** 음성 저장과 AI 모델 학습 활용에 선택 동의한 이용자의 음성은 이제
+서버에 보관한다. 그래서 「음성은 수집하지 않는다」였던 답이 뒤집혔다. 바뀐 자리는 §3 설명 문안, §5 마이크
+고지 대조, §6 라벨의 오디오 행, §8 심사 노트의 음성 문단이다.
+
 ## 1. 계정과 일정
 
 | 항목 | 값 |
@@ -27,7 +31,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 개발자 계정 | **이성주 개인 계정**. 팀 ID `559P9SYY57` |
 | 등록비 | 연 99달러 (Apple Developer Program, 매년 갱신) |
 | 번들 ID | `com.accentury.app` (`ios/Accentury/Config/Base.xcconfig`, Android `applicationId`와 같다) |
-| 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 6까지 올라가 있다 (빌드 6은 C2 아이콘, 2026-09-23) |
+| 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
 | 빌드 번호 | `CURRENT_PROJECT_VERSION` = **7**. 빌드 6은 C2 아이콘으로 올라갔고 7이 확정 도상 D3를 싣는 첫 빌드다 (2026-09-23). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
@@ -160,9 +164,16 @@ TestFlight 업로드는 워크플로의 `workflow_dispatch` 입력 `upload` 스�
 | `ADMOB_IOS_INTERSTITIAL_ID` | iOS 전면 광고 단위 ID | AdMob 콘솔 › 광고 단위 | 계정 소유자 |
 | `ADMOB_IOS_REWARDED_ID` | iOS 보상형 광고 단위 ID | AdMob 콘솔 › 광고 단위 | 계정 소유자 |
 | `KAKAO_NATIVE_APP_KEY` | 카카오 네이티브 앱 키 | **이미 등록돼 있다** (KAN-163에서 안드로이드용으로 등록한 것과 같은 값) | 등록 완료 |
+| `GOOGLE_IOS_CLIENT_ID` | 구글 "iOS" OAuth 클라이언트 ID (KAN-224) | Google Cloud Console › 사용자 인증 정보 (`social-login.md` §3) | 계정 소유자 |
+| `GOOGLE_SERVER_CLIENT_ID` | 구글 "웹 애플리케이션" 클라이언트 ID | 같은 화면. **안드로이드와 공유하는 시크릿** | 계정 소유자 |
+| `GOOGLE_REVERSED_CLIENT_ID` | iOS 클라이언트 ID를 거꾸로 쓴 URL 스킴 | iOS 클라이언트 상세의 "iOS URL 스킴" | 계정 소유자 |
+| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 네이버 로그인 앱의 Client ID·Secret | 네이버 개발자 센터 › Application. **안드로이드와 공유하는 시크릿** | 계정 소유자 |
+| `NAVER_URL_SCHEME` | 네이버 앱 로그인이 돌아올 스킴 | 네이버 개발자 센터 앱의 iOS 설정 "URL Scheme"과 같은 값 | 계정 소유자 |
 
-**워크플로가 읽는 시크릿은 총 7개**다 — 새로 등록할 것이 6개(ASC 셋 + AdMob iOS 셋)이고,
-`KAKAO_NATIVE_APP_KEY` 1개는 KAN-163에서 안드로이드용으로 등록해 둔 것을 그대로 쓴다.
+**워크플로가 읽는 시크릿은 총 13개**다 — ASC 셋 + AdMob iOS 셋 + 카카오 1 + 로그인 IdP 여섯(KAN-224).
+`KAKAO_NATIVE_APP_KEY`는 KAN-163에서 안드로이드용으로 등록해 둔 것을 그대로 쓰고, 로그인 셋 중
+`GOOGLE_SERVER_CLIENT_ID`·`NAVER_CLIENT_ID`·`NAVER_CLIENT_SECRET`도 안드로이드 릴리스와 같은 시크릿이다.
+로그인 셋은 `upload`·`allow_test_ads`와 무관하게 늘 필요하고, 아카이브가 `REQUIRE_IDP_CONFIG=YES`로 빈 값을 막는다.
 카카오 키가 플랫폼별로 갈리지 않는 것은 카카오 콘솔이 앱 하나에 네이티브 앱 키 하나를 주고
 iOS 번들 ID·안드로이드 패키지명을 그 아래 등록하기 때문이다. 안드로이드 릴리스 워크플로와
 같은 시크릿을 공유한다.
@@ -211,17 +222,27 @@ Apple Distribution 인증서·프로비저닝 프로파일을 스스로 만드�
 
 #### 러너 실행 기록 (2026-09-23)
 
-시크릿 7개가 등록된 뒤 러너에서 세 번 돌렸다. 각 실행 4분 안팎이다.
+ASC 키 셋이 등록된 뒤 러너에서 다섯 번 돌렸다. AdMob iOS 셋은 1차와 2차 사이에 붙어
+시크릿이 7개(ASC 셋 + AdMob iOS 셋 + 카카오)가 됐다. 각 실행 4~6분이다.
 
 | # | 실행 | 입력 | 결과 |
 |---|---|---|---|
 | 1차 | [35833056059](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35833056059) | `allow_test_ads=true`, `upload=false` | **통과**. AdMob 시크릿 없이 아카이브·서명 경로가 사는지만 봤다 |
 | 2차 | [35833732628](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35833732628) | 실 광고 ID(`REQUIRE_ADMOB_IDS=YES`), `upload=false` | **통과**. 빗장을 켠 채로 검증 스텝까지 전부 |
 | 3차 | [35834152345](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35834152345) | 실 광고 ID, `upload=true` | **업로드에서 거절**. 앞 스텝은 모두 통과하고 TestFlight 업로드만 exit 70 |
+| 4차 | [35835642727](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35835642727) | 실 광고 ID, `upload=true` | **통과**. 링커 서명 제거를 붙인 뒤 첫 업로드 성공 — 버전 `1.0` 빌드 `6`, 서명 `Apple Distribution: Seongju Lee (559P9SYY57)` |
+| 5차 | [35838851454](https://github.com/AISWM-2PL1/Accentury_App/actions/runs/35838851454) | 실 광고 ID, `upload=true` | **통과**. 빌드 `7`(아이콘 D3) 업로드 — 브랜치 `chore/KAN-175-build-7` |
 
 3차의 거절 사유가 위 「링커 서명 제거」다 — 프레임워크 넷 전부에 `Invalid Signature … is not
 properly signed`가 떴다. 검증 스텝이 못 잡은 것은 그때 DR을 보지 않았기 때문이고, 이번에 DR
-검사를 붙였다. 1·2차가 통과한 것은 업로드를 하지 않아 애플 검증을 거치지 않아서다.
+검사를 붙였다. 1·2차가 통과한 것은 업로드를 하지 않아 애플 검증을 거치지 않아서다. 4·5차가
+그 수정으로 애플 업로드 검증까지 통과한 실행이고, 둘의 업로드 수정과 빌드 7은 PR #3으로
+Dev에 들어갔다 (2026-09-28).
+
+**이 기록 뒤에 시크릿 요구가 늘었다.** KAN-224가 `GOOGLE_IOS_CLIENT_ID`·
+`GOOGLE_SERVER_CLIENT_ID`·`GOOGLE_REVERSED_CLIENT_ID` 빗장을 붙였고 그 셋은 아직 저장소
+시크릿에 없다. 5차까지의 실행은 빗장이 붙기 전이라 통과했고, **지금 다시 돌리면 ③
+입력·시크릿 검사에서 멈춘다.** 등록은 KAN-224 몫이다.
 
 그 전 기록: 2026-09-22에 **로컬에서 워크플로의 셸 스텝을 그대로 떼어 돌렸다**. Release
 아카이브(무서명) → `ExportOptions.plist`로 export → 검증 스크립트. 결과는 서명
@@ -238,7 +259,7 @@ properly signed`가 떴다. 검증 스텝이 못 잡은 것은 그때 DR을 보�
 | 앱 이름 | `Accentury - 사투리 억양 테스트` | 30자 (현재 **22자**) |
 | 부제 | `목소리로 재는 경남 사투리 억양 등급` | 30자 (현재 **20자**) |
 | 프로모션 텍스트 | 아래 블록 | 170자 (현재 **100자**), 선택 |
-| 설명 | 아래 블록 | 4000자 (현재 **469자**) |
+| 설명 | 아래 블록 | 4000자 (현재 **597자**) |
 | 키워드 | `사투리,억양,경남,방언,말투,테스트,퀴즈,부산,경상도,목소리,발음,토박이,동남방언,사투리테스트,억양테스트` | 100자 (현재 **58자**) |
 | 기본 카테고리 | 엔터테인먼트 | |
 | 보조 카테고리 | **비워 둔다** | 선택 |
@@ -289,7 +310,7 @@ App Store의 키워드 필드는 **이용자에게 보이지 않고 검색에만
 새 버전을 제출해야 하지만 이 칸은 즉시 반영된다. 그래서 여기에는 버전을 타지 않는 말만
 넣는다 — 이벤트나 한시적 안내를 넣을 자리로 남겨 둔다.
 
-### 설명 (4000자, 현재 469자)
+### 설명 (4000자, 현재 597자)
 
 ```
 내 말투에 사투리가 얼마나 남아 있을까?
@@ -298,34 +319,49 @@ App Store의 키워드 필드는 **이용자에게 보이지 않고 검색에만
 단어 문항까지 더해 억양과 어휘 두 축으로 보고, 다섯 등급 중 하나를 매겨요.
 
 ■ 이렇게 진행돼요
-1. 마이크 권한을 허용하고 시작해요
-2. 화면에 뜨는 문장을 소리 내어 읽어요 — 마음에 안 들면 다시 읽어도 돼요
-3. 사투리 단어 문항에 답해요
-4. 억양 점수, 어휘 점수, 그리고 내 등급을 확인해요
+1. 구글, 카카오, 네이버, 애플 중 한 계정으로 로그인해요
+2. 이메일, 이름, 생년월일, 성별, 출신 지역을 한 번 입력해요
+3. 마이크 권한을 허용하고 시작해요
+4. 화면에 뜨는 문장을 소리 내어 읽어요 — 마음에 안 들면 다시 읽어도 돼요
+5. 사투리 단어 문항에 답해요
+6. 억양 점수, 어휘 점수, 그리고 내 등급을 확인해요
 
 ■ 결과는 이렇게 나와요
 · 억양 점수와 어휘 점수를 따로 보여 줘요
 · 다섯 등급 중 내 자리와 한 줄 총평을 받아요
 · 결과 화면을 카카오톡으로 친구에게 보낼 수 있어요
 
-■ 목소리는 남기지 않아요
-녹음한 음성은 점수를 매기는 그 순간에만 쓰고 곧바로 지워요. 서버에 보관하지 않고
-다른 곳에 보내지도 않아요. 회원가입도 로그인도 없어요.
+■ 로그인이 필요해요
+출신 지역별로 억양을 견주고 응시자 구성을 파악하려고 계정을 받아요. 만 14세부터 가입할 수
+있어요.
+
+■ 목소리는 동의하신 경우에만 보관해요
+녹음한 음성은 점수를 매기는 데 쓰고 곧바로 지워요. 음성 저장과 AI 모델 학습 활용에
+따로 동의하신 경우에만 보관하고, 동의하지 않아도 테스트는 그대로 이용할 수 있어요.
+다른 곳에 보내지 않아요.
 
 경남 사투리로 먼저 시작해요. 다른 지역은 차차 넓혀 갈 계획이에요.
 ```
 
-KAN-174 §3의 Play 문안과 **한 글자도 다르지 않다.** iOS에서 사실이 갈리는 줄이 있는지
-전부 훑었고, 없다.
+**KAN-269로 음성 문단이 바뀌었다 (2026-10-04).** 앞 판의 「목소리는 남기지 않아요」는 선택 동의한
+이용자에게는 거짓이 된다. 위 문안은 레포의 원안이고, App Store Connect의 설명 칸은 계정 소유자가 직접
+바꿔 넣어야 한다. 제목 줄의 글자 수(597자)는 앞 판 기준이라 붙여 넣을 때 다시 센다.
+
+**KAN-224 로그인 게이트가 들어오면서 Play 문안과 갈렸다.** 2026-09-23까지는 KAN-174 §3과 한
+글자도 다르지 않았는데, 「회원가입도 로그인도 없어요」가 거짓이 돼 로그인 단계 둘과 「로그인이
+필요해요」 문단을 넣었다. **Play 문안에도 같은 수정이 필요하다** — `play-store-listing.md` §3은
+아직 옛 문안이고 그쪽은 KAN-174 몫이다 (§10).
 
 - 카카오톡 공유는 iOS에도 있다. `ios/Accentury/Share/ResultSharer.swift`가 `KakaoSDKShare`·
   `KakaoSDKTemplate`을 쓰고, `ios/project.yml:34-36`이 `KakaoOpenSDK` 2.29.0을 못 박는다
   (KAN-180). **지라 KAN-175의 Related에 적힌 「카카오 SDK 미탑재 상태로 제출」은 낡은 서술이다**
   — KAN-180이 탑재를 끝냈고, 이 문서가 그 정정 기록이다
-- 마이크 권한, 회원가입 없음, 음성 즉시 삭제는 플랫폼과 무관하게 같다
+- 마이크 권한, 로그인 게이트, 음성 처리(선택 동의가 없으면 즉시 삭제, 있으면 보관)는 플랫폼과 무관하게 같다. 로그인 버튼은 iOS에만
+  애플이 하나 더 있다 — 가이드라인 4.8이 제3자 로그인을 쓰는 앱에 「이름·이메일만 받고 이메일을
+  숨길 수 있는」 로그인을 같은 무게로 요구하고, Sign in with Apple이 그 자리다
+  (`ios/Accentury/Accentury.entitlements:31`, `social-login.md` §1 「결정」)
 
-「목소리는 남기지 않아요」 문단은 장식이 아니다. §5의 세 자리 대조와 §6의 오디오 항목 판단이
-전부 이 문단과 같은 말을 해야 한다.
+음성 문단은 장식이 아니다. §5의 대조와 §6의 오디오 항목 판단이 전부 이 문단과 같은 말을 해야 한다.
 
 ## 4. 그래픽 자산
 
@@ -359,17 +395,22 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 
 | 자리 | 실제 문자열 |
 |---|---|
-| iOS 권한 프롬프트 | `억양 분석을 위해 마이크로 목소리를 녹음해요. 녹음은 분석 후 즉시 삭제돼요.` (`ios/Accentury/Info-Release.plist:349` `NSMicrophoneUsageDescription`) |
-| 앱 내 권한 게이트 | `발음 분석에 마이크가 필요해요` / `음성은 분석 즉시 삭제돼요` (`ios/Accentury/Permission/PermissionGateView.swift:67-68`) |
-| 스토어 설명 | `녹음한 음성은 점수를 매기는 그 순간에만 쓰고 곧바로 지워요` (§3) |
-| 방침 1항 음성 행 | 분석이 끝나면 즉시 삭제 (Accentury_Server `docs/wiki/privacy-policy.md` §1, 근거 Accentury_Server `ai/app/tempstore.py:10-12`) |
-| 개인정보 라벨 | 「오디오 데이터」 신고 없음 (§6) |
+| iOS 권한 프롬프트 | `억양 분석을 위해 마이크로 목소리를 녹음해요. 따로 동의하지 않으면 녹음은 분석 뒤 바로 삭제돼요.` (`ios/Accentury/Info-Release.plist:387` `NSMicrophoneUsageDescription`, KAN-270 3단계) |
+| 앱 내 권한 게이트 | `발음 분석에 마이크가 필요해요` / `따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요` (`ios/Accentury/Permission/PermissionGateView.swift:66-70`, KAN-270 3단계) |
+| 스토어 설명 | `녹음한 음성은 점수를 매기는 데 쓰고 곧바로 지워요. 음성 저장과 AI 모델 학습 활용에 따로 동의하신 경우에만 보관하고` (§3, KAN-269 갱신) |
+| 방침 1항 음성 행 | 선택 동의가 없으면 분석이 끝나면 즉시 삭제, 선택 동의가 있으면 학습 목적 달성 시까지 보관 (Accentury_Server `infra/privacy/privacy.html` 1항 「음성 저장과 AI 모델 학습 활용 (선택 동의)」, 방침 버전 `2026-10-04`) |
+| 개인정보 라벨 | 「오디오 데이터」 수집으로 신고 (§6, KAN-269 갱신) |
 
-네 자리가 전부 **「분석 즉시 삭제」** 한 문장이다. 라벨이 비어 있는 것도 같은 사실의 다른
-표현이고, §6이 그 연결을 설명한다.
+**KAN-269 뒤로 다섯 자리가 같은 말을 하지 않는다.** 스토어 설명, 방침, 라벨은 「선택 동의가 없으면 즉시 삭제,
+있으면 보관」으로 고쳤다. 그런데 위 두 줄의 앱 문자열(iOS 권한 프롬프트와 앱 내 권한 게이트, Android의 같은
+자리 `app/src/main/java/com/accentury/app/MainActivity.kt`)은 조건 없이 「즉시 삭제돼요」라고 말했다. 선택
+동의를 하지 않은 이용자에게만 참인 문장이다. **Android는 KAN-270 2단계, iOS는 3단계에서 조건부 문장으로
+고쳤다** (「따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요」 등, `docs/wiki/voice-consent.md` 「Android」·「iOS」 절).
+위 표의 iOS 두 줄은 고친 뒤의 문자열이다.
 
 심사 가이드라인 5.1.1(ii)는 목적 문자열이 데이터 사용을 「명확하고 완전하게」 설명할 것을
-요구한다. 우리 문자열은 용도(억양 분석)와 처분(즉시 삭제)을 둘 다 담고 있어 그 기준을 넘는다.
+요구한다. 용도(억양 분석)는 문자열에 그대로 있다. 처분은 이제 선택 동의에 따라 갈려서, 조건 없이 「즉시
+삭제」라고 하면 이 기준에 걸릴 수 있었다. 지금 문자열은 그 조건을 단다(KAN-270 3단계).
 
 ### 추적 (ATT)
 
@@ -414,23 +455,32 @@ Play의 데이터 안전에는 「일시적으로만 처리되며 저장되지 �
 다르게 보이는 것은 실제 동작이 달라서가 아니라 두 스토어가 같은 사실을 다른 칸으로 받기
 때문이다.
 
+**위 문단은 2026-10-03까지의 사정이다 (KAN-269).** 선택 동의한 이용자의 음성은 요청 처리 뒤에도 서버에
+남으므로 애플의 정의로도 「수집」이다. 지금은 두 스토어 모두 음성을 수집으로 신고한다.
+
 ### 6.2 확정 답안
 
 | # | 데이터 유형 | 수집 | 사용자와 연결 | 추적에 사용 | 목적 | 근거 |
 |---|---|---|---|---|---|---|
-| ① | 사용자 콘텐츠 › 오디오 데이터 | **아니요** | — | — | — | 6.3 ① |
-| ② | 사용 데이터 › 제품 상호작용 | 예 | **연결됨** | 아니요 | 분석 · 제3자 광고 · 개발자 광고 · 앱 기능 | 6.3 ② |
+| ① | 사용자 콘텐츠 › 오디오 데이터 | **예** (2026-10-04 갱신, KAN-269) | **연결됨** | 아니요 | 앱 기능, 분석(목적 칸은 콘솔 입력 때 확인) | 6.3 ① |
+| ② | 사용 데이터 › 제품 상호작용 | 예 | **연결됨** | 아니요 | 분석 · 제3자 광고 · 개발자 광고 · 앱 기능 | 6.3 ② · ⑨ |
 | ③ | 진단 › 비정상 종료 데이터 | 예 | 연결되지 않음 | 아니요 | 분석 · 앱 기능 | 6.3 ③ |
 | ④ | 진단 › 성능 데이터 | 예 | 연결되지 않음 | 아니요 | 분석 · 제3자 광고 · 개발자 광고 · 앱 기능 | 6.3 ③ |
 | ⑤ | 진단 › 기타 진단 데이터 | 예 | 연결되지 않음 | 아니요 | 분석 · 앱 기능 · 제3자 광고 · 개발자 광고 | 6.3 ③ |
 | ⑥ | 식별자 › 기기 ID | 예 | **연결됨** | **예** | 제3자 광고 · 개발자 광고 · 분석 | 6.3 ④ |
 | ⑦ | 사용 데이터 › 광고 데이터 | 예 | **연결됨** | 아니요 | 제3자 광고 · 개발자 광고 · 분석 | 6.3 ④ |
 | ⑧ | 위치 › 대략적 위치 | 예 | **연결됨** | 아니요 | 제3자 광고 · 개발자 광고 · 분석 · 앱 기능 | 6.3 ⑤ |
-| ⑨ | 연락처 정보 › 이메일 주소 | 예 | **연결됨** | 아니요 | 앱 기능 | 6.3 ⑥ |
+| ⑨ | 연락처 정보 › 이메일 주소 | 예 | **연결됨** | 아니요 | 앱 기능 | 6.3 ⑥ · ⑨ |
 | ⑩ | 사용자 콘텐츠 › 기타 사용자 콘텐츠 | 예 | **연결됨** | 아니요 | 앱 기능 | 6.3 ⑦ |
-| ⑪ | 기타 데이터 › 기타 데이터 유형 | 예 | **연결됨** | 아니요 | 앱 기능 | 6.3 ⑧ |
+| ⑪ | 기타 데이터 › 기타 데이터 유형 | 예 | **연결됨** | 아니요 | 앱 기능 · 분석 | 6.3 ⑧ · ⑨ |
+| ⑫ | 연락처 정보 › 이름 | 예 | **연결됨** | 아니요 | 앱 기능 | 6.3 ⑨ |
+| ⑬ | 식별자 › 사용자 ID | 예 | **연결됨** | 아니요 | 앱 기능 | 6.3 ⑨ |
 
 **「이 앱은 사용자를 추적합니까」 = 예.** ⑥ 하나 때문이고, 그 하나로 ATT 프롬프트가 필요해진다.
+
+**⑨⑫⑬과 ⑪의 일부가 KAN-224 계정 몫이다.** 2026-09-23판 표는 SDK 매니페스트와 후기 이메일만
+담고 있었다. 소셜 로그인이 들어오면서 우리가 **직접** 모으는 개인정보가 처음 생겼고, 그 몫은
+매니페스트가 아니라 서버 스키마(`app_user`)가 근거다 (6.3 ⑨).
 
 콘솔 답안의 1차 근거는 **각 SDK가 스스로 선언한 개인정보 매니페스트**(`PrivacyInfo.xcprivacy`)다.
 Xcode가 아카이브 때 이것들을 합쳐 개인정보 보고서를 만들고, 애플이 그 보고서와 우리 라벨을
@@ -478,35 +528,38 @@ UserMessagingPlatform이 문제가 된다 — AdMob의 전이 의존으로 따�
 
 좁게 신고해서 어긋나는 쪽이 넓게 신고하는 쪽보다 훨씬 나쁘다는 판단은 ②의 연결 여부와 같다.
 
-**① 사용자 콘텐츠 › 오디오 데이터 — 수집하지 않는다고 신고한다.**
+**① 사용자 콘텐츠 › 오디오 데이터: 수집한다고 신고한다 (2026-10-04 갱신, KAN-269).**
 
-녹음은 서버로 나간다. 그런데도 「수집 아님」인 이유는 6.1의 정의 때문이다 — 서버가 요청을
-처리하는 동안만 들고 있다가 즉시 버린다.
+> **사람이 직접 해야 하는 일 (KAN-269, 2026-10-04).** 이 문서는 답안의 정본일 뿐이고 스토어 콘솔의 양식은
+> 저절로 바뀌지 않는다. 음성 답안이 바뀌었으므로 계정 소유자가 콘솔에서 해당 양식을 직접 고쳐 다시 제출해야
+> 한다. 콘솔을 고치기 전까지는 신고와 실제 동작이 어긋난 상태다.
+> App Store Connect의 「앱이 수집하는 개인정보」에서 오디오 데이터 행을 아래 답으로 고친다.
+
+2026-10-03까지의 답은 「수집하지 않음」이었다. 서버가 요청을 처리하는 동안만 음성을 들고 있다가 즉시
+버렸기 때문이다(6.1의 정의). KAN-269로 그 전제가 바뀌었다.
 
 | 사실 | 근거 |
 |---|---|
-| 분석이 끝나면 `finally`에서 삭제. 성공·실패·예외·취소 네 경로 모두 | Accentury_Server `ai/app/tempstore.py:10-12` (KAN-27) |
-| 소유자 전용(700) 디렉터리, 로그에 경로·파일명 없음 | 같은 파일 `:7-9`·`:16` |
-| DB에 오디오 컬럼이 없음 | Accentury_Server `backend/src/main/java/app/accentury/backend/` 밑 `session/TestSession.java` · `result/TestResult.java` · `vocab/VocabAnswer.java` |
-| S3·다른 저장소로도 가지 않음 | 2026-09-01 팀 회의 결정, Accentury_Server `infra/privacy/README.md` |
+| 음성 저장과 AI 모델 학습 활용은 필수 방침 동의와 별개인 **선택 동의**다. 거부해도 테스트 이용에 제한이 없다 | Accentury_Server `infra/privacy/privacy.html` 1항 「음성 저장과 AI 모델 학습 활용 (선택 동의)」, 12항 |
+| 선택 동의한 응시는 문항마다의 음성 녹음(WAV)과 라벨 정보를 서버에 보관한다 | 같은 절의 보관 항목 목록 |
+| 쓰임은 억양 분석 AI 모델의 학습과 개선이다 | 같은 절, 1항 표 「음성 저장과 학습 활용 (선택 동의)」 행 |
+| 앱 계정은 계정 내부 식별자와 음성이 저장된 세션 식별자를 잇는 연결 기록을 둔다. 내부 식별자만 담는다 | 같은 절 |
+| 제3자에게 제공하지 않는다 | 방침 1항 「음성 녹음」 산문 |
+| 보관 장소는 AWS 서울 리전(ap-northeast-2)이고, 전송 구간은 HTTPS, 저장할 때 암호화한다 | 방침 1항, 11항 |
+| 이용자는 선택 동의를 철회할 수 있다. 앱 안에서 철회하면 그 뒤의 녹음은 저장하지 않는다. 이미 저장된 음성은 방침 13항 문의처로 요청하면 운영자가 처리한다 | 방침 1항, 6항 |
+| 선택 동의를 하지 않은 응시는 예전과 같다. 분석이 끝나면 `finally`에서 삭제한다 | Accentury_Server `ai/app/tempstore.py` (KAN-27) |
 
-**반대 논거도 적어 둔다.** 프로세스가 kill돼 `finally`가 실행조차 못 한 경우를 대비한 30분
-청소 잡이 있다(Accentury_Server `ai/app/config.py:18-19`, 같은 레포
-`backend/src/main/resources/application.yml:161` `upload.temp-retention: 30m`). 그
-실패 경로에서는 파일이 최대 30분 남는다. 「실시간 요청 처리에 필요한 시간」보다 길다고 읽으면
-「수집」이 된다.
+콘솔 답은 이렇다.
 
-판단은 **「수집 아님」**이다. 30분 창은 설계된 보존이 아니라 사고에 대비한 청소 주기이고,
-그 사이에도 우리가 그 파일을 읽어 쓰는 경로가 없다. 애플의 정의가 묻는 것은
-「접근할 수 있게 두었는가」이지 「디스크에 몇 초 있었는가」가 아니다.
+| 칸 | 답 | 이유 |
+|---|---|---|
+| 수집 | 예 | 선택 동의한 이용자의 음성이 요청 처리 뒤에도 서버에 남는다 |
+| 사용자와 연결 | **연결됨** | 앱 이용자는 계정 내부 식별자와 세션 식별자의 연결 기록으로 음성이 계정에 이어진다 |
+| 추적에 사용 | 아니요 | 제3자 데이터와 결합하지 않고 광고에 쓰지 않으며 제3자에게 제공하지 않는다 |
+| 목적 | 앱 기능, 분석 | 채점은 앱 기능이다. 모델 학습과 제품 개선을 애플의 목적 분류 가운데 어디에 넣을지는 콘솔 입력 때 계정 소유자가 확인한다. 여기서는 「분석」으로 적었다 |
 
-보수적으로 신고하기로 팀이 정하면 답은 이렇게 바뀐다 — **오디오 데이터, 수집, 사용자와
-연결되지 않음, 추적 아님, 목적 앱 기능.** 한 칸만 고치면 되므로 되돌리기 쉽다.
-
-**경보선:** 서버가 오디오를 요청 시간보다 오래 들고 있게 바뀌는 순간(모델 재학습용 적재,
-품질 검수용 보관, 비동기 큐잉 등) 이 답은 즉시 「수집」으로 뒤집힌다. 그 변경은 Accentury_Server
-`ai/app/tempstore.py`의 계약 테스트를 먼저 깨므로 신호가 온다(같은 레포
-`docs/wiki/privacy-policy.md` §4).
+애플 라벨에는 「선택 동의한 경우에만」을 적는 칸이 없다. 일부 이용자에게만 일어나는 수집도 수집으로
+신고한다.
 
 **② 사용 데이터 › 제품 상호작용 — 수집, 연결됨, 추적 아님.**
 
@@ -610,10 +663,14 @@ Play 데이터 안전에는 위치를 신고하지 않았다(`play-store-listing
 | 추적에 쓰지 않는다 | 만족 |
 | 제3자 광고·개발자 광고·기타 목적에 쓰지 않는다 | 만족 |
 | 주요 기능이 아닌, 드문 경우에만 수집하고 이용자에게 선택이다 | 만족 (후기 시트, 선택 입력) |
-| 이용자의 **이름 또는 계정이 눈에 띄게 표시된** 화면에서 이용자가 매번 직접 제공한다 | **불만족** — 계정이 없는 서비스라 표시할 이름이 없다 |
+| 이용자의 **이름 또는 계정이 눈에 띄게 표시된** 화면에서 이용자가 매번 직접 제공한다 | **불만족** — 후기 시트는 웹 화면이고 계정 이름을 띄우지 않는다 |
 
 애플이 예시로 드는 「선택적 피드백 양식」이 우리 후기 시트와 거의 같은 물건인데도 마지막
-조건에서 막힌다. 계정 없는 앱은 이 면제를 쓸 수 없다고 읽는 것이 맞다. 그래서 신고한다.
+조건에서 막힌다. 그래서 신고한다.
+
+**KAN-224 계정이 생겨도 이 면제는 여전히 못 쓴다.** 계정 이메일은 가입에 **필수**라 셋째 조건
+(「주요 기능이 아닌, 드문 경우에만, 이용자의 선택」)에서 막힌다. 계정이 생겼으니 넷째 조건을
+만족할 수 있게 된 것과 상관없이 결론은 같다 — ⑨는 신고한다 (6.3 ⑨).
 
 **⑦ 사용자 콘텐츠 › 기타 사용자 콘텐츠 — 수집, 연결됨, 추적 아님, 앱 기능.**
 
@@ -636,27 +693,88 @@ Kakao SDK 2.29.0의 매니페스트가 `OtherDataTypes`를 `Linked=true`·`Track
 그대로 신고한다. **⑤와 같은 성격의 항목이다** — 우리 코드가 모으는 것이 아니라 링크한 SDK가
 선언한 몫이고, 개인정보 보고서에 뜨므로 라벨에 없으면 어긋난다.
 
+**⑨ 계정 데이터 — 수집, 연결됨, 추적 아님. KAN-224·KAN-240.**
+
+여기부터는 SDK 몫이 아니라 **우리가 직접 모으는 것**이다. 근거는 매니페스트가 아니라 서버
+스키마와 방침이다 — Accentury_Server `backend/src/main/resources/db/migration/V2__app_user.sql`의
+열 목록, 같은 레포 `infra/privacy/privacy.html` 1항 「계정 (앱 소셜 로그인)」 절, 같은 레포
+`docs/wiki/privacy-policy.md` §1 「계정 (앱)」 네 행.
+
+앱 첫 화면 앞에 로그인 관문이 있다. 구글·카카오·네이버(iOS는 애플까지) 중 하나로 로그인하고,
+추가 정보 다섯 칸(이메일·이름·생년월일·성별·출신 지역)이 다 차야 테스트로 들어간다
+(`docs/wiki/social-login.md` §1, `ios/AccenturyCore/Sources/AccenturyCore/Auth/ProfileFormState.swift:94`의
+`isComplete`). 건너뛰기가 없으므로 **모든 이용자에게 일어나는 수집**이다.
+
+| 계정에 두는 값 | 라벨 행 | 목적 | 근거 |
+|---|---|---|---|
+| 이메일 | ⑨ 연락처 정보 › 이메일 주소 | 앱 기능 (회원 식별·문의 응대·탈퇴 본인 확인) | `app_user.email`, 방침 1항 계정 절 |
+| 이름 | ⑫ 연락처 정보 › 이름 | 앱 기능 | `app_user.name` |
+| 로그인 제공자가 정한 이용자 식별값 · 우리 계정 id · 닉네임 | ⑬ 식별자 › 사용자 ID | 앱 기능 (로그인·계정 식별) | `app_user.provider`·`provider_user_id`·`id`·`nickname`. 애플의 「사용자 ID」 정의가 「screen name, handle, account ID, assigned user ID」다 (6.1 출처) |
+| 생년월일 | ⑪ 기타 데이터 | 앱 기능 (만 14세 미만 가입 거절) | `app_user.birth_date`, 방침 7항. 서버 `ProfileRules.age`가 거절하고 400 `AUTH_UNDER_AGE` |
+| 성별 · 출신 지역 | ⑪ 기타 데이터 | 분석 (응시자 구성 파악·억양 분석 개선) + 앱 기능 | `app_user.gender`(`MALE`/`FEMALE` 제약)·`region`. 세션의 출신 지역은 계정 값을 쓴다 (방침 1항) |
+| 방침 동의 시각 · 동의한 방침 버전 | ⑪ 기타 데이터 | 앱 기능 (동의 사실의 기록) | 방침 12항, 서버 `AuthService.findOrCreateOnce` |
+| 프로필 이미지 주소 | ⑪ 기타 데이터 **(확인 필요)** | 앱 기능 | `app_user.profile_image_url`. 우리가 받는 것은 IdP의 **URL 문자열**이고 사진 파일이 아니다. 「사용자 콘텐츠 › 사진 또는 비디오」로 읽을 여지가 있어 콘솔 입력 전에 한 번 더 본다 |
+
+**왜 「기타 데이터」인가.** 애플의 유형 목록에 생년월일·성별·출신 지역에 해당하는 칸이 없다.
+「기타 데이터 유형」의 정의가 「Any other data types not mentioned」이고(6.1 출처), 셋 다 그
+자리다. 출신 지역을 「위치」로 읽지 않는 이유는 애플의 위치 유형이 **기기의 위치**를 가리키고
+우리 값은 이용자가 고른 고향이기 때문이다 — 지금 사는 곳도 아니다.
+
+**민감 정보에 해당하는가 — 아니라고 본다 (확인 필요).** 애플의 「민감 정보」 정의는
+「racial or ethnic data, sexual orientation, pregnancy or childbirth information, disability,
+religious or philosophical beliefs, trade union membership, political opinion, genetic
+information, or biometric data」(6.1 출처)이고 성별·생년월일·출신 지역은 그 목록에 없다.
+`MALE`/`FEMALE` 두 값이라 성적 지향과도 다른 축이다. 다만 「such as」로 열린 정의라 성별을
+민감 정보로 읽는 해석이 불가능하지는 않다 — 콘솔 설문에서 애플 설명 문구를 한 번 더 읽고
+확정한다. 민감 정보로 신고하면 라벨에 한 행이 더 늘 뿐이고 심사를 막지는 않는다.
+
+**「연결됨」인 이유.** 계정 값은 전부 한 계정 행에 있고 그 행이 사람을 지목한다. 애플은 개인
+정보에 해당하는 것을 **항상 연결됨으로 본다** (6.1 출처의 Linked 정의).
+
+**② 제품 상호작용도 계정과 묶인다.** 로그인한 상태로 시작한 테스트 세션에는 계정 식별자가
+붙는다(`test_session.user_id`, 방침 1항 계정 절). ②는 AdMob 매니페스트 때문에 이미
+「연결됨」이었으니 **답은 바뀌지 않고 근거가 하나 더 붙는 것**이다.
+
+**③④⑤ 진단은 그대로 「연결되지 않음」이다.** SDK 매니페스트가 `Linked=false`로 선언하고, 서버
+운영 로그는 어느 세션이 어느 계정 것인지 남기지 않는다 — 세션 생성 로그가 `userId` 대신
+`account=true|false`만 찍는다 (KAN-240, Accentury_Server `docs/wiki/privacy-policy.md` §1 계정
+네 번째 행). 계정이 생겼다고 진단 데이터가 사람에게 붙는 경로가 생기지는 않았다.
+
+**계정 데이터는 추적에 쓰지 않는다.** 광고 SDK에 넘기는 값이 아니고, Analytics에 `setUserID`를
+부르는 곳도 없다 (`docs/wiki/analytics.md` §3). 계정 id는 서버 안에만 있다.
+
+**보유 기간은 탈퇴까지다.** 세션·결과의 24시간 규칙과 다른 유일한 항목이고, 계정에 지난 결과가
+쌓이지는 않는다 (방침 1항). 삭제 경로는 §8·§10의 탈퇴 항목에서 다룬다.
+
 ### 6.4 수집하지 않는다고 신고하는 것
 
 | 항목 | 왜 |
 |---|---|
-| 이름·전화번호 | 회원가입도 로그인도 없다 |
-| 사용자 ID | `setUserID`를 부르는 곳이 없다 (`docs/wiki/analytics.md` §3) |
+| 전화번호 | 계정에도 후기에도 전화번호 칸이 없다. IdP에서도 받지 않는다 |
+| 물리적 주소 | 출신 지역은 광역 10개 중 하나이고 주소가 아니다 (⑪, 6.3 ⑨) |
 | 정확한 위치 | 위치 권한을 선언하지 않는다. ⑤는 IP 추정 몫이다 |
 | 연락처·사진·파일 | 권한 자체를 선언하지 않는다 |
 | 결제 정보 | 앱 내 구매가 없다 |
-| 건강·피트니스 | 억양 점수는 의학적 판정이 아니다 |
+| 건강·피트니스 | 억양 점수는 의학적 판정이 아니고, 생년월일은 나이 확인용이다 |
+| 민감 정보 | 애플이 든 목록(인종·성적 지향·임신·장애·종교·노조·정치 성향·유전·생체)에 우리 항목이 없다 — **(확인 필요)**, 6.3 ⑨ |
 | 검색 기록·브라우징 기록 | 그런 기능이 없다 |
 
-서버가 저장하는 것은 세션 행(id, 토큰 **해시**, 테스트 버전, 플랫폼, 앱 버전, 캠페인 토큰,
-만료 시각), 결과 행(점수 셋과 등급), 단어 답변 행, 후기 행이다. 세션·결과는 24시간 뒤
-정리되고 후기만 1년 남는다(Accentury_Server `docs/wiki/privacy-policy.md` §1).
+**「사용자 ID」는 2026-09-23판에서 「수집하지 않음」이었다.** 근거는 Analytics에 `setUserID`를
+부르지 않는다는 것이었는데, KAN-224가 계정 id와 IdP 식별값을 만들면서 그 답이 뒤집혔다(⑬).
+Analytics에 넘기지 않는다는 사실은 그대로지만 라벨은 **수집 여부**를 묻는다.
+
+서버가 저장하는 것은 **계정 행(`app_user`: 제공자·IdP 식별값·이메일·이름·생년월일·성별·출신
+지역·닉네임·프로필 이미지 주소·동의 시각과 방침 버전)**, 로그인 토큰의 **해시**와 계정 id,
+세션 행(id, 토큰 해시, 테스트 버전, 플랫폼, 앱 버전, 캠페인 토큰, 만료 시각, 로그인했으면 계정
+id), 결과 행(점수 셋과 등급), 단어 답변 행, 후기 행이다. 세션·결과는 24시간 뒤 정리되고, 후기는
+1년, **계정은 탈퇴할 때까지** 남는다 (Accentury_Server `docs/wiki/privacy-policy.md` §1).
 
 ## 7. 연령 등급
 
 | 설문 영역 | 답 |
 |---|---|
-| 앱 내 제어 (보호자 제어 · 연령 확인) | 없음 |
+| 앱 내 제어 — 보호자 제어 | 없음 |
+| 앱 내 제어 — **연령 보증(Age Assurance)** | **있음** — 가입 때 생년월일을 받아 만 14세 미만을 거절한다 (KAN-224·KAN-240) |
 | 기능 — 무제한 웹 접근 | 없음. WebView는 allowlist로 묶여 있다 (`docs/wiki/webview-bridge.md`) |
 | 기능 — 사용자 생성 콘텐츠 | 없음. 후기는 개발팀에만 가고 다른 이용자에게 보이지 않는다 |
 | 기능 — 소셜 미디어 · 메시지·채팅 | 없음. 카카오톡 공유는 본인이 자기 결과를 밖으로 내보내는 행위다 |
@@ -667,6 +785,21 @@ Kakao SDK 2.29.0의 매니페스트가 `OtherDataTypes`를 `Linked=true`·`Track
 | 폭력 (만화·사실적·장시간·무기) | 전부 없음 |
 | 확률형 (도박·모의 도박·경연·루트 박스) | 전부 없음 |
 | **예상 등급** | **4+** (콘솔 설문 결과로 확정) |
+
+**「연령 보증」을 「있음」으로 답하는 근거.** 애플의 설문 설명이 「개인의 나이가 특정 콘텐츠·
+서비스의 연령 요건을 충족하는지 확인하는 수단」이고 예시로 「declared age range API, age
+estimation capabilities, age verification via government-issued passport, drivers license,
+national ID, or other means of age assurance」를 든다
+(<https://developer.apple.com/help/app-store-connect/reference/age-ratings/>, 2026-10-01 확인).
+우리 수단은 **이용자가 직접 고른 생년월일**이고, 서버가 만 14세 미만을 400 `AUTH_UNDER_AGE`로
+거절한다 (방침 7항, 서버 `ProfileRules.age`). 신분증 대조가 아니라 자기 신고라 예시 가운데
+「declared」 쪽에 가깝다 — 그래서 「있음」으로 답하되, 콘솔 설문의 애플 설명을 한 번 더 읽고
+확정한다. **연령 보증이 있다고 등급이 올라가지는 않는다.**
+
+만 14세 기준은 한국 개인정보보호법 쪽 요건이고 애플 등급 구간(4+·9+·13+·16+·18+)과는 다른
+축이다. 둘이 모순은 아니지만, 14세 미만을 받지 않는 앱에 4+ 등급을 매기는 것이 어색하게 읽힐
+수 있다. 등급은 **콘텐츠**만 보고 가입 요건은 보지 않으므로 4+가 맞다
+(Accentury_Server `docs/wiki/privacy-policy.md` 「연령 기준 세 가지의 관계」가 같은 사정을 적는다).
 
 **「광고」는 설문 항목이다.** 애플이 2025년에 연령 등급 체계를 고치면서 「기능(Capabilities)」
 영역에 광고·사용자 생성 콘텐츠·메시지·무제한 웹 접근을 넣었다
@@ -692,25 +825,56 @@ Kakao SDK 2.29.0의 매니페스트가 `OtherDataTypes`를 `Linked=true`·`Track
 
 | 필드 | 값 |
 |---|---|
-| 로그인 필요 | **아니요** |
-| 데모 계정 | 불필요 — 계정 개념이 없다 |
+| 로그인 필요 | **예** (KAN-224) |
+| 데모 계정 | **제공** — 카카오 1·네이버 1 테스트 계정. 팀이 만들어 **콘솔 심사 정보에만** 입력한다. 아이디·비밀번호를 레포·문서·커밋에 적지 않는다 (2026-10-01 팀장 결정) |
 | 연락처 이름 | 이성주 |
 | 연락처 이메일 | `team2pl1@gmail.com` |
 | 연락처 전화 | (계정 소유자가 콘솔에서 직접 입력) |
 | 첨부 파일 | 없음 |
 
+### 데모 계정 — 카카오·네이버 테스트 계정을 제공한다 (2026-10-01 팀장 결정)
+
+가이드라인 2.1(a)가 「include demo account info (and turn on your back-end service!) if your app
+includes a login」을 요구한다 (<https://developer.apple.com/app-store/review/guidelines/>,
+2026-10-01 확인). 로그인이 생겼으니 이 요구가 우리에게 붙는다.
+
+애플 버튼만으로도 심사관은 **자기 Apple ID로** 전 기능을 볼 수 있다
+(`ios/Accentury/Accentury.entitlements:31`, `social-login.md` §1) — 추가 정보 다섯 칸은 직접
+채운다. 가이드라인 4.8이 요구하는 「동등한 로그인」을 채우는 것과 같은 버튼이다. 그런데
+카카오·네이버 버튼은 한국 서비스 계정이 있어야 눌러 볼 수 있다. 넷 중 둘이 막힌 채로 제출하면
+2.1(a) 불완전으로 읽힐 위험이 남아 **둘의 테스트 계정을 만들어 준다.**
+
+같이 검토한 대안 둘은 접었다. 데모 계정 없이 애플 경로만 안내하는 쪽은 그 위험을 그대로 안고
+가고, 디버그의 가짜 IdP 경로(`social-login.md` §5)를 심사용으로 여는 쪽은 스토어 빌드에 우회로를
+두는 일이다.
+
+**자격 증명은 레포에 들어오지 않는다.** 아이디·비밀번호는 App Store Connect의 심사 정보 칸에만
+넣는다. 이 문서·커밋 메시지·`.env`에 적지 않는다 — 심사 정보 칸은 애플만 보고, 레포는 그렇지
+않다 (§2 「시크릿」의 `.p8` 규칙과 같은 이유다). 계정을 만들 때 각 제공자 약관의 계정 공유
+조항을 한 번 확인한다.
+
 ### 메모 (한국어 원안)
 
 ```
-이 앱은 경남 사투리 억양을 재는 테스트입니다. 회원가입과 로그인이 없어 데모 계정이 필요하지 않습니다.
+이 앱은 경남 사투리 억양을 재는 테스트입니다.
+
+[로그인]
+구글, 카카오, 네이버, 애플 중 하나로 로그인해야 테스트를 시작할 수 있습니다. 심사에는
+심사관님의 Apple ID로 Sign in with Apple을 쓰시거나, 이 심사 정보에 함께 적어 둔 카카오·네이버
+테스트 계정으로 로그인해 주세요. 카카오와 네이버는 한국 서비스의 계정이 필요한 경로라 저희가
+테스트 계정을 준비했습니다.
+첫 로그인에서 개인정보처리방침 동의를 받고, 이어지는 추가 정보 화면에서 이메일, 이름,
+생년월일, 성별, 출신 지역을 입력받습니다. 다섯 칸이 다 차야 테스트로 넘어갑니다.
+만 14세 미만은 가입할 수 없고, 생년월일 때문에 거절되면 추가 정보 화면의
+[다른 계정으로 로그인]으로 돌아갈 수 있습니다.
 
 [마이크가 필요합니다]
 테스트의 핵심 기능이 목소리 분석이라 마이크 권한이 필수입니다. 조용한 곳에서 화면의 문장을
 소리 내어 읽어 주세요. 시뮬레이터나 마이크가 없는 환경에서는 음성 문항을 통과할 수 없습니다.
 
-[진행 경로 — 10문항, 약 3분]
-인트로 → 광고 동의 시트(첫 실행) → 마이크 권한 → 목소리 점검 → 음성 5문항 → 어휘 5문항
-→ 분석 대기 → 결과
+[진행 경로 — 7문항, 약 3분]
+로그인 → 추가 정보(신규 계정만) → 인트로 → 광고 동의 시트(첫 실행) → 마이크 권한 →
+목소리 점검 → 음성 3문항·어휘 4문항(섞여 나옴) → 분석 대기 → 결과
 
 [마이크 권한을 거부하면]
 안내 화면과 [설정 열기] 버튼이 나오고, 설정에서 허용하고 돌아오면 앱을 다시 켜지 않아도
@@ -727,15 +891,30 @@ Google AdMob 전면 광고(분석 대기 화면)와 보상형 광고(재응시 �
 실제 광고 단위 ID로 제출합니다.
 
 [음성 데이터]
-녹음한 음성은 점수를 매기는 동안에만 서버에서 쓰이고 요청이 끝나는 즉시 삭제됩니다.
-저장하거나 다른 곳으로 보내지 않습니다.
+녹음한 음성은 점수를 매기는 데 쓰입니다. 음성 저장과 AI 모델 학습 활용에 따로 동의하지 않은
+경우에는 요청이 끝나는 즉시 삭제됩니다. 이 선택 동의를 한 경우에만 음성을 서버(AWS 서울 리전)에
+보관해 억양 분석 모델의 학습과 개선에 씁니다. 동의하지 않아도 앱 이용에 제한이 없고, 동의는
+철회할 수 있습니다. 음성을 제3자에게 제공하지 않습니다.
+
+[계정 정보와 탈퇴]
+계정에 두는 정보는 로그인 제공자가 준 식별값과 이메일, 이름, 생년월일, 성별, 출신 지역이며
+탈퇴하실 때까지 보관합니다. 앱의 설정 화면에서 탈퇴하실 수 있습니다.
 ```
 
 ### 메모 (영어 — 콘솔에 넣는 것은 이쪽)
 
 ```
 This app measures how strongly a speaker's accent matches the Gyeongnam dialect of Korean.
-There is no sign-up or login, so no demo account is required.
+
+[Sign-in]
+A sign-in is required before the test. Four providers are offered: Google, Kakao, Naver and
+Apple. Please sign in with your own Apple ID via Sign in with Apple, or with the Kakao and Naver
+test accounts provided in this review information. Kakao and Naver require an account with those
+Korean services, so we prepared test accounts for them. On the first
+sign-in the user agrees to the privacy policy, and the next screen collects email, name, date of
+birth, gender and home region. All five are required before the test starts. Users under 14
+cannot sign up; if the date of birth is rejected, the screen offers "sign in with a different
+account" to get back out.
 
 [Microphone is required]
 Voice analysis is the core function, so microphone permission is mandatory. Please read the
@@ -761,9 +940,22 @@ Google AdMob interstitial (on the analysis wait screen) and rewarded (before a r
 The build is submitted with production ad unit IDs.
 
 [Voice data]
-Recorded audio is used on the server only while the request is being scored and is deleted as
-soon as the request finishes. It is never stored or shared.
+Recorded audio is used to score the test. Unless the user gives a separate, optional consent to
+voice storage and AI model training, the audio is deleted as soon as the request finishes. Only
+with that optional consent is the audio stored on our server (AWS Seoul region) and used to train
+and improve the intonation analysis model. Declining does not restrict use of the app, and the
+consent can be withdrawn. Audio is never shared with third parties.
+
+[Account data and deletion]
+An account holds the provider's user identifier, email, name, date of birth, gender and home
+region, and is kept until the user deletes it. Account deletion is available in the app under
+Settings.
 ```
+
+> **마지막 문단의 「Settings」는 KAN-251이 머지된 뒤 실제 화면에 맞춰 재확인한다.** 탈퇴 UI는
+> KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI) 순서로 들어온다 (§10 「앱 내 계정 삭제」). 화면
+> 이름과 경로가 확정되면 한국어·영어 두 메모의 그 문단을 그 말로 맞추고, 그때까지는 제출하지
+> 않는다 — 가이드라인 5.1.1(v)가 앱 안의 삭제 경로를 요구한다.
 
 권한 거부 분기는 실제 코드 그대로 적었다 —
 `ios/Accentury/Permission/PermissionGateView.swift:85-87`이 `permanentlyDenied` 상태에서
@@ -779,18 +971,18 @@ soon as the request finishes. It is never stored or shared.
 
 ## 9. 콘솔 작업 순서
 
-- [ ] 앱 레코드 확인 (번들 `com.accentury.app`) — KAN-108에서 생성됨
+- [x] 앱 레코드 확인 (번들 `com.accentury.app`) — KAN-108에서 생성됨
 - [ ] **숫자 Apple ID 확인해 §1 표와 §3 스토어 URL에 기록** — 앱 정보 › 일반 정보 › Apple ID
-- [ ] 사용자 및 액세스 › 통합에서 App Store Connect API 키 발급 (App Manager), `.p8` 1회 다운로드 → GitHub 시크릿 3개 등록 (§2)
+- [x] 사용자 및 액세스 › 통합에서 App Store Connect API 키 발급 (App Manager), `.p8` 1회 다운로드 → GitHub 시크릿 3개 등록 (§2) — 2026-09-23 완료, AdMob iOS 셋도 같이 등록
 - [ ] 앱 정보 — 이름·부제·카테고리·저작권·개인정보 처리방침 URL (§3)
 - [ ] 가격 및 사용 가능 여부 — 무료, 대한민국 (그 밖 지역은 팀 결정)
 - [ ] 버전별 정보 — 프로모션 텍스트·설명·키워드·지원 URL·마케팅 URL (§3)
 - [ ] 스크린샷 6.7"·6.1" 각 4장 업로드 (§4)
 - [ ] **앱 개인정보 보호 — §6.2 표 그대로 입력.** 「추적」 = 예
 - [ ] 연령 등급 설문 (§7) — 「광고」 체크 잊지 말 것
-- [ ] 빌드 7 업로드 → TestFlight 처리 완료 대기 → 버전에 빌드 선택
+- [x] 빌드 7 업로드 — 2026-09-23 러너 5차가 TestFlight에 올렸다 (§2 「러너 실행 기록」). **→ 빌드 8로 재업로드 필요** — 빌드 7은 KAN-224 로그인 게이트 이전이라 제출 빌드로 쓸 수 없다 (§10). 버전에 빌드를 고르는 것은 위 「버전별 정보」와 같이 한다
 - [ ] 수출 규정 — `ITSAppUsesNonExemptEncryption=false`가 plist에 있어 콘솔에서 다시 묻지 않는다 (`Info-Release.plist:11-12`)
-- [ ] 앱 심사 정보 — §8 영어 메모, 연락처, 로그인 없음
+- [ ] 앱 심사 정보 — §8 영어 메모, 연락처, **로그인 필요 = 예**, 카카오·네이버 테스트 계정 2개 입력 (§8, 자격 증명은 콘솔에만)
 - [ ] 심사 제출 (§10 선행 조건을 먼저 전부 닫는다)
 - [ ] **게시 뒤** 숫자 Apple ID로 App Store URL 확정 → GitHub environment 변수 `APP_STORE_URL` 등록 + `STORE_LISTING_READY=true` (prod·staging **각각**) → 재배포
 
@@ -802,18 +994,37 @@ soon as the request finishes. It is never stored or shared.
 
 | 막는 것 | 누가·어디서 | 티켓 | 상태 |
 |---|---|---|---|
-| prod 스택과 방침 본문 게시 | 인프라 · **Accentury_Server** `scripts/publish-privacy.sh prod` | KAN-176 · KAN-209 | **해결** — `https://accentury.app/privacy.html` 200 (2026-09-21 확인). 확장자 `.html` 필수, `/privacy`는 SPA 재작성에 걸린다 |
-| 방침 시행일 자리표시자 | 계정 소유자 · **Accentury_Server** `infra/privacy/privacy.html` 102·710행 | KAN-176 | **미해결** — 게시 당일 날짜로 두 자리 모두 교체 (같은 레포 `docs/wiki/privacy-policy.md` §3 게이트 6행) |
+| prod 스택과 방침 URL | 인프라 · **Accentury_Server** `scripts/publish-privacy.sh prod` | KAN-176 · KAN-209 | **해결** — `https://accentury.app/privacy.html` 200 (2026-09-21 확인). 확장자 `.html` 필수, `/privacy`는 SPA 재작성에 걸린다. **URL은 살았고 본문이 옛 버전이다** — 아래 행 |
+| 방침 본문 prod 게시 | 인프라 · **Accentury_Server** `scripts/publish-privacy.sh prod` | KAN-176 · KAN-240 | **레포 기재 완료 · prod 게시 미완** — 레포의 `infra/privacy/privacy.html`은 시행일과 방침 버전이 `2026-10-04`다(KAN-269 개정, 그 앞은 KAN-240의 `2026-09-29`. 자리표시자 없음). 그런데 `https://accentury.app/privacy.html`은 아직 「정식 게시일에 기재합니다 (초안 2026-09-07)」 버전이다. 게시 날짜는 앱 상수 `privacyPolicyVersion`(iOS `ios/AccenturyCore/Sources/AccenturyCore/Auth/LoginScreenState.swift`)·`PRIVACY_POLICY_VERSION`(Android `app/src/main/java/com/accentury/app/auth/LoginScreenState.kt`)과 같은 값이어야 한다 — 서버가 가입 동의 버전을 게시 버전과 대조하므로 어긋나면 로그인이 막힌다 (같은 레포 `docs/wiki/privacy-policy.md` §3 게이트 6행) |
 | 방침의 스토어 답안 일치 | 개발 · **Accentury_Server** `docs/wiki/privacy-policy.md` §2 | KAN-175 | **이 문서가 닫는다** — §6이 정본 (같은 파일 §3 게이트 7행) |
-| AdMob iOS 실 광고 단위 ID | 계정 소유자 · AdMob 콘솔 → GitHub 시크릿 `ADMOB_IOS_APP_ID`·`ADMOB_IOS_INTERSTITIAL_ID`·`ADMOB_IOS_REWARDED_ID` | KAN-196 | **미해결** — 지금 빌드는 Google 테스트 ID로 나간다. 테스트 ID가 스토어로 가면 AdMob 정책 위반이다. 아카이브에 `ADMOB_APP_ID=… ADMOB_INTERSTITIAL_ID=… ADMOB_REWARDED_ID=… REQUIRE_ADMOB_IDS=YES`를 준다 (`ads-admob.md` §3·§7.2) |
-| 카카오 콘솔 iOS 플랫폼 등록 + `KAKAO_NATIVE_APP_KEY` | 계정 소유자 · 카카오 개발자 콘솔 | KAN-180 | **미해결(확인 필요)** — 키가 없으면 공유가 시스템 공유 시트로 떨어진다. 설명 §3이 카카오톡 공유를 약속하므로 키 없이 제출하면 문안과 동작이 갈린다 (`ResultSharer.swift:62`) |
+| AdMob iOS 실 광고 단위 ID | 계정 소유자 · AdMob 콘솔 → GitHub 시크릿 `ADMOB_IOS_APP_ID`·`ADMOB_IOS_INTERSTITIAL_ID`·`ADMOB_IOS_REWARDED_ID` | KAN-196 | **해결(2026-09-23)** — 시크릿 셋 등록 완료. 러너 2~5차가 `REQUIRE_ADMOB_IDS=YES`로 돌아 산출물 검증이 Google 테스트 퍼블리셔 ID가 아님을 확인했다. TestFlight에 올라간 빌드 6·7은 실 ID 빌드다 (`ads-admob.md` §3·§7.2) |
+| 카카오 콘솔 iOS 플랫폼 등록 + `KAKAO_NATIVE_APP_KEY` | 계정 소유자 · 카카오 개발자 콘솔 | KAN-180 | **해결(2026-10-01 확인)** — iOS 플랫폼에 번들 ID가 등록돼 있고 시크릿은 KAN-163의 네이티브 앱 키를 그대로 쓴다. 산출물 검증이 번들 `Info.plist`의 키 길이를 보므로 빈 값으로 나갈 수는 없다 (`ResultSharer.swift:62`) |
 | Universal Links AASA 게시 | 인프라 · **Accentury_Server** `infra/well-known/*/.well-known/apple-app-site-association` | KAN-32 | 게시됨. 심사를 막지는 않지만 딥링크가 조용히 죽는다 (`app-links.md`) |
 | 빌드 번호 7 이상 | 개발 · `CURRENT_PROJECT_VERSION` | KAN-175 3단계 | **해결(2026-09-23)** — iOS·Android 둘 다 7. 빌드 6이 C2 아이콘으로 소모돼 D3 빌드는 7부터다. 규칙과 검사는 `ios/Accentury/Config/Base.xcconfig` 주석과 `AccenturyCoreTests/ReleaseVersionParityTests` |
 | `APP_STORE_URL`·`STORE_LISTING_READY` 주입 | 계정 소유자 · GitHub environment 변수 (prod·staging **각각**) | KAN-175 2단계 | **미해결** — 배선은 끝났다 (`.github/workflows/web-deploy.yml`가 둘 다 빌드로 넘기고 `web/src/audio/storeLink.ts`가 받는다). 남은 것은 값 등록뿐 — `APP_STORE_URL=https://apps.apple.com/app/id<숫자>`, 게시 뒤 `STORE_LISTING_READY=true` (§9 마지막 항목) |
-| 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **부분 해결(2026-09-22)** — 워크플로는 있다(§2 「릴리스 워크플로」). 남은 것은 시크릿 6개 등록과 러너에서의 첫 실행이다 |
+| 제출 빌드가 현재 Dev를 담아야 한다 | 개발 · `CURRENT_PROJECT_VERSION` · `versionCode` → 워크플로 `upload` | KAN-175 | **미해결** — TestFlight의 빌드 7은 2026-09-23 것이고 **KAN-224 소셜 로그인 게이트·KAN-240 가입 동의·KAN-237·KAN-248보다 앞선다** (그 뒤 Dev에 33커밋, iOS를 건드린 것이 11개). 로그인 없는 빌드를 제출하면서 방침과 라벨은 계정 데이터를 말하게 된다. 둘을 8로 올리고 워크플로를 `upload=true`로 돌려 **빌드 8**을 올린다 |
+| **앱 내 계정 삭제** | 개발 · 설정 화면 → `POST /v0/users/me/withdrawal` | **KAN-251** (FR-AC-09) · 선행 KAN-247 · 서버 KAN-241 | **미해결** — 가이드라인 5.1.1(v)가 「If your app supports account creation, you must also offer account deletion within the app」을 요구한다 (2026-10-01 확인). 서버 탈퇴 API는 있다(Accentury_Server `backend/.../auth/UserController.java:56`, KAN-241). **앱에는 그 버튼이 없다** — 레포 전체에 「탈퇴」·`withdraw` 문자열이 없다. 순서는 **KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI)**이고, 2026-10-01에 KAN-251을 따로 떼어 열었다. 계정을 만드는 앱이 삭제 경로 없이 제출하면 거절된다 |
+| 구글 로그인 시크릿 3개 | 계정 소유자 · GitHub 시크릿 `GOOGLE_IOS_CLIENT_ID`·`GOOGLE_REVERSED_CLIENT_ID`·`GOOGLE_SERVER_CLIENT_ID` | KAN-224 | **미해결(2026-10-01 `gh secret list` 기준)** — 셋 다 없다. 네이버 셋·카카오 1·ASC 셋·AdMob iOS 셋은 등록돼 있다. 워크플로가 `REQUIRE_IDP_CONFIG=YES`로 빈 값을 막으므로 ③ 입력·시크릿 검사에서 멈추고 **빌드 8을 만들 수 없다** (§2 「러너 실행 기록」) |
+| 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **해결(2026-09-23)** — 시크릿 7개 등록 뒤 러너에서 5회 돌아 빌드 6·7이 TestFlight에 올라갔다(§2 「러너 실행 기록」). 업로드 수정과 빌드 7은 PR #3으로 Dev에 반영됐다(2026-09-28). 그 뒤 KAN-224가 구글 시크릿 셋 빗장을 붙였으니 다음 실행 전에 그 셋을 등록한다 |
 
-심사를 **직접** 막는 것은 AdMob 실 ID와 방침 시행일 둘이다. 나머지는 막지는 않되
-제출 전에 닫아 두는 쪽이 낫다.
+심사를 **직접** 막는 것은 넷이다.
+
+1. **앱 내 계정 삭제** (5.1.1(v)) — **KAN-251**이 맡는다. KAN-247이 설정 화면을 먼저 세우고
+   그 안에 탈퇴를 넣는 순서다. 코드가 필요한 유일한 차단 항목이다
+2. **방침 본문의 prod 게시** (`publish-privacy.sh prod`) — 앱 상수와 같은 `2026-10-04`가 떠 있어야
+   서버가 가입 동의를 받는다. 로그인 자체가 prod에서 돌지 않는다는 뜻이라 사실상 1순위다
+3. **빌드 8 업로드** — 그 전에 구글 로그인 시크릿 3개 등록
+4. **Play 문안 동기화** — §3 설명이 로그인을 말하게 됐으니 `play-store-listing.md` §3도 같이
+   고친다 (KAN-174). 두 스토어의 설명이 갈리면 그게 곧 신고 불일치다
+
+**이 문서의 §3·§6·§8 재검토는 이 커밋이 닫았다.** §3 설명에 로그인 단계와 「로그인이 필요해요」
+문단을 넣고, §6.2에 계정 데이터 세 행(⑨⑫⑬)과 ⑪의 계정 몫을 더하고, §7에 연령 보증을 켜고,
+§8을 「로그인 필요 = 예」와 데모 계정 선택지로 고쳤다. 남은 판단 둘은 §6.3 ⑨의
+**(확인 필요)** 표시(프로필 이미지 주소의 유형, 성별의 민감 정보 해당 여부)와 §8의
+**데모 계정 팀 결정**이다.
+
+나머지 미완은 콘솔 입력(숫자 Apple ID와 그 ID로 만드는
+`APP_STORE_URL`·`STORE_LISTING_READY`)이고 그쪽은 게시 뒤에야 값이 생긴다.
 
 ## 11. 관련
 
@@ -822,9 +1033,11 @@ Accentury_Server `docs/wiki/privacy-policy.md` (§2 스토어 신고 대조표, 
 [`ads-admob.md`](ads-admob.md) (KAN-196 광고 ID·ATT 순서·릴리스 빗장) ·
 [`analytics.md`](analytics.md) (KAN-33 계측 범위, §8 고지 표) ·
 Accentury_Server `docs/wiki/feedback.md` (KAN-211 이메일·후기 수집 근거) ·
+[`social-login.md`](social-login.md) (KAN-224 로그인 게이트·IdP 콘솔·시크릿) ·
 [`ios-port.md`](ios-port.md) (§7 TestFlight 서명 경로) ·
 [`app-icon-assets.md`](app-icon-assets.md) · [`app-links.md`](app-links.md) ·
 `assets/screenshots/README.md` · `web/README.md` 「배포 (KAN-127)」
 
 KAN-108 앱 레코드 · KAN-133 방침 URL · KAN-163 안드로이드 서명 · KAN-176 방침 본문 ·
-KAN-178 스토어 자산 · KAN-180 카카오 iOS · KAN-39 출시 검증
+KAN-178 스토어 자산 · KAN-180 카카오 iOS · KAN-39 출시 검증 ·
+KAN-224 소셜 로그인 · KAN-240 가입 동의 방침 버전 · KAN-241 회원 탈퇴 · KAN-247 설정·로그아웃

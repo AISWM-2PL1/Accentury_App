@@ -17,6 +17,7 @@
 
 import { expect, test } from '@playwright/test'
 import { FEEDBACK_OPEN } from '../src/feedback/feedbackText'
+import { VOCABULARY_ITEM_COUNT, VOICE_ITEM_COUNT } from '../src/intro/introText'
 import {
   answerAllItems,
   expectAppDownloadCta,
@@ -48,6 +49,20 @@ test.skip(
 )
 
 /**
+ * 음성 저장 동의를 켜고 완주한다 (KAN-270 4단계). AC 6 staging 검증용이다.
+ *
+ * 서버는 동의한 세션의 음성을 **분석이 종결될 때** 학습 버킷에 남긴다(서버 KAN-269). 그래서
+ * 시작 게이트만 지나는 `voice-consent.spec.ts`로는 저장이 일어나지 않고, 완주하는 이 스펙이
+ * 그 자리다. 완주 뒤 찍는 sessionId(`s_…`)를 S3 키의 세션 조각과 그대로 대조한다
+ * (`docs/wiki/voice-consent.md` 「검증」).
+ *
+ * `E2E_FAIL_ITEM`과 같은 이유로 환경 변수다 — 로컬·CI·staging에서 같은 신호로 동작한다
+ * (browser-e2e.md 「스택 두 상태와 대칭 스킵」). 정확히 `'true'`만 켜고, 없으면 지금까지처럼
+ * 미동의로 돈다. 아래 KAN-197 스펙은 광고를 보는 자리라 이 값을 읽지 않는다.
+ */
+const VOICE_CONSENT = process.env.E2E_VOICE_CONSENT === 'true'
+
+/**
  * 등급 이름. **서버가 정하는 값이다** — 화면은 `tier.name`을 그대로 그리고 클라이언트에는
  * 등급 표가 없다 (`tierAssets.ts` 헤더의 KAN-29 결정).
  *
@@ -58,24 +73,26 @@ test.skip(
  */
 const TIER_NAMES = ['외지인', '여행객', '사투리 호소인', '명예주민', '경남 토박이']
 
-test('웹 단독 완주 - 10문항을 풀고 분석을 기다려 결과 등급·점수까지 본다', async ({ page }) => {
+test('웹 단독 완주 - 정의의 문항을 전부 풀고 분석을 기다려 결과 등급·점수까지 본다', async ({ page }) => {
   page.on('console', (message) => {
     if (message.type() === 'error') console.log(`[browser:error] ${message.text()}`)
   })
 
   const startedAt = Date.now()
-  await startTest(page)
+  await startTest(page, { voiceConsent: VOICE_CONSENT })
+  // 문항 화면 주소에 실린 값이다 (`startTest`가 `sessionId=`까지 단언한다)
+  const sessionId = new URL(page.url()).searchParams.get('sessionId')
 
   const seen = await answerAllItems(page)
   expect(seen).toHaveLength(TOTAL_ITEMS)
   /*
-   * 유형 구성만 확인하고 순서는 보지 않는다. 지금 정의는 음성·어휘가 번갈아 나오지만 그건
-   * 정의의 사정이라(`gn-2026.08.1`), 순서를 박아 두면 문항을 재배치하는 날 이 스펙이
+   * 유형 구성만 확인하고 순서는 보지 않는다. 순서(지금 `gn-2026.10.1`은 음성, 음성, 어휘, 음성,
+   * 어휘, 어휘, 어휘)는 정의의 사정이라, 순서를 박아 두면 문항을 재배치하는 날 이 스펙이
    * "완주가 깨졌다"고 거짓 신호를 낸다. 반대로 개수는 계약이다 — 인트로가 상수로 약속한
-   * 음성 5 + 어휘 5가 그대로 나와야 한다 (`introText.ts`).
+   * 음성 3 + 어휘 4가 그대로 나와야 한다 (`introText.ts`, KAN-261).
    */
-  expect(seen.filter((type) => type === 'VOICE')).toHaveLength(5)
-  expect(seen.filter((type) => type === 'VOCABULARY')).toHaveLength(5)
+  expect(seen.filter((type) => type === 'VOICE')).toHaveLength(VOICE_ITEM_COUNT)
+  expect(seen.filter((type) => type === 'VOCABULARY')).toHaveLength(VOCABULARY_ITEM_COUNT)
   const submittedAt = Date.now()
 
   /*
@@ -120,6 +137,8 @@ test('웹 단독 완주 - 10문항을 풀고 분석을 기다려 결과 등급·
   console.log(
     `완주 ${finishedAt - startedAt}ms (문항 ${submittedAt - startedAt}ms + 분석 대기 ${finishedAt - submittedAt}ms)`,
   )
+  // S3 키 대조용. 동의 여부도 함께 찍어 대조군 판과 섞이지 않게 한다
+  console.log(`[e2e] sessionId=${sessionId} voiceConsent=${VOICE_CONSENT}`)
 })
 
 /**
@@ -136,13 +155,12 @@ test('웹 단독 완주 - 10문항을 풀고 분석을 기다려 결과 등급·
  *
  * ## 여기서만 빌드 변수를 읽는 이유
  *
- * 지역 화면은 **화면에 뜬 것을 보고** 간다 (`testFlow.ts`의 `startTest`). 스펙이 자기가 어떤
- * 번들을 열었는지 모른다는 것이 그 원칙이고, 여기서도 원칙 자체는 같다. 다만 광고는 **없는 것을
- * 단언해야** 하는 쪽이라 화면만 봐서는 「태그 없는 빌드라 없다」와 「태그 있는 빌드인데 안 섰다」가
+ * 스펙은 자기가 어떤 번들을 열었는지 모르고 **화면에 뜬 것을 보고** 간다는 것이 이 디렉터리의
+ * 원칙이고, 여기서도 원칙 자체는 같다. 다만 광고는 **없는 것을 단언해야** 하는 쪽이라 화면만 봐서는 「태그 없는 빌드라 없다」와 「태그 있는 빌드인데 안 섰다」가
  * 구분되지 않는다 — 후자가 바로 이 스펙이 잡아야 할 실패다.
  *
  * 그래서 기대를 가르는 값이 필요한데, 로컬 판에서는 그 값을 스펙이 알 수 있다. Playwright가
- * `webServer.env`를 부모 환경 **위에** 얹으므로(`playwright.config.ts`의 `VITE_REGION_SELECT`
+ * `webServer.env`를 부모 환경 **위에** 얹으므로(`playwright.config.ts`의 `webServer`
  * 주석, 1.62 실측) 셸에 준 `VITE_ADSENSE_*`가 개발 서버에 그대로 닿고, 같은 값이 이 프로세스에도
  * 있다. `E2E_BASE_URL`로 배포 환경을 겨눌 때는 이야기가 다르다 — 번들이 이미 굳어 있고 그 안의
  * 값을 셸이 알 길이 없으므로, 그때는 슬롯 판정을 하지 않고 CTA만 본다.

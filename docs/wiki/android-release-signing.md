@@ -69,6 +69,11 @@ PEPK 함정은 `docs/wiki/play-store-listing.md` §2에 있다.
 설정 단계에서 죽인다. 평소에는 꺼 두고(기본 false) **릴리스 워크플로만 켠다** — "빈 키가 정상"은
 로컬·PR CI 이야기지 스토어로 나가는 빌드 이야기가 아니다. 이건 비밀이 아니라 스위치라 `-P`로 준다.
 
+로그인 IdP 빗장 둘(KAN-224)도 같은 꼴이다 — `-PrequireGoogleServerClientId=true`는 `googleServerClientId`가,
+`-PrequireNaverClient=true`는 `naverClientId`·`naverClientSecret` 중 하나라도 비었을 때 설정 단계에서 죽인다.
+빈 값으로 나가면 로그인 화면에서 그 IdP 버튼이 사라진 채 배포된다. 값과 발급 위치는
+[social-login.md](social-login.md) §3·§4.
+
 로컬에서 서명 빌드를 해 보려면 `local.properties`(gitignore 대상)에:
 
 ```properties
@@ -77,6 +82,14 @@ releaseKeystorePassword=...
 releaseKeyAlias=accentury
 releaseKeyPassword=...
 kakaoNativeAppKey=...
+# 로그인 IdP (KAN-224) - 비워 두면 그 버튼이 숨는다
+googleServerClientId=...
+naverClientId=...
+naverClientSecret=...
+# 디버그 전용 가짜 IdP - 서버도 accentury.auth.fake-idp=true여야 한다 (social-login.md §5)
+# fakeIdp=true
+# 로그인 관문 (KAN-270 5단계) - 기본 꺼짐(익명 모드), release도 켤 수 있다 (social-login.md §5)
+# loginEnabled=true
 ```
 
 그 다음 `./gradlew :app:assembleRelease` (JAVA_HOME은 Android Studio JBR).
@@ -100,8 +113,11 @@ kakaoNativeAppKey=...
 ⑥ 키스토어를 `$RUNNER_TEMP`에 base64 디코딩(체크아웃 밖 — 레포 안에 두면 아티팩트에 딸려 나갈 수
 있다) ⑦ `:app:bundleRelease :app:assembleRelease` 한 번 호출 ⑧ **apksigner verify** + 지문 추출
 ⑨ 카카오 키 재확인(생성된 `BuildConfig` grep + 서명된 APK의 DEX 검사) ⑩ 아티팩트 업로드 ⑪ 매핑 업로드(있으면) ⑫ 실행 요약.
+KAN-224에서 ⑨ 뒤에 **로그인 IdP 설정 확인**이 붙었다 — 릴리스 `BuildConfig`의 `GOOGLE_SERVER_CLIENT_ID`·
+`NAVER_CLIENT_ID`·`NAVER_CLIENT_SECRET`이 비지 않았는지, `FAKE_IDP`가 `false`인지 본다. ⑦에는
+`-PrequireNaverClient=true -PrequireGoogleServerClientId=true`가 더해졌다.
 
-시크릿은 저장소 시크릿 4개다.
+시크릿은 저장소 시크릿 7개다.
 
 | 이름 | 무엇 | 등록자 |
 |---|---|---|
@@ -109,6 +125,9 @@ kakaoNativeAppKey=...
 | `RELEASE_KEYSTORE_PASSWORD` | 키스토어 비밀번호 | 박유현 |
 | `RELEASE_KEY_PASSWORD` | 키 비밀번호 | 박유현 |
 | `KAKAO_NATIVE_APP_KEY` | 카카오 네이티브 앱 키 (KAN-30) | 박유현 |
+| `GOOGLE_SERVER_CLIENT_ID` | 구글 "웹 애플리케이션" OAuth 클라이언트 ID (KAN-224, iOS와 공유) | 박유현 |
+| `NAVER_CLIENT_ID` | 네이버 개발자 센터 앱 Client ID (KAN-224, iOS와 공유) | 박유현 |
+| `NAVER_CLIENT_SECRET` | 같은 앱 Client Secret (KAN-224, iOS와 공유) | 박유현 |
 
 **키 alias(`accentury`)는 시크릿이 아니라 워크플로 상수다** — `app-release.yml`의 릴리스 빌드 스텝에
 `RELEASE_KEY_ALIAS: accentury`로 박혀 있다. 시크릿으로 두면 GitHub가 실행 로그에서 그 문자열을 전부
@@ -186,8 +205,8 @@ AC1·AC2·AC4는 로컬 시뮬레이션(임시 키스토어)으로 전 스텝을
   어느 쪽을 고르든 **업로드 키**는 따로 만들어도 되고 이 키스토어를 그대로 써도 된다. 업로드 키는
   잃어도 구글에 재발급을 요청할 수 있다 — 앱 서명 키와 달리 복구 경로가 있는 쪽이다.
 - **`versionCode`.** ~~규칙이 없다~~ → **규칙 확정 (KAN-175 3단계).** iOS
-  `CURRENT_PROJECT_VERSION`과 같은 값을 **같은 커밋에서 같이 올린다**. 지금 둘 다 `7`이고
-  (TestFlight에 1.0 빌드 6까지 올라가 있어 7부터라야 받는다), 어긋나면 iOS의
+  `CURRENT_PROJECT_VERSION`과 같은 값을 **같은 커밋에서 같이 올린다**. 지금 둘 다 `8`이고
+  (TestFlight에 1.0 빌드 7까지 올라가 있어 8부터라야 받는다), 어긋나면 iOS의
   `AccenturyCoreTests/ReleaseVersionParityTests`가 두 파일을 직접 읽어 대조하다 실패한다.
   근거와 값은 `ios/Accentury/Config/Base.xcconfig` 주석에 있다. 올리는 것 자체는 여전히 수동이다.
 - **R8 축소.** release가 `optimization { enable = false }`라 R8이 돌지 않는다(카카오 SDK가 retrofit·

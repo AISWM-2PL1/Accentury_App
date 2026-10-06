@@ -12,10 +12,18 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { AD_CONSENT_DENY, AD_CONSENT_TITLE } from '../../src/ads/adConsentText'
 import { STORE_PENDING_CAPTION } from '../../src/audio/storeText'
+import { VOICE_CONSENT_CHECKBOX_LABEL, VOICE_CONSENT_TITLE, VOICE_CONSENT_VERSION } from '../../src/legal/voiceConsent'
+import { VOCABULARY_ITEM_COUNT, VOICE_ITEM_COUNT } from '../../src/intro/introText'
 import { itemCaption } from '../../src/progress/itemBadge'
 
-/** 정의가 내려주는 문항 수 (음성 5 + 어휘 5). 진행 캡션의 분모이기도 하다 */
-export const TOTAL_ITEMS = 10
+/**
+ * 정의가 내려주는 문항 수. 진행 캡션의 분모이기도 하다.
+ *
+ * 실서버 정의 gn-2026.10.1(KAN-261)은 음성 3 + 어휘 4 = 7문항이다. 정의 응답에서 읽지 않고
+ * 인트로 상수에서 합하는 이유: 정의는 [startTest] 안에서 받아 이 헬퍼가 들고 있지 않고, 인트로
+ * 상수가 같은 정의 값을 사용자에게 약속한 정본이라(`introText.ts`) 둘이 어긋나면 그 자체가 결함이다.
+ */
+export const TOTAL_ITEMS = VOICE_ITEM_COUNT + VOCABULARY_ITEM_COUNT
 
 /**
  * 녹음 길이. 품질 게이트의 하한이 1초이고(`quality.ts`의 `MIN_DURATION_MS`) 문항 상한이
@@ -93,24 +101,30 @@ export async function passAdConsentIfShown(page: Page): Promise<void> {
  * 세션 응답을 URL 확인과 갈라서 보는 이유는 실패를 가르기 위해서다 — 201이 왔는데 URL이 안
  * 바뀌면 이동 쪽 문제이고, 201 자체가 안 오면 백엔드나 `/v0` 프록시 쪽이다.
  *
- * ## 지역 화면은 있을 수도, 없을 수도 있다 (KAN-202)
+ * ## 지역 화면은 늘 있다 (KAN-202, KAN-274)
  *
- * 출신 지역 선택 화면은 빌드 변수 `VITE_REGION_SELECT`가 정확히 `'true'`인 번들에만 있다
- * (`regions.ts`의 `isRegionSelectEnabled`) — staging은 켜고 prod는 변수 자체가 없다. 그런데
- * 스펙은 **어느 빌드를 열었는지 모른다.** `E2E_BASE_URL`로 배포 환경을 겨눌 때는 화면이
- * 이미 굳은 번들이고, 로컬은 `playwright.config.ts`가 셸의 값을 개발 서버에 넘긴 대로다.
- * 스펙에 주소가 하나도 없어 같은 스펙이 로컬·staging 양쪽을 도는 것과 같은 원칙으로, 이
- * 헬퍼도 변수를 읽지 않고 **화면에 뜬 것을 보고** 간다 — 지역 화면이 떴으면 고르고 지나가고,
- * 점검 화면이 바로 떴으면 그대로 간다. 그래서 스펙 파일을 켠 판·끈 판으로 나누지 않고 한
- * 벌이 양쪽에서 돈다.
+ * 출신 지역 선택 화면은 예전에 빌드 스위치가 켜진 번들(staging)에만 있어서, 이 헬퍼가 화면에 뜬 것을
+ * 보고 고르거나 건너뛰었다. KAN-274가 스위치를 걷어내 웹 단독 실행이면 동의 다음에 반드시 선다.
+ * 그래서 유무를 보지 않고 제목을 기다린다 — 안 뜨면 그 자체가 결함이다 (스위치가 남은 옛 번들을
+ * `E2E_BASE_URL`로 겨눈 경우도 여기서 드러난다).
  *
- * 다만 "지나갔다"로 끝내지 않고 세션 생성 **요청 본문**까지 본다. 켜진 빌드는 고른 코드가
- * `region`으로 실려야 하고(AC "지역 선택을 거쳐 결과까지"), 꺼진 빌드는 키 자체가 없어야
- * 한다(AC "변수 없는 빌드는 본문에 region 없음", `createWebSession`이 null이면 필드째 뺀다).
- * 201 응답만 보면 서버가 받아 줬다는 것뿐이고 무엇을 보냈는지는 모른다 — 요청은
- * `waitForRequest`로 따로 잡아야 본문이 보인다.
+ * "지나갔다"로 끝내지 않고 세션 생성 **요청 본문**까지 본다. 고른 코드가 `region`으로 실려야 한다.
+ * 201 응답만 보면 서버가 받아 줬다는 것뿐이고 무엇을 보냈는지는 모른다 — 요청은 `waitForRequest`로
+ * 따로 잡아야 본문이 보인다.
+ *
+ * ## 음성 저장 동의 화면은 늘 있다 (KAN-270)
+ *
+ * 웹 단독 실행이면 권한 뒤에 반드시 뜬다. 그래서 유무를 보지 않고
+ * 제목을 기다린다 — 안 뜨면 그 자체가 결함이다. 기본은 체크하지 않은 [다음](선택 동의라 건너뛰기가
+ * 곧 미동의)이고, `voiceConsent: true`면 체크하고 지나간다. 본문 단언은 지역과 같은 방식이다 —
+ * 체크했으면 게시 버전이, 아니면 키 자체가 없어야 한다.
+ *
+ * 체크했다면 서버가 그 버전을 알아야 201이다. 버전을 모르는 서버(KAN-269 전)는 400을 주고 웹이
+ * 동의 없이 한 번 더 만드는데, 그 경우 첫 요청 본문에는 버전이 실리고 응답은 400이라 아래 201
+ * 단언에서 걸린다 — 동의 스펙이 서버 버전 어긋남을 드러내는 자리다.
  */
-export async function startTest(page: Page): Promise<void> {
+export async function startTest(page: Page, options: { voiceConsent?: boolean } = {}): Promise<void> {
+  const voiceConsent = options.voiceConsent === true
   await page.goto('/')
 
   /*
@@ -121,34 +135,29 @@ export async function startTest(page: Page): Promise<void> {
 
   /*
    * [시작하기]가 곧 마이크 권한 요청이다. `--use-fake-ui-for-media-stream`이 대화상자를
-   * 자동 승인하므로 여기서 멈추지 않고, 승인되면 App이 지역 화면(켜진 빌드) 또는 목소리
-   * 점검 화면으로 갈아 끼운다.
+   * 자동 승인하므로 여기서 멈추지 않고, 승인되면 App이 음성 저장 동의 화면으로 갈아 끼운다.
    */
   await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
 
-  /*
-   * 둘 중 하나가 뜨기를 먼저 기다린 뒤에 어느 쪽인지 본다. 기다리지 않고 `isVisible()`부터
-   * 부르면 권한 승인이 끝나기 전의 빈 순간을 "지역 화면 없음"으로 읽는다 — `isVisible()`은
-   * 기다리지 않는 즉답이다.
-   */
-  const regionHeading = page.getByRole('heading', {
-    level: 1,
-    name: '출신 지역이 어디신가요?',
-  })
-  const voiceHeading = page.getByRole('heading', { name: '목소리를 확인할게요' })
-  await expect(regionHeading.or(voiceHeading)).toBeVisible()
-
-  const regionShown = await regionHeading.isVisible()
-  if (regionShown) {
-    /*
-     * 라디오는 어휘 문항과 같은 `.choice__radio`라 1px + clip-path로 눈에서만 지워져 있다
-     * (`answerVocabularyItem`의 주석). 같은 이유로 `force`. [다음]은 고르기 전에는 disabled라
-     * 고른 뒤에만 눌린다.
-     */
-    await page.getByRole('radio', { name: E2E_REGION.label }).check({ force: true })
-    await page.getByRole('button', { name: '다음', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeVisible()
+  if (voiceConsent) {
+    // 체크박스는 숨기지 않은 실물 표식이라 지역 라디오와 달리 `force`가 필요 없다
+    await page.getByRole('checkbox', { name: VOICE_CONSENT_CHECKBOX_LABEL }).check()
   }
-  await expect(voiceHeading).toBeVisible()
+  // [다음]은 체크와 무관하게 열려 있다 — 체크하지 않은 [다음]이 곧 미동의다
+  await page.getByRole('button', { name: '다음', exact: true }).click()
+
+  /*
+   * 동의 다음은 늘 지역 화면이다. 라디오는 어휘 문항과 같은 `.choice__radio`라 1px + clip-path로
+   * 눈에서만 지워져 있다 (`answerVocabularyItem`의 주석). 같은 이유로 `force`. [다음]은 고르기 전에는
+   * disabled라 고른 뒤에만 눌린다.
+   */
+  await expect(
+    page.getByRole('heading', { level: 1, name: '출신 지역이 어디신가요?' }),
+  ).toBeVisible()
+  await page.getByRole('radio', { name: E2E_REGION.label }).check({ force: true })
+  await page.getByRole('button', { name: '다음', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '목소리를 확인할게요' })).toBeVisible()
 
   /*
    * [다음]은 판정기가 `ready`일 때만 그려진다 — 이 버튼이 보인다는 것은 가짜 마이크의
@@ -168,15 +177,13 @@ export async function startTest(page: Page): Promise<void> {
   await next.click()
   expect((await session).status()).toBe(201)
 
-  /*
-   * 본문 단언. 지역 화면을 봤는지는 위에서 화면으로 판정한 값이라, 빌드 변수를 읽지 않고도
-   * 두 빌드에서 각각 맞는 쪽을 검사한다.
-   */
+  // 본문 단언. 고른 지역은 늘 실리고, 동의 버전은 체크했을 때만 실린다
   const body = (await sessionRequest).postDataJSON() as Record<string, unknown>
-  if (regionShown) {
-    expect(body.region).toBe(E2E_REGION.code)
+  expect(body.region).toBe(E2E_REGION.code)
+  if (voiceConsent) {
+    expect(body.voiceConsentVersion).toBe(VOICE_CONSENT_VERSION)
   } else {
-    expect('region' in body).toBe(false)
+    expect('voiceConsentVersion' in body).toBe(false)
   }
 
   await expect(page).toHaveURL(/screen=test/)
@@ -194,7 +201,7 @@ export async function startTest(page: Page): Promise<void> {
  * 아직 남아 있는 순간에 유형을 판정하면 방금 지나온 문항을 한 번 더 풀게 된다.
  *
  * 캡션을 정규식이 아니라 [itemCaption]이 지은 **문자열 전체**로 잡는다. 화면 위쪽 진행
- * 표시(`ProgressIndicator`)도 "1 / 10 · 음성"이라는 닮은 줄을 그려서, 앞부분만 보는 정규식은
+ * 표시(`ProgressIndicator`)도 "1 / 7 · 음성"이라는 닮은 줄을 그려서, 앞부분만 보는 정규식은
  * 둘을 한꺼번에 집는다. 어차피 유형까지 알아야 하므로 캡션 두 개를 만들어 어느 쪽이 떴는지
  * 보는 편이 판정과 대기를 한 번에 끝낸다.
  */
@@ -274,7 +281,7 @@ function submitButton(page: Page): Locator {
 }
 
 /**
- * 10문항 전부. 화면에 뜬 것을 보고 갈라 가며 끝까지 간다.
+ * 정의의 문항 전부. 화면에 뜬 것을 보고 갈라 가며 끝까지 간다.
  *
  * @returns 실제로 지나온 문항의 유형 (순서 검증용 - 정의가 바뀌면 이 값이 달라진다)
  */

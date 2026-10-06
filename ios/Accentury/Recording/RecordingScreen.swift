@@ -74,7 +74,7 @@ struct RecordingScreen: View {
                 VStack(spacing: Papercut.space6) {
                     /*
                      * 웹 진행바와 같은 컴포넌트, 같은 값, 같은 폭이다. `note`가 "음성"인 것도
-                     * 같은 이유다 — 웹 캡션이 "3 / 10 · 음성"이라, 여기서만 종류를 빼면 같은
+                     * 같은 이유다 — 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를 빼면 같은
                      * 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
                      */
                     ProgressIndicator(current: questionIndex, total: totalQuestions, note: "음성")
@@ -108,6 +108,16 @@ struct RecordingScreen: View {
         .padding(.bottom, Papercut.space8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Papercut.cream.ignoresSafeArea())
+        /*
+         * 녹음 결과의 성공·실패 햅틱 (KAN-258). 상태가 바뀔 때마다 한 번 보고, 이 화면이 처음 본 상태는
+         * 건너뛴다 — `.onChange`는 처음 나타날 때의 값으로는 불리지 않아 그 규칙이 공짜로 따라온다
+         * (안드로이드 `primed` 플래그의 자리). 화면이 다시 나타나도 모델은 살아 있어 review·failed가
+         * 그대로 보이는데, 그것은 새 결과가 아니라 같은 결과를 다시 그리는 것이라 떨지 않는다.
+         * iOS 17의 두 인자 `.onChange(of:initial:_:)`가 아니라 iOS 16의 한 인자 판이다 (배포 타깃 16).
+         */
+        .onChange(of: model.uiState) { state in
+            if let haptic = recordingResultHaptic(state) { HapticPlayer.play(haptic) }
+        }
     }
 
     /// 곡선 두 레인을 감싸는 상자 (시안). 레인을 상자에 넣는 이유는 곡선이 "화면에 그려진 선"이

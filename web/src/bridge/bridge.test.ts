@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   appBridgeVersion,
   getSessionToken,
+  haptic,
   installItemResultReceiver,
   installRetestFailedReceiver,
   isBridgeCompatible,
@@ -21,6 +22,7 @@ import {
   type SharePayload,
   type VoiceItemStart,
 } from './bridge'
+import type { HapticType } from './bridge'
 import { REAL_GUIDE_F0, REAL_GUIDE_F0_ITEM } from '../recording/guideF0Fixture'
 import type { ItemResult } from './itemResult'
 import type { RetestFailure } from './retestFailure'
@@ -44,7 +46,7 @@ const voiceStart: VoiceItemStart = {
   itemId: REAL_GUIDE_F0_ITEM.itemId,
   prompt: REAL_GUIDE_F0_ITEM.prompt,
   itemNumber: 1,
-  totalItems: 10,
+  totalItems: 7,
   maxDurationMs: 15_000,
   // 발행본 실문항의 곡선이다 (KAN-194). 240점에 무성 null 14개가 섞여 있어,
   // JSON.stringify가 null을 그대로 실어 보내는지와 실데이터 크기가 함께 덮인다 (KAN-102)
@@ -511,5 +513,37 @@ describe('showInterstitialAd — 전면 광고 요청 (KAN-196)', () => {
     window.AccenturyBridge = fakeBridge() // showInterstitialAd 없음
 
     expect(showInterstitialAd()).toBe(false)
+  })
+})
+
+describe('haptic — 햅틱 요청 (KAN-258)', () => {
+  it('종류 문자열을 그대로 넘기고 true를 돌려준다', () => {
+    const vibrate = vi.fn()
+    window.AccenturyBridge = fakeBridge({ haptic: vibrate })
+
+    expect(haptic('tap')).toBe(true)
+    expect(haptic('success')).toBe(true)
+    expect(haptic('error')).toBe(true)
+    // 인자는 네이티브 allowlist와 같은 세 값 그대로다 — 다른 이름으로 바꿔 보내면 네이티브가 버린다
+    expect(vibrate.mock.calls).toEqual([['tap'], ['success'], ['error']])
+  })
+
+  it('브리지가 없으면(브라우저 단독) false — navigator.vibrate로 메우지 않는다', () => {
+    expect(haptic('tap')).toBe(false)
+  })
+
+  it('메서드를 모르는 구버전 앱에서도 false다', () => {
+    window.AccenturyBridge = fakeBridge() // haptic 없음
+
+    expect(haptic('tap')).toBe(false)
+  })
+  it('계약 밖 값은 네이티브로 넘기지 않고 false다', () => {
+    const vibrate = vi.fn()
+    window.AccenturyBridge = fakeBridge({ haptic: vibrate })
+
+    for (const bad of ['TAP', 'vibrate', 'success ', '', null, 1, {}]) {
+      expect(haptic(bad as unknown as HapticType)).toBe(false)
+    }
+    expect(vibrate).not.toHaveBeenCalled()
   })
 })

@@ -52,8 +52,11 @@
 | `getAdConsent(): string` | KAN-196 | 맞춤형 광고 동의 상태. `'granted' \| 'denied' \| 'unknown'` 중 하나를 동기 반환 (§8). origin이 allowlist 밖이면 `getSessionToken`처럼 빈 문자열 | 래퍼 `readAdConsent()`가 null — 시트도 링크도 광고 라벨도 없다. 계약 밖 문자열도 null |
 | `setAdConsent(state)` | KAN-196 | 동의를 네이티브 저장소에 쓴다. 인자는 `'granted' \| 'denied'` — `'unknown'`으로 되돌리는 길은 없다 | 래퍼 false. `readAdConsent()`가 null인 실행에서는 애초에 부르지 않는다 |
 | `showInterstitialAd()` | KAN-196 | 분석 대기 화면의 전면 광고. **인자도 회신도 없다** (`shareResult`와 같은 규칙) | 래퍼 false — 광고 없이 대기 화면만 |
+| `haptic(type)` | KAN-258 | 가벼운 탭·성공·실패 햅틱. 인자는 `'tap' \| 'success' \| 'error'`, 그 밖은 네이티브가 무시. 회신 없음. OS 「터치 진동」 설정을 따른다 (§9) | 래퍼 false — 무동작 (브라우저 단독·구버전 앱) |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
+
+서버가 앞서 보관한 음성을 잃어 업로드를 거절했을 때 앞 문항 녹음 화면을 다시 여는 일은 이 표에 메서드를 더하지 않고 양쪽이 각자 한다 (§10).
 
 ## 3. native → web (`window.AccenturyWeb`)
 
@@ -63,6 +66,8 @@
 | `onRetestFailed(payloadJson)` | KAN-34 | 재응시 실패 (`startRetest`·`startRetestAfterFailure` 공통). **성공은 오지 않는다** — 성공하면 페이지가 리로드된다. KAN-196부터 보상형 광고를 중간에 닫은 경우도 이 슬롯이다: `{code:'AD_DISMISSED', message:'광고를 끝까지 보시면 다시 테스트할 수 있어요', retryable:true, retryAfterMs:null}` (§8) |
 
 슬롯 단위로 갈아끼운다. 객체를 통째로 교체하면 나중에 설치한 수신자가 먼저 설치된 것을 지운다.
+
+보관 음성 유실 복구(§10)에서 다시 녹음한 앞 문항의 결과도 이 `onItemResult`로 들어온다. 웹은 그 결과를 이미 제출된 문항의 것으로 보고 무시한다.
 
 ## 4. `openExternalUrl` — 외부 링크 (KAN-177)
 
@@ -240,6 +245,10 @@ https://accentury.app/privacy.html
 유무를 보는 규칙이 **앱 경로의 것**이라는 것도 바뀌지 않았다. 웹 광고 호출(AdSense 태그)은
 아직 없다 — KAN-197 3단계다.
 
+음성 저장 선택 동의(KAN-270)는 **브리지를 쓰지 않는다.** 웹 단독은 세션(생성 본문 `voiceConsentVersion`)에,
+앱은 계정(`/v0/users/me/voice-consent`)에 기록하고, WebView 안의 웹은 동의 여부를 모른다 — 인트로 고지 문장을
+"따로 동의하지 않으면 …"으로 조건부로 바꾼 이유다. 계약 버전은 2 그대로다 ([voice-consent.md](voice-consent.md)).
+
 ### 8.1 동의 저장이 네이티브인 이유
 
 세 가지가 겹친다.
@@ -349,3 +358,118 @@ JS `.click()`으로 누르므로 시트의 막에 걸리지는 않지만, 동의
 | 새 웹 | 구버전 앱 (`startRetestAfterFailure` 없음) | 래퍼가 `startRetest()`로 폴백 — 광고가 뜬다. 재응시가 막히는 것보다 나아 감수한다. 라벨은 [다시 테스트하기]라 광고가 예고 없이 뜰 수 있다 |
 | 구버전 웹 | 새 앱 | 구버전 웹은 인자 없는 `startRetest()`만 부른다 — 광고가 뜬다 (예전 동작 그대로) |
 | — | 브리지 없음 (브라우저 단독) | 래퍼 false → `goToIntro` 폴백. 광고 없음 |
+
+## 9. 햅틱 (KAN-258)
+
+버튼 누름과 결과 순간에 짧은 햅틱을 준다. 계약 버전은 2 그대로다 — 메서드 추가라 하위호환이다(§1).
+`haptic`을 모르는 앱에서는 래퍼가 false를 주고 버튼은 진동 없이 그대로 눌린다.
+
+**`navigator.vibrate`가 아니라 브리지인 이유.** iOS WKWebView에는 `navigator.vibrate`가 없다.
+Android WebView는 있지만 VIBRATE 권한이 필요하고 길이(ms)만 정할 수 있어, OS 햅틱처럼 짧고
+가볍게 떨리지 않는다. 화면 대부분이 웹 버튼이라 웹이 네이티브 햅틱을 브리지로 부른다. 브라우저
+단독 실행에서는 햅틱이 없다 — `navigator.vibrate`로 메우지 않는다.
+
+**범위 (B안, 팀 결정).** 햅틱은 아껴 쓸 때만 뜻이 남는다(Apple HIG). 그래서 붙이는 곳을 좁혔다.
+
+| 자리 | 종류 | 구현 위치 |
+|---|---|---|
+| Primary 버튼 (`Button` `variant="primary"`) | `tap` | 웹 `ui/Button.tsx` |
+| 객관식 선택 (어휘 문항·출신 지역 라디오) | `tap` | 웹 `VocabularyItemScreen.tsx`·`RegionSelectScreen.tsx` |
+| 시작 대기 카운트다운 3·2·1 (숫자가 바뀔 때마다, 0 제외) | `tap` | 웹 `TestStartScreen.tsx` — 실기기 확인 중 사용자 요청으로 추가 (2026-10-01) |
+| 녹음 버튼 | `tap` | 네이티브 녹음 화면 (Android `RecordButton.kt`, iOS `RecordButton.swift`) |
+| 녹음 완료·실패 | `success`·`error` | 네이티브 녹음 화면 (`RecordingScreen`) — 앱 안 녹음 실패는 웹에 회신되지 않는다 |
+| Secondary·text 버튼 | 없음 | — |
+
+**종류 → 플랫폼 매핑.**
+
+| `type` | Android (API 30+ / API 29 폴백) | iOS (16+) |
+|---|---|---|
+| `tap` | `VIRTUAL_KEY` / 같음 | `UIImpactFeedbackGenerator(style: .light)` |
+| `success` | `CONFIRM` / `VIRTUAL_KEY` | `UINotificationFeedbackGenerator` `.success` |
+| `error` | `REJECT` / `LONG_PRESS` | `UINotificationFeedbackGenerator` `.error` |
+
+Android는 `ui/components/Haptic.kt`의 `View.performHaptic` 한 곳이 매핑을 쥔다. 브리지(WebView)와
+네이티브 Compose 버튼(`LocalView.current`)이 같은 함수를 부르고, Compose `HapticFeedbackType`은 쓰지
+않는다(매핑이 둘이 된다). 호출은 `ViewCompat.performHapticFeedback`이다 — `CONFIRM`·`REJECT`는
+API 30부터라 minSdk 29에서는 androidx.core가 위 폴백으로 바꿔 부른다. 그래서 API 29에서 성공은 탭과
+같은 느낌이다. 플래그 없는 호출이라 OS 「터치 진동」 설정을 따르고, VIBRATE 권한도 필요 없다
+(`Vibrator`·`FLAG_IGNORE_GLOBAL_SETTING`을 쓰지 않는다). `tap`을 `CONTEXT_CLICK`이 아니라
+`VIRTUAL_KEY`로 고른 이유: 뜻("화면 위 키를 눌렀다")이 버튼 탭과 같고, `CONTEXT_CLICK`은 마우스
+우클릭용이라 제조사마다 세기가 들쭉날쭉하다.
+
+iOS는 `UI/Components/HapticPlayer.swift`의 `HapticPlayer.play` 한 곳이 매핑을 쥔다. 브리지 디스패처와
+네이티브 SwiftUI 버튼(Primary `AccenturyButton`·`ChoiceButton`·`RecordButton`)이 같은 함수를 부르고,
+종류 자체(`Haptic`)와 allowlist 판정(`Haptic(bridgeValue:)`)은 `AccenturyCore`에 있어 `swift test`가 본다.
+SwiftUI `.sensoryFeedback`이 아니라 UIKit 생성기인 이유는 배포 타깃이다 — 그쪽은 iOS 17부터다.
+UIKit 생성기는 시스템 「햅틱」 설정을 따르므로 우리가 설정을 다시 묻지 않는다. 생성기는 부를 때마다
+만들고 `prepare()`(Taptic Engine 예열, 선택 사항)는 부르지 않는다: 탭은 손을 뗀 뒤 울려 예열할 "직전"이
+없고, 결과 햅틱은 언제 올지 모른다.
+[UIImpactFeedbackGenerator](https://developer.apple.com/documentation/uikit/uiimpactfeedbackgenerator) ·
+[UINotificationFeedbackGenerator](https://developer.apple.com/documentation/uikit/uinotificationfeedbackgenerator) ·
+[prepare()](https://developer.apple.com/documentation/uikit/uifeedbackgenerator/prepare())
+
+**녹음 결과 트리거.** `Review`로 들어가면 `canProceed`(품질 NORMAL)일 때 `success`, 아니면 `error`.
+`Failed`로 들어가면 `error`. 판정은 순수 함수 `recordingResultHaptic`이 하고(Android
+`RecordingScreen.kt`, iOS `AccenturyCore` `Recording/RecordingResultHaptic.swift`), 녹음 화면은 상태가
+바뀔 때마다 한 번 보되 **화면이 처음 본 상태는 건너뛴다**. 회전으로 액티비티가 다시 만들어져도
+뷰모델은 살아 있어 같은 결과가 다시 들어오는데, 그것은 새 결과가 아니라서 떨지 않는다. 이 규칙의
+구현이 플랫폼마다 다르다: Android는 `LaunchedEffect(state)`가 첫 값에도 돌아서 `primed` 플래그로 첫
+번을 건너뛰고, iOS는 iOS 16의 한 인자 `.onChange(of: model.uiState)`가 처음 나타날 때의 값으로는
+불리지 않아 플래그 없이 같은 동작이 나온다(iOS 17의 `initial:` 인자는 쓰지 않는다). 정지 버튼의
+`tap`과 결과의 `success`·`error`는 짧은 간격(체감상 거의 연달아)으로 이어서 난다(정지 요청 → 엔진이 다음 청크
+경계에서 끝내고 품질 판정). "눌렀다 → 결과가 정해졌다"는 두 사건이라 합치지 않는다. 10초 자동
+종료는 탭 없이 결과 햅틱만 난다.
+
+**allowlist.** 네이티브는 `tap`·`success`·`error` 세 값만 받는다. 그 밖의 값은 §5 규칙대로 조용히
+버린다 — 웹 `HapticType`과 양 플랫폼 allowlist가 같은 세 값이어야 하고, 하나를 늘리면 셋을 함께
+고친다. OS 「터치 진동」 설정이 꺼져 있으면 떨지 않는 판단도 네이티브 몫이라 웹은 설정을 묻지 않는다.
+계약 밖 값도 §5대로 Crashlytics 비치명 이벤트(`bridge_parse_failed: haptic`)로 남긴다. 버튼마다
+불리는 메서드라 소음을 걱정할 수 있지만, 우리 웹은 `HapticType` 세 값만 보내므로 이 기록이 쌓인다면
+그것은 계약이 어긋났다는 신호다.
+
+## 10. 보관 음성 유실 복구 (KAN-261)
+
+계약 버전은 2 그대로다. 메서드도 슬롯도 늘리지 않았다 — 웹에 "앞 문항을 다시 열어 달라"는 메시지가
+없어서, 앞 문항 녹음 화면은 녹음을 쥔 쪽(웹 브라우저 경로 또는 네이티브)이 스스로 다시 연다.
+
+**오류 봉투 (가칭).** 음성 업로드가 `code: 'VOICE_SLOT_MISSING'`과 `missingItems: string[]`(서버가 잃은
+앞 음성 문항의 itemId)를 싣고 거절된다. 코드 이름과 필드는 KAN-262가 확정하기 전의 가칭이다.
+
+**복구 규칙.** 빠진 문항들을 seq 순서로 다시 녹음하고, 마지막에 거절당한 문항(X)도 새로 녹음한다.
+같은 바이트를 다시 보내도 칸이 비어 있어 같은 거절이므로 [다시 시도]는 두지 않는다. 음성이 아닌 id·모르는
+id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기존 재녹음으로 떨어진다(막다른 길 없음).
+
+**웹 브라우저 경로** (`TestFlowScreen`의 `redoQueue`). 진행 상태 머신은 건드리지 않고 녹음 화면만 앞
+문항으로 바꿔 끼운다. 진행률은 계속 X를 가리킨다. 앞 문항의 새 결과는 같은 `receiveResult`로 들어오지만,
+진행 머신이 그 문항을 이미 제출된 것으로 보고 무시하므로 진행이 밀리지 않는다. 대기열은 앞 업로드가
+성공해야 다음으로 넘어간다. 재녹음 중인 앞 문항이 다시 `VOICE_SLOT_MISSING`이면 기존 대기열(지금 문항
+포함)에 새 `missingItems`를 합쳐 seq 순서로 다시 세운다. 재녹음 화면에서도 세션 만료는 기존
+[다시 테스트하기] 갈래 그대로다.
+
+**네이티브** (Android·iOS `TestFlowController`). 웹이 `startVoiceItem`으로 넘긴 요청을 itemId별로
+기억해 두고(`voiceStarts`), 거절이 오면 그 요청으로 앞 문항 녹음 화면을 연다. 사슬 중에는 제출을 붙들지
+않고 곧장 다음 녹음을 열며, X에서만 평소처럼 결과를 기다린다.
+
+- 저장·복원: `voiceStarts`와 복구 대기열(itemId 목록)·사유 문구를 저장 형식에 싣는다. 회전이나 권한
+  게이트에서 복원돼도 대기열이 남는다. 새 필드는 기본값이 있어 구버전 저장값도 그대로 복원된다.
+- 앞 업로드의 늦은 거절: 사슬은 업로드를 기다리지 않으므로 앞 문항 재업로드의 거절이 다음 녹음 중에
+  도착할 수 있다. 그 문항(과 새 `missingItems`)을 손에 든 녹음은 건드리지 않은 채 대기열에 번호 순으로
+  넣는다. X를 녹음하는 중이었다면 X를 마친 뒤 그 문항을 열고 X를 다시 끝에 둔다. X를 제출하는 중에
+  도착하면 그 문항 뒤에 X를 다시 연다. 칸이 빈 채로 올라간 X 업로드는 어차피 다시 거절된다.
+- 재응시: 세션 교체가 성공하면 `onSessionReplaced()`로 `voiceStarts`와 대기열을 비운다. 이전 세션의
+  itemId가 `missingItems`로 와도 모르는 id가 되어 X만 다시 녹음한다. 재응시가 실패하면 이전 세션이
+  살아 있으므로 비우지 않는다.
+
+**KAN-262가 맞춰 줘야 하는 가정.**
+
+1. 빠진 문항을 새 멱등 키로 다시 올리면 그 칸이 채워진다.
+2. 칸이 다 찬 뒤 X를 새 키로 올리면 접수된다.
+3. 거절된 X의 키를 성공한 시도로 묶어 두지 않는다. 묶어 두면 새 키로 올린 X가 중복으로 보인다.
+
+**알려진 한계.**
+
+- X도 다시 녹음시킨다. KAN-262가 "칸이 찬 뒤 같은 키 재전송"을 보장하면 X는 재전송으로 바꿀 수 있다.
+- 웹 브라우저 경로의 대기열은 메모리에만 있다. 새로고침하면 X만 다시 녹음하게 되고, 빠진 칸이 남았으면
+  서버가 다시 알려 준다.
+- 네이티브가 앞 문항을 다시 열려면 그 세션에서 웹이 해당 `startVoiceItem`을 한 번 보냈어야 한다. 기억이
+  없는 문항(구버전 저장값에서 복원 등)은 걸러지고, 서버가 다음 거절에서 다시 알려 준다.

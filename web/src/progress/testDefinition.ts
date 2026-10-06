@@ -79,7 +79,8 @@ export type TestItem = VoiceItem | VocabularyItem
  * @property scoreVersion 이 정의를 채점할 점수 버전 (KAN-21)
  * @property dialect 대상 방언. MVP는 GYEONGNAM 고정
  * @property estimatedDurationSec 예상 소요 시간 (초)
- * @property items 문항 10개 = VOICE 5 + VOCABULARY 5, seq 순서 고정
+ * @property items 문항 목록. 개수와 VOICE·VOCABULARY 구성은 정의가 정한다(gn-2026.10.1은 7개 =
+ *   VOICE 3 + VOCABULARY 4, KAN-261). seq 순서 고정
  */
 export interface TestDefinition {
   testVersion: string

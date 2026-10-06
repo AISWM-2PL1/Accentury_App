@@ -87,10 +87,20 @@ export interface CreateWebSessionOptions {
   /** 재응시라면 폐기할 이전 세션의 토큰 (§3.1) */
   previousToken?: string | null
   /**
-   * 출신(모어 사투리) 지역 코드 (KAN-202, §3.1 `region`). staging 빌드의 선택 화면에서만 값이
-   * 들어오고, 그 외에는 필드째 뺀다 — prod 번들이 보내는 본문은 이 티켓 전과 같아야 한다.
+   * 출신(모어 사투리) 지역 코드 (KAN-202, §3.1 `region`). 웹 단독 실행은 늘 지역 선택 화면을 지나므로
+   * (KAN-274) 값이 들어온다. 비었거나 표에 없는 값이면 필드째 뺀다 — 서버가 400으로 거절할 값을
+   * 보내지 않는 방어다.
    */
   region?: RegionCode | null
+  /**
+   * 동의한 음성 저장 문안 버전 (KAN-270, 서버 KAN-269 §3.1 `voiceConsentVersion`). 동의 화면에서
+   * 체크한 세션만 값이 들어오고, 비어 있으면 필드째 뺀다 — 서버는 이 값이 있는 세션의 음성만
+   * AI 학습용으로 보관한다.
+   *
+   * 값은 여기서 검증하지 않는다. 맞는 버전인지는 서버만 알고(다르면 400 `VALIDATION_FAILED`),
+   * 그 폴백(동의 없이 한 번 더)은 호출자 `startStandaloneTest`가 맡는다.
+   */
+  voiceConsentVersion?: string | null
 }
 
 /** 봉투의 code·retryable·retryAfterMs를 실은 세션 생성 실패 (`UploadError`와 같은 모양이다) */
@@ -128,6 +138,7 @@ export async function createWebSession(
    * 같은 판단: 라벨은 빠져도 되지만 응시는 아니다).
    */
   const region = isRegionCode(options.region) ? options.region : null
+  const voiceConsentVersion = options.voiceConsentVersion?.trim() ?? ''
 
   let response: Response
   try {
@@ -145,6 +156,8 @@ export async function createWebSession(
         ...(campaignToken === null ? {} : { campaignToken }),
         // staging의 선택 화면이 준 값만 싣는다 (KAN-202). 없으면 키 자체가 없어 prod 본문은 그대로다.
         ...(region === null ? {} : { region }),
+        // 동의한 세션만 싣는다 (KAN-270). 미동의는 키 자체가 없어 동의 전 본문과 같다.
+        ...(voiceConsentVersion === '' ? {} : { voiceConsentVersion }),
         client: { platform: 'WEB', appVersion: APP_VERSION },
       }),
     })

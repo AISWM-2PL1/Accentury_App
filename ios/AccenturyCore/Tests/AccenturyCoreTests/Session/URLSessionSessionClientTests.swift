@@ -98,12 +98,80 @@ final class URLSessionSessionClientTests: XCTestCase {
         XCTAssertNil(try XCTUnwrap(MockURLProtocol.lastRequest()).header("Authorization"))
     }
 
-    func test이전_토큰을_주면_Bearer로_실어_보낸다_재응시_폐기_경로_KAN107() async throws {
+    /// 재응시 폐기 경로 (KAN-107). 예전에는 `Authorization: Bearer st_...`였지만 그 헤더는 이제 계정 Access 토큰
+    /// 자리다 (KAN-224) — 본문 `previousSessionToken`으로 가고 헤더에는 `st_`가 실리지 않는다.
+    func test이전_토큰을_주면_본문_previousSessionToken으로_보내고_헤더에는_싣지_않는다_KAN224() async throws {
         MockURLProtocol.respond(status: 201, body: createdBody)
 
         _ = await client().create(appVersion: "1.0", previousToken: "st_old")
 
-        XCTAssertEqual("Bearer st_old", try XCTUnwrap(MockURLProtocol.lastRequest()).header("Authorization"))
+        let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
+        XCTAssertNil(recorded.header("Authorization"))
+        let body = try XCTUnwrap(String(data: recorded.body, encoding: .utf8))
+        XCTAssertTrue(body.contains(#""previousSessionToken":"st_old""#), body)
+    }
+
+    func test최초_응시에는_previousSessionToken_키_자체를_빼고_보낸다() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(appVersion: "1.0")
+
+        let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))
+        XCTAssertFalse(body.contains("previousSessionToken"), body)
+    }
+
+    func test익명_동의_버전을_바디_voiceConsentVersion으로_싣는다_Authorization은_없다_KAN270() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(
+            appVersion: "1.0",
+            previousToken: nil,
+            campaignToken: nil,
+            voiceConsentVersion: "2026-10-04"
+        )
+
+        let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
+        XCTAssertNil(recorded.header("Authorization"))
+        let body = try XCTUnwrap(String(data: recorded.body, encoding: .utf8))
+        XCTAssertTrue(body.contains(#""voiceConsentVersion":"2026-10-04""#), body)
+    }
+
+    func test동의_버전이_없으면_voiceConsentVersion_키_자체를_빼고_보낸다_KAN270() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(appVersion: "1.0")
+
+        let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))
+        XCTAssertFalse(body.contains("voiceConsentVersion"), body)
+    }
+
+    func test익명_지역을_바디_region으로_싣는다_KAN270_7단계() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(
+            appVersion: "1.0",
+            previousToken: nil,
+            campaignToken: nil,
+            voiceConsentVersion: "2026-10-04",
+            region: "JEJU"
+        )
+
+        let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))
+        XCTAssertTrue(body.contains(#""region":"JEJU""#), body)
+    }
+
+    func test지역이_없으면_region_키_자체를_빼고_보낸다_KAN270_7단계() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(
+            appVersion: "1.0",
+            previousToken: nil,
+            campaignToken: nil,
+            voiceConsentVersion: "2026-10-04"
+        )
+
+        let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))
+        XCTAssertFalse(body.contains("region"), body)
     }
 
     func test429_봉투의_retryAfterMs를_결과에_싣는다() async {

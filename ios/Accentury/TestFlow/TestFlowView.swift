@@ -23,7 +23,20 @@ import WebKit
 /// `ignoresSafeArea()`로 상태 바·홈 인디케이터 자리까지 넓힌다 — 자세한 이유는 `body`의 주석.
 struct TestFlowView: View {
 
-    @StateObject private var model = TestFlowModel()
+    /// 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(``AuthGateView``)가 이 위에 덮는다 (KAN-247)
+    private let onOpenSettings: () -> Void
+
+    /// - Parameter anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
+    init(anonymousConsent: AnonymousVoiceConsentStore? = nil, onOpenSettings: @escaping () -> Void) {
+        self.onOpenSettings = onOpenSettings
+        // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
+        _model = StateObject(
+            wrappedValue: anonymousConsent.map { TestFlowModel(onProfileIncomplete: {}, anonymousConsent: $0) }
+                ?? TestFlowModel()
+        )
+    }
+
+    @StateObject private var model: TestFlowModel
 
     /// 녹음·목소리 점검·업로드의 주인. 화면 값이 다시 만들어져도 살아남아야 하는 것들이라
     /// `@StateObject`다 — 안드로이드가 `ViewModel`에 둔 자리와 같다.
@@ -111,6 +124,20 @@ struct TestFlowView: View {
                 )
 
                 overlay
+
+                /*
+                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+                 * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
+                 * 계속 돈다(설정은 TestFlowView를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+                 * 덮는 동안은 숨긴다. 조건은 `overlay` 사슬의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
+                 * `overlay` 뒤에 놓여 녹음 화면 위에 선다. 녹음 화면 본문은 위 64부터라 톱니(8~56)와 겹치지 않는다.
+                 * 안전 영역은 이 ZStack이 이미 안쪽이다.
+                 */
+                if !nativeCovering {
+                    SettingsGearButton(action: onOpenSettings)
+                        .padding(Papercut.space2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -271,8 +298,8 @@ struct TestFlowView: View {
                 VoiceItemStart(
                     itemId: "it_debug_overlay",
                     prompt: "오늘 날씨가 정말 좋네요",
-                    itemNumber: 3,
-                    totalItems: 10,
+                    itemNumber: 2,
+                    totalItems: 7,
                     maxDurationMs: RecordingEngine.maxDurationMs,
                     guideF0: debugGuideF0
                 )
@@ -310,10 +337,35 @@ struct TestFlowView: View {
     /// 가져간 경우를 뒤 분기가 다시 적지 않는다.
     @ViewBuilder
     private var overlay: some View {
+        // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던 재응시를
+        // 이어 간다. 이번에는 지역이 있어 ``TestFlowModel/startRetest()``가 곧장 세션 요청으로 간다.
+        if model.retestRegionPending {
+            AnonymousRegionScreen(onDone: { code in
+                model.onRetestRegionChosen(code)
+                Task { @MainActor in await proceedRetest() }
+            })
+
         // 시작 게이트 1칸 — 마이크 권한 (KAN-98). 통과 표시를 따로 두는 이유는 뒤에 세션 생성이
         // 이어지기 때문이다: 세션을 기다리는 동안 권한 화면으로 되돌아가면 안 된다.
-        if model.startRequested, model.session == nil, !model.micPassed {
+        } else if model.startRequested, model.session == nil, !model.micPassed {
             PermissionGateView(onGranted: { model.onStartGateMicPassed() })
+
+        // 익명 모드의 음성 저장 동의 (KAN-270 6단계) — 설치당 한 번. 고르면 저장소가 asked를 세워 조건이 풀린다.
+        // 웹과 같이 권한과 점검 사이다. 톱니는 ``nativeCovering``의 시작 게이트 조건이 이미 숨긴다.
+        } else if model.startRequested, model.session == nil, model.micPassed, model.needsAnonymousConsent {
+            VoiceConsentScreen(
+                onConsent: {
+                    model.onAnonymousConsentChosen(consented: true)
+                    return true
+                },
+                onSkip: { model.onAnonymousConsentChosen(consented: false) },
+                onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
+                details: voiceConsentDetailsAnonymous
+            )
+
+        // 익명 모드의 출신 지역 (KAN-270 7단계) — 동의와 무관하게 모두에게 설치당 한 번 (KAN-274). 고르면 저장소에 region이 생겨 조건이 풀린다.
+        } else if model.startRequested, model.session == nil, model.micPassed, model.needsAnonymousRegion {
+            AnonymousRegionScreen(onDone: { model.onAnonymousRegionChosen($0) })
 
         // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
         } else if model.startRequested, model.session == nil, model.micPassed, model.voiceCenterHz == nil {
@@ -364,6 +416,16 @@ struct TestFlowView: View {
                 }
             )
         }
+    }
+
+    /// 톱니를 숨길 네이티브 화면이 WebView를 덮고 있는가 — `overlay` 사슬의 시작 게이트·문항 권한 분기 조건이다
+    /// (KAN-247). 녹음 화면은 팀장 요청(2026-10-03)으로 톱니를 보이므로 뺐다.
+    private var nativeCovering: Bool {
+        if model.startRequested, model.session == nil { return true }
+        if case .needsPermission = model.phase { return true }
+        // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
+        if model.retestRegionPending { return true }
+        return false
     }
 
     /// 녹음·제출 두 페이즈는 같은 화면을 쓰고 아래쪽만 다르다 (KAN-146).
@@ -442,7 +504,12 @@ struct TestFlowView: View {
         for entry in uploads.entries {
             guard case .failed(let failure) = entry.state, failure.rerecord else { continue }
             // 서버 문구를 그대로 실어 보낸다 — 왜 다시 녹음해야 하는지는 서버만 안다.
-            if model.onUploadGivenUp(attemptId: entry.attemptId, message: failure.message) {
+            // 빠진 앞 문항(KAN-261)이 있으면 컨트롤러가 그 문항들부터 차례로 다시 연다.
+            if model.onUploadGivenUp(
+                attemptId: entry.attemptId,
+                message: failure.message,
+                missingItems: failure.missingItems
+            ) {
                 uploads.discard(entry.attemptId)
             }
         }

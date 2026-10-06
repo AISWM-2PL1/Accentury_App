@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -65,6 +66,7 @@ fun RecordButton(
     val pressed by interaction.collectIsPressedAsState()
     val reduceMotion = isReducedMotionEnabled()
     val ink = MaterialTheme.colorScheme.primary
+    val view = LocalView.current
 
     val sink by animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
@@ -106,8 +108,11 @@ fun RecordButton(
                 .clickable(
                     interactionSource = interaction,
                     indication = null,
-                    onClick = onClick,
-                ),
+                ) {
+                    // 시작·정지 모두 가벼운 탭 (KAN-258). 결과의 성공·실패는 녹음 화면이 따로 낸다
+                    view.performHaptic(Haptic.Tap)
+                    onClick()
+                },
             contentAlignment = Alignment.Center,
         ) {
             if (recording) {

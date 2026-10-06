@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +57,8 @@ enum class ButtonVariant { Primary, Secondary, Text }
  *
  * 최소 높이는 주 버튼이 [Dimens.controlHeightLg] 56dp, 보조가 [Dimens.touchTargetMin] 48dp다
  * (ux-ui.md §5의 48dp 최소선을 둘 다 넘는다).
+ *
+ * @param leading 라벨 왼쪽 끝에 붙는 그림 (KAN-224 IdP 로고). 라벨 위치는 바뀌지 않는다
  */
 @Composable
 fun AccenturyButton(
@@ -64,6 +67,7 @@ fun AccenturyButton(
     modifier: Modifier = Modifier,
     variant: ButtonVariant = ButtonVariant.Primary,
     enabled: Boolean = true,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     if (variant == ButtonVariant.Text) {
         TextButton(
@@ -81,6 +85,9 @@ fun AccenturyButton(
     val pressed by interaction.collectIsPressedAsState()
 
     val isPrimary = variant == ButtonVariant.Primary
+    // 주동작에만 가벼운 탭 (KAN-258 B안). 햅틱은 아껴 써야 뜻이 남아서 보조·텍스트 버튼은 떨지 않는다.
+    val view = LocalView.current
+    val click = if (isPrimary) ({ view.performHaptic(Haptic.Tap); onClick() }) else onClick
     val shape = RoundedCornerShape(Radius.md)
 
     // 눌림은 0..1 한 값이다 - 본체가 내려가는 거리를 x·y 따로 애니메이션하면 두 축이
@@ -114,7 +121,7 @@ fun AccenturyButton(
                 color = colors.controlBorder,
                 shape = shape,
             )
-            .clickableButton(enabled, interaction, onClick)
+            .clickableButton(enabled, interaction, click)
             .padding(horizontal = Spacing.x6),
         contentAlignment = Alignment.Center,
     ) {
@@ -133,6 +140,10 @@ fun AccenturyButton(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
+        }
+        // 앞머리 그림(로그인 IdP 로고)은 왼쪽 안쪽 여백에 붙고 라벨은 버튼 가운데 그대로다. 본체 안에 그려야 눌림·흐림을 함께 탄다.
+        if (leading != null) {
+            Box(Modifier.align(Alignment.CenterStart)) { leading() }
         }
     }
 }

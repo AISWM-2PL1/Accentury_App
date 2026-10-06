@@ -45,6 +45,8 @@ sealed interface UploadResult {
         val message: String?,
         val retryable: Boolean,
         val retryAfterMs: Long?,
+        /** 봉투의 `missingItems` (KAN-261 `VOICE_SLOT_MISSING`). 없으면 빈 목록이다. */
+        val missingItems: List<String> = emptyList(),
     ) : UploadResult
 
     /**
@@ -163,6 +165,7 @@ class OkHttpUploadClient(
             // 봉투가 없으면 재시도 여부를 서버가 알려주지 않으므로 상태 코드로 판단한다.
             retryable = envelope?.retryable ?: isRetryableStatus(status),
             retryAfterMs = envelope?.retryAfterMs,
+            missingItems = envelope?.missingItems.orEmpty(),
         )
     }
 
@@ -184,4 +187,6 @@ private data class ErrorEnvelope(
     val retryable: Boolean,
     val retryAfterMs: Long? = null,
     val correlationId: String? = null,
+    /** 서버가 잃은 앞 음성 문항 (KAN-261, KAN-262 확정 전 가칭). 422 `RESULT_INCOMPLETE`와 같은 확장 필드 이름이다. */
+    val missingItems: List<String>? = null,
 )

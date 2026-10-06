@@ -26,9 +26,10 @@
 #                    있는가"만 확인하려는 스위치다. 켜면 업로드는 금지된다 - 테스트 광고 단위가
 #                    박힌 바이너리가 스토어로 나가면 AdMob 정책 위반이다 (ads-admob.md §3.1).
 #
-# ── 시크릿 (총 7개 = 신규 등록 6개 + 기존 1개, 계정 소유자가 등록) ─────────
-#   신규 6개: ASC 셋(`ASC_API_*`) + AdMob iOS 셋(`ADMOB_IOS_*`)
-#   기존 1개: `KAKAO_NATIVE_APP_KEY` — KAN-163에서 안드로이드용으로 이미 등록된 것을 그대로 쓴다
+# ── 시크릿 (총 13개, 계정 소유자가 등록) ────────────────────────────────────
+#   ASC 셋(`ASC_API_*`) + AdMob iOS 셋(`ADMOB_IOS_*`) + 카카오 1 + 로그인 IdP 여섯(KAN-224)
+#   `KAKAO_NATIVE_APP_KEY`와 로그인 셋 중 `GOOGLE_SERVER_CLIENT_ID`·`NAVER_CLIENT_ID`·`NAVER_CLIENT_SECRET`은
+#   app-release.yml(안드로이드)과 **같은 시크릿을 공유한다**. iOS에만 있는 것은 나머지 셋이다.
 #   ASC_API_KEY_BASE64        App Store Connect API 키(.p8)를 base64 한 줄로
 #   ASC_API_KEY_ID            키 ID (10자 영숫자)
 #   ASC_API_ISSUER_ID         Issuer ID (계정 단위 UUID)
@@ -36,6 +37,13 @@
 #   ADMOB_IOS_APP_ID          AdMob **iOS 앱**의 앱 ID (KAN-196)
 #   ADMOB_IOS_INTERSTITIAL_ID AdMob iOS 전면 광고 단위 ID
 #   ADMOB_IOS_REWARDED_ID     AdMob iOS 보상형 광고 단위 ID
+#   GOOGLE_IOS_CLIENT_ID      구글 콘솔 "iOS" OAuth 클라이언트 ID (KAN-224, iOS 전용)
+#   GOOGLE_SERVER_CLIENT_ID   구글 콘솔 "웹 애플리케이션" 클라이언트 ID (안드로이드와 같은 시크릿 - 서버 aud)
+#   GOOGLE_REVERSED_CLIENT_ID iOS 클라이언트 ID를 거꾸로 쓴 URL 스킴 (iOS 전용)
+#   NAVER_CLIENT_ID           네이버 개발자 센터 앱의 Client ID (안드로이드와 같은 시크릿)
+#   NAVER_CLIENT_SECRET       같은 앱의 Client Secret (안드로이드와 같은 시크릿)
+#   NAVER_URL_SCHEME          네이버 앱 로그인이 돌아올 URL 스킴 - 네이버 콘솔 iOS 설정과 같은 값 (iOS 전용)
+# 로그인 셋의 발급 위치는 docs/wiki/social-login.md §3·§4에 있다.
 #
 # AdMob 셋에 `_IOS_` 접두를 붙인 이유: 저장소 시크릿은 평면 이름공간인데 AdMob 콘솔의 iOS 앱은
 # 안드로이드 앱과 별개 레코드라 ID도 별개다 (ads-admob.md §7.2). 안드로이드 쪽이 먼저 자리를
@@ -75,6 +83,11 @@
 #        실기기 확인용 터널 URL이 박힌 빌드가 스토어로 나가는 것을 막는 빗장이다.
 #   AC3  키 주입: 카카오 키가 번들에 비어 있지 않은지, AdMob 세 값이 Google 테스트 ID가 아닌지
 #        **산출물에서** 확인한다 - 빌드 입력(REQUIRE_ADMOB_IDS 빗장)과 따로 서는 두 번째 잠금이다.
+#   KAN-224  로그인 IdP 주입: 아카이브에 `REQUIRE_IDP_CONFIG=YES`를 줘 project.yml의 preBuild 빗장이 빈 값을
+#        막고, 산출물 Info.plist에서 구글·네이버 값과 URL 스킴 둘이 비지 않았는지, Release plist에 `FAKE_IDP`
+#        키가 없는지, 서명된 앱의 entitlement에 Sign in with Apple이 있는지를 다시 본다.
+#   KAN-274  로그인 끔 고정: 첫 스토어 심사는 로그인을 끈 익명 모드 빌드로 받는다 (KAN-270). 같은 자리에서
+#        번들 Info.plist의 `LOGIN_ENABLED`가 `NO`인지 본다. 로그인을 켜는 업데이트가 이 검사를 뒤집는다.
 #   AC4  로그에 시크릿 없음: 값을 echo하는 곳이 없다. 존재 검사는 `-z`로 이름만, 광고 ID 검사는
 #        값 출력 없이 패턴 매칭만, 카카오 키 검사는 길이(`-c`)만 찍는다.
 
@@ -125,7 +138,7 @@ jobs:
       UPLOAD: ${{ inputs.upload == true }}
       ALLOW_TEST_ADS: ${{ inputs.allow_test_ads == true }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # 러너 이미지는 예고 없이 갈린다. 실패가 우리 코드인지 도구 버전인지 가르는 첫 줄이라
       # 로그 맨 앞에 남겨 둔다 (test.yml의 ios-test와 같은 자리, 같은 이유).
@@ -150,6 +163,12 @@ jobs:
           ADMOB_IOS_APP_ID: ${{ secrets.ADMOB_IOS_APP_ID }}
           ADMOB_IOS_INTERSTITIAL_ID: ${{ secrets.ADMOB_IOS_INTERSTITIAL_ID }}
           ADMOB_IOS_REWARDED_ID: ${{ secrets.ADMOB_IOS_REWARDED_ID }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_REVERSED_CLIENT_ID: ${{ secrets.GOOGLE_REVERSED_CLIENT_ID }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_URL_SCHEME: ${{ secrets.NAVER_URL_SCHEME }}
         run: |
           if [ "$ALLOW_TEST_ADS" = true ] && [ "$UPLOAD" = true ]; then
             echo "::error title=입력 충돌::allow_test_ads와 upload를 함께 켤 수 없습니다. 테스트 광고 단위가 박힌 빌드를 TestFlight에 올리면 AdMob 정책 위반이고, 그 빌드 번호는 다시 쓸 수 없습니다 (docs/wiki/ads-admob.md §3.1)." >&2
@@ -157,7 +176,11 @@ jobs:
           fi
 
           # ASC 셋은 upload와 무관하게 필요하다 - export 재서명이 그 자격 증명으로 프로파일을 만든다.
-          required=(ASC_API_KEY_BASE64 ASC_API_KEY_ID ASC_API_ISSUER_ID KAKAO_NATIVE_APP_KEY)
+          # 로그인 IdP 여섯(KAN-224)도 allow_test_ads와 무관하다 - 광고와 달리 테스트용 대체값이 없고,
+          # 아카이브가 REQUIRE_IDP_CONFIG=YES로 늘 빗장을 건다.
+          required=(ASC_API_KEY_BASE64 ASC_API_KEY_ID ASC_API_ISSUER_ID KAKAO_NATIVE_APP_KEY
+                    GOOGLE_IOS_CLIENT_ID GOOGLE_SERVER_CLIENT_ID GOOGLE_REVERSED_CLIENT_ID
+                    NAVER_CLIENT_ID NAVER_CLIENT_SECRET NAVER_URL_SCHEME)
           if [ "$ALLOW_TEST_ADS" != true ]; then
             required+=(ADMOB_IOS_APP_ID ADMOB_IOS_INTERSTITIAL_ID ADMOB_IOS_REWARDED_ID)
           fi
@@ -167,7 +190,7 @@ jobs:
             if [ -z "${!name}" ]; then missing="$missing $name"; fi
           done
           if [ -n "$missing" ]; then
-            echo "::error title=시크릿 누락::등록되지 않은 저장소 시크릿:$missing - 저장소 Settings > Secrets and variables > Actions에 계정 소유자가 등록합니다. 이름과 발급 위치는 docs/wiki/app-store-listing.md §2에 있습니다. AdMob 셋이 아직 없다면 수동 실행에서 allow_test_ads를 켜면 그 셋 없이 아카이브까지만 확인할 수 있습니다." >&2
+            echo "::error title=시크릿 누락::등록되지 않은 저장소 시크릿:$missing - 저장소 Settings > Secrets and variables > Actions에 계정 소유자가 등록합니다. 이름과 발급 위치는 docs/wiki/app-store-listing.md §2(로그인 셋은 docs/wiki/social-login.md §3)에 있습니다. AdMob 셋이 아직 없다면 수동 실행에서 allow_test_ads를 켜면 그 셋 없이 아카이브까지만 확인할 수 있습니다." >&2
             exit 1
           fi
           echo "시크릿 확인: ${#required[@]}개"
@@ -211,9 +234,19 @@ jobs:
       # **WEB_URL·API_BASE_URL은 주지 않는다.** Release.xcconfig가 prod 도메인을 박아 두고
       # Local.xcconfig가 그 뒤라 덮지도 못한다 - 명령줄로 줄 수 있게 열어 두면 그 구조적 보호가
       # 무너진다. 아래 검증 스텝이 산출물에서 그 값을 다시 확인한다 (AC2).
+      #
+      # 로그인 IdP 여섯(KAN-224)은 카카오 키·AdMob과 같은 명령줄 빌드 설정으로 준다(헤더 「비밀이 로그·
+      # 프로세스 목록에 남지 않게」 - NAVER_CLIENT_SECRET도 앱에 박혀 기기로 나가는 값이다, 네이버 SDK의 설계).
+      # REQUIRE_IDP_CONFIG=YES는 allow_test_ads와 무관하게 늘 켠다.
       - name: 릴리스 아카이브
         env:
           KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_REVERSED_CLIENT_ID: ${{ secrets.GOOGLE_REVERSED_CLIENT_ID }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_URL_SCHEME: ${{ secrets.NAVER_URL_SCHEME }}
           ADMOB_APP_ID: ${{ secrets.ADMOB_IOS_APP_ID }}
           ADMOB_INTERSTITIAL_ID: ${{ secrets.ADMOB_IOS_INTERSTITIAL_ID }}
           ADMOB_REWARDED_ID: ${{ secrets.ADMOB_IOS_REWARDED_ID }}
@@ -225,6 +258,13 @@ jobs:
             -archivePath "$RUNNER_TEMP/Accentury.xcarchive"
             CODE_SIGNING_ALLOWED=NO
             "KAKAO_NATIVE_APP_KEY=$KAKAO_NATIVE_APP_KEY"
+            REQUIRE_IDP_CONFIG=YES
+            "GOOGLE_IOS_CLIENT_ID=$GOOGLE_IOS_CLIENT_ID"
+            "GOOGLE_SERVER_CLIENT_ID=$GOOGLE_SERVER_CLIENT_ID"
+            "GOOGLE_REVERSED_CLIENT_ID=$GOOGLE_REVERSED_CLIENT_ID"
+            "NAVER_CLIENT_ID=$NAVER_CLIENT_ID"
+            "NAVER_CLIENT_SECRET=$NAVER_CLIENT_SECRET"
+            "NAVER_URL_SCHEME=$NAVER_URL_SCHEME"
           )
           if [ "$ALLOW_TEST_ADS" = true ]; then
             # 아무것도 넘기지 않으면 Base.xcconfig의 Google 테스트 ID가 그대로 살고,
@@ -425,6 +465,64 @@ jobs:
           fi
           echo "카카오 키 주입 확인 ($(printf '%s' "$kakao" | wc -c | tr -d ' ')자)"
 
+          # KAN-224 (로그인 IdP). project.yml의 REQUIRE_IDP_CONFIG 빗장은 빌드 입력을 본다 - AdMob과 같은
+          # 이유로 산출물의 plist를 다시 연다. 값은 찍지 않는다 (AC4).
+          for key in GOOGLE_IOS_CLIENT_ID GOOGLE_SERVER_CLIENT_ID NAVER_CLIENT_ID NAVER_CLIENT_SECRET NAVER_URL_SCHEME; do
+            if [ -z "$(read_key "$key")" ]; then
+              echo "::error title=로그인 설정 비어 있음::번들 Info.plist의 ${key}가 비었습니다. 이대로 나가면 로그인 화면에서 그 IdP 버튼이 사라집니다 (KAN-224, Auth/IdpSdks.swift)." >&2
+              exit 1
+            fi
+          done
+          # GOOGLE_REVERSED_CLIENT_ID는 plist 값이 아니라 URL 스킴으로만 들어간다(CFBundleURLTypes의
+          # `.google`). 네이버 스킴도 같은 배열에 있다 - IdP 앱·인증 창이 돌아올 문이라 비면 로그인이 끝나지 않는다.
+          schemes_ok=0
+          i=0
+          while name=$(plutil -extract "CFBundleURLTypes.$i.CFBundleURLName" raw -o - "$plist" 2>/dev/null); do
+            case "$name" in
+              *.google|*.naver)
+                if [ -z "$(read_key "CFBundleURLTypes.$i.CFBundleURLSchemes.0")" ]; then
+                  echo "::error title=URL 스킴 비어 있음::번들 Info.plist의 URL 스킴 '${name}'이 비었습니다 (GOOGLE_REVERSED_CLIENT_ID 또는 NAVER_URL_SCHEME, KAN-224)." >&2
+                  exit 1
+                fi
+                schemes_ok=$((schemes_ok + 1))
+                ;;
+            esac
+            i=$((i + 1))
+          done
+          if [ "$schemes_ok" -ne 2 ]; then
+            echo "::error title=URL 스킴 누락::번들 Info.plist의 CFBundleURLTypes에서 구글·네이버 스킴 둘을 찾지 못했습니다 (${schemes_ok}개). Info-Release.plist를 확인하세요 (KAN-224)." >&2
+            exit 1
+          fi
+          # 가짜 IdP는 Info-Release.plist에 키 자체가 없어야 한다 - 읽는 코드가 `#if DEBUG`여도 키가 생기면
+          # 그 배치가 바뀌었다는 뜻이다 (Config/Release.xcconfig 주석).
+          if plutil -extract FAKE_IDP raw -o - "$plist" >/dev/null 2>&1; then
+            echo "::error title=가짜 IdP 키가 릴리스에 있음::번들 Info.plist에 FAKE_IDP 키가 있습니다. Release 구성은 Info-Release.plist(키 없음)를 써야 합니다 (KAN-224)." >&2
+            exit 1
+          fi
+          # LOGIN_ENABLED (KAN-270, KAN-274). 첫 스토어 심사는 로그인을 끈 익명 모드 빌드로 받는다.
+          # Base.xcconfig의 기본값이 NO라 지금도 꺼진 채 나가지만, 값을 보는 자리가 없으면 기본값이나
+          # 명령줄 빌드 설정(`LOGIN_ENABLED=YES`)이 바뀌었을 때 로그인 관문이 든 빌드가 조용히 만들어진다.
+          # 앱은 이 값이 정확히 `YES`일 때만 로그인을 켠다(AppConfig.loginEnabled). 여기서는 `NO`가 아닌
+          # 모든 값을 막는다 - 키가 빠져 빈 값인 경우도 Info-Release.plist의 배치가 바뀌었다는 뜻이다.
+          # 로그인을 켜는 업데이트는 이 검사를 같은 PR에서 뒤집는다.
+          login_enabled=$(read_key LOGIN_ENABLED)
+          if [ "$login_enabled" != "NO" ]; then
+            echo "::error title=로그인이 릴리스에 켜짐::번들 Info.plist의 LOGIN_ENABLED가 '${login_enabled}'입니다. 첫 스토어 심사 빌드는 로그인을 끈 익명 모드(NO)여야 합니다 (Config/Base.xcconfig, KAN-274). 로그인을 켜는 업데이트라면 이 검사를 같은 PR에서 뒤집으세요." >&2
+            exit 1
+          fi
+          # Sign in with Apple entitlement. 자동 서명이 Accentury.entitlements의 키를 보고 프로파일에 싣는데,
+          # App ID에 capability가 꺼져 있으면 export가 조용히 빼거나 실패한다. 빠진 채 나가면 애플 버튼이
+          # 늘 실패하고, 다른 소셜 로그인만 남아 심사 4.8에 걸린다. 서명된 앱에서 직접 확인한다.
+          entitlements=$(codesign -d --entitlements - --xml "$app" 2>/dev/null || true)
+          case "$entitlements" in
+            *com.apple.developer.applesignin*) ;;
+            *)
+              echo "::error title=애플 로그인 entitlement 없음::서명된 앱에 com.apple.developer.applesignin이 없습니다. 개발자 콘솔 App ID(com.accentury.app)의 Sign in with Apple capability를 확인하세요 (KAN-224, docs/wiki/social-login.md §3)." >&2
+              exit 1
+              ;;
+          esac
+          echo "로그인 IdP 주입 확인 (plist 5개 + URL 스킴 2개, FAKE_IDP 없음, LOGIN_ENABLED=NO, Sign in with Apple entitlement)"
+
           # AC3 (AdMob). project.yml의 preBuild 빗장은 **빌드 입력**을 본다 - 그 조건문이 잘못되면
           # 조용히 통과한다. 여기서는 산출물의 plist를 직접 보는 두 번째 잠금이다.
           # ca-app-pub-3940256099942544는 Google이 공개한 테스트 퍼블리셔 ID다 (ads-admob.md §7.2).
@@ -463,7 +561,7 @@ jobs:
       # 크래시를 나중에 심볼화할 수 있게 아카이브의 dSYMs를 아티팩트로 챙겨 둔다.
       # export 쪽 *.dSYM은 method·옵션에 따라 나오기도 안 나오기도 해서 없어도 넘어간다.
       - name: 아티팩트 업로드 (.ipa + dSYM)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: accentury-ios-release-${{ steps.meta.outputs.sha7 }}
           path: |

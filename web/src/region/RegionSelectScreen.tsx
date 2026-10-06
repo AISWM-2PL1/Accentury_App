@@ -3,10 +3,11 @@
  *
  * 웹 단독 실행 시작 게이트에 끼운 칸이다: 인트로 [시작하기] → 마이크 권한(KAN-56) → **여기** →
  * 목소리 점검 → 세션 생성(`startStandaloneTest`) → 문항 화면. 고른 값은 세션 생성 본문의
- * `region`(§3.1)으로 나가고, KAN-201이 그 값을 staging 학습 데이터의 S3 키 첫 조각으로 쓴다 —
- * 지역별로 녹음을 뽑아 쓰기 위한 **라벨**이지 사용자에게 주는 기능이 아니다. 그래서 빌드
- * 스위치(`isRegionSelectEnabled`, staging 한정)가 켜진 번들에만 이 화면이 있고, prod 번들은
- * 이 화면도 요청 필드도 없이 이 티켓 전과 같다 (`regions.ts` 헤더).
+ * `region`(§3.1)으로 나가고, 서버가 그 값을 세션에 남기며 분석 결과를 S3에 남길 때 키의 지역
+ * 조각으로 쓴다 (KAN-201, KAN-269). 음성 저장에 동의한 세션은 음성과 라벨을, 동의하지 않은 세션은
+ * 음성 없이 점수와 지역 라벨만 남긴다 (KAN-274) — 그래서 동의 화면에서 무엇을 골랐든 이 화면이 선다.
+ * 지역별로 결과를 뽑아 쓰기 위한 **라벨**이지 사용자에게 주는 기능이 아니다. 예전에는 빌드 스위치가
+ * 켜진 번들(staging)에만 있던 화면인데 KAN-274가 스위치를 걷어내 두 환경 모두 늘 선다 (`regions.ts` 헤더).
  *
  * 묻는 것은 **출신 지역**이다. 라벨의 뜻이 "이 녹음의 화자가 어느 사투리 화자인가"라서, 부제가
  * "본인이 사용한다고 생각하는 억양의 지역"으로 그 기준을 한 줄로 못 박는다 (문안은 2026-09-11
@@ -30,6 +31,7 @@
  */
 
 import { useState } from 'react'
+import { haptic } from '../bridge/bridge'
 import { Button } from '../ui'
 import { CheckIcon } from '../ui/icons'
 import { REGIONS, type RegionCode } from './regions'
@@ -105,7 +107,12 @@ export function RegionSelectScreen({ onDone }: RegionSelectScreenProps) {
                   name="region"
                   value={code}
                   checked={checked}
-                  onChange={() => setSelected(code)}
+                  // 객관식 선택의 탭 햅틱 (KAN-258) — 어휘 문항과 같은 규칙. 이 화면은 웹 단독
+                  // 실행에만 있어 지금은 래퍼가 false로 지나가지만, 규칙을 화면마다 다르게 두지 않는다
+                  onChange={() => {
+                    haptic('tap')
+                    setSelected(code)
+                  }}
                 />
                 <span>{label}</span>
                 {/* 고른 것을 색 말고도 알린다 — 어휘 문항과 같은 규칙 (WCAG 1.4.1) */}

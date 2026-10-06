@@ -93,6 +93,11 @@ export interface UseAnalysisPollingResult {
    */
   lastError: string | null
   /**
+   * 혼잡 안내 - 이 세션의 분석 앞에 선 건수 (§3.4의 `queue.ahead`, KAN-272). 마지막으로 성공한
+   * 조회의 값이고, 서버가 안내를 싣지 않았으면 null이다. 화면이 "앞에 N건이 있어요"로 그린다.
+   */
+  queueAhead: number | null
+  /**
    * 폴링을 처음부터 다시 시작한다. 예산·회차·오류가 전부 초기화된다.
    *
    * [다시 시도] 버튼과 재녹음 결과 수신이 같은 함수를 쓴다. 둘 다 "사용자가 방금 무언가
@@ -108,6 +113,7 @@ export function useAnalysisPolling(options: UseAnalysisPollingOptions): UseAnaly
   const [status, setStatus] = useState<WaitingStatus>({ kind: 'POLLING' })
   const [items, setItems] = useState<AnalysisItem[]>([])
   const [lastError, setLastError] = useState<string | null>(null)
+  const [queueAhead, setQueueAhead] = useState<number | null>(null)
   // 이 값이 바뀔 때마다 폴링 루프가 통째로 새로 선다. restart의 구현이다.
   const [generation, setGeneration] = useState(0)
 
@@ -163,9 +169,16 @@ export function useAnalysisPolling(options: UseAnalysisPollingOptions): UseAnaly
     let serverPollAfterMs: number | null = null
     /** 429가 지시한 대기. 한 번 반영하면 소진한다 (요구 6항) */
     let retryAfterMs: number | null = null
+    /**
+     * 이번 대기에서 서버가 혼잡 안내를 한 번이라도 줬는가 (KAN-272). 켜지면 이 세대가 끝날
+     * 때까지 꺼지지 않는다 - 이유는 `PollInput.congested` 주석에 있다. [restart]는 세대를 새로
+     * 세우므로 재녹음이나 [다시 시도] 뒤에는 60초에서 다시 시작한다.
+     */
+    let congested = false
 
     setStatus({ kind: 'POLLING' })
     setLastError(null)
+    setQueueAhead(null)
 
     const elapsedMs = () => activeMs + (paused ? 0 : now() - segmentStart)
 
@@ -244,7 +257,7 @@ export function useAnalysisPolling(options: UseAnalysisPollingOptions): UseAnaly
     function schedule() {
       if (cancelled || paused) return
       const plan = planNextPoll(
-        { round, elapsedMs: elapsedMs(), serverPollAfterMs, retryAfterMs },
+        { round, elapsedMs: elapsedMs(), serverPollAfterMs, retryAfterMs, congested },
         random,
       )
       // 429 지시는 한 회차만 유효하다. 남겨 두면 제한이 풀린 뒤에도 계속 그 간격으로 돈다.
@@ -252,7 +265,7 @@ export function useAnalysisPolling(options: UseAnalysisPollingOptions): UseAnaly
 
       if (plan.kind === 'EXHAUSTED') {
         setStatus({ kind: 'EXHAUSTED' })
-        // 60초 상한 도달 = GPU 밀림의 조기 신호 (KAN-33)
+        // 상한 도달(평시 60초, 혼잡 안내를 받은 대기는 300초) = GPU 밀림의 조기 신호 (KAN-33)
         finishWait('ABANDONED')
         return
       }
@@ -311,6 +324,8 @@ export function useAnalysisPolling(options: UseAnalysisPollingOptions): UseAnaly
           setItems(statuses.items)
           countTerminal(statuses.items)
           serverPollAfterMs = statuses.pollAfterMs
+          if (statuses.queueAhead !== null) congested = true
+          setQueueAhead(statuses.queueAhead)
           setLastError(null)
         } catch (error) {
           if (cancelled) return
@@ -381,5 +396,5 @@ export function useAnalysisPolling(options: UseAnalysisPollingOptions): UseAnaly
     }
   }, [apiBase, sessionId, sessionToken, fetchImpl, generation])
 
-  return { status, items, lastError, restart }
+  return { status, items, lastError, queueAhead, restart }
 }

@@ -469,7 +469,8 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 | 진척도 | `ui/components/ProgressIndicator.kt` | `web/src/ui/ProgressIndicator.tsx` |
 | 대기·오류 블록 | `ui/components/StatusBlock.kt` | `web/src/ui/StatusBlock.tsx` |
 | 대사·질문 카드 | `ui/components/PromptCard.kt` | `.prompt-card` |
-| 선택지 | — (어휘 문항은 웹 전용) | `.choice` |
+| 선택지 | `ui/components/ChoiceButton.kt` (KAN-224 성별·출신지역) · iOS `UI/Components/ChoiceButton.swift` | `.choice` |
+| 입력 칸 | `ui/components/AccenturyTextField.kt` (KAN-224 추가 정보) · iOS `UI/Components/AccenturyTextField.swift` | — |
 | 곡선 레인 | `ui/components/CurveLane.kt` | `web/src/recording/CurveLane.tsx` |
 | 녹음 버튼 | `ui/components/RecordButton.kt` | — (웹은 `.btn`으로 녹음한다) |
 | 히어로 아이콘 | `ui/components/HeroIcon.kt` | `.hero-icon` |
@@ -502,6 +503,24 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 바닥이 없다.
 
 비활성은 `opacity-disabled` 0.6뿐이다. 색으로 상태를 만들지 않는다.
+
+로그인 IdP 버튼(KAN-224)만 보조 버튼 왼쪽에 공식 로고를 공식 색으로 단다(`leading`). 출처·가이드 위반 목록은
+[social-login-logos.md](social-login-logos.md).
+
+### 선택지 (네이티브, KAN-224)
+
+`ChoiceButton` — 웹 `.choice`와 같은 규칙이다. 1.5px 잉크 테두리 + 크림 면 + 반경 16, 높이
+`control-height-lg` 56. **고른 칸만 테두리 2px과 오프셋 그림자**가 붙고 색은 바뀌지 않는다. 그림자
+자리는 고르지 않은 칸도 비워 둬서 고를 때 격자가 들썩이지 않는다. 라벨은 웹 2열 선택지와 같은 Jua
+`titleMedium`. 스크린 리더에는 라디오 버튼(`Role.RadioButton` + `selected`)으로 읽히고, 묶음은 부모가
+`selectableGroup`으로 감싼다.
+
+### 입력 칸 (KAN-224)
+
+`AccenturyTextField` — 1.5px 잉크 테두리 + 크림 면 + 반경 16, 최소 높이 48, **그림자 없음**(떠 있는
+종이는 주 버튼 하나다). 포커스는 테두리가 2px로 굵어지는 것뿐이다. 이름표는 칸 위 `labelLarge`이고
+칸의 접근성 이름도 같은 글자다. `onClick`을 주면 치는 칸이 아니라 누르는 칸(생년월일 → 달력)이 되고
+버튼으로 읽힌다.
 
 ### 진척도
 
@@ -607,6 +626,10 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 아래 제목·카드는 있던 자리에 그대로 남는다. 인트로만 슬롯에서 히어로를 꺼내 부제와 8px로 묶은
 `.intro-hero`를 쓴다 — 제목이 빠진 지금 부제는 히어로에 딸린 줄이라 한 덩어리로 읽혀야 하는데,
 192px 안에 40px 글자를 가운데 세우면 아래로 ~73px이 깔려 부제가 도리어 카드 쪽에 붙어 보였다.
+
+네이티브 로그인 화면(KAN-224, `auth/LoginScreen.kt`)도 이 인트로 히어로 블록(워드마크 + 두 줄 히어로 + 포인트 컬러 곡선 밑줄 + 부제)을
+그대로 옮겨 쓴다 — 앱 첫 화면이 테스트 인트로와 같은 얼굴이어야 해서다. 56·7dp 밑줄은 네이티브 토큰이 없어 정본 값을 화면에 직접 적었다.
+iOS(`Auth/LoginScreen.swift`)도 같은 블록이고, 밑줄 색은 `Papercut.point`(`UI/Theme/PapercutTheme.swift`, 안드로이드 `LightPoint`)다.
 
 ## 9. 접근성 최소선 검증
 

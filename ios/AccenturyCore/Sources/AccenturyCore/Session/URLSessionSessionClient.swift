@@ -8,11 +8,9 @@ private let pathSessions = "v0/sessions"
 /// 유일한 입력이라, 여기서 ANDROID를 그대로 베끼면 iOS 응시가 안드로이드로 집계된다.
 private let platformIOS = "IOS"
 private let jsonMediaType = "application/json"
-private let headerAuthorization = "Authorization"
 private let headerCorrelationId = "X-Correlation-Id"
 private let headerRetryAfter = "Retry-After"
 private let headerContentType = "Content-Type"
-private let bearerPrefix = "Bearer "
 
 private let statusRequestTimeout = 408
 private let statusTooManyRequests = 429
@@ -35,27 +33,39 @@ public func defaultSessionCreateSession() -> URLSession {
 
 /// `POST /v0/sessions` 클라이언트 (KAN-34 결선, KAN-9 계약).
 /// 안드로이드 `session/SessionClient.kt`의 `OkHttpSessionClient` 1:1 이식본이다.
+///
+/// 로그인한 앱(KAN-224)은 이 호출에 `Authorization: Bearer <Access JWT>`를 싣는다. 헤더는 인증 전송
+/// (``AuthorizedSession``, ``AuthClients/sessionClient(session:)``)이 붙이고 이 클래스는 모른다 — 익명과
+/// 로그인이 같은 코드를 탄다. 서버가 403 `AUTH_PROFILE_INCOMPLETE`를 주면 ``SessionResult/rejected(code:message:retryable:retryAfterMs:)``로
+/// 올라오고, 추가 정보 화면으로 돌리는 판정은 ``SessionGateController``가 한다.
 public final class URLSessionSessionClient: SessionClient, Sendable {
 
     private let baseURL: URL
-    private let session: URLSession
+    private let send: HTTPSend
 
-    public init(baseURL: String, session: URLSession = defaultSessionCreateSession()) {
+    public convenience init(baseURL: String, session: URLSession = defaultSessionCreateSession()) {
+        self.init(baseURL: baseURL, send: session.send)
+    }
+
+    /// - Parameter send: 요청을 내보내는 자리. 로그인한 앱은 ``AuthorizedSession``의 것을 준다 (KAN-224)
+    public init(baseURL: String, send: @escaping HTTPSend) {
         guard let url = URL(string: baseURL) else {
             preconditionFailure("세션 baseUrl을 URL로 읽지 못했다: \(baseURL)")
         }
         self.baseURL = url
-        self.session = session
+        self.send = send
     }
 
     public func create(
         appVersion: String,
         previousToken: String?,
-        campaignToken: String?
+        campaignToken: String?,
+        voiceConsentVersion: String?,
+        region: String?
     ) async -> SessionResult {
         do {
-            let request = try buildRequest(appVersion, previousToken, campaignToken)
-            let (data, response) = try await session.data(for: request)
+            let request = try buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion, region)
+            let (data, response) = try await send(request)
             let http = response as? HTTPURLResponse
             return Self.toResult(
                 status: http?.statusCode ?? 0,
@@ -70,7 +80,9 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
     private func buildRequest(
         _ appVersion: String,
         _ previousToken: String?,
-        _ campaignToken: String?
+        _ campaignToken: String?,
+        _ voiceConsentVersion: String?,
+        _ region: String?
     ) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appendingPathComponent(pathSessions))
         request.httpMethod = "POST"
@@ -88,21 +100,14 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
         request.httpBody = try JSONEncoder().encode(
             CreateSessionBody(
                 campaignToken: campaignToken,
+                previousSessionToken: previousToken,
+                voiceConsentVersion: voiceConsentVersion,
+                region: region,
                 client: ClientBody(platform: platformIOS, appVersion: appVersion)
             )
         )
         request.setValue(jsonMediaType, forHTTPHeaderField: headerContentType)
         request.setValue(UUID().uuidString, forHTTPHeaderField: headerCorrelationId)
-        /*
-         * 재응시라면 이전 토큰을 실어 이전 세션과 결과를 즉시 폐기시킨다 (KAN-107).
-         *
-         * 만료됐거나 서버가 모르는 토큰은 조용히 무시되고 응답이 최초 응시와 구분되지 않는다 —
-         * 401도 404도 오지 않는다. 그래서 여기서 토큰의 생사를 미리 따지지 않는다: 따져 봐야
-         * 알 수 없고, 알아도 할 일이 같다(새 세션을 받는다).
-         */
-        if let previousToken {
-            request.setValue(bearerPrefix + previousToken, forHTTPHeaderField: headerAuthorization)
-        }
         return request
     }
 
@@ -162,9 +167,24 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
 /// `campaignToken`이 nil이면 **키 자체가 빠진다** — 합성된 `encode(to:)`가 옵셔널을
 /// `encodeIfPresent`로 내보내기 때문이고, 안드로이드의 kotlinx `encodeDefaults=false`와 같은
 /// 결과다. `"campaignToken":null`로 나가면 서버 `@Pattern`에 걸릴 수 있어 그 차이가 중요하다.
-struct CreateSessionBody: Encodable {
+///
+/// `previousSessionToken`은 재응시에서 폐기할 이전 세션 토큰이다 (KAN-107). 예전에는 `Authorization: Bearer st_...`
+/// 헤더로 보냈지만 로그인한 앱은 그 헤더를 Access 토큰이 차지한다 (KAN-224) — 서버는 본문 값이 있으면 헤더의
+/// `st_` 토큰보다 우선해 읽는다 (Accentury_Server `backend/.../session/SessionService.java` create()). 익명·로그인
+/// 모두 본문으로 보내 경로를 하나로 둔다. 만료됐거나 서버가 모르는 토큰은 조용히 무시되고 응답이 최초 응시와
+/// 구분되지 않으므로(401도 404도 없다) 여기서 토큰의 생사를 따지지 않는다. nil이면 키째 빠진다.
+///
+/// `voiceConsentVersion`은 익명 모드의 음성 저장 동의다 (KAN-270 6단계, 웹 webSession.ts와 같은 필드). 역시 nil이면 빠진다.
+/// `region`은 익명 모드의 출신 지역 코드다 (KAN-270 7단계). 서버가 S3 키·학습 라벨에 쓴다. nil이면 빠진다.
+struct CreateSessionBody: Encodable, CustomStringConvertible {
     let campaignToken: String?
+    let previousSessionToken: String?
+    let voiceConsentVersion: String?
+    let region: String?
     let client: ClientBody
+
+    // 이전 세션 토큰이 로그에 찍히지 않게 한다 (KAN-224).
+    var description: String { "CreateSessionBody[platform=\(client.platform)]" }
 }
 
 struct ClientBody: Encodable {

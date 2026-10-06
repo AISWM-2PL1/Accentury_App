@@ -143,10 +143,16 @@ class UploadManager(
                         // 녹음을 새로 해야 풀리는 거절이면 재전송 쪽은 닫는다 (KAN-147). 두 복구
                         // 경로를 함께 세우면 화면이 어느 쪽을 권하는지 말할 수 없다.
                         val rerecord = result.code in RERECORD_CODES
+                        val slotMissing = result.code == VOICE_SLOT_MISSING
                         UploadState.Failed(
                             retryable = result.retryable && !rerecord,
-                            message = result.message,
+                            message = if (slotMissing) {
+                                result.message?.takeIf { it.isNotBlank() } ?: VOICE_SLOT_MISSING_MESSAGE
+                            } else {
+                                result.message
+                            },
                             rerecord = rerecord,
+                            missingItems = if (slotMissing) result.missingItems else emptyList(),
                         )
                     }
                     // 응답이 오지 않은 것은 녹음의 문제가 아니다. 언제든 다시 보낼 수 있게 남긴다.
@@ -198,7 +204,20 @@ class UploadManager(
          * AUDIO_FORMAT_UNSUPPORTED는 넣지 않는다. 포맷은 클라이언트가 만드는 것이라 사용자가
          * 다시 녹음해도 같은 포맷이 나간다 - 재녹음을 시켜도 벗어날 수 없는 클라이언트 버그다.
          */
-        private val RERECORD_CODES = setOf("AUDIO_TOO_LONG", "AUDIO_TOO_LARGE", "AUDIO_TOO_QUIET")
+        private val RERECORD_CODES = setOf("AUDIO_TOO_LONG", "AUDIO_TOO_LARGE", "AUDIO_TOO_QUIET", VOICE_SLOT_MISSING)
+
+        /**
+         * 보관 음성 유실 거절 (KAN-261 2단계). **KAN-262 확정 전 가칭**이다 — 이름·모양이 바뀌면 여기만 고친다.
+         *
+         * 서버는 음성 1·2번을 문항별 칸에 보관했다가 세 번째 음성 업로드 때 합쳐 분석한다. 세션은
+         * 살아 있는데 칸이 비어 있으면(Redis 장애, TTL 경합) 세 번째 업로드를 이 코드로 거절하고
+         * 비어 있는 문항을 봉투의 `missingItems`에 싣는다. 재녹음 코드인 이유: 칸이 비어 있는 한
+         * 같은 바이트를 다시 보내도 같은 거절이다. 앞 문항부터 다시 여는 것은 TestFlowController 몫이다.
+         */
+        const val VOICE_SLOT_MISSING = "VOICE_SLOT_MISSING"
+
+        /** 서버 문구가 비었을 때의 안내. 웹(`uploadRecording.ts`)·iOS와 같은 문구다. */
+        const val VOICE_SLOT_MISSING_MESSAGE = "앞서 녹음한 음성을 다시 녹음해 주세요"
     }
 }
 

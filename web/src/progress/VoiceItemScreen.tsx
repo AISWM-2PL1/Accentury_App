@@ -36,7 +36,7 @@ const WAITING_MESSAGE = '잠시만요…'
 
 export interface VoiceItemScreenProps {
   item: VoiceItem
-  /** 진행 표기용 1-기반 순번. 네이티브 녹음 화면이 "3/10"을 그리는 데 쓴다 */
+  /** 진행 표기용 1-기반 순번. 네이티브 녹음 화면이 "2/7"을 그리는 데 쓴다 */
   itemNumber: number
   totalItems: number
   /** 브리지가 없는 환경(브라우저 단독)의 녹음 업로드 결선 */
@@ -65,6 +65,8 @@ export interface VoiceItemScreenProps {
    * 탭에서만 부른다 — 이유는 `reopen` 주석. 없으면 탭은 예전처럼 곧바로 녹음 화면을 다시 연다.
    */
   probeSession?: () => Promise<'ALIVE' | 'EXPIRED'>
+  /** 브라우저 녹음 경로의 보관 음성 유실 거절 (KAN-261). [WebVoiceRecorder]에 그대로 넘긴다 */
+  onSlotMissing?: (missingItems: string[]) => void
 }
 
 export function VoiceItemScreen({
@@ -75,6 +77,7 @@ export function VoiceItemScreen({
   onWebUploaded,
   retest,
   probeSession,
+  onSlotMissing,
 }: VoiceItemScreenProps) {
   /*
    * 브리지 호출 결과. `null`은 아직 부르기 전이라는 뜻이다 — 호출은 effect에서 일어나므로
@@ -194,6 +197,7 @@ export function VoiceItemScreen({
           capture={webRecording.capture}
           userCurveCenterHz={webRecording.userCurveCenterHz}
           retest={retest}
+          onSlotMissing={onSlotMissing}
         />
       ) : sessionExit && retest !== undefined ? (
         /*

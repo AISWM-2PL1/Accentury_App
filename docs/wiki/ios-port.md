@@ -344,3 +344,52 @@ nil로 들고, 그러면 문항 결과 주입(`deliverResults`)이 매번 "받�
 - 전송 완료 집계는 KAN-164(BE 웹훅)다. 카카오 웹훅은 앱 키 단위라 iOS가 같은 키를 쓰는 한
   같이 세지고, `serverCallbackArgs`는 그 티켓이 계약을 정하면 양 플랫폼에 함께 붙인다
 
+
+## 11. 로그인 게이트 (KAN-224)
+
+안드로이드(1·2단계)의 인증 계층을 같은 계약으로 옮겼다. 흐름·토큰·콘솔 설정·키 주입의 정본은
+`docs/wiki/social-login.md`이고, 여기는 iOS에서 무엇이 어느 계층에 갔는가다.
+
+### 계층이 갈린 자리
+
+| 어디 | 무엇 | 왜 |
+| --- | --- | --- |
+| `AccenturyCore/Auth/` | `AuthApi`·`AuthTokens`·`TokenRefresher`·`AuthorizedSession`·`AuthClients`·`AuthGateController`·`LoginScreenState`·`ProfileFormState`·`AppleNonce`, `VoiceConsentPrompt`·`VoiceConsentText`(KAN-270 음성 저장 동의 판정·표시 기록·문안), `AnonymousVoiceConsentStore`(KAN-270 6단계, 로그인 끈 빌드의 설치당 1회 동의, 7단계 출신 지역 `region`·`needsAnonymousRegion`) | 상태 기계·갱신 줄 세우기·401 재시도·nonce는 SDK 없이 정해진다. 안드로이드 인증 테스트를 이식해 `swift test`로 돈다(동시 401 다섯 건에 갱신 한 번 포함) |
+| `Accentury/Auth/` | `KeychainTokenStore`, `IdpSdks`(구글·카카오·네이버·애플 SDK 호출과 URL 복귀, `IdpLogout`), `AuthHub`, `AuthGateView`, `LoginScreen`·`ProfileScreen`·`SettingsScreen`(KAN-247, 톱니 버튼 포함, KAN-270 음성 저장 동의 토글)·`VoiceConsentScreen`(KAN-270), `AnonymousFlowView`·`AnonymousSettingsScreen`(KAN-270 6단계, 로그인 끈 빌드의 최상위와 「개인정보」만 있는 설정), `AnonymousRegionScreen`(KAN-270 7단계, 동의한 익명 사용자의 출신 지역) | 키체인은 앱 번들의 entitlement에, IdP SDK는 UIKit·번들 설정에 매여 있어 Core에 들어갈 수 없다 |
+| `Accentury/AppConfig.swift` | 로그인 키 여섯과 `fakeIdp`, `loginEnabled`(KAN-270 6단계) | xcconfig → `Info-*.plist` → `AppConfig` 사슬(§1의 `WEB_URL`과 같다). `fakeIdp`는 `#if DEBUG`라 Release에서는 늘 false. `loginEnabled`는 두 plist에 다 있고 기본 NO(익명 모드) |
+| `Accentury/TestFlow/` | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`·`needsAnonymousRegion`, `TestFlowView` 시작 게이트의 동의·지역 단계(KAN-270 6·7단계) | 로그인 끈 빌드는 권한 → 동의(설치당 1회) → 지역(없을 때, 동의와 무관, 설치당 1회) → 점검 → 세션이고, 세션 생성은 plain 클라이언트 + `createWithConsentFallback`(`region`은 동의와 무관하게 싣고, 폴백 재시도에서는 동의 버전만 뺀다, KAN-274)이다(`voice-consent.md` 「iOS 대응」) |
+
+SDK 타입은 `IdpSdks.swift` 한 파일에 가뒀다. 화면은 제공자 이름과 `IdpOutcome`만 안다 — 카카오 SDK가
+`AuthApi`·`Gender` 같은 이름을 우리 Core와 겹쳐 쓰는 문제도 그 파일 안에서 끝난다.
+
+### AuthorizedSession = Interceptor + Authenticator
+
+URLSession에는 OkHttp의 인터셉터·Authenticator 같은 확장점이 없다. 그래서 `AuthorizedSession`이 요청 함수
+(`HTTPSend`)를 감싸 둘의 일을 한 자리에서 한다 — 저장된 Access를 `Authorization: Bearer`로 싣고(호출자가
+이미 달았으면 건드리지 않는다), 401이면 `TokenRefresher`로 한 번 갱신해 **한 번만** 다시 보낸다. 쓰는 곳은
+사용자 API(`/v0/users/me*`, `/v0/auth/logout`)와 세션 생성(`AuthClients.sessionClient`, 15초 세션 위)뿐이다.
+세션 범위 API(업로드 등)는 `st_` 세션 토큰을 싣는 기존 전송 그대로다.
+
+`TokenRefresher`는 액터인데, 액터만으로는 갱신이 줄 서지 않는다 — `await`에서 다른 호출이 들어와 같은 옛
+Refresh를 읽고 나간다. 호출마다 앞 호출의 작업을 기다리는 사슬(`tail`)을 둬 코틀린 `Mutex.withLock`과 같은
+FIFO 줄을 만든다. 인증 객체는 `AuthHub`에 프로세스당 하나다 — 둘이면 줄이 둘이 되어 동시 갱신이 서로의
+Refresh를 죽인다.
+
+### 저장된 응시는 signedOut·needsProfile에서 지운다
+
+`TestFlowView`는 `signedIn`일 때만 화면에 있다. `AuthGateView`가 상태가 `signedOut`·`needsProfile`로 바뀌는
+순간 `TestFlowModel.clearSavedState()`로 저장해 둔 시작 게이트·세션을 지운다 — 다시 들어오면 인트로부터다.
+안드로이드는 TestFlow 컴포저블이 컴포지션에서 내려가며 저장 상태가 함께 버려져 따로 지우는 코드가 없다.
+iOS는 진행 저장이 `UserDefaults`에 남아(`ios/README.md` 「진행 저장이 남는다」) 명시적으로 지워야 같은 결과가 된다.
+세션 생성 403 `AUTH_PROFILE_INCOMPLETE`에서는 시작 게이트를 먼저 되감고(`TestFlowModel`) 추가 정보로 넘긴다 —
+위 삭제가 있으니 되감기는 이중 안전장치다.
+
+### 안드로이드와 갈리는 점
+
+- **토큰 저장이 키체인이다.** 안드로이드는 Keystore 키로 직접 암호화해 DataStore에 두지만, iOS는 키체인이 그
+  일을 한다. 접근 등급 `AfterFirstUnlockThisDeviceOnly`(백그라운드 업로드 중에도 읽히고, 백업으로 따라가지 않는다).
+- **애플 로그인이 넷째 버튼이다.** 설정값이 없어 늘 보인다(`configuredProviders()`가 `.APPLE`로 시작한다).
+- **IdP 복귀가 URL 스킴 셋이다.** `onOpenURL` → `handleIdpOpenURL`이 카카오·구글·네이버 순으로 넘긴다.
+  스킴(`kakao…`, `GOOGLE_REVERSED_CLIENT_ID`, `NAVER_URL_SCHEME`)은 `Info-*.plist`의 `CFBundleURLTypes`에 있고,
+  네이버 앱 조회용 `naversearchapp`·`naversearchthirdlogin`이 `LSApplicationQueriesSchemes`에 더해졌다.
+- **세션 생성 15초 상한이 갱신을 덮지 않는다.** 갱신은 토큰 없는 기본 세션으로 나간다 (`social-login.md` §7).

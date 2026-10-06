@@ -18,6 +18,10 @@ firebaseBom = "34.18.0"
 googleServices = "4.5.0"
 firebaseCrashlyticsPlugin = "3.0.8"
 playServicesAds = "25.4.0"
+datastorePreferences = "1.2.1"
+credentials = "1.6.0"
+googleId = "1.2.0"
+naverOauth = "5.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -45,6 +49,18 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kakao-share = { group = "com.kakao.sdk", name = "v2-share", version.ref = "kakaoSdk" }
+# 카카오 로그인 (KAN-224). 공유와 같은 SDK 묶음이라 버전을 kakaoSdk 하나로 같이 올린다 - 둘이 갈리면
+# v2-common·v2-auth가 서로 다른 버전으로 끌려온다.
+kakao-user = { group = "com.kakao.sdk", name = "v2-user", version.ref = "kakaoSdk" }
+# 구글 로그인 (KAN-224). Credential Manager + Sign in with Google. credentials 1.6.0 = Google Maven 최신 안정판
+# (2026-09-28 확인, 1.7.0은 alpha). googleid는 1.2.0 - 최신 1.2.1은 Kotlin 2.4 메타데이터로 빌드돼 우리
+# 컴파일러(2.2)가 못 읽는다. Kotlin을 올릴 때 같이 올린다. https://developer.android.com/identity/sign-in/credential-manager-siwg
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
+googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleId" }
+# 네이버 로그인 (KAN-224). 옛 이름 naveridlogin-sdk-android의 현재 좌표다 - 5.12.0 = Maven Central 최신
+# (2026-09-28 확인). https://github.com/naver/naveridlogin-sdk-android
+naver-oauth = { group = "com.navercorp.nid", name = "oauth", version.ref = "naverOauth" }
 # 익명 계측·크래시 (KAN-33). 두 SDK의 버전은 BoM 하나가 잡는다 - 같은 firebase-common 위에 서 있어
 # 따로 올리면 조합이 어긋난다. 그래서 아래 둘에는 version이 없다.
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
@@ -54,6 +70,10 @@ firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashly
 # 잡고 play-services-ads는 그 목록에 없다. 25.4.0 = 2026-06-17 릴리스 (developers.google.com/admob/android/rel-notes),
 # Google Maven maven-metadata의 latest와 같다 (2026-09-11 확인). minSdk 23+·compileSdk 35+ 요구.
 play-services-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "playServicesAds" }
+# 계정 토큰 저장 (KAN-224). Keystore로 암호화한 토큰 쌍을 여기 둔다 - EncryptedSharedPreferences는 deprecated.
+# 1.2.1 = 최신 안정판 (developer.android.com/topic/libraries/architecture/datastore, Google Maven
+# maven-metadata에서 1.3.0은 아직 alpha, 2026-09-28 확인).
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

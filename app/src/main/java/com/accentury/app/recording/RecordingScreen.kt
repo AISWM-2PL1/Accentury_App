@@ -22,11 +22,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -39,11 +43,13 @@ import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.CurveLane
 import com.accentury.app.ui.components.CurveLaneGroup
 import com.accentury.app.ui.components.CurveLaneVariant
+import com.accentury.app.ui.components.Haptic
 import com.accentury.app.ui.components.ProgressIndicator
 import com.accentury.app.ui.components.PromptCard
 import com.accentury.app.ui.components.RecordButton
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
+import com.accentury.app.ui.components.performHaptic
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.Motion
 import com.accentury.app.ui.theme.Radius
@@ -102,6 +108,18 @@ fun RecordingScreen(
     viewModel: RecordingViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    /*
+     * 녹음 결과의 성공·실패 햅틱 (KAN-258). 상태가 바뀔 때마다 한 번 보고, 이 화면이 처음 본 상태는
+     * 건너뛴다(primed). 회전하면 액티비티가 다시 만들어지는데(이 앱은 회전을 잠그지 않는다) 뷰모델은
+     * 살아 있어 Review·Failed가 그대로 다시 들어온다 - 그것은 새 결과가 아니라 같은 결과를 다시 그리는
+     * 것이라 떨지 않는다. 키를 attemptId로 잡지 않은 이유는 Failed에 식별자가 없어서다.
+     */
+    val view = LocalView.current
+    var primed by remember { mutableStateOf(false) }
+    LaunchedEffect(state) {
+        if (primed) recordingResultHaptic(state)?.let(view::performHaptic)
+        primed = true
+    }
     // 문항이 사는 동안 곡선 데이터는 정적이다 - 좌표 계산은 마운트당 한 번이면 된다.
     // unit 가드: "0은 무성이 아니다" 규칙(GuideCurve)은 semitone에서만 참이다. 모르는 단위는
     // 자기 스케일 덕에 그럴듯하게 그려지면서 무성 판정만 조용히 틀리므로, 안 그리는 쪽을 택한다.
@@ -170,7 +188,7 @@ fun RecordingScreen(
              * 폭 전체로 그린다(.progress-indicator { width: 100% }). 문항이 두 런타임을 오가므로
              * 막대 길이나 표기가 달라지면 사용자에게는 진행이 튄 것처럼 보인다.
              *
-             * [note]가 "음성"인 것도 같은 이유다 - 웹 캡션이 "3 / 10 · 음성"이라, 여기서만 종류를
+             * [note]가 "음성"인 것도 같은 이유다 - 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를
              * 빼면 같은 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
              */
             ProgressIndicator(
@@ -246,7 +264,19 @@ fun RecordingScreen(
 }
 
 /**
- * 대사 카드 위 캡션. 아트보드는 "3 / 10 · 이 문장을 읽어주세요"다 — 진행 도트 아래 캡션이
+ * 녹음 결과가 내는 햅틱 (KAN-258, webview-bridge.md §9). 다음으로 넘어갈 수 있는 녹음이면 성공,
+ * 다시 녹음해야 하는 품질이나 녹음 실패면 실패다. 결과가 아닌 상태(대기·녹음 중)는 null이다.
+ * [다음] 버튼을 여는 [RecordingUiState.Review.canProceed]와 같은 기준이다.
+ */
+internal fun recordingResultHaptic(state: RecordingUiState): Haptic? = when (state) {
+    is RecordingUiState.Review -> if (state.canProceed) Haptic.Success else Haptic.Error
+    is RecordingUiState.Failed -> Haptic.Error
+    RecordingUiState.Idle, is RecordingUiState.Recording -> null
+}
+
+/**
+ * 대사 카드 위 캡션. 아트보드는 "3 / 10 · 이 문장을 읽어주세요"다(10문항 시절 시안이라 숫자는
+ * 예시, 분모는 정의가 주는 문항 수로 현재 7이다. KAN-261) — 진행 도트 아래 캡션이
  * 이미 같은 숫자를 말하지만 두 줄이 화면 위아래로 떨어져 있어, 대사 바로 위에 한 번 더
  * 있는 편이 "지금 읽을 것은 이것"으로 읽힌다.
  *

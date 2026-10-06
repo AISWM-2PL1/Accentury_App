@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
+   Android 11 이하 자동 백업 규칙. 12+는 data_extraction_rules.xml을 본다.
    See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
     <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+      계정 토큰 (KAN-224, auth/KeystoreTokenStore.kt). 암호문을 푸는 Keystore 키는 백업되지 않으므로
+      파일만 복원되면 영영 못 푸는 값이 된다. 토큰을 기기 밖으로 내보내지 않는 것 자체도 목적이다.
+    -->
+    <exclude domain="file" path="datastore/auth_tokens.preferences_pb" />
 </full-backup-content>

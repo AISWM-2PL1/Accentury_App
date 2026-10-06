@@ -23,5 +23,14 @@
 		<string>applinks:accentury.app</string>
 		<string>applinks:staging.accentury.app</string>
 	</array>
+
+	<!-- Sign in with Apple (KAN-224). 다른 소셜 로그인을 주는 앱은 애플 로그인도 같은 무게로 줘야 한다
+	     (App Review Guidelines 4.8). 값 Default는 애플이 정한 유일한 값이다. App ID의 Sign in with Apple
+	     capability는 개발자 콘솔에서 켠다 — 자동 서명이 이 키를 보고 프로파일에 싣는다.
+	     https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.applesignin -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

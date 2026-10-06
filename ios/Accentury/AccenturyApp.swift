@@ -43,11 +43,28 @@ struct AccenturyApp: App {
          * (Base.xcconfig). 요청은 동의가 정해지기 전에는 나가지 않는다 (AdsController).
          */
         AdsController.shared.start()
+
+        /*
+         * 로그인 (KAN-224). 네이버 SDK는 카카오와 같은 스위치로 설정이 있을 때만 초기화한다(구글·애플은 초기화가
+         * 없다). 로그인 상태 확인은 프로세스당 한 번 — 안드로이드 `AccenturyApplication`이 `authGate.bootstrap()`을
+         * 거는 자리다. 화면(`AuthGateView`)에서 걸면 화면이 다시 만들어질 때마다 갱신이 한 번 더 나가 Refresh가 괜히
+         * 회전한다. 확인이 끝날 때까지 첫 화면은 런치 화면 얼굴을 유지한다(AuthCheckScreen).
+         *
+         * 로그인을 끈 빌드(익명 모드, KAN-270 6단계)는 확인할 것이 없다 — ``AuthHub``의 static let을 아예 깨우지 않아
+         * Keychain 접근과 클라이언트 생성을 건너뛴다. 안드로이드 `if (BuildConfig.LOGIN_ENABLED) authGate.retry()`와 같다.
+         */
+        initializeIdpSdks()
+        if AppConfig.loginEnabled {
+            Task { await AuthHub.gate.bootstrap() }
+        }
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // 카카오톡·네이버 앱·구글 인증 창에서 로그인을 마치고 돌아오는 URL (KAN-224). 받을 SDK가 없는 URL은
+                // 그냥 흘려보낸다 — Universal Link(공유 링크)는 이 통로가 아니라 NSUserActivity로 온다(TestFlowView).
+                .onOpenURL { _ = handleIdpOpenURL($0) }
         }
     }
 }

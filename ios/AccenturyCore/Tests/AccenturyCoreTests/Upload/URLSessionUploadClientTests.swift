@@ -119,12 +119,32 @@ final class URLSessionUploadClientTests: XCTestCase {
         )
     }
 
+    func test봉투의_missingItems를_Rejected에_싣는다_보관_음성_유실() async {
+        MockURLProtocol.respond(
+            status: 409,
+            body: #"{"code":"VOICE_SLOT_MISSING","message":"","retryable":false,"missingItems":["item-1","item-2"]}"#
+        )
+
+        let result = await client().upload(request, sessionId: "sess-1", sessionToken: "token-1")
+
+        XCTAssertEqual(
+            .rejected(
+                code: "VOICE_SLOT_MISSING",
+                message: "",
+                retryable: false,
+                retryAfterMs: nil,
+                missingItems: ["item-1", "item-2"]
+            ),
+            result
+        )
+    }
+
     func test봉투_없는_500은_상태_코드_기준으로_재시도_가능한_Rejected가_된다() async throws {
         MockURLProtocol.respond(status: 500, body: "<html>Bad Gateway</html>")
 
         let result = await client().upload(request, sessionId: "sess-1", sessionToken: "token-1")
 
-        guard case let .rejected(code, message, retryable, _) = result else {
+        guard case let .rejected(code, message, retryable, _, _) = result else {
             return XCTFail("Rejected가 아님: \(result)")
         }
         XCTAssertNil(code)
@@ -137,7 +157,7 @@ final class URLSessionUploadClientTests: XCTestCase {
 
         let result = await client().upload(request, sessionId: "sess-1", sessionToken: "token-1")
 
-        guard case let .rejected(_, _, retryable, _) = result else {
+        guard case let .rejected(_, _, retryable, _, _) = result else {
             return XCTFail("Rejected가 아님: \(result)")
         }
         XCTAssertFalse(retryable)
@@ -148,7 +168,7 @@ final class URLSessionUploadClientTests: XCTestCase {
 
         let result = await client().upload(request, sessionId: "sess-1", sessionToken: "token-1")
 
-        guard case let .rejected(_, _, retryable, _) = result else {
+        guard case let .rejected(_, _, retryable, _, _) = result else {
             return XCTFail("Rejected가 아님: \(result)")
         }
         XCTAssertTrue(retryable)
@@ -191,7 +211,7 @@ final class URLSessionUploadClientTests: XCTestCase {
 
             let result = await client().upload(request, sessionId: "sess-1", sessionToken: "token-1")
 
-            guard case let .rejected(code, message, retryable, _) = result else {
+            guard case let .rejected(code, message, retryable, _, _) = result else {
                 XCTFail("\(row.label): Rejected가 아님: \(result)")
                 continue
             }

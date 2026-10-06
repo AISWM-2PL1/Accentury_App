@@ -5,9 +5,26 @@
  * 주는 것 — 의미론, 기본 타입, 통지 역할 — 만 확인한다. 두 검사가 서로 다른 층을 맡는다.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { REQUIRED_BRIDGE_VERSION } from '../bridge/bridge'
 import { Button, ProgressIndicator, StatusBlock } from './index'
+
+afterEach(() => {
+  delete window.AccenturyBridge
+})
+
+/** 햅틱을 아는 브리지 대역 (KAN-258). 돌려준 spy로 요청을 센다 */
+function installHapticBridge() {
+  const vibrate = vi.fn()
+  window.AccenturyBridge = {
+    requestMicPermission: vi.fn(),
+    startVoiceItem: vi.fn(),
+    getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+    haptic: vibrate,
+  }
+  return vibrate
+}
 
 describe('Button', () => {
   it('기본 type이 button이다 — 폼 안에서 submit으로 새로고침되지 않는다', () => {
@@ -35,6 +52,60 @@ describe('Button', () => {
     )
     fireEvent.click(screen.getByRole('button'))
     expect(onClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('Button 햅틱 (KAN-258)', () => {
+  it('primary는 누르면 탭 햅틱을 요청하고 onClick도 그대로 부른다', () => {
+    const vibrate = installHapticBridge()
+    const onClick = vi.fn()
+    render(<Button onClick={onClick}>다음</Button>)
+
+    fireEvent.click(screen.getByRole('button'))
+    expect(vibrate).toHaveBeenCalledTimes(1)
+    expect(vibrate).toHaveBeenCalledWith('tap')
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('secondary·text는 햅틱이 없다 — 아껴 써야 primary의 진동이 뜻을 갖는다', () => {
+    const vibrate = installHapticBridge()
+    const onClick = vi.fn()
+    const { rerender } = render(
+      <Button variant="secondary" onClick={onClick}>
+        가
+      </Button>,
+    )
+    fireEvent.click(screen.getByRole('button'))
+
+    rerender(
+      <Button variant="text" onClick={onClick}>
+        가
+      </Button>,
+    )
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(onClick).toHaveBeenCalledTimes(2)
+    expect(vibrate).not.toHaveBeenCalled()
+  })
+
+  it('브리지가 없어도(브라우저 단독) primary 클릭은 그대로 동작한다', () => {
+    const onClick = vi.fn()
+    render(<Button onClick={onClick}>다음</Button>)
+
+    expect(() => fireEvent.click(screen.getByRole('button'))).not.toThrow()
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('disabled primary는 햅틱도 없다 — 눌리지 않는 버튼이 떨면 눌린 줄 안다', () => {
+    const vibrate = installHapticBridge()
+    render(
+      <Button disabled onClick={vi.fn()}>
+        다음
+      </Button>,
+    )
+
+    fireEvent.click(screen.getByRole('button'))
+    expect(vibrate).not.toHaveBeenCalled()
   })
 })
 

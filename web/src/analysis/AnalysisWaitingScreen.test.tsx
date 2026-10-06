@@ -4,6 +4,7 @@ import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { VoiceItem } from '../progress/testDefinition'
 import {
   AnalysisWaitingScreen,
+  queueNotice,
   retakeReason,
   type AnalysisWaitingScreenProps,
 } from './AnalysisWaitingScreen'
@@ -40,10 +41,20 @@ function voiceItem(seq: number): VoiceItem {
 }
 
 /**
- * 음성 5문항. 순번은 전체 10문항 기준이다 — 정의가 음성·어휘를 번갈아 두므로 홀수 자리가
- * 음성이고, 대기 화면 목록도 그 번호로 부른다 (네이티브 녹음 화면의 "n / 10"과 같은 값).
+ * 음성 3문항. 순번은 정의 전체 문항 기준이다 — 정의 gn-2026.10.1(KAN-261, 7문항)은 1·2·4번에
+ * 음성을 두고, 대기 화면 목록도 그 번호로 부른다 (네이티브 녹음 화면의 "n / 7"과 같은 값).
  */
-const VOICE_ITEMS = [1, 2, 3, 4, 5].map((seq) => ({
+const VOICE_ITEMS = [1, 2, 4].map((itemNumber, index) => ({
+  item: voiceItem(index + 1),
+  itemNumber,
+}))
+
+/**
+ * 옛 정의(10문항, 음성 5개가 홀수 자리)의 음성 문항. 배포 전에 만든 세션은 이 정의로 대기 화면에
+ * 오므로, 문항 수·번호를 정의에서 받는다는 전제를 이 구성으로도 확인한다 (KAN-261 버전 공존).
+ * 상태가 다섯 가지라 다섯 줄이 필요한 케이스도 이 구성을 쓴다.
+ */
+const OLD_TEN_ITEM_VOICE_ITEMS = [1, 2, 3, 4, 5].map((seq) => ({
   item: voiceItem(seq),
   itemNumber: seq * 2 - 1,
 }))
@@ -61,7 +72,7 @@ function envelope(code: string, message: string, retryable: boolean, extra: Reco
   return { code, message, retryable, retryAfterMs: null, correlationId: 'c_test', ...extra }
 }
 
-/** 음성 5문항 상태. 인자로 준 상태를 seq 순서로 싣는다 */
+/** 음성 문항 상태. 인자로 준 상태를 seq 순서로 싣는다 */
 function statusesBody(statuses: string[], quality: (string | undefined)[] = []) {
   return {
     pollAfterMs: 800,
@@ -80,7 +91,7 @@ function fetchFor(handlers: { analyses?: () => Response; complete?: () => Respon
   return async (input) => {
     const url = String(input)
     if (url.endsWith('/analyses')) {
-      return (handlers.analyses ?? (() => jsonResponse(200, statusesBody(Array(5).fill('PROCESSING')))))()
+      return (handlers.analyses ?? (() => jsonResponse(200, statusesBody(Array(3).fill('PROCESSING')))))()
     }
     if (url.endsWith('/complete')) {
       return (handlers.complete ?? (() => jsonResponse(200, { status: 'PROCESSING' })))()
@@ -95,7 +106,7 @@ function props(overrides: Partial<AnalysisWaitingScreenProps> = {}): AnalysisWai
     sessionId: 'sess-1',
     sessionToken: 'token-1',
     voiceItems: VOICE_ITEMS,
-    totalItems: 10,
+    totalItems: 7,
     onReady: vi.fn(),
     fetchImpl: fetchFor({}),
     ...overrides,
@@ -135,30 +146,29 @@ function stubGtag(): Record<string, unknown>[] {
   return events
 }
 
-describe('진행률 — 분모는 10이다', () => {
-  it('어휘 5문항을 완료로 세고 음성 완료를 더한다', async () => {
+describe('진행률 — 분모는 정의의 문항 수(7)다', () => {
+  it('어휘 4문항을 완료로 세고 음성 완료를 더한다', async () => {
     await renderScreen({
       fetchImpl: fetchFor({
-        analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'PROCESSING', 'PROCESSING', 'PROCESSING'])),
+        analyses: () => jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'PROCESSING'])),
       }),
     })
 
     const bar = screen.getByRole('progressbar', { name: '분석 진행률' })
-    expect(bar).toHaveAttribute('aria-valuemax', '10')
-    // 어휘 5 + 음성 완료 2
-    expect(bar).toHaveAttribute('aria-valuenow', '7')
-    expect(screen.getByText('분석 중 7 / 10')).toBeInTheDocument()
+    expect(bar).toHaveAttribute('aria-valuemax', '7')
+    // 어휘 4 + 음성 완료 2
+    expect(bar).toHaveAttribute('aria-valuenow', '6')
+    expect(screen.getByText('분석 중 6 / 7')).toBeInTheDocument()
   })
 
-  it('음성이 전부 실패해도 분모는 10을 유지한다 — 시도 수와 무관하다', async () => {
+  it('음성이 전부 실패해도 분모는 7을 유지한다 — 시도 수와 무관하다', async () => {
     await renderScreen({
-      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(5).fill('RETRYABLE_FAILED'))) }),
+      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(3).fill('RETRYABLE_FAILED'))) }),
     })
 
     const bar = screen.getByRole('progressbar', { name: '분석 진행률' })
-    expect(bar).toHaveAttribute('aria-valuemax', '10')
-    expect(bar).toHaveAttribute('aria-valuenow', '5')
+    expect(bar).toHaveAttribute('aria-valuemax', '7')
+    expect(bar).toHaveAttribute('aria-valuenow', '4')
   })
 })
 
@@ -181,7 +191,7 @@ describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)'
     const { container } = await renderScreen({
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'PROCESSING', 'PROCESSING', 'PROCESSING'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'PROCESSING'])),
       }),
     })
 
@@ -193,7 +203,7 @@ describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)'
 
   it('음성이 전부 끝나고 결과를 기다리면 2단계(분포 비교)로 넘어간다', async () => {
     const { container } = await renderScreen({
-      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(5).fill('COMPLETED'))) }),
+      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'))) }),
     })
 
     expect(stepStates(container)).toEqual(['done', 'current', 'todo'])
@@ -202,7 +212,7 @@ describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)'
   it('READY면 3단계(등급 계산)까지 온다', async () => {
     const { container } = await renderScreen({
       fetchImpl: fetchFor({
-        analyses: () => jsonResponse(200, statusesBody(Array(5).fill('COMPLETED'))),
+        analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'))),
         complete: () => jsonResponse(200, { status: 'READY' }),
       }),
     })
@@ -214,7 +224,7 @@ describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)'
     const { container } = await renderScreen({
       onRetake: vi.fn(),
       fetchImpl: fetchFor({
-        analyses: () => jsonResponse(200, statusesBody(Array(5).fill('RETRYABLE_FAILED'))),
+        analyses: () => jsonResponse(200, statusesBody(Array(3).fill('RETRYABLE_FAILED'))),
         complete: () =>
           jsonResponse(409, envelope('RESULT_RETAKE_REQUIRED', '실패한 문항이 있습니다.', true, {
             retakeItems: ['v1'],
@@ -242,17 +252,20 @@ describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)'
 })
 
 describe('문항별 상태', () => {
-  it('음성 5문항을 전체 기준 순번과 함께 세운다 — 네이티브 녹음 화면의 번호와 같다', async () => {
+  it('음성 3문항을 전체 기준 순번과 함께 세운다 — 네이티브 녹음 화면의 번호와 같다', async () => {
     await renderScreen()
 
-    // 전체 문항 기준 번호로 부른다 — 음성 안에서의 1~5가 아니다
-    for (const number of [1, 3, 5, 7, 9]) {
+    // 전체 문항 기준 번호로 부른다 — 음성 안에서의 1~3이 아니다
+    for (const number of [1, 2, 4]) {
       expect(screen.getByText(`${number}번 문항`)).toBeInTheDocument()
     }
   })
 
   it('다섯 상태를 사용자 문구로 그린다 — 코드 이름을 그대로 내보내지 않는다', async () => {
+    // 상태 다섯을 한 화면에 세우려면 줄이 다섯 필요해 옛 10문항 정의의 음성 구성을 쓴다
     await renderScreen({
+      voiceItems: OLD_TEN_ITEM_VOICE_ITEMS,
+      totalItems: 10,
       fetchImpl: fetchFor({
         analyses: () =>
           jsonResponse(
@@ -268,12 +281,14 @@ describe('문항별 상태', () => {
     expect(screen.getByText('분석 실패')).toBeInTheDocument()
     expect(screen.getByText('녹음 필요')).toBeInTheDocument()
     expect(screen.queryByText(/RETRYABLE_FAILED/)).not.toBeInTheDocument()
+    // 옛 정의 세션도 그 정의의 번호(홀수 자리)로 부른다 — 배포 전 세션이 깨지지 않는다 (KAN-261)
+    expect(screen.getByText('9번 문항')).toBeInTheDocument()
   })
 
   it('품질이 정상이면 적지 않는다 — 전부 "OK"인 목록은 정보가 아니다', async () => {
     await renderScreen({
       fetchImpl: fetchFor({
-        analyses: () => jsonResponse(200, statusesBody(Array(5).fill('COMPLETED'), Array(5).fill('OK'))),
+        analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'), Array(3).fill('OK'))),
       }),
     })
 
@@ -284,7 +299,7 @@ describe('문항별 상태', () => {
     await renderScreen({
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'PROCESSING', 'PROCESSING', 'PROCESSING', 'PROCESSING'], ['NOISY'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'PROCESSING', 'PROCESSING'], ['NOISY'])),
       }),
     })
 
@@ -295,8 +310,8 @@ describe('문항별 상태', () => {
 describe('점수 미노출 (KAN-12)', () => {
   it('서버가 점수를 보내도 그릴 자리가 없다 — 파서가 버린다', async () => {
     const body = {
-      ...statusesBody(Array(5).fill('COMPLETED')),
-      items: statusesBody(Array(5).fill('COMPLETED')).items.map((item) => ({ ...item, score: 88 })),
+      ...statusesBody(Array(3).fill('COMPLETED')),
+      items: statusesBody(Array(3).fill('COMPLETED')).items.map((item) => ({ ...item, score: 88 })),
     }
     const { container } = await renderScreen({
       fetchImpl: fetchFor({ analyses: () => jsonResponse(200, body) }),
@@ -328,6 +343,9 @@ describe('결과 확정', () => {
 describe('재녹음', () => {
   it('재녹음이 도움이 되는 문항에만 버튼을 준다', async () => {
     await renderScreen({
+      // 상태 다섯을 한꺼번에 보려고 옛 10문항 정의의 음성 구성(다섯 줄)을 쓴다
+      voiceItems: OLD_TEN_ITEM_VOICE_ITEMS,
+      totalItems: 10,
       onRetake: vi.fn(),
       fetchImpl: fetchFor({
         analyses: () =>
@@ -352,7 +370,7 @@ describe('재녹음', () => {
       onRetake,
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'FAILED', 'COMPLETED', 'COMPLETED'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'FAILED'])),
       }),
     })
 
@@ -367,7 +385,7 @@ describe('재녹음', () => {
       onRetake,
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'RETRYABLE_FAILED', 'COMPLETED', 'COMPLETED'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'RETRYABLE_FAILED'])),
       }),
     })
 
@@ -378,7 +396,7 @@ describe('재녹음', () => {
 
   it('onRetake가 없으면 버튼을 그리지 않는다 — 눌러도 아무 일 없는 버튼을 두지 않는다', async () => {
     await renderScreen({
-      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(5).fill('RETRYABLE_FAILED'))) }),
+      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(3).fill('RETRYABLE_FAILED'))) }),
     })
 
     expect(screen.queryByRole('button', { name: '다시 녹음' })).not.toBeInTheDocument()
@@ -391,7 +409,7 @@ describe('멈춘 상태의 출구', () => {
       onRetake: vi.fn(),
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'RETRYABLE_FAILED', 'COMPLETED', 'COMPLETED'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'RETRYABLE_FAILED'])),
         complete: () =>
           jsonResponse(
             409,
@@ -409,12 +427,12 @@ describe('멈춘 상태의 출구', () => {
       onRetake: vi.fn(),
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'COMPLETED', 'COMPLETED', 'NOT_SUBMITTED'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'NOT_SUBMITTED'])),
         complete: () =>
           jsonResponse(
             422,
             envelope('RESULT_INCOMPLETE', '아직 완료하지 않은 문항이 있습니다.', false, {
-              missingItems: ['v5'],
+              missingItems: ['v3'],
             }),
           ),
       }),
@@ -429,7 +447,7 @@ describe('멈춘 상태의 출구', () => {
       onRetake: vi.fn(),
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'FAILED', 'COMPLETED', 'COMPLETED'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'FAILED'])),
         complete: () =>
           jsonResponse(
             409,
@@ -450,7 +468,7 @@ describe('멈춘 상태의 출구', () => {
       retest,
       // 음성은 전부 끝났는데 서버는 어휘(w5) 미제출로 422를 준다. 이 목록에 w5는 없다
       fetchImpl: fetchFor({
-        analyses: () => jsonResponse(200, statusesBody(Array(5).fill('COMPLETED'))),
+        analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'))),
         complete: () =>
           jsonResponse(
             422,
@@ -491,12 +509,12 @@ describe('멈춘 상태의 출구', () => {
       retest,
       // onRetake 없음 = 브라우저 단독 실행
       fetchImpl: fetchFor({
-        analyses: () => jsonResponse(200, statusesBody(Array(5).fill('RETRYABLE_FAILED'))),
+        analyses: () => jsonResponse(200, statusesBody(Array(3).fill('RETRYABLE_FAILED'))),
         complete: () =>
           jsonResponse(
             409,
             envelope('RESULT_RETAKE_REQUIRED', '실패한 문항이 있습니다.', true, {
-              retakeItems: ['v1', 'v2', 'v3', 'v4', 'v5'],
+              retakeItems: ['v1', 'v2', 'v3'],
             }),
           ),
       }),
@@ -513,7 +531,7 @@ describe('멈춘 상태의 출구', () => {
     await renderScreen({
       // retest 없음 = 재응시를 태울 길이 없는 실행 (`onRetake`와 같은 규칙)
       fetchImpl: fetchFor({
-        analyses: () => jsonResponse(200, statusesBody(Array(5).fill('COMPLETED'))),
+        analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'))),
         complete: () =>
           jsonResponse(
             422,
@@ -581,7 +599,7 @@ describe('멈춘 상태의 출구', () => {
           fetchImpl: fetchFor({
             analyses: () => {
               analysesCalls += 1
-              return jsonResponse(200, statusesBody(Array(5).fill('PROCESSING')))
+              return jsonResponse(200, statusesBody(Array(3).fill('PROCESSING')))
             },
           }),
         })}
@@ -602,6 +620,77 @@ describe('멈춘 상태의 출구', () => {
 
     expect(analysesCalls).toBe(before + 1)
     expect(screen.queryByText('분석이 예상보다 오래 걸리고 있어요')).not.toBeInTheDocument()
+  })
+
+  /*
+   * 혼잡 안내 (API 명세서 §3.4의 `queue.ahead`, KAN-272). 문구는 2026-10-06에 정했다.
+   */
+  it('서버가 혼잡을 알리면 앞에 몇 건이 있는지 보여 주고 60초에 끊지 않는다', async () => {
+    vi.useFakeTimers()
+    render(
+      <AnalysisWaitingScreen
+        {...props({
+          fetchImpl: fetchFor({
+            analyses: () =>
+              jsonResponse(200, { ...statusesBody(Array(3).fill('PROCESSING')), queue: { ahead: 12 } }),
+          }),
+        })}
+      />,
+    )
+    await act(async () => {})
+
+    expect(
+      screen.getByText('지금 응시자가 많아요. 앞에 12건이 있어요. 잠시만 기다려 주세요!'),
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70_000)
+    })
+    expect(screen.queryByText('분석이 예상보다 오래 걸리고 있어요')).not.toBeInTheDocument()
+    expect(screen.getByText('결과를 만들고 있어요')).toBeInTheDocument()
+  })
+
+  it('혼잡 상태로 60초를 넘겨 기다린 뒤 분석이 끝나면 결과 화면으로 넘어간다', async () => {
+    // 예전에는 60초에 [다시 시도]로 바뀌어 사용자가 눌러야 결과를 받았다
+    vi.useFakeTimers()
+    const onReady = vi.fn()
+    let done = false
+    render(
+      <AnalysisWaitingScreen
+        {...props({
+          onReady,
+          fetchImpl: fetchFor({
+            analyses: () =>
+              jsonResponse(200, { ...statusesBody(Array(3).fill('PROCESSING')), queue: { ahead: 3 } }),
+            complete: () => jsonResponse(200, { status: done ? 'READY' : 'PROCESSING' }),
+          }),
+        })}
+      />,
+    )
+    await act(async () => {})
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90_000)
+    })
+    expect(onReady).not.toHaveBeenCalled()
+
+    done = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    expect(onReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('혼잡하지 않으면 안내 없이 평소 문구다', async () => {
+    await renderScreen()
+
+    expect(screen.getByText('잠시만 기다려 주세요')).toBeInTheDocument()
+    expect(screen.queryByText(/지금 응시자가 많아요/)).not.toBeInTheDocument()
+  })
+
+  it('맨 앞이면 0건이라고 쓰지 않는다', () => {
+    expect(queueNotice(0)).toBe('지금 응시자가 많아요. 곧 차례예요. 잠시만 기다려 주세요!')
+    expect(queueNotice(1)).toBe('지금 응시자가 많아요. 앞에 1건이 있어요. 잠시만 기다려 주세요!')
   })
 
   /*
@@ -636,7 +725,7 @@ describe('멈춘 상태의 출구', () => {
       retest: retestControl(),
       fetchImpl: fetchFor({
         analyses: () =>
-          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'FAILED', 'COMPLETED', 'COMPLETED'])),
+          jsonResponse(200, statusesBody(['COMPLETED', 'COMPLETED', 'FAILED'])),
         complete: () =>
           jsonResponse(
             409,
@@ -659,13 +748,13 @@ describe('일시적 오류', () => {
         if (url.endsWith('/analyses')) {
           if (!healthy) throw new TypeError('Failed to fetch')
           healthy = false
-          return jsonResponse(200, statusesBody(Array(5).fill('PROCESSING')))
+          return jsonResponse(200, statusesBody(Array(3).fill('PROCESSING')))
         }
         return jsonResponse(200, { status: 'PROCESSING' })
       },
     })
 
-    expect(screen.getAllByText('분석 중')).toHaveLength(5)
+    expect(screen.getAllByText('분석 중')).toHaveLength(3)
     expect(screen.getByText('결과를 만들고 있어요')).toBeInTheDocument()
   })
 })
@@ -673,7 +762,7 @@ describe('일시적 오류', () => {
 describe('텍스트 히어로 (KAN-178)', () => {
   it('그림 대신 "분석 중입니다"가 서고, 진행 상태를 말하는 제목은 그대로 남는다', async () => {
     await renderScreen({
-      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(5).fill('PROCESSING'))) }),
+      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(3).fill('PROCESSING'))) }),
     })
 
     // 인트로와 달리 여기서는 히어로가 장식이다 (KAN-178) — 상태를 실어 나르는 h1이 아래에 있다
@@ -701,17 +790,17 @@ describe('재녹음 계측 (KAN-33)', () => {
         analyses: () =>
           jsonResponse(
             200,
-            statusesBody(['COMPLETED', 'RETRYABLE_FAILED', 'COMPLETED', 'COMPLETED', 'COMPLETED']),
+            statusesBody(['COMPLETED', 'RETRYABLE_FAILED', 'COMPLETED']),
           ),
       }),
     })
 
     fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
 
-    // v2는 전체 10문항 기준 3번이다 (VOICE_ITEMS의 itemNumber)
+    // v2는 정의 전체 7문항 기준 2번이다 (VOICE_ITEMS의 itemNumber)
     expect(events).toContainEqual({
       event: 'recording_retake',
-      item_seq: 3,
+      item_seq: 2,
       reason: 'QUALITY',
     })
     // 세는 것과 여는 것은 다른 일이다 — 계측이 붙어도 재녹음은 그대로 열린다

@@ -27,7 +27,7 @@ import com.accentury.app.ui.theme.Spacing
 
 /**
  * 진척도 (KAN-148, 형태는 KAN-161 2단계). 웹의 `ProgressIndicator`와 같은 구성이다 —
- * 도트 줄과 "3 / 10" 표기를 한 덩어리로 묶는다. 둘이 떨어져 있으면 한쪽만 고쳐 숫자와
+ * 도트 줄과 "2 / 7" 표기를 한 덩어리로 묶는다. 둘이 떨어져 있으면 한쪽만 고쳐 숫자와
  * 도트가 어긋나는 날이 온다.
  *
  * 막대 하나였는데 [total]개의 캡슐로 바꿨다. 남은 문항을 세어 볼 수 있고, 칸 하나가
@@ -37,7 +37,7 @@ import com.accentury.app.ui.theme.Spacing
  * 테두리가 2dp로 두꺼워지고 왼쪽 절반만 찬 캡슐, 미완료는 빈 캡슐이다.
  * `primaryDim`(#cfc5aa)으로 남은 칸을 칠하지 않는다 — 크림 위 1.46:1이라 안 보인다.
  *
- * [current]가 1부터 시작하는 건 호출자 몫이자 의도다 — 첫 문항을 0/10으로 보이면 아직
+ * [current]가 1부터 시작하는 건 호출자 몫이자 의도다 — 첫 문항을 0/7로 보이면 아직
  * 시작도 안 한 느낌이라 이탈이 는다 (ux-ui.md §3 Goal-Gradient, endowed progress).
  */
 @Composable
@@ -56,9 +56,9 @@ fun ProgressIndicator(
             modifier = Modifier
                 .fillMaxWidth()
                 /*
-                 * 값을 읽는 것은 이 줄 하나다. 도트 열 개가 각각 읽히면 스크린 리더가 같은
-                 * 정보를 열 번 말하므로 줄 전체에 "3 / 10문항"을 통째로 실어 한 번만 읽히게
-                 * 하고, 아래 숫자는 의미론에서 뺀다(시각적으로는 남는다).
+                 * 값을 읽는 것은 이 줄 하나다. 도트가 문항 수(정의가 주는 값, 현재 7)만큼 각각
+                 * 읽히면 스크린 리더가 같은 정보를 그만큼 되풀이하므로 줄 전체에 "2 / 7문항"을
+                 * 통째로 실어 한 번만 읽히게 하고, 아래 숫자는 의미론에서 뺀다(시각적으로는 남는다).
                  */
                 .clearAndSetSemantics { contentDescription = "$label $current / $total" },
             horizontalArrangement = Arrangement.spacedBy(Spacing.x1),
@@ -74,7 +74,7 @@ fun ProgressIndicator(
             if (note == null) "$current / $total" else "$current / $total · $note",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            // 숫자는 시각 전용 - 위 Row가 이미 "문항 진행률 3 / 10"을 읽는다 (PR #58 리뷰 P2).
+            // 숫자는 시각 전용 - 위 Row가 이미 "문항 진행률 2 / 7"을 읽는다 (PR #58 리뷰 P2).
             // align만 남기고 clearAndSetSemantics를 떨어뜨리면 TalkBack이 문항마다 두 번 읽는다.
             modifier = Modifier.align(Alignment.End).clearAndSetSemantics { },
         )

@@ -18,21 +18,21 @@ func progressDotState(position: Int, current: Int) -> ProgressDotState {
 }
 
 /// 진척도 (KAN-148, 형태는 KAN-161 2단계). 안드로이드 `ui/components/ProgressIndicator.kt`의
-/// 이식본이고 웹 `ProgressIndicator`와 같은 구성이다 — 도트 줄과 "3 / 10" 표기를 한 덩어리로
+/// 이식본이고 웹 `ProgressIndicator`와 같은 구성이다 — 도트 줄과 "2 / 7" 표기를 한 덩어리로
 /// 묶는다. 둘이 떨어져 있으면 한쪽만 고쳐 숫자와 도트가 어긋나는 날이 온다.
 ///
 /// 세 상태를 색이 아니라 **형태**로 가른다 (정본 §7·§8): 완료는 잉크로 찬 캡슐, 현재는 테두리가
 /// 두꺼워지고 왼쪽 절반만 찬 캡슐, 미완료는 빈 캡슐이다. ``Papercut/paperShadow``(#cfc5aa)로
 /// 남은 칸을 칠하지 않는다 — 크림 위 1.46:1이라 안 보인다.
 ///
-/// ``current``가 1부터 시작하는 건 호출자 몫이자 의도다 — 첫 문항을 0/10으로 보이면 아직
+/// ``current``가 1부터 시작하는 건 호출자 몫이자 의도다 — 첫 문항을 0/7로 보이면 아직
 /// 시작도 안 한 느낌이라 이탈이 는다 (`ux-ui.md` §3 Goal-Gradient).
 struct ProgressIndicator: View {
 
     let current: Int
     let total: Int
     var label: String = "문항 진행률"
-    /// 웹 캡션이 "3 / 10 · 음성"이라 여기서만 종류를 빼면 같은 자리의 같은 줄이 화면을
+    /// 웹 캡션이 "2 / 7 · 음성"이라 여기서만 종류를 빼면 같은 자리의 같은 줄이 화면을
     /// 넘어갈 때마다 길어졌다 짧아진다.
     var note: String?
 
@@ -45,9 +45,9 @@ struct ProgressIndicator: View {
             }
             .frame(maxWidth: .infinity)
             /*
-             * 값을 읽는 것은 이 줄 하나다. 도트 열 개가 각각 읽히면 스크린 리더가 같은 정보를
-             * 열 번 말하므로 줄 전체에 "3 / 10"을 통째로 실어 한 번만 읽히게 하고, 아래 숫자는
-             * 의미론에서 뺀다(시각적으로는 남는다).
+             * 값을 읽는 것은 이 줄 하나다. 도트가 문항 수(정의가 주는 값, 현재 7)만큼 각각 읽히면
+             * 스크린 리더가 같은 정보를 그만큼 되풀이하므로 줄 전체에 "2 / 7"을 통째로 실어 한 번만
+             * 읽히게 하고, 아래 숫자는 의미론에서 뺀다(시각적으로는 남는다).
              */
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(label) \(current) / \(total)")

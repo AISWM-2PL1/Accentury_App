@@ -56,19 +56,39 @@ export interface UploadAccepted {
   analysisJobId: string
 }
 
+/*
+ * 보관 음성 유실 거절 (KAN-261 2단계). **KAN-262 확정 전 가칭**이다 — 이름·모양이 바뀌면 여기만 고친다.
+ *
+ * 서버는 음성 1·2번을 문항별 칸에 보관했다가 세 번째 음성 업로드 때 합쳐 분석한다. 세션은
+ * 살아 있는데 칸이 비어 있으면(Redis 장애, TTL 경합) 세 번째 업로드를 이 코드로 거절하고,
+ * 비어 있는 문항 id를 봉투의 `missingItems`(422 `RESULT_INCOMPLETE`와 같은 확장 필드)에 싣는다.
+ */
+export const VOICE_SLOT_MISSING = 'VOICE_SLOT_MISSING'
+/** 서버 문구가 비었을 때의 안내. 앱(`UploadManager`)과 같은 문구다 */
+export const VOICE_SLOT_MISSING_MESSAGE = '앞서 녹음한 음성을 다시 녹음해 주세요'
+
 /** 봉투의 code·retryable·retryAfterMs를 실은 업로드 실패. 봉투를 못 읽었으면 code는 null이다 */
 export class UploadError extends Error {
   readonly code: string | null
   readonly retryable: boolean
   /** 429가 지시한 대기(ms). 그 외에는 null */
   readonly retryAfterMs: number | null
+  /** 서버 칸이 비어 다시 녹음해야 하는 앞 문항 (`VOICE_SLOT_MISSING`, KAN-261). 그 외에는 빈 배열 */
+  readonly missingItems: string[]
 
-  constructor(message: string, code: string | null, retryable: boolean, retryAfterMs: number | null = null) {
+  constructor(
+    message: string,
+    code: string | null,
+    retryable: boolean,
+    retryAfterMs: number | null = null,
+    missingItems: string[] = [],
+  ) {
     super(message)
     this.name = 'UploadError'
     this.code = code
     this.retryable = retryable
     this.retryAfterMs = retryAfterMs
+    this.missingItems = missingItems
   }
 }
 
@@ -160,7 +180,14 @@ export async function uploadRecording(
 
   const envelope = readErrorEnvelope(response, parsed)
   if (envelope !== null) {
-    throw new UploadError(envelope.message, envelope.code, envelope.retryable, envelope.retryAfterMs)
+    const slotMissing = envelope.code === VOICE_SLOT_MISSING
+    throw new UploadError(
+      slotMissing && envelope.message.trim() === '' ? VOICE_SLOT_MISSING_MESSAGE : envelope.message,
+      envelope.code,
+      envelope.retryable,
+      envelope.retryAfterMs,
+      slotMissing ? (envelope.itemIds.missingItems ?? []) : [],
+    )
   }
   // 봉투가 없으면 서버가 재시도 여부를 알려주지 않은 것이다 — 상태 코드로 판단한다
   // (`net/retryableStatus`가 네이티브와 같은 규칙을 담고 있다).

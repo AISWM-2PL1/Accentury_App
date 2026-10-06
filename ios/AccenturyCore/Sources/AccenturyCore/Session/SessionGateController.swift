@@ -3,6 +3,10 @@ import Foundation
 /// 봉투를 읽을 수 있을 때의 요청 제한 코드 (§2.5).
 private let codeRateLimited = "RATE_LIMITED"
 
+/// 로그인한 계정의 프로필이 미완료라 세션 생성이 막혔다 (403, KAN-224). 다른 기기에서 값이 지워지는 등
+/// 앱이 든 로그인 상태가 낡은 경우다 — 실패 화면이 아니라 추가 정보 화면으로 돌린다.
+let codeProfileIncomplete = "AUTH_PROFILE_INCOMPLETE"
+
 /// 서버가 준 밀리초를 사용자에게 읽어 줄 초로 올림한다 — 서버가 Retry-After를 만드는 규칙과 같다.
 func ceilSeconds(_ millis: Int64) -> Int64 { (millis + 999) / 1_000 }
 
@@ -19,6 +23,10 @@ public enum SessionGateState: Equatable, Sendable {
 
     /// 세션을 확보했다. 이 값이 곧 테스트 진입이다.
     case ready(Session)
+
+    /// 서버가 403 `AUTH_PROFILE_INCOMPLETE`로 막았다 (KAN-224). 다시 시도할 일이 아니라 추가 정보를 받을
+    /// 일이라 ``failed(reason:retryAfterSeconds:)``와 따로 둔다 — 화면은 이 상태를 보면 곧바로 추가 정보 화면으로 넘긴다.
+    case profileIncomplete
 }
 
 /// 재응시 한 건의 결말 (KAN-34 2단계, KAN-107).
@@ -33,6 +41,10 @@ public enum RetestOutcome: Equatable, Sendable {
 
     /// 세션을 받지 못했다.
     case failed(Failure)
+
+    /// 프로필이 미완료라 막혔다 (403 `AUTH_PROFILE_INCOMPLETE`, KAN-224). 결과 화면에 회신할 실패가 아니라
+    /// 추가 정보 화면으로 갈 일이다. 이전 세션은 ``failed(_:)``와 같은 이유로 그대로 살아 있다.
+    case profileIncomplete
 
     /// **이전 세션은 그대로 살아 있다** — 서버도 지우지 않았고(폐기는 새 세션 발급과 한 몸이다)
     /// 결과 화면이 아직 그 세션으로 결과를 조회한다.
@@ -173,8 +185,10 @@ public final class SessionGateController {
             state = .ready(session)
             return .replaced(session)
         }
-        guard case .failed(let reason, _) = stateOf(result) else {
-            // stateOf는 Created가 아닌 응답을 늘 failed로 접는다 — 위 분기가 Created를 이미 걸렀다.
+        let folded = stateOf(result)
+        if folded == .profileIncomplete { return .profileIncomplete }
+        guard case .failed(let reason, _) = folded else {
+            // stateOf는 Created가 아닌 응답을 늘 failed·profileIncomplete로 접는다 — 위 분기들이 둘을 이미 걸렀다.
             preconditionFailure("생성 실패 응답이 실패 상태로 접히지 않았다")
         }
         var code: String?
@@ -196,6 +210,10 @@ public final class SessionGateController {
 
         case .transportError:
             return .failed(reason: .network, retryAfterSeconds: nil)
+
+        // 코드로만 가른다 — 403은 다른 거절(차단 등)에도 쓰일 수 있다 (KAN-224).
+        case .rejected(let code, _, _, _) where code == codeProfileIncomplete:
+            return .profileIncomplete
 
         case .rejected(let code, _, let retryable, let retryAfterMs):
             let reason: SessionFailureReason

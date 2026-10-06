@@ -63,8 +63,8 @@ jobs:
     env:
       AWS_REGION: ap-northeast-2
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -72,19 +72,12 @@ jobs:
       - run: npm ci
       # tsc --noEmit + vite build.
       #
-      # 환경을 아는 값이 일곱이다. 나머지는 그대로 - 산출물이 환경을 몰라야 한다는 원칙(KAN-127)에서
+      # 환경을 아는 값이 여섯이다. 나머지는 그대로 - 산출물이 환경을 몰라야 한다는 원칙(KAN-127)에서
       # 이것들만 빼는 이유가 각각 있다.
       #
       # GA4 측정 ID (KAN-33): 계측이 환경별로 갈려야 한다. staging과 prod가 같은 ID를 쓰면
       # 우리가 확인하느라 도는 트래픽이 실사용 집계에 섞이고, 그러면 KAN-24(대기 시간)·KAN-21
       # (등급 분포) 트리거의 판단 근거가 오염된다.
-      #
-      # 지역 선택 스위치 (KAN-202): 출신 지역 선택 화면과 세션 생성 본문의 `region` 필드를 켜는
-      # 빌드 변수다. 지역은 KAN-201 학습 데이터의 라벨이라 내부 테스터가 응시하는 staging에만
-      # 필요하고, 사용자에게 주는 기능이 아니라 prod 번들에는 화면도 요청 필드도 없어야 한다.
-      # 그래서 staging environment에만 `REGION_SELECT=true`를 두고 **prod에는 변수를 만들지
-      # 않는다.** 코드는 문자열 `true`일 때만 켠다 (web/src/region/regions.ts) - `1`이나 `TRUE`는
-      # 꺼진 것과 같다.
       #
       # 광고 ID 둘 (KAN-197): AdSense 게시자 ID와 광고 단위 슬롯 ID다. 환경별인 이유가 계측과
       # 다르다 - 섞이면 곤란해서가 아니라 **승인 대상이 prod 하나**이기 때문이다. AdSense는 심사를
@@ -103,12 +96,11 @@ jobs:
       # 숫자는 `docs/wiki/app-store-listing.md` §3.
       #
       # **비어 있는 것이 정상 상태다.** 변수를 두지 않은 환경은 계측 없이(web/src/analytics/ga4.ts),
-      # 지역 화면 없이, 광고 없이, 스토어 링크 없이 빌드된다. 일곱 다 페이지 소스에 박히는 공개 값이라
+      # 광고 없이, 스토어 링크 없이 빌드된다. 여섯 다 페이지 소스에 박히는 공개 값이라
       # 시크릿이 아니라 변수로 둔다.
       - run: npm run build
         env:
           VITE_GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
-          VITE_REGION_SELECT: ${{ vars.REGION_SELECT }}
           VITE_STORE_LISTING_READY: ${{ vars.STORE_LISTING_READY }}
           VITE_ADSENSE_CLIENT_ID: ${{ vars.ADSENSE_CLIENT_ID }}
           VITE_ADSENSE_SLOT_ID: ${{ vars.ADSENSE_SLOT_ID }}
@@ -185,7 +177,7 @@ jobs:
           done
           exit "$missing"
 
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         if: steps.gate.outputs.paused != 'true'
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}

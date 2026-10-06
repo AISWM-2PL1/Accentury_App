@@ -801,6 +801,227 @@ class TestFlowControllerTest {
         assertNull(with(TestFlowController.saver()) { restore("{not json") })
     }
 
+    /*
+     * 보관 음성 유실 복구 (KAN-261 2단계). 세 번째 음성(4번 문항)이 VOICE_SLOT_MISSING으로 거절되면
+     * 빠진 앞 문항을 번호 순서로 다시 열고, 마지막에 거절당한 문항을 다시 연다.
+     */
+    private fun rejectThirdVoice(controller: TestFlowController): List<VoiceItemStart> {
+        val starts = listOf(voiceItem("item_1", 1), voiceItem("item_2", 2), voiceItem("item_4", 4))
+        starts.forEachIndexed { index, start ->
+            controller.onStartVoiceItem(start, micGranted = true)
+            controller.onRecordingFinished("at_$index", durationMs = 3_200, quality = QualityStatus.NORMAL)
+            if (index < 2) {
+                controller.onUploadsChanged(mapOf("at_$index" to UploadState.Done("job_$index")))
+                controller.onResultDelivered("at_$index")
+            }
+        }
+        controller.onUploadsChanged(
+            mapOf("at_2" to UploadState.Failed(retryable = false, message = "칸 없음", rerecord = true)),
+        )
+        return starts
+    }
+
+    @Test
+    fun `보관 음성을 잃으면 빠진 문항을 번호 순서로 다시 열고 마지막에 거절당한 문항을 연다`() {
+        val controller = TestFlowController()
+        val (first, second, rejected) = rejectThirdVoice(controller)
+        val message = "앞서 녹음한 음성을 다시 녹음해 주세요"
+
+        // 순서를 뒤집고 어휘 id를 섞어 보낸다 - 기억한 음성 요청만 번호 순서로 연다
+        assertTrue(
+            controller.onUploadGivenUp(
+                "at_2",
+                micGranted = true,
+                message = message,
+                missingItems = listOf("item_2", "item_3", "item_1"),
+            ),
+        )
+        assertEquals(TestFlowPhase.Recording(first, afterUploadFailure = true, failureMessage = message), controller.phase)
+
+        controller.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Recording(second, afterUploadFailure = true, failureMessage = message), controller.phase)
+
+        controller.onRecordingFinished("redo_2", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Recording(rejected, afterUploadFailure = true, failureMessage = message), controller.phase)
+
+        // 거절당한 문항의 새 녹음은 평소처럼 결과가 나갈 때까지 붙든다
+        controller.onRecordingFinished("redo_4", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Submitting(rejected, "redo_4"), controller.phase)
+        // 다시 녹음한 앞 문항들의 결과도 그대로 실려 나간다
+        val done = mapOf(
+            "redo_1" to UploadState.Done("j1"),
+            "redo_2" to UploadState.Done("j2"),
+            "redo_4" to UploadState.Done("j4"),
+        )
+        assertEquals(listOf("item_1", "item_2", "item_4"), controller.onUploadsChanged(done).map { it.itemId })
+    }
+
+    @Test
+    fun `빠진 문항을 모르면 거절당한 문항만 다시 연다 - 막다른 길이 없다`() {
+        val controller = TestFlowController()
+        val (_, _, rejected) = rejectThirdVoice(controller)
+
+        controller.onUploadGivenUp("at_2", micGranted = true, message = "m", missingItems = listOf("item_9"))
+
+        assertEquals(TestFlowPhase.Recording(rejected, afterUploadFailure = true, failureMessage = "m"), controller.phase)
+        controller.onRecordingFinished("redo_4", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Submitting(rejected, "redo_4"), controller.phase)
+    }
+
+    @Test
+    fun `기억한 요청이 없는 복원에서도 거절당한 문항은 다시 연다`() {
+        // voiceStarts 필드가 생기기 전 형식으로 저장된 값 - 앞 문항 요청이 없다
+        val saved = """{"phase":"WEB","attempts":[{"itemId":"item_4","attemptId":"at_2","durationMs":3200,""" +
+            """"quality":"NORMAL","start":{"itemId":"item_4","prompt":"p","itemNumber":4,"totalItems":7,""" +
+            """"maxDurationMs":15000}}]}"""
+        val restored = checkNotNull(with(TestFlowController.saver()) { restore(saved) })
+
+        restored.onUploadGivenUp("at_2", micGranted = true, message = "m", missingItems = listOf("item_1"))
+
+        assertEquals("item_4", (restored.phase as TestFlowPhase.Recording).start.itemId)
+    }
+
+    @Test
+    fun `앞 문항 요청은 회전을 넘겨도 남는다`() {
+        val controller = TestFlowController()
+        val (first, _, _) = rejectThirdVoice(controller)
+
+        val restored = rotate(controller)
+        restored.onUploadGivenUp("at_2", micGranted = true, message = "m", missingItems = listOf("item_1"))
+
+        assertEquals(TestFlowPhase.Recording(first, afterUploadFailure = true, failureMessage = "m"), restored.phase)
+    }
+
+    /* KAN-261 리뷰 P1-2 - 복구 대기열은 회전·복원을 넘긴다. */
+    @Test
+    fun `복구 대기열은 회전을 넘겨 다음 문항 녹음 화면을 연다`() {
+        val controller = TestFlowController()
+        val (first, second, _) = rejectThirdVoice(controller)
+        controller.onUploadGivenUp("at_2", micGranted = true, message = "m", missingItems = listOf("item_1", "item_2"))
+
+        val restored = rotate(controller)
+        assertEquals(TestFlowPhase.Recording(first, afterUploadFailure = true, failureMessage = "m"), restored.phase)
+        restored.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+
+        assertEquals(TestFlowPhase.Recording(second, afterUploadFailure = true, failureMessage = "m"), restored.phase)
+    }
+
+    @Test
+    fun `권한 게이트에서 복원돼도 복구 대기열이 남는다`() {
+        val controller = TestFlowController()
+        val (first, _, rejected) = rejectThirdVoice(controller)
+        controller.onUploadGivenUp("at_2", micGranted = false, message = "m", missingItems = listOf("item_1"))
+        assertEquals(TestFlowPhase.NeedsPermission(first, afterUploadFailure = true, failureMessage = "m"), controller.phase)
+
+        val restored = rotate(controller)
+        restored.onPermissionGranted()
+        restored.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+
+        assertEquals(TestFlowPhase.Recording(rejected, afterUploadFailure = true, failureMessage = "m"), restored.phase)
+    }
+
+    /*
+     * KAN-261 리뷰 P1-3 - 복구 사슬은 업로드를 기다리지 않고 다음 녹음을 연다. 앞 문항 재업로드의 거절이
+     * 다음 녹음 중에 도착하면 손에 든 녹음은 그대로 두고 그 문항을 대기열에 다시 넣는다.
+     */
+    @Test
+    fun `복구 중 앞 문항 재업로드가 다음 녹음 중에 거절되면 그 문항을 X 앞에 다시 연다`() {
+        val controller = TestFlowController()
+        val (first, second, rejected) = rejectThirdVoice(controller)
+        controller.onUploadGivenUp("at_2", micGranted = true, message = "m", missingItems = listOf("item_1", "item_2"))
+        controller.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        val inHand = TestFlowPhase.Recording(second, afterUploadFailure = true, failureMessage = "m")
+        assertEquals(inHand, controller.phase)
+
+        assertTrue(controller.onUploadGivenUp("redo_1", micGranted = true, message = "너무 작아요"))
+        assertEquals(inHand, controller.phase)
+
+        controller.onRecordingFinished("redo_2", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(first.itemId, (controller.phase as TestFlowPhase.Recording).start.itemId)
+        controller.onRecordingFinished("redo_1b", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(rejected.itemId, (controller.phase as TestFlowPhase.Recording).start.itemId)
+        controller.onRecordingFinished("redo_4", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Submitting(rejected, "redo_4"), controller.phase)
+    }
+
+    @Test
+    fun `복구 중 거절이 새 missingItems를 실어 오면 그 문항도 번호 순으로 합친다`() {
+        val controller = TestFlowController()
+        val (first, second, rejected) = rejectThirdVoice(controller)
+        controller.onUploadGivenUp("at_2", micGranted = true, message = "m", missingItems = listOf("item_1"))
+        controller.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        // 대기열이 비어 X(4번)를 녹음하는 중에 1번 재업로드가 2번 칸 유실로 거절된다
+        assertEquals(rejected.itemId, (controller.phase as TestFlowPhase.Recording).start.itemId)
+        controller.onUploadGivenUp("redo_1", micGranted = true, message = "칸 없음", missingItems = listOf("item_2"))
+
+        val order = listOf("redo_4", "redo_1b", "redo_2", "redo_4b").map { attemptId ->
+            val itemId = (controller.phase as TestFlowPhase.Recording).start.itemId
+            controller.onRecordingFinished(attemptId, durationMs = 3_200, quality = QualityStatus.NORMAL)
+            itemId
+        }
+
+        // X를 마친 뒤 1번, 2번을 열고 X를 다시 끝에 둔다
+        assertEquals(listOf(rejected.itemId, first.itemId, second.itemId, rejected.itemId), order)
+        assertEquals(TestFlowPhase.Submitting(rejected, "redo_4b"), controller.phase)
+    }
+
+    @Test
+    fun `X 제출 중 앞 문항 거절이 오면 그 문항 뒤에 X를 다시 열고 권한 게이트에서 온 X 거절도 합친다`() {
+        val controller = TestFlowController()
+        val (first, _, rejected) = rejectThirdVoice(controller)
+        controller.onUploadGivenUp("at_2", micGranted = true, message = "m", missingItems = listOf("item_1"))
+        controller.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onRecordingFinished("redo_4", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Submitting(rejected, "redo_4"), controller.phase)
+
+        // 1번 재업로드 거절이 X 제출 중에 도착하고 권한이 회수돼 있다
+        assertTrue(controller.onUploadGivenUp("redo_1", micGranted = false, message = "너무 작아요"))
+        val gate = TestFlowPhase.NeedsPermission(first, afterUploadFailure = true, failureMessage = "너무 작아요")
+        assertEquals(gate, controller.phase)
+        // 칸이 빈 채로 올라간 X는 게이트가 서 있는 동안 거절된다 - 게이트는 그대로, 바이트는 폐기
+        assertTrue(controller.onUploadGivenUp("redo_4", micGranted = false, message = "칸 없음", missingItems = listOf("item_1")))
+        assertEquals(gate, controller.phase)
+
+        val restored = rotate(controller)
+        restored.onPermissionGranted()
+        restored.onRecordingFinished("redo_1b", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(rejected.itemId, (restored.phase as TestFlowPhase.Recording).start.itemId)
+        restored.onRecordingFinished("redo_4b", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Submitting(rejected, "redo_4b"), restored.phase)
+    }
+
+    @Test
+    fun `복구 중이 아니면 앞 문항의 뒤늦은 포기가 손에 든 녹음과 대기열을 건드리지 않는다`() {
+        val controller = TestFlowController()
+        val first = voiceItem("item_1", 1)
+        val second = voiceItem("item_2", 2)
+        controller.onStartVoiceItem(first, micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onStartVoiceItem(second, micGranted = true)
+
+        controller.onUploadGivenUp("at_1", micGranted = true, message = "m")
+        controller.onRecordingFinished("at_2", durationMs = 3_200, quality = QualityStatus.NORMAL)
+
+        assertEquals(TestFlowPhase.Submitting(second, "at_2"), controller.phase)
+    }
+
+    /* KAN-261 리뷰 P1-4 - 재응시 뒤에는 이전 세션의 요청을 쓰지 않는다. */
+    @Test
+    fun `재응시로 세션이 바뀌면 이전 세션 itemId가 와도 거절당한 문항만 다시 연다`() {
+        val controller = TestFlowController()
+        rejectThirdVoice(controller)
+        controller.onSessionReplaced()
+
+        val retaken = voiceItem("item_4", 4)
+        controller.onStartVoiceItem(retaken, micGranted = true)
+        controller.onRecordingFinished("new_4", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onUploadGivenUp("new_4", micGranted = true, message = "m", missingItems = listOf("item_1", "item_2"))
+
+        assertEquals(TestFlowPhase.Recording(retaken, afterUploadFailure = true, failureMessage = "m"), controller.phase)
+        controller.onRecordingFinished("new_4b", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        assertEquals(TestFlowPhase.Submitting(retaken, "new_4b"), controller.phase)
+    }
+
     /** rememberSaveable이 구성 변경에서 하는 일(save → restore)을 그대로 흉내 낸다. */
     private fun rotate(controller: TestFlowController): TestFlowController {
         val saver = TestFlowController.saver()

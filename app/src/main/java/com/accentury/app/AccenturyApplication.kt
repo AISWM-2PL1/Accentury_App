@@ -3,10 +3,15 @@ package com.accentury.app
 import android.app.Application
 import com.accentury.app.ads.AdsController
 import com.accentury.app.analytics.CrashReports
+import com.accentury.app.auth.AuthClients
+import com.accentury.app.auth.AuthGateController
+import com.accentury.app.auth.KeystoreTokenStore
 import com.kakao.sdk.common.KakaoSdk
+import com.navercorp.nid.NidOAuth
+import kotlinx.coroutines.MainScope
 
 /**
- * 앱 전역 초기화 지점 — 카카오 SDK(KAN-30)·크래시 리포트(KAN-33)·광고(KAN-196).
+ * 앱 전역 초기화 지점 — 카카오 SDK(KAN-30)·크래시 리포트(KAN-33)·광고(KAN-196)·로그인(KAN-224).
  *
  * Application이 필요한 이유: 카카오 SDK는 앱 키를 프로세스 단위로 한 번만 등록받고
  * (`ShareClient.instance`가 그 값을 전제로 만들어진다) 공유 호출 시점에는 이미 초기화돼 있어야 한다.
@@ -21,6 +26,21 @@ class AccenturyApplication : Application() {
      */
     lateinit var ads: AdsController
         private set
+
+    /**
+     * 인증 객체들 (KAN-224). [AuthClients] KDoc대로 앱에 하나만 있어야 한다 — 둘이면 Refresh 회전을 줄
+     * 세우는 뮤텍스가 둘이 되어 동시 갱신이 서로의 Refresh를 죽인다. 광고 허브와 같은 이유로 프로세스
+     * 단위다: 회전(Activity 재생성)을 넘겨야 하고, 로그인 상태는 화면 하나의 것이 아니다.
+     * ViewModel이 아닌 이유는 수명이 Activity보다 길어야 할 뿐 화면에 묶일 일이 없어서다.
+     */
+    val authClients: AuthClients by lazy { AuthClients(BuildConfig.API_BASE_URL, KeystoreTokenStore(this)) }
+
+    /** 앱 수명 코루틴 스코프. 로그인 확인처럼 화면 회전을 넘겨야 하는 일이 여기서 돈다. */
+    private val appScope = MainScope()
+
+    val authGate: AuthGateController by lazy {
+        AuthGateController(authClients.api, authClients.store, authClients.refresher, appScope)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -57,5 +77,22 @@ class AccenturyApplication : Application() {
          */
         ads = AdsController.create(this)
         ads.initialize()
+
+        /*
+         * 네이버 로그인 SDK (KAN-224). 카카오와 같은 스위치다 — 설정이 없으면 초기화하지 않고, 로그인 화면은
+         * 그 버튼을 숨긴다. 로그인 버튼 이름표(clientName)는 네이버 동의 화면에 뜨는 앱 이름이다.
+         */
+        if (BuildConfig.NAVER_CLIENT_ID.isNotBlank() && BuildConfig.NAVER_CLIENT_SECRET.isNotBlank()) {
+            NidOAuth.initialize(this, BuildConfig.NAVER_CLIENT_ID, BuildConfig.NAVER_CLIENT_SECRET, "Accentury")
+        }
+
+        /*
+         * 로그인 상태 확인은 프로세스당 한 번 (KAN-224). Activity에서 걸면 회전마다 갱신이 한 번 더 나가 Refresh가
+         * 괜히 회전한다. 첫 화면은 이 확인이 끝날 때까지 스플래시를 붙든다 (MainActivity).
+         *
+         * 로그인을 끈 빌드(익명 모드, KAN-270 5단계)는 확인할 것이 없다 — [authGate]·[authClients] lazy를 아예 깨우지
+         * 않아 Keystore 접근과 클라이언트 생성을 건너뛴다.
+         */
+        if (BuildConfig.LOGIN_ENABLED) authGate.retry()
     }
 }

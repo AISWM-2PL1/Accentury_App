@@ -162,6 +162,12 @@ final class TestFlowModel: ObservableObject {
     private let defaults: UserDefaults
     private let sessionClient: SessionClient?
     private let isMicGranted: () -> Bool
+    private let onProfileIncomplete: @MainActor () -> Void
+
+    /// 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). nil이면 계정 모드 — 동의·지역 단계가 없고 body에 버전·지역을 싣지 않는다.
+    let anonymousConsent: AnonymousVoiceConsentStore?
+    /// 저장소가 바뀌면 이 모델도 바뀐 것으로 알린다 — 시작 게이트의 동의 단계가 ``TestFlowView``에서 이 모델만 보고 걷힌다.
+    private var anonymousConsentChange: AnyCancellable?
 
     /// - Parameters:
     ///   - sessionClient: `POST /v0/sessions` 클라이언트. 기본값이 실제 `URLSession` 구현이고,
@@ -169,14 +175,23 @@ final class TestFlowModel: ObservableObject {
     ///     (``TestFlowModel/defaultSessionClient()``).
     ///   - isMicGranted: 지금의 실제 마이크 권한. 문항 진입마다 다시 묻는다 — 시작 게이트에서
     ///     한 번 허용받았어도 설정에서 회수될 수 있다.
+    ///   - onProfileIncomplete: 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224).
+    ///     기본값이 로그인 관문(``AuthHub/gate``)이다.
+    ///   - anonymousConsent: 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). 주면 시작 게이트가 권한 → 동의(설치당 1회) →
+    ///     지역(아직 없을 때, 동의와 무관, 설치당 1회) → 점검 → 세션이 되고, 세션 생성 body에 동의 버전·지역을 싣는다.
+    ///     nil이 계정 모드다.
     init(
         defaults: UserDefaults = .standard,
         sessionClient: SessionClient? = TestFlowModel.defaultSessionClient(),
-        isMicGranted: @escaping () -> Bool = { MicPermission.currentStatus().granted }
+        isMicGranted: @escaping () -> Bool = { MicPermission.currentStatus().granted },
+        onProfileIncomplete: @escaping @MainActor () -> Void = { AuthHub.gate.onProfileIncomplete() },
+        anonymousConsent: AnonymousVoiceConsentStore? = nil
     ) {
         self.defaults = defaults
         self.sessionClient = sessionClient
         self.isMicGranted = isMicGranted
+        self.onProfileIncomplete = onProfileIncomplete
+        self.anonymousConsent = anonymousConsent
 
         let flow = TestFlowController.restored(from: defaults.string(forKey: Self.flowStorageKey) ?? "")
             ?? TestFlowController()
@@ -204,6 +219,10 @@ final class TestFlowModel: ObservableObject {
          */
         flow.pruneAttemptsWithoutUpload([])
         syncFlow()
+
+        anonymousConsentChange = anonymousConsent?.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 
     // MARK: App Link
@@ -281,7 +300,8 @@ final class TestFlowModel: ObservableObject {
         syncFlow()
     }
 
-    /// 인트로로 되돌린다 (세션 게이트 실패 화면의 [처음으로]).
+    /// 시작 게이트를 인트로 앞으로 되감는다. 세션 게이트 실패 화면의 [처음으로]와, 프로필 미완료로 추가 정보 화면에
+    /// 다녀오는 경우(KAN-224, ``leaveForProfile()``)가 같은 되감기를 쓴다.
     func backToIntro() {
         startRequested = false
         micPassed = false
@@ -292,13 +312,81 @@ final class TestFlowModel: ObservableObject {
         syncGate()
     }
 
+    /// 프로필 미완료 (KAN-224). 되감은 뒤 추가 정보 화면으로 넘긴다 — 넘기는 순간 이 흐름 화면이 내려가고 저장 상태도
+    /// 지워지므로(``clearSavedState(in:)``, ``AuthGateView``) 되감기는 이중 안전장치다. 안드로이드 `leaveForProfile`과
+    /// 같은 이유로 명시해 둔다: 화면 구조가 바뀌어도 완료 뒤에 인트로로 떨어진다는 약속이 남게.
+    func leaveForProfile() {
+        backToIntro()
+        onProfileIncomplete()
+    }
+
+    // MARK: 익명 모드의 음성 저장 동의 (KAN-270 6단계)
+
+    /// 시작 게이트의 동의 단계를 세울까. 설치당 한 번이라 통과 표시는 이 모델이 아니라 저장소가 든다.
+    var needsAnonymousConsent: Bool { anonymousConsent.map { !$0.asked() } ?? false }
+
+    /// 동의 화면의 선택. 저장소가 asked를 세워 단계가 걷힌다.
+    func onAnonymousConsentChosen(consented: Bool) {
+        anonymousConsent?.save(consented: consented)
+    }
+
+    /// 세션 생성 순간의 값을 읽는다 — 설정에서 바꾸면 다음 생성(재응시 포함)부터 반영된다.
+    private var sessionVoiceConsentVersion: String? {
+        anonymousConsent.flatMap { anonymousVoiceConsentVersion(consented: $0.consented()) }
+    }
+
+    // MARK: 익명 모드의 출신 지역 (KAN-270 7단계)
+
+    /// 동의 화면 다음에 지역 단계를 세울까. 아직 안 골랐으면 동의 화면에서 무엇을 골랐든 세운다 (KAN-274).
+    var needsAnonymousRegion: Bool {
+        anonymousConsent.map { AccenturyCore.needsAnonymousRegion(region: $0.region()) } ?? false
+    }
+
+    /// 지역 화면의 [다음]. 저장소에 region이 생겨 단계가 걷힌다.
+    func onAnonymousRegionChosen(_ code: String) {
+        anonymousConsent?.saveRegion(code)
+    }
+
+    /// 세션 body의 `region`. 지역이 있으면 동의와 무관하게 싣는다 (KAN-274) — 계정 모드는 nil.
+    private var sessionRegion: String? {
+        anonymousConsent.flatMap { $0.region() }
+    }
+
+    /// 재응시 직전의 출신 지역 단계 (KAN-270, PR #22 리뷰). 안드로이드 `retestRegionPending` 자리다.
+    ///
+    /// 시작 게이트의 지역 칸은 `session == nil`일 때만 서는데, 재응시는 세션을 든 채 결과 화면에서 새 세션을 만든다.
+    /// 그래서 처음에 건너뛴 사람이 설정에서 동의를 켠 뒤 재응시하면 지역을 묻지 못하고 라벨이 UNKNOWN으로 남았다.
+    /// ``startRetest()``가 세션 요청 앞에서 이 값을 세우고, 지역 화면의 [다음](``onRetestRegionChosen(_:)``)이 내린다.
+    ///
+    /// 디스크에는 적지 않는다. 프로세스가 죽으면 웹 결과 화면이 다시 로드되어 버튼이 열리므로 잠긴 채 남지 않는다.
+    @Published private(set) var retestRegionPending = false
+
+    /// 재응시 직전 지역 화면의 [다음]. 지역을 남기고 단계를 걷는다. 재응시는 호출자가 ``startRetest()``를 다시 불러 잇는다.
+    func onRetestRegionChosen(_ code: String) {
+        anonymousConsent?.saveRegion(code)
+        retestRegionPending = false
+    }
+
+    /// 저장해 둔 흐름·세션·시작 게이트를 전부 지운다 (KAN-224).
+    ///
+    /// 안드로이드는 TestFlow 컴포저블이 로그인 상태(SignedIn)일 때만 살아 있어, 로그아웃·추가 정보로 넘어가면
+    /// rememberSaveable 저장분이 컴포지션과 함께 버려진다. iOS는 저장이 `UserDefaults`에 있어 화면이 내려가도 남는다 —
+    /// 그대로 두면 다른 계정(또는 프로필을 다시 채운 계정)이 앞 응시의 세션을 복원해 이어 간다. 그래서 관문이 SignedIn을
+    /// 벗어날 때 여기서 같은 결과를 만든다. 프로세스 사망 뒤 복원(SignedIn → SignedIn)은 건드리지 않는다.
+    static func clearSavedState(in defaults: UserDefaults = .standard) {
+        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey] {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
     // MARK: 세션
 
     /// 세션 게이트가 화면에 서 있는 동안 한 번 건다. 이미 확보됐거나 실패 화면이면 아무 일도 하지 않는다.
     func createSessionIfNeeded() async {
         guard case .creating = sessionGate.state else { return }
         guard let sessionClient else { return }
-        let result = await sessionClient.create(
+        // 익명 모드의 동의 버전도 싣는다 (KAN-270 6단계). 낡은 버전의 400은 동의 없이 한 번 더 만든다.
+        let result = await sessionClient.createWithConsentFallback(
             appVersion: AppConfig.appVersionName,
             previousToken: sessionGate.pendingPreviousToken,
             /*
@@ -306,13 +394,17 @@ final class TestFlowModel: ObservableObject {
              * 진입 URL의 `?c=`만으로는 서버 쪽 세션에 유입 경로가 남지 않는다 — 링크에서 온 것이
              * URL과 세션 양쪽에 같은 값으로 실려야 공유 유입이 끝까지 이어진다.
              */
-            campaignToken: campaignToken
+            campaignToken: campaignToken,
+            voiceConsentVersion: sessionVoiceConsentVersion,
+            region: sessionRegion
         )
         sessionGate.onResult(result)
         syncGate()
         #if DEBUG
         smokeLog("SESSION: \(Self.describe(result))")
         #endif
+        // 실패 화면이 아니라 추가 정보 화면으로 간다 (KAN-224).
+        if sessionGate.state == .profileIncomplete { leaveForProfile() }
     }
 
     /// 세션 게이트 실패 화면의 [다시 시도].
@@ -326,6 +418,16 @@ final class TestFlowModel: ObservableObject {
     /// - Returns: 실패했으면 웹에 회신할 payload. 성공(교체)이거나 걸 요청이 없으면 nil이다 —
     ///   성공은 회신하지 않는다. 새 세션을 든 채 인트로로 돌아가므로 회신을 받을 페이지가 사라진다.
     func startRetest() async -> RetestFailure? {
+        /*
+         * 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰. KAN-274부터 동의와 무관). 잠금
+         * (`beginRetest()`)보다 앞이라 지역 화면이 떠 있는 동안 세션 요청도 진행 중 플래그도 없다. 웹 결과 화면은
+         * 광고를 볼 때처럼 pending으로 기다리고(시간 기반 해제가 없다), 지역을 고르면 화면이 이 함수를 다시 부른다.
+         * 회신할 실패가 아니라서 nil이다.
+         */
+        if needsAnonymousRegion {
+            retestRegionPending = true
+            return nil
+        }
         // nil이면 이미 요청이 나가 있거나 버릴 세션이 없다 — 어느 쪽이든 할 일은 없다.
         guard let previousToken = sessionGate.beginRetest() else { return nil }
         guard let sessionClient else {
@@ -344,12 +446,14 @@ final class TestFlowModel: ObservableObject {
             guard case .failed(let failure) = outcome else { return nil }
             return retestFailurePayload(failure)
         }
-        let result = await sessionClient.create(
+        let result = await sessionClient.createWithConsentFallback(
             appVersion: AppConfig.appVersionName,
             previousToken: previousToken,
             // 재응시도 같은 유입이다 (KAN-32) — 공유 링크로 들어온 사람이 한 번 더 보는 것까지가
             // 그 링크가 만든 응시라, 코드를 그대로 물려준다.
-            campaignToken: campaignToken
+            campaignToken: campaignToken,
+            voiceConsentVersion: sessionVoiceConsentVersion,
+            region: sessionRegion
         )
         let outcome = sessionGate.onRetestResult(result)
         syncGate()
@@ -359,9 +463,15 @@ final class TestFlowModel: ObservableObject {
             // (`webUrl`) 이 한 줄이 곧 인트로 리로드다. micPassed는 되돌리지 않는다 —
             // 권한이 이미 허용이면 다시 묻지 않는 것이 KAN-34 AC다.
             startRequested = false
+            // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
+            flow.onSessionReplaced()
             return nil
         case .failed(let failure):
             return retestFailurePayload(failure)
+        case .profileIncomplete:
+            // 결과 화면에 회신할 실패가 아니다 — 추가 정보를 받으러 간다 (KAN-224). 결과 화면은 흐름과 함께 내려간다.
+            leaveForProfile()
+            return nil
         }
     }
 
@@ -404,9 +514,14 @@ final class TestFlowModel: ObservableObject {
     ///
     /// - Returns: 컨트롤러가 시도를 거둬갔는가. true면 호출자가 그 업로드의 바이트를 폐기한다.
     @discardableResult
-    func onUploadGivenUp(attemptId: String, message: String?) -> Bool {
+    func onUploadGivenUp(attemptId: String, message: String?, missingItems: [String] = []) -> Bool {
         // 권한이 그새 회수됐을 수 있다 — 다시 열 화면이 녹음인지 권한 게이트인지를 이 값이 가른다.
-        let taken = flow.onUploadGivenUp(attemptId: attemptId, micGranted: isMicGranted(), message: message)
+        let taken = flow.onUploadGivenUp(
+            attemptId: attemptId,
+            micGranted: isMicGranted(),
+            message: message,
+            missingItems: missingItems
+        )
         syncFlow()
         return taken
     }
@@ -501,7 +616,17 @@ final class TestFlowModel: ObservableObject {
          */
         if UserDefaults.standard.bool(forKey: "StubSession") { return DebugStubSessionClient() }
         #endif
-        return URLSessionSessionClient(baseURL: AppConfig.apiBaseURL)
+        /*
+         * 로그인을 끈 빌드(익명 모드, KAN-270 6단계)는 plain 클라이언트다. 예전 로그인 빌드가 남긴 토큰이 Keychain에
+         * 있어도 Bearer가 실리지 않게 하려는 것이다 — 실리면 서버가 계정 세션으로 보고 voiceConsentVersion을 무시한다.
+         * ``AuthHub``도 깨우지 않는다. 안드로이드 `AnonymousFlow`의 `remember { OkHttpClient() }` 자리다.
+         */
+        guard AppConfig.loginEnabled else { return URLSessionSessionClient(baseURL: AppConfig.apiBaseURL) }
+        /*
+         * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
+         * 업로드·결과 등 세션 범위 API는 `st_` 세션 토큰을 쓰는 기존 클라이언트 그대로다 (AuthorizedSession 주석).
+         */
+        return AuthHub.clients.sessionClient()
     }
 
     #if DEBUG
@@ -544,7 +669,13 @@ final class TestFlowModel: ObservableObject {
 /// 여기까지가 이 스텁이 확인해 주는 범위다. 업로드도 같은 이유로 거절된다 — 서버가 모르는
 /// 세션이라 401이 온다.
 struct DebugStubSessionClient: SessionClient {
-    func create(appVersion: String, previousToken: String?, campaignToken: String?) async -> SessionResult {
+    func create(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?,
+        region: String?
+    ) async -> SessionResult {
         .created(
             Session(
                 sessionId: "s_debug_stub",

@@ -32,6 +32,7 @@ import com.accentury.app.analytics.EventParam
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
+import com.accentury.app.ui.components.performHaptic
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.bridge.SharePayload
 import com.accentury.app.bridge.VoiceItemStart
@@ -189,6 +190,8 @@ fun WebViewHost(
                                 readAdConsent = readAdConsent,
                                 onSetAdConsent = onSetAdConsent,
                                 onShowInterstitialAd = onShowInterstitialAd,
+                                // 웹 버튼의 햅틱 (KAN-258) — 이 WebView에서 낸다. 브리지가 메인으로 넘긴 뒤 부른다.
+                                onHaptic = { performHaptic(it) },
                             ),
                             "AccenturyBridge",
                         )

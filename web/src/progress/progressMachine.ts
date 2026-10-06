@@ -40,7 +40,7 @@ export interface ProgressState {
   readonly phase: ProgressPhase
 }
 
-/** 진행바용 진척도. `current`는 사람이 읽는 값이라 1-based다 (첫 문항이 1/10) */
+/** 진행바용 진척도. `current`는 사람이 읽는 값이라 1-based다 (첫 문항이 1/7. 분모는 정의가 주는 문항 수, KAN-261) */
 export interface Progress {
   current: number
   total: number

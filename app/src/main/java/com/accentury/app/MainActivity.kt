@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,11 +85,36 @@ import com.accentury.app.analytics.crashIfRequested
 import com.accentury.app.analytics.create
 import com.accentury.app.analytics.log
 import com.accentury.app.analytics.channelParam
+import com.accentury.app.auth.AnonymousSettingsScreen
+import com.accentury.app.auth.AnonymousRegionScreen
+import com.accentury.app.auth.AnonymousVoiceConsentStore
+import com.accentury.app.auth.AuthCheckScreen
+import com.accentury.app.auth.AuthGateController
+import com.accentury.app.auth.AuthGateState
+import com.accentury.app.auth.AuthResult
+import com.accentury.app.auth.IdpLogout
+import com.accentury.app.auth.LoginScreen
+import com.accentury.app.auth.PRIVACY_POLICY_URL
+import com.accentury.app.auth.PRIVACY_POLICY_VERSION
+import com.accentury.app.auth.ProfileScreen
+import com.accentury.app.auth.SettingsGearButton
+import com.accentury.app.auth.SettingsScreen
+import com.accentury.app.auth.VoiceConsentPromptStore
+import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
+import com.accentury.app.auth.VoiceConsentScreen
+import com.accentury.app.auth.anonymousVoiceConsentVersion
+import com.accentury.app.auth.configuredProviders
+import com.accentury.app.auth.idpSignInFor
+import com.accentury.app.auth.needsAnonymousRegion
+import com.accentury.app.auth.shouldPromptVoiceConsent
+import com.accentury.app.auth.visibleProviders
 import com.accentury.app.share.ResultSharer
 import com.accentury.app.session.OkHttpSessionClient
+import com.accentury.app.session.createWithConsentFallback
 import com.accentury.app.session.RetestOutcome
 import com.accentury.app.session.SessionGateController
 import com.accentury.app.session.SessionGateScreen
+import com.accentury.app.session.sessionCreationClient
 import com.accentury.app.testflow.TestFlowController
 import com.accentury.app.testflow.continuesFrom
 import com.accentury.app.testflow.TestFlowPhase
@@ -114,6 +140,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 
 
 /*
@@ -139,10 +166,17 @@ class MainActivity : ComponentActivity() {
          * 스플래시 (KAN-178). `super.onCreate` **앞**이어야 한다 — 이 호출이 하는 일이
          * 창의 테마를 매니페스트의 Theme.Accentury.Starting에서 postSplashScreenTheme
          * (Theme.Accentury)로 갈아 끼우는 것이고, 창이 만들어진 뒤에 바꾸면 늦는다.
-         * 유지 조건(setKeepOnScreenCondition)은 걸지 않는다 — 첫 화면이 웹뷰라 붙들 기준이
-         * 애매하고, 붙들면 그만큼 사용자가 아무것도 못 하는 시간이 늘어난다.
+         *
+         * 로그인 상태를 확인하는 동안은 스플래시를 붙든다 (KAN-224). 예전에는 첫 화면이 웹뷰라 붙들
+         * 기준이 없었지만, 이제 첫 화면이 로그인 관문이라 확인이 끝나기 전에 걷으면 로그인된 사용자에게도
+         * 로그인 화면이 한 번 번쩍인다. 확인은 Application이 프로세스당 한 번 건다.
+         *
+         * 로그인을 끈 빌드(익명 모드, KAN-270 5단계)는 붙들 것이 없다. `&&`가 먼저 끊어 authGate lazy를 깨우지 않는다.
          */
-        installSplashScreen()
+        val app = application as AccenturyApplication
+        installSplashScreen().setKeepOnScreenCondition {
+            BuildConfig.LOGIN_ENABLED && app.authGate.state.value is AuthGateState.Checking
+        }
         super.onCreate(savedInstanceState)
         /*
          * 시스템 바를 **항상 밝은 배경용**으로 고정한다 (KAN-161 4단계).
@@ -178,7 +212,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             AccenturyTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    TestFlow(appLink = appLink, modifier = Modifier.padding(innerPadding))
+                    if (BuildConfig.LOGIN_ENABLED) {
+                        AuthGate(gate = app.authGate, appLink = appLink, modifier = Modifier.padding(innerPadding))
+                    } else {
+                        AnonymousFlow(appLink = appLink, modifier = Modifier.padding(innerPadding))
+                    }
                 }
             }
         }
@@ -214,8 +252,149 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
+ * 로그인 관문 (KAN-224). 인트로(웹)보다 앞에 서고, 로그인·추가 정보가 끝나야 [TestFlow]가 열린다.
+ *
+ * **[TestFlow]는 [AuthGateState.SignedIn]일 때만 컴포지션에 있다.** 어디서든 Refresh가 거절돼 로그인
+ * 화면으로 돌아가면(또는 프로필 미완료로 추가 정보 화면으로 가면) TestFlow가 통째로 내려가며 그 안의
+ * rememberSaveable(시작 게이트 네 칸·세션)도 함께 버려진다 — 다시 들어오면 인트로부터다. 진행 중이던
+ * 응시를 다른 계정 상태로 이어 가지 않는 것이 이 구조의 요점이다.
+ */
+@Composable
+private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val authClients = remember(context) { (context.applicationContext as AccenturyApplication).authClients }
+
+    when (val state = gate.state.collectAsStateWithLifecycle().value) {
+        // 첫 확인은 스플래시가 가린다. 여기가 보이는 것은 CheckFailed의 [다시 시도] 뒤다.
+        AuthGateState.Checking -> AuthCheckScreen(failure = null, onRetry = {}, modifier = modifier)
+
+        is AuthGateState.CheckFailed -> AuthCheckScreen(
+            failure = state.error,
+            onRetry = gate::retry,
+            modifier = modifier,
+        )
+
+        is AuthGateState.SignedOut -> LoginScreen(
+            error = state.error,
+            providers = remember { visibleProviders(configuredProviders(), BuildConfig.FAKE_IDP) },
+            signInFor = ::idpSignInFor,
+            onLogin = { gate.login(it, PRIVACY_POLICY_VERSION) },
+            onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+            modifier = modifier,
+        )
+
+        is AuthGateState.NeedsProfile -> ProfileScreen(
+            user = state.user,
+            error = state.error,
+            onSubmit = gate::submitProfile,
+            onSwitchAccount = { gate.logout { IdpLogout.all(context) } },
+            modifier = modifier,
+        )
+
+        is AuthGateState.SignedIn -> {
+            /*
+             * 설정 화면 (KAN-247). TestFlow를 내리지 않고 위에 덮는다 — WebView는 한 인스턴스로 살아야 한다
+             * (TestFlow KDoc). 이 분기 안에 두어 로그아웃으로 SignedIn을 벗어나면 열림 상태도 함께 버려진다 —
+             * 다음 로그인이 설정 화면부터 열리지 않는다. 회전에는 남는다.
+             */
+            var settingsOpen by rememberSaveable { mutableStateOf(false) }
+            /*
+             * 음성 저장 선택 동의 (KAN-270). 설정 화면과 같은 이유로 TestFlow 위에 덮는다. 로그인·추가 정보를 마친
+             * 미동의 계정에 한 번만 — 건너뛰어도 다시 띄우지 않는다(팀 결정 2026-10-06). 표시 기록은 계정 id별
+             * 로컬 플래그이고, [consentPromptDone]은 기록을 남긴 그 순간 화면을 걷으려는 것이다(prefs 읽기는
+             * 상태가 아니라 리컴포지션을 부르지 않는다).
+             */
+            val promptStore = remember(context) { VoiceConsentPromptStore(context) }
+            var consentPromptDone by rememberSaveable { mutableStateOf(false) }
+            val onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) }
+            Box(modifier = modifier) {
+                TestFlow(
+                    appLink = appLink,
+                    sessionHttpClient = authClients.authedClient,
+                    anonymousConsent = null,
+                    onProfileIncomplete = gate::onProfileIncomplete,
+                    onOpenSettings = { settingsOpen = true },
+                )
+                if (!consentPromptDone && shouldPromptVoiceConsent(state, promptStore.wasPrompted(state.user.id))) {
+                    val finish = {
+                        promptStore.markPrompted(state.user.id)
+                        consentPromptDone = true
+                    }
+                    VoiceConsentScreen(
+                        onConsent = {
+                            (gate.setVoiceConsent(true) is AuthResult.Success).also { if (it) finish() }
+                        },
+                        onSkip = finish,
+                        onOpenPrivacy = onOpenPrivacy,
+                    )
+                }
+                if (settingsOpen) {
+                    SettingsScreen(
+                        user = state.user,
+                        voiceConsent = state.voiceConsent,
+                        onClose = { settingsOpen = false },
+                        // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야
+                        // 다음 로그인에서 계정을 다시 고를 수 있다.
+                        onLogout = { gate.logout { IdpLogout.all(context) } },
+                        // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의
+                        // 화면이 뜨던 문제(PR #22 리뷰).
+                        onVoiceConsentChange = { consented ->
+                            gate.setVoiceConsent(consented).also {
+                                if (it is AuthResult.Success) {
+                                    promptStore.markPrompted(state.user.id)
+                                    consentPromptDone = true
+                                }
+                            }
+                        },
+                        onReloadVoiceConsent = gate::reloadVoiceConsent,
+                        onOpenPrivacy = onOpenPrivacy,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 로그인을 끈 빌드(익명 모드)의 최상위 (KAN-270 5단계, `BuildConfig.LOGIN_ENABLED == false`). [AuthGate] 자리에 선다.
+ *
+ * 관문·추가 정보·계정 동의 오버레이가 없고, 음성 저장 동의는 [TestFlow]의 시작 게이트가 설치당 한 번 묻는다.
+ * 설정 톱니는 그대로이고 [AnonymousSettingsScreen](「개인정보」만)을 덮는다.
+ *
+ * 세션 생성은 plain `OkHttpClient`다. 예전 로그인 빌드가 남긴 토큰이 Keystore에 있어도 Bearer가 실리지 않게 하려는
+ * 것이다 — 실리면 서버가 계정 세션으로 보고 voiceConsentVersion을 무시한다. TestFlow에서 `authedClient`를 쓰던 곳은
+ * 세션 생성 하나뿐이고, 업로드·결과 등은 `st_` 세션 토큰을 쓰는 기존 클라이언트라 이것으로 충분하다.
+ */
+@Composable
+private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val consentStore = remember(context) { AnonymousVoiceConsentStore(context) }
+    val sessionHttpClient = remember { OkHttpClient() }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        TestFlow(
+            appLink = appLink,
+            sessionHttpClient = sessionHttpClient,
+            anonymousConsent = consentStore,
+            // 익명 세션에는 프로필이 없어 서버가 이 거절을 주지 않는다.
+            onProfileIncomplete = {},
+            onOpenSettings = { settingsOpen = true },
+        )
+        if (settingsOpen) {
+            AnonymousSettingsScreen(
+                consented = consentStore.consented(),
+                onChange = consentStore::save,
+                onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+                onClose = { settingsOpen = false },
+            )
+        }
+    }
+}
+
+/**
  * 인트로(웹) → 시작 게이트(마이크 권한 → 세션 생성) → 테스트 진입(웹) → VOICE 문항마다 녹음
- * 오버레이 (KAN-100, KAN-34).
+ * 오버레이 (KAN-100, KAN-34). 익명 모드는 권한 → **동의(설치당 1회)** → **지역(아직 없을 때, 동의와 무관, 설치당 1회)** →
+ * 점검 → 세션이다 (KAN-270 5·7단계).
  *
  * **WebView는 인트로부터 테스트 끝까지 한 인스턴스로 산다.** 진행의 정본이 웹 상태 머신이라
  * WebView를 내리면 어디까지 왔는지가 같이 사라진다 — 네이티브 화면(권한 게이트·세션 준비·녹음)은
@@ -223,9 +402,22 @@ class MainActivity : ComponentActivity() {
  * 여기는 Android·Compose 결선만 한다.
  *
  * @param appLink App Link 진입 (KAN-32). Activity가 Intent에서 읽어 흘려보낸다
+ * @param sessionHttpClient 세션 생성 클라이언트. 계정 모드는 계정 Access 토큰을 싣는 `AuthClients.authedClient`(KAN-224),
+ *   익명 모드는 plain `OkHttpClient`
+ * @param anonymousConsent 익명 모드의 로컬 동의·지역 (KAN-270 5·7단계). null이면 계정 모드 — 동의·지역 단계가 없고 body에
+ *   버전·지역을 싣지 않는다
+ * @param onProfileIncomplete 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224)
+ * @param onOpenSettings 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(AuthGate)가 이 위에 덮는다 (KAN-247)
  */
 @Composable
-private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Modifier) {
+private fun TestFlow(
+    appLink: StateFlow<AppLinkEntry?>,
+    sessionHttpClient: OkHttpClient,
+    anonymousConsent: AnonymousVoiceConsentStore?,
+    onProfileIncomplete: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
 
     /*
@@ -278,6 +470,10 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
      * 네트워크를 쓰기 전이라 전부 기기 안에서 끝난다. 세션 뒤로 밀면 이미 발급된 세션(만료가 도는
      * 자원)을 든 채 점검에 붙들리는 구간이 생긴다.
      *
+     * 익명 모드(KAN-270 5단계)는 권한과 점검 사이에 음성 저장 동의가 한 칸 더 선다 — 웹과 같은 순서다. 설치당 한 번이라
+     * 통과 표시는 이 상태가 아니라 [AnonymousVoiceConsentStore]가 든다. 그 뒤에 출신 지역이 한 칸 더 선다
+     * (7단계) — 동의 화면에서 무엇을 골랐든 서고(KAN-274), 역시 설치당 한 번이며 저장소가 든다.
+     *
      * 넷 다 회전·프로세스 복원을 넘긴다. 증발하면 통과한 게이트가 다시 서고 인트로로 되돌아가는데,
      * 세션이 증발하는 경우는 그보다 나빠서 — 응답에서 한 번만 노출되는 토큰이라(Session KDoc)
      * 되찾을 길이 없고 진행 중이던 응시가 통째로 죽는다.
@@ -285,8 +481,27 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
     var startRequested by rememberSaveable { mutableStateOf(false) }
     var micPassed by rememberSaveable { mutableStateOf(false) }
     var voiceCenterHz by rememberSaveable { mutableStateOf<Float?>(null) }
+    /*
+     * 재응시 직전의 출신 지역 단계 (KAN-270, PR #22 리뷰). 시작 게이트의 지역 칸은 `session == null`일 때만 서는데,
+     * 재응시는 세션을 든 채 결과 화면에서 새 세션을 만든다. 그래서 처음에 건너뛴 사람이 설정에서 동의를 켠 뒤
+     * 재응시하면 지역을 묻지 못하고 라벨이 UNKNOWN으로 남았다. [proceedRetest]가 세션 요청 앞에서 이 값을 세우고,
+     * 지역 화면의 [다음]이 내린 뒤 재응시를 이어 간다.
+     *
+     * 회전을 넘긴다. 회전으로 사라지면 웹 결과 화면이 다시 로드되어 버튼은 열리지만, 사용자가 광고를 한 번 더 봐야 한다.
+     */
+    var retestRegionPending by rememberSaveable { mutableStateOf(false) }
     val sessionGate = rememberSaveable(saver = SessionGateController.saver()) { SessionGateController() }
-    val sessionClient = remember { OkHttpSessionClient(BuildConfig.API_BASE_URL) }
+    /*
+     * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
+     * 업로드·결과 등 세션 범위 API는 `st_` 세션 토큰을 쓰는 기존 클라이언트 그대로다 (AuthClients KDoc).
+     */
+    val sessionClient = remember(sessionHttpClient) {
+        OkHttpSessionClient(BuildConfig.API_BASE_URL, sessionCreationClient(sessionHttpClient))
+    }
+    // 세션 생성 순간의 값을 읽는다 — 설정에서 바꾸면 다음 생성(재응시 포함)부터 반영된다.
+    fun voiceConsentVersion(): String? = anonymousConsent?.let { anonymousVoiceConsentVersion(it.consented()) }
+    // 지역은 동의와 무관하게 싣는다 (KAN-274) — 동의하지 않은 익명 세션도 서버가 점수와 지역을 남긴다.
+    fun sessionRegion(): String? = anonymousConsent?.region()
     val session = sessionGate.session
 
     val flow = rememberSaveable(saver = TestFlowController.saver()) { TestFlowController() }
@@ -376,7 +591,14 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
         uploads.forEach { (attemptId, state) ->
             if (state !is UploadState.Failed || !state.rerecord) return@forEach
             // 서버 문구를 그대로 실어 보낸다 - 왜 다시 녹음해야 하는지는 서버만 안다.
-            if (flow.onUploadGivenUp(attemptId, micGranted = isMicGranted(), message = state.message)) {
+            // 빠진 앞 문항(KAN-261)이 있으면 컨트롤러가 그 문항들부터 차례로 다시 연다.
+            val givenUp = flow.onUploadGivenUp(
+                attemptId,
+                micGranted = isMicGranted(),
+                message = state.message,
+                missingItems = state.missingItems,
+            )
+            if (givenUp) {
                 uploadViewModel?.discard(attemptId)
             }
         }
@@ -401,6 +623,31 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
     val voiceCheckViewModel: VoiceCheckViewModel = viewModel(factory = voiceCheckFactory)
 
     /*
+     * TestFlow가 내려가면 응시도 끝난다 — 마이크와 진행 중 상태를 여기서 놓는다 (KAN-247).
+     *
+     * 위 뷰모델들은 Activity 범위라 TestFlow보다 오래 산다. 로그아웃(SignedIn → SignedOut)으로
+     * TestFlow가 빠져도 녹음 오버레이의 되감기(continuesFrom)는 flow.phase가 그대로라 "이어짐"으로
+     * 보고 reset하지 않는다 — 녹음 화면에 톱니가 생기면서(KAN-247, 팀장 요청 10/3) 열린 경로다.
+     * 그대로 두면 로그인 화면에서도 마이크가 최대 길이까지 켜져 있고, 다음 계정이 이전 녹음·점검
+     * 상태와 이전 세션의 업로드 바이트를 물려받는다 (FR-DP-02). iOS는 .onDisappear에서 무조건 reset한다.
+     *
+     * 회전은 제외한다 — 이 앱은 configChanges를 두지 않아 회전마다 Activity가 다시 서며 TestFlow도
+     * 함께 내려가는데, 그때 진행 중인 녹음을 죽이면 안 된다(뷰모델이 Activity 범위인 이유가 그것이다).
+     *
+     * 업로드는 최신 인스턴스를 본다 — 인트로에서 등록된 이 이펙트가 잡은 값은 세션 전의 null이다.
+     */
+    val currentUploadViewModel by rememberUpdatedState(uploadViewModel)
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!activity.isChangingConfigurations) {
+                viewModel.reset()
+                voiceCheckViewModel.reset()
+                currentUploadViewModel?.clearAll()
+            }
+        }
+    }
+
+    /*
      * 브리지 getSessionToken(KAN-13)이 읽을 토큰 자리 (KAN-34).
      *
      * 그 메서드는 값을 동기로 돌려주므로 JS 스레드에서 그대로 실행된다 — WebViewHost의
@@ -415,6 +662,30 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
     SideEffect { bridgeToken.set(session?.sessionToken.orEmpty()) }
 
     val scope = rememberCoroutineScope()
+
+    /*
+     * 시작 게이트를 인트로 앞으로 되감는다. 다시 시도해도 소용없는 세션 실패의 [처음으로]와, 프로필 미완료로
+     * 추가 정보 화면에 다녀오는 경우(KAN-224)가 같은 되감기를 쓴다.
+     */
+    fun resetStartGates() {
+        startRequested = false
+        micPassed = false
+        // 점검도 함께 되돌린다 - 인트로로 돌아간 뒤 다시 시작하면 마이크를 새로
+        // 열게 되므로, 그 마이크가 잘 잡히는지는 그때 다시 확인해야 맞다.
+        voiceCenterHz = null
+        // 실패 상태를 그대로 두면 다음 [시작하기]가 같은 실패 화면으로 곧장 떨어진다.
+        sessionGate.restart()
+    }
+
+    /*
+     * 프로필 미완료 (KAN-224). 되감은 뒤 추가 정보 화면으로 넘긴다 — 넘기는 순간 이 TestFlow가 컴포지션에서
+     * 내려가 저장 상태도 버려지므로 되감기는 사실상 이중 안전장치다. 그래도 명시해 두는 이유는, 이 구조
+     * (SignedIn일 때만 TestFlow)가 바뀌어도 완료 뒤에 인트로로 떨어진다는 약속이 남게 하려는 것이다.
+     */
+    fun leaveForProfile() {
+        resetStartGates()
+        onProfileIncomplete()
+    }
 
     /*
      * 광고 허브 (KAN-196). Application이 든 프로세스 단위 인스턴스라 remember 키가 없다 —
@@ -436,6 +707,15 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
      * 넘겨줄 뿐이다.
      */
     fun proceedRetest() {
+        /*
+         * 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰. KAN-274부터 동의와 무관). 잠금
+         * (`beginRetest()`)보다 앞이라 지역 화면이 떠 있는 동안 세션 요청도 진행 중 플래그도 없다. 웹 결과 화면은
+         * 광고를 볼 때처럼 pending으로 기다리고(시간 기반 해제가 없다), 지역을 고르면 여기로 다시 들어온다.
+         */
+        if (anonymousConsent != null && needsAnonymousRegion(anonymousConsent.region())) {
+            retestRegionPending = true
+            return
+        }
         // null이면 이미 요청이 나가 있거나 버릴 세션이 없다 — 어느 쪽이든 할 일은 없다.
         val previousToken = sessionGate.beginRetest() ?: return
         scope.launch {
@@ -443,12 +723,14 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
              * 이전 토큰을 실어 서버가 이전 세션과 결과를 **즉시** 폐기하게 한다 (KAN-107).
              * 폐기와 발급이 한 요청이라, 실패하면 이전 세션이 그대로 살아 있는 것도 보장된다.
              */
-            val result = sessionClient.create(
+            val result = sessionClient.createWithConsentFallback(
                 appVersion = BuildConfig.VERSION_NAME,
                 previousToken = previousToken,
                 // 재응시도 같은 유입이다 (KAN-32) — 공유 링크로 들어온 사람이 한 번 더 보는 것까지가
                 // 그 링크가 만든 응시라, 코드를 그대로 물려준다.
                 campaignToken = campaignToken,
+                voiceConsentVersion = voiceConsentVersion(),
+                region = sessionRegion(),
             )
             when (val outcome = sessionGate.onRetestResult(result)) {
                 is RetestOutcome.Replaced -> {
@@ -464,7 +746,12 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
                      * 새 세션은 새 인스턴스를 받고, 끝난 응시의 업로드가 섞이지 않는다.
                      */
                     startRequested = false
+                    // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
+                    flow.onSessionReplaced()
                 }
+
+                // 결과 화면에 회신할 실패가 아니다 — 추가 정보를 받으러 간다 (KAN-224).
+                RetestOutcome.ProfileIncomplete -> leaveForProfile()
 
                 is RetestOutcome.Failed -> {
                     /*
@@ -644,10 +931,37 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
             }
 
             when {
+                // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던
+                // 재응시를 이어 간다. 이번에는 지역이 있어 [proceedRetest]가 곧장 세션 요청으로 간다.
+                retestRegionPending && anonymousConsent != null ->
+                    AnonymousRegionScreen(
+                        onDone = { code ->
+                            anonymousConsent.saveRegion(code)
+                            retestRegionPending = false
+                            proceedRetest()
+                        },
+                    )
+
                 // 시작 게이트 1칸 — 마이크 권한 (KAN-98). 통과 표시를 따로 두는 이유는 뒤에 세션
                 // 생성이 이어지기 때문이다: 세션을 기다리는 동안 권한 화면으로 되돌아가면 안 된다.
                 startRequested && session == null && !micPassed ->
                     PermissionGate(onGranted = { micPassed = true })
+
+                // 익명 모드의 음성 저장 동의 (KAN-270 5단계) — 설치당 한 번. 고르면 store가 asked를 세워 조건이 풀린다.
+                anonymousConsent != null && startRequested && session == null && micPassed && !anonymousConsent.asked() ->
+                    VoiceConsentScreen(
+                        onConsent = { anonymousConsent.save(true); true },
+                        onSkip = { anonymousConsent.save(false) },
+                        onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+                        details = VOICE_CONSENT_DETAILS_ANONYMOUS,
+                    )
+
+                // 익명 모드의 출신 지역 (KAN-270 7단계) — 설치당 한 번, 동의 화면에서 무엇을 골랐든 모두에게 묻는다
+                // (KAN-274). 고르면 store에 region이 생겨 조건이 풀린다.
+                anonymousConsent != null && startRequested && session == null && micPassed &&
+                    anonymousConsent.asked() &&
+                    needsAnonymousRegion(anonymousConsent.region()) ->
+                    AnonymousRegionScreen(onDone = anonymousConsent::saveRegion)
 
                 // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
                 // 마이크가 막 열린 자리라 여기서 확인하고, 잰 값은 이후 모든 문항의 곡선 축이 된다.
@@ -665,15 +979,10 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
                     client = sessionClient,
                     appVersion = BuildConfig.VERSION_NAME,
                     campaignToken = campaignToken,
-                    onBackToIntro = {
-                        startRequested = false
-                        micPassed = false
-                        // 점검도 함께 되돌린다 - 인트로로 돌아간 뒤 다시 시작하면 마이크를 새로
-                        // 열게 되므로, 그 마이크가 잘 잡히는지는 그때 다시 확인해야 맞다.
-                        voiceCenterHz = null
-                        // 실패 상태를 그대로 두면 다음 [시작하기]가 같은 실패 화면으로 곧장 떨어진다.
-                        sessionGate.restart()
-                    },
+                    voiceConsentVersion = voiceConsentVersion(),
+                    region = sessionRegion(),
+                    onBackToIntro = ::resetStartGates,
+                    onProfileIncomplete = ::leaveForProfile,
                 )
 
                 // 문항 진입 시점의 게이트 — 통과하면 기다리던 문항의 녹음으로 곧장 들어간다.
@@ -762,6 +1071,25 @@ private fun TestFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Mod
                         },
                     )
                 }
+            }
+
+            /*
+             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+             * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
+             * 계속 돈다(설정은 TestFlow를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+             * 덮는 동안은 숨긴다. 조건은 위 `when`의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
+             * 녹음 오버레이 뒤에 그려 그 위에 선다. 녹음 화면 본문은 위 64dp부터라 톱니(8~56dp)와 겹치지 않는다.
+             * 시스템 바 여백은 Scaffold의 innerPadding이 이미 뺐다.
+             */
+            // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
+            val nativeCovering = (startRequested && session == null) ||
+                phase is TestFlowPhase.NeedsPermission ||
+                retestRegionPending
+            if (!nativeCovering) {
+                SettingsGearButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
+                )
             }
         }
 
@@ -871,7 +1199,8 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 
         MicPermissionState.Rationale -> GateScreen(
             headline = "발음 분석에 마이크가 필요해요",
-            supporting = "음성은 분석 즉시 삭제돼요",
+            // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+            supporting = "따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요",
             buttonLabel = "마이크 허용",
             onButtonClick = { launcher.launch(Manifest.permission.RECORD_AUDIO) },
             modifier = modifier,
@@ -879,7 +1208,8 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 
         MicPermissionState.Denied -> GateScreen(
             headline = "마이크를 허용해야 시작할 수 있어요",
-            supporting = "발음을 들어야 분석할 수 있어요 · 음성은 분석 즉시 삭제돼요",
+            // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+            supporting = "발음을 들어야 분석할 수 있어요 · 음성은 따로 동의한 경우에만 보관돼요",
             buttonLabel = "다시 허용하기",
             onButtonClick = { launcher.launch(Manifest.permission.RECORD_AUDIO) },
             modifier = modifier,
@@ -1002,7 +1332,8 @@ private fun AssuranceCard() {
 private val ASSURANCES = listOf(
     "실시간 억양 곡선 분석",
     "발음 정확도 점수 측정",
-    "음성은 분석 즉시 삭제",
+    // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+    "음성은 따로 동의한 경우에만 보관",
 )
 
 /** 안심 문구 줄머리 점 */

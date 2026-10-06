@@ -126,17 +126,12 @@ npm run test:e2e -- --headed      # 브라우저를 눈으로 보면서
 npm run test:e2e:ui               # 스펙을 골라 되감아 보는 UI
 npm run test:e2e -- smoke         # 파일 이름으로 좁히기
 
-# 출신 지역 선택 화면(KAN-202)을 거치는 판. 개발 서버가 이 값으로 뜨고 스펙이 지역을 고른 뒤
-# 세션 본문에 region이 실렸는지까지 본다. 안 주면 화면 없는 빌드로 돌고 본문에 region이 없는지 본다.
-VITE_REGION_SELECT=true npm run test:e2e
-
 # 실패하면 trace가 남는다 — 요청·콘솔·DOM 스냅샷이 다 들어 있다
 npx playwright show-trace test-results/<실패한-스펙>/trace.zip
 ```
 
-지역 화면 판을 위해 스펙을 따로 두지 않는다 — `startTest`가 화면에 뜬 것을 보고 지역 화면이
-있으면 고르고 없으면 지나가므로, 같은 스펙이 켠 빌드·끈 빌드·`E2E_BASE_URL`의 staging에서
-그대로 돈다. 둘 다 돌려야 양쪽 AC가 다 확인된다.
+출신 지역 선택 화면(KAN-202)은 빌드 스위치 없이 늘 선다 (KAN-274). `startTest`가 음성 저장 동의
+화면 다음에 지역을 고르고, 세션 본문에 `region`이 실렸는지까지 본다. 변수 없이 한 번 돌리면 된다.
 
 #### 실패 갈래 돌리기
 
@@ -199,14 +194,10 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
   `GA4_MEASUREMENT_ID`를 워크플로가 빌드에 넘긴다. staging과 prod가 **다른 스트림**이어야
   우리 확인 트래픽이 실사용 집계에 섞이지 않는다. 비워 두면 계측 없이 빌드된다 -
   로컬 개발도 그 상태이고, 이벤트가 실제로 도는지는 콘솔의 `[track]` 로그로 본다.
-- 다른 하나는 `VITE_REGION_SELECT`(KAN-202). GitHub environment 변수 `REGION_SELECT`를
-  넘기며, **staging만 `true`**이고 prod에는 변수를 등록하지 않는다. 켜진 빌드는 시작
-  게이트에 출신 지역 선택 화면이 생기고 세션 생성 본문에 `region`이 실린다 - KAN-201이
-  staging 학습 데이터를 지역별로 뽑는 라벨이라 내부 테스터가 응시하는 staging에만 필요하다.
-  정확히 문자열 `true`일 때만 켜지고 비어 있으면 화면도 요청 필드도 없는 것이 정상이다
-  (`src/region/regions.ts`). 로컬에서 보려면 `web/.env.local`에 `VITE_REGION_SELECT=true`를
-  둔다 (`.env.*`는 gitignore 대상).
-- 셋째는 `VITE_STORE_LISTING_READY`(사용자 요청 2026-09-15). GitHub environment 변수
+- 출신 지역 선택 화면(KAN-202)에는 변수가 없다. 예전에는 빌드 변수로 staging에만 켰는데
+  KAN-274가 스위치를 걷어내 두 환경 모두 늘 선다. 웹 단독 실행이면 시작 게이트의 음성 저장 동의
+  화면 다음에 지역 선택 화면이 서고 세션 생성 본문에 `region`이 실린다 (`src/region/regions.ts`).
+- 다른 하나는 `VITE_STORE_LISTING_READY`(사용자 요청 2026-09-15). GitHub environment 변수
   `STORE_LISTING_READY`를 넘기며, **기본은 꺼짐**이다 - 앱이 아직 Play 스토어에도 App Store에도
   등록되지 않아 스토어 URL이 "앱을 찾을 수 없습니다"로 끝나기 때문이다. 꺼진 빌드는 결과 화면의
   [앱 다운로드]와 마이크 차단 화면의 [앱으로 테스트하기]를 **비활성 버튼 + "앱 스토어 등록을
@@ -214,7 +205,7 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
   등록하고 재배포하면 켜진다 - 코드는 고치지 않는다. 정확히 문자열 `true`일 때만 켜지고
   나머지는 전부 꺼짐이다 (`src/audio/storeLink.ts`). 로컬에서 켜 보려면 `web/.env.local`에
   `VITE_STORE_LISTING_READY=true`를 둔다.
-- 넷째는 `VITE_PLAY_STORE_URL`(KAN-174). GitHub environment 변수 `PLAY_STORE_URL`을 넘기며,
+- 셋째는 `VITE_PLAY_STORE_URL`(KAN-174). GitHub environment 변수 `PLAY_STORE_URL`을 넘기며,
   위 스위치가 켠 [앱 다운로드] 버튼이 **갈 주소**다 - 스위치가 꺼져 있으면 이 값을 넣어도 링크가
   서지 않는다. 비워 두는 것이 평소 상태다. 코드 기본값이 앱 패키지명으로 만든 URL이고
   (`src/audio/storeLink.ts`의 `DEFAULT_PLAY_STORE_URL`), 게시가 끝나면 그 주소가 곧 실제 스토어
@@ -223,7 +214,7 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
   ```
   gh variable set PLAY_STORE_URL -e prod --body 'https://play.google.com/store/apps/details?id=com.accentury.app'
   ```
-- 다섯째는 `VITE_APP_STORE_URL`(KAN-175). GitHub environment 변수 `APP_STORE_URL`을 넘기며, iOS 쪽
+- 넷째는 `VITE_APP_STORE_URL`(KAN-175). GitHub environment 변수 `APP_STORE_URL`을 넘기며, iOS 쪽
   같은 자리다 - 값은 `https://apps.apple.com/app/id<숫자>` 꼴이고, 같은 `STORE_LISTING_READY`
   스위치가 꺼져 있으면 이 값도 링크가 되지 않는다.
 - 나머지 둘은 `VITE_ADSENSE_CLIENT_ID`와 `VITE_ADSENSE_SLOT_ID`(KAN-197). GitHub environment 변수

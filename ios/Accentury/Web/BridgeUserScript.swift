@@ -134,7 +134,8 @@ enum BridgeUserScript {
             openExternalUrl: function(url){ post("openExternalUrl", String(url)); },
             getAdConsent: function(){ return adConsent; },
             setAdConsent: function(s){ post("setAdConsent", String(s)); },
-            showInterstitialAd: function(){ post("showInterstitialAd"); }
+            showInterstitialAd: function(){ post("showInterstitialAd"); },
+            haptic: function(t){ post("haptic", String(t)); }
           });
         })();
         """

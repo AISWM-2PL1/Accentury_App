@@ -1,9 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { VocabularyItemScreen } from './VocabularyItemScreen'
 import { VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
 import type { VocabularyItem } from './testDefinition'
 import type { RetestControl } from '../result/useRetest'
+import { REQUIRED_BRIDGE_VERSION } from '../bridge/bridge'
+
+afterEach(() => {
+  delete window.AccenturyBridge
+})
 
 /** 더미 확정본(KAN-13 댓글, 2026-08-05)의 1번 문항 모양 그대로 */
 function vocabularyItem(): VocabularyItem {
@@ -26,12 +31,12 @@ type SubmitFn = (choiceId: string, idempotencyKey: string) => Promise<VocabSubmi
 function renderScreen(submitAnswer: SubmitFn = async () => ({ status: 'SAVED' }), retest?: RetestControl) {
   const submitSpy = vi.fn<SubmitFn>(submitAnswer)
   const onSubmitted = vi.fn<() => void>()
-  // 7 / 10 — 어휘 문항의 순번은 전체 문항 기준이다 (정의가 음성·어휘를 번갈아 둔다)
+  // 7 / 7 — 어휘 문항의 순번은 전체 문항 기준이다 (정의 gn-2026.10.1의 7번은 어휘, KAN-261)
   render(
     <VocabularyItemScreen
       item={vocabularyItem()}
       itemNumber={7}
-      totalItems={10}
+      totalItems={7}
       submitAnswer={submitSpy}
       onSubmitted={onSubmitted}
       retest={retest}
@@ -70,12 +75,12 @@ describe('표시', () => {
      * 없다. 화면에 뭔가 새로 붙으면 그게 정오 정보든 아니든 여기서 걸리고, 걸린 사람이
      * 그게 정오 유추 경로인지 판단하게 된다.
      *
-     * 카드 캡션은 KAN-161 3단계에서 유형 배지("📝 단어 문항")에서 "7 / 10 · 이 말은 무슨
+     * 카드 캡션은 KAN-161 3단계에서 유형 배지("📝 단어 문항")에서 "7 / 7 · 이 말은 무슨
      * 뜻일까요?"로 바뀌었다 - 자리와 할 일을 말하는 줄이라 정답과 무관한 것은 그대로다.
      * 고른 것의 ✓도 같은 단계에서 글자에서 SVG로 바뀌어 텍스트에 남지 않는다.
      */
     expect(document.body.textContent).toBe(
-      "7 / 10 · 이 말은 무슨 뜻일까요?'정구지'는 표준어로?부추미나리쑥갓시금치다음",
+      "7 / 7 · 이 말은 무슨 뜻일까요?'정구지'는 표준어로?부추미나리쑥갓시금치다음",
     )
   })
 })
@@ -100,6 +105,21 @@ describe('선택과 [다음]', () => {
     expect(screen.getByRole('radio', { name: '시금치' })).toBeChecked()
     expect(screen.getByRole('radio', { name: '부추' })).not.toBeChecked()
     expect(screen.getAllByRole('radio').filter((radio) => (radio as HTMLInputElement).checked)).toHaveLength(1)
+  })
+
+  it('선택지를 고르면 탭 햅틱을 요청한다 (KAN-258)', () => {
+    const vibrate = vi.fn()
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      haptic: vibrate,
+    }
+    renderScreen()
+
+    choose('부추')
+    expect(vibrate).toHaveBeenCalledTimes(1)
+    expect(vibrate).toHaveBeenCalledWith('tap')
   })
 
   it('[다음]은 바꾼 뒤의 최종 선택을 제출한다 (제출 전 변경 허용)', async () => {

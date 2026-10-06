@@ -190,13 +190,52 @@ public final class TestFlowController {
     /// (attemptId는 유일하다).
     private var pendingAttempts: [PendingAttempt] = []
 
-    private init(phase: TestFlowPhase, restoredAttempts: [PendingAttempt]) {
+    /// 이번 세션에서 웹이 연 음성 문항의 원본 요청, itemId별 마지막 값 (KAN-261 2단계).
+    ///
+    /// 서버가 보관하던 앞 음성을 잃으면(`VOICE_SLOT_MISSING`) 이미 끝난 앞 문항의 녹음 화면을 다시
+    /// 열어야 하는데, 그 문항의 시도는 결과가 나가면서 ``pendingAttempts``에서 빠졌다. 웹에 다시 열어
+    /// 달라고 할 브리지 메시지는 없고(계약 버전을 올리지 않는다, §5), 문항 문구·번호·가이드 곡선은
+    /// 웹이 ``onStartVoiceItem(_:micGranted:)``로 이미 한 번씩 넘겨줬으므로 그것을 기억해 둔다.
+    ///
+    /// 저장 형식에도 싣는다 — 화면 재생성만으로도 복원을 지나므로, 여기가 비면 거절당한 문항만
+    /// 다시 녹음하게 되고 그 업로드가 같은 이유로 또 거절된다.
+    private var voiceStarts: [String: VoiceItemStart]
+
+    /// 보관 음성 유실 복구에서 지금 화면 다음에 열 녹음 화면들 (KAN-261). 앞 문항들이 번호 순으로 서고
+    /// 마지막은 거절당한 문항(X)이다 — 빠진 칸은 늘 X보다 앞 문항이라 번호 순 정렬이 곧 이 순서다.
+    ///
+    /// 저장 형식에 itemId 목록과 사유 문구로 싣는다 (KAN-261 리뷰 P1-2). 화면 재생성만으로도 복원을
+    /// 지나는데, 여기가 비면 앞 문항 하나를 녹음한 뒤 submitting으로 빠지고 웹은 X를 기다려 진행이
+    /// 멈춘다. 요청 본문은 ``voiceStarts``에 이미 있으므로 id만 저장한다.
+    private var redoQueue: [VoiceItemStart]
+    private var redoMessage: String?
+
+    private init(
+        phase: TestFlowPhase,
+        restoredAttempts: [PendingAttempt],
+        restoredVoiceStarts: [VoiceItemStart],
+        restoredRedoQueue: [String] = [],
+        restoredRedoMessage: String? = nil
+    ) {
         self.phase = phase
         self.pendingAttempts = restoredAttempts
+        let voiceStarts = Dictionary(restoredVoiceStarts.map { ($0.itemId, $0) }, uniquingKeysWith: { _, last in last })
+        self.voiceStarts = voiceStarts
+        self.redoQueue = restoredRedoQueue.compactMap { voiceStarts[$0] }
+        self.redoMessage = restoredRedoMessage
     }
 
     public convenience init() {
-        self.init(phase: .web, restoredAttempts: [])
+        self.init(phase: .web, restoredAttempts: [], restoredVoiceStarts: [])
+    }
+
+    /// 재응시로 세션이 바뀌었다 (KAN-261 리뷰 P1-4). 기억해 둔 음성 문항 요청과 복구 대기열을 비운다.
+    /// 컨트롤러는 재응시를 넘어 살아남는데, 남겨 두면 새 세션의 `missingItems`가 이전 세션의 itemId와
+    /// 겹칠 때 이전 세션 문항 화면을 연다. 재응시가 실패하면 부르지 않는다 — 이전 세션이 그대로 살아 있다.
+    public func onSessionReplaced() {
+        voiceStarts.removeAll()
+        redoQueue.removeAll()
+        redoMessage = nil
     }
 
     /// 웹이 VOICE 문항에 진입했다. 녹음 중이거나 권한 게이트가 서 있으면 무시한다 — 브리지 콜백은
@@ -212,6 +251,7 @@ public final class TestFlowController {
     /// 같은 itemId가 다시 오는 것(재녹음)은 막지 않는다. 결과 유실·재시도 경로에서 자연스러운
     /// 흐름이고, 중복 제출은 웹 상태 머신의 가드가 거른다.
     public func onStartVoiceItem(_ start: VoiceItemStart, micGranted: Bool) {
+        voiceStarts[start.itemId] = start
         switch phase {
         case .recording, .needsPermission: return
         default: break
@@ -277,7 +317,18 @@ public final class TestFlowController {
         } else {
             pendingAttempts.append(attempt)
         }
-        phase = .submitting(start, attemptId: attemptId)
+        // 보관 음성 유실 복구 중이면(KAN-261) 제출을 붙들지 않고 다음 문항의 녹음 화면을 곧장 연다.
+        // 웹은 거절당한 문항에 머물러 있어 이 앞 문항들의 결과로는 진행이 밀리지 않는다 — 붙들 화면이 없다.
+        // 대기열에 남은 게 전부 지금 문항보다 앞이면 방금 끝난 것이 X다 — X를 연 뒤 앞 문항 재업로드가
+        // 실패해 끼어든 경우(KAN-261 리뷰 P1-3)로, 이 X 업로드는 칸이 비어 또 거절되므로 X를 다시 끝에 둔다.
+        if !redoQueue.isEmpty && !redoQueue.contains(where: { $0.itemNumber > start.itemNumber }) {
+            redoQueue.append(start)
+        }
+        if !redoQueue.isEmpty {
+            phase = .recording(redoQueue.removeFirst(), afterUploadFailure: true, failureMessage: redoMessage)
+        } else {
+            phase = .submitting(start, attemptId: attemptId)
+        }
         return superseded
     }
 
@@ -301,21 +352,65 @@ public final class TestFlowController {
     /// - Parameter message: 서버가 이 녹음을 거절하며 준 문구. 다시 열리는 녹음 화면이 그대로
     ///   보여준다 — 왜 다시 녹음해야 하는지는 서버만 아는 것이라, 앱이 지어낸 일반 문구로 덮으면
     ///   사용자가 같은 실패를 반복한다. nil이면 화면이 기본 안내를 쓴다.
+    /// - Parameter missingItems: 서버가 잃은 앞 음성 문항 (KAN-261 `VOICE_SLOT_MISSING`). 기억해 둔
+    ///   요청이 있는 것만 seq(=번호) 순서로 먼저 다시 열고, 마지막에 거절당한 이 문항을 연다. 음성이
+    ///   아니거나 모르는 id는 기억한 요청이 없어 걸러진다. 남는 게 없으면 예전처럼 이 문항만 다시 연다.
     /// - Returns: 이 컨트롤러가 시도를 거둬갔는가. false면 이미 밀려났거나 모르는 시도라 할 일이
     ///   없다. true면 호출자가 그 업로드의 바이트와 상태를 폐기한다.
     @discardableResult
-    public func onUploadGivenUp(attemptId: String, micGranted: Bool, message: String? = nil) -> Bool {
+    public func onUploadGivenUp(
+        attemptId: String,
+        micGranted: Bool,
+        message: String? = nil,
+        missingItems: [String] = []
+    ) -> Bool {
         guard let index = pendingAttempts.firstIndex(where: { $0.meta.attemptId == attemptId }) else {
             return false
         }
         let dropped = pendingAttempts.remove(at: index)
         switch phase {
         case .recording, .needsPermission:
-            break
+            /*
+             * 복구 중이면(KAN-261 리뷰 P1-3) 실패한 앞 문항을 손에 든 녹음은 건드리지 않고 대기열에 다시
+             * 넣는다. 복구 사슬은 업로드를 기다리지 않고 다음 녹음을 열어서, 앞 문항 재업로드의 거절이
+             * 다음 녹음 중에 도착한다 — 그냥 버리면 그 칸이 빈 채로 X에 닿아 또 거절된다.
+             * 대기열이 비어 있어도 사슬 화면(afterUploadFailure)에서 더 앞 문항이 실패했으면 복구 중이다 —
+             * 마지막 X를 녹음하는 중이라는 뜻이고, 웹이 다음 문항으로 넘어가기 전에 앞 문항 시도가
+             * 남아 있는 일은 복구 사슬 밖에서는 생기지 않는다.
+             */
+            let (inHand, inChain): (VoiceItemStart, Bool) = {
+                switch phase {
+                case .recording(let recording): return (recording.start, recording.afterUploadFailure)
+                case .needsPermission(let gate): return (gate.pending, gate.afterUploadFailure)
+                default: preconditionFailure("녹음·게이트 갈래 밖")
+                }
+            }()
+            if let failed = dropped.start,
+               !redoQueue.isEmpty || (inChain && failed.itemNumber < inHand.itemNumber) {
+                var seen = Set<String>()
+                redoQueue = (redoQueue + [failed] + missingItems.compactMap { voiceStarts[$0] })
+                    .filter { $0.itemId != inHand.itemId && seen.insert($0.itemId).inserted }
+                    .sorted { $0.itemNumber < $1.itemNumber }
+            }
         default:
             // start가 없는 것은 구버전 형식에서 복원된 시도뿐이다. 다시 열 화면을 만들 수 없어
             // 웹의 [녹음 화면 다시 열기]에 맡긴다 — 업로드 폐기는 그대로 진행한다.
-            if let start = dropped.start {
+            if let rejected = dropped.start {
+                // ponytail: X도 재녹음한다. KAN-262가 같은 키 재전송을 보장하면 X는 재전송으로 바꾼다
+                // 복구 사슬의 X를 제출 중에 앞 문항 거절이 오면(KAN-261 리뷰 P1-3) X 업로드는 칸이 비어
+                // 또 거절된다 — 그 문항 뒤에 X를 다시 둔다.
+                var waiting: [VoiceItemStart] = []
+                if case .submitting(let submitting) = phase, submitting.start.itemNumber > rejected.itemNumber {
+                    waiting = [submitting.start]
+                }
+                var seen = Set<String>()
+                let queue = missingItems
+                    .filter { $0 != rejected.itemId && seen.insert($0).inserted }
+                    .compactMap { voiceStarts[$0] }
+                    .sorted { $0.itemNumber < $1.itemNumber } + [rejected] + waiting
+                let start = queue[0]
+                redoQueue = Array(queue.dropFirst())
+                redoMessage = message
                 // 권한이 회수됐으면 게이트가 먼저 서지만 사유는 게이트가 들고 간다 —
                 // 통과 직후 열리는 녹음 화면이 그대로 이어받는다.
                 phase = micGranted
@@ -478,7 +573,10 @@ public final class TestFlowController {
                     quality: $0.meta.quality,
                     start: $0.start
                 )
-            }
+            },
+            voiceStarts: Array(voiceStarts.values),
+            redoQueue: redoQueue.map(\.itemId),
+            redoMessage: redoMessage
         )
         guard let data = try? JSONEncoder().encode(flow),
               let json = String(data: data, encoding: .utf8)
@@ -535,7 +633,10 @@ public final class TestFlowController {
                     ),
                     start: $0.start
                 )
-            }
+            },
+            restoredVoiceStarts: flow.voiceStarts,
+            restoredRedoQueue: flow.redoQueue,
+            restoredRedoMessage: flow.redoMessage
         )
     }
 }
@@ -559,6 +660,11 @@ private struct SavedFlow: Codable {
     /// 값도 그대로 복원되게 한다 — 그렇게 복원된 화면은 기본 안내를 쓴다.
     let failureMessage: String?
     let attempts: [SavedAttempt]
+    /// 앞 문항을 다시 열 원본 요청들 (KAN-261). 기본값은 이 필드가 생기기 전 형식을 그대로 복원되게 한다.
+    let voiceStarts: [VoiceItemStart]
+    /// 복구 대기열의 itemId들과 그 사유 문구 (KAN-261 리뷰 P1-2). 기본값은 구버전 형식 복원용이다.
+    let redoQueue: [String]
+    let redoMessage: String?
 
     init(
         phase: SavedPhase,
@@ -566,7 +672,10 @@ private struct SavedFlow: Codable {
         attemptId: String?,
         afterUploadFailure: Bool,
         failureMessage: String?,
-        attempts: [SavedAttempt]
+        attempts: [SavedAttempt],
+        voiceStarts: [VoiceItemStart],
+        redoQueue: [String],
+        redoMessage: String?
     ) {
         self.phase = phase
         self.start = start
@@ -574,6 +683,9 @@ private struct SavedFlow: Codable {
         self.afterUploadFailure = afterUploadFailure
         self.failureMessage = failureMessage
         self.attempts = attempts
+        self.voiceStarts = voiceStarts
+        self.redoQueue = redoQueue
+        self.redoMessage = redoMessage
     }
 
     init(from decoder: Decoder) throws {
@@ -584,6 +696,9 @@ private struct SavedFlow: Codable {
         afterUploadFailure = try container.decodeIfPresent(Bool.self, forKey: .afterUploadFailure) ?? false
         failureMessage = try container.decodeIfPresent(String.self, forKey: .failureMessage)
         attempts = try container.decodeIfPresent([SavedAttempt].self, forKey: .attempts) ?? []
+        voiceStarts = try container.decodeIfPresent([VoiceItemStart].self, forKey: .voiceStarts) ?? []
+        redoQueue = try container.decodeIfPresent([String].self, forKey: .redoQueue) ?? []
+        redoMessage = try container.decodeIfPresent(String.self, forKey: .redoMessage)
     }
 }
 

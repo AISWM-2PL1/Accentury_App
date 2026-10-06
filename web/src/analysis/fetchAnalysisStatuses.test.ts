@@ -128,6 +128,46 @@ describe('성공 응답 파싱', () => {
     expect(result.items.map((item) => item.itemId)).toEqual(['v5', 'v1'])
   })
 
+  /*
+   * 혼잡 안내 (§3.4의 `queue.ahead`, KAN-272). 서버가 혼잡하고 이 세션에 분석 중인 시도가 있을
+   * 때만 오는 선택 필드다.
+   */
+  it('혼잡 안내가 없으면 queueAhead는 null이다 - 평시 응답이다', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, statusesBody()))
+
+    await expect(fetchAnalysisStatuses(query(), fetchImpl)).resolves.toMatchObject({ queueAhead: null })
+  })
+
+  it('혼잡 안내의 앞선 건수를 싣는다 - 0은 맨 앞이라는 뜻이라 null과 다르다', async () => {
+    const ahead = async (queue: unknown) =>
+      (
+        await fetchAnalysisStatuses(
+          query(),
+          vi.fn<FetchLike>(async () => jsonResponse(200, statusesBody({ queue }))),
+        )
+      ).queueAhead
+
+    expect(await ahead({ ahead: 12 })).toBe(12)
+    expect(await ahead({ ahead: 0 })).toBe(0)
+  })
+
+  it.each([
+    ['객체가 아님', 12],
+    ['ahead 없음', {}],
+    ['문자열', { ahead: '12' }],
+    ['음수', { ahead: -1 }],
+    ['NaN', { ahead: Number.NaN }],
+    ['null', null],
+  ])('혼잡 안내의 형태가 이상하면(%s) 응답을 버리지 않고 null로 접는다', async (_label, queue) => {
+    // 부가 정보다 - 여기서 응답을 버리면 서버가 가장 바쁜 순간에 대기 화면이 멈춘다
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, statusesBody({ queue })))
+
+    const result = await fetchAnalysisStatuses(query(), fetchImpl)
+
+    expect(result.queueAhead).toBeNull()
+    expect(result.items).toHaveLength(5)
+  })
+
   it('서버가 나중에 더한 모르는 필드는 무시한다 (§2.3)', async () => {
     const body = statusesBody({ nextThing: 42 })
     body.items[0] = { ...body.items[0], somethingNew: 'x' } as never

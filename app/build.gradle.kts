@@ -165,6 +165,65 @@ fun requireKakaoNativeAppKey(): Boolean {
 }
 
 /**
+ * 로그인 IdP 설정 세 개 (KAN-224). 우선순위는 [kakaoNativeAppKey]와 같다 - `-P<키>=` → 환경변수 →
+ * local.properties의 `<키>=`. 셋 다 없으면 "".
+ *
+ *   gradle/-P · local.properties    환경변수
+ *   googleServerClientId            GOOGLE_SERVER_CLIENT_ID   구글 "웹 애플리케이션" OAuth 클라이언트 ID (서버가 ID 토큰 aud로 대조)
+ *   naverClientId                   NAVER_CLIENT_ID
+ *   naverClientSecret               NAVER_CLIENT_SECRET       네이버 SDK가 기기에서 토큰 교환에 쓴다 - APK에 박히는 것이 SDK의 설계다
+ *
+ * **빈 값이 정상 상태다.** 카카오 키와 같은 판단이다 - 값이 빈 IdP는 로그인 화면에서 버튼을 숨긴다
+ * (auth/LoginScreenState.kt). 로컬 개발은 [fakeIdp]로 세 버튼을 SDK 없이 돌린다.
+ */
+fun idpProperty(key: String, env: String): String {
+    (project.findProperty(key) as String?)?.let { return it }
+    System.getenv(env)?.let { return it }
+    val local = rootProject.file("local.properties")
+    if (!local.exists()) return ""
+    val props = Properties()
+    local.inputStream().use { props.load(it) }
+    return props.getProperty(key) ?: ""
+}
+
+/**
+ * 릴리스 빗장 스위치 (KAN-224) - `-PrequireNaverClient`·`-PrequireGoogleServerClientId`.
+ * [requireKakaoNativeAppKey]와 같은 꼴이다: 값 없이 이름만 줘도 켜진다(gradle이 ""를 넘긴다).
+ */
+fun switchOn(name: String): Boolean {
+    val raw = project.findProperty(name) as String? ?: return false
+    return raw.isEmpty() || raw.toBoolean()
+}
+
+/**
+ * 가짜 IdP (KAN-224, 디버그 전용). `-PfakeIdp=true` → local.properties의 `fakeIdp=true` 순 - [fakeMicAsset]과
+ * 같은 이유로 local.properties도 본다(Android Studio Run은 -P를 못 넘긴다). 켜면 로그인 버튼 셋이 SDK를
+ * 건너뛰고 `fake:dev-<provider>`를 토큰으로 보낸다 - 서버도 `accentury.auth.fake-idp=true`여야 받는다.
+ */
+fun fakeIdp(): Boolean {
+    (project.findProperty("fakeIdp") as String?)?.let { return it.toBoolean() }
+    val local = rootProject.file("local.properties")
+    if (!local.exists()) return false
+    val props = Properties()
+    local.inputStream().use { props.load(it) }
+    return props.getProperty("fakeIdp")?.toBoolean() ?: false
+}
+
+/**
+ * 로그인 관문 스위치 (KAN-270 5단계). `-PloginEnabled=true` → local.properties의 `loginEnabled=true` 순 - [fakeIdp]와
+ * 같은 꼴이다. **기본 꺼짐(익명 모드)**이고, [fakeIdp]와 달리 debug·release 모두 이 값을 본다(두 값 다 릴리스 허용).
+ * 꺼지면 로그인 관문·앱 시작 Refresh 확인·계정 설정이 전부 빠지고, 음성 저장 동의는 설치당 한 번 묻고 기기에 둔다.
+ */
+fun loginEnabled(): Boolean {
+    (project.findProperty("loginEnabled") as String?)?.let { return it.toBoolean() }
+    val local = rootProject.file("local.properties")
+    if (!local.exists()) return false
+    val props = Properties()
+    local.inputStream().use { props.load(it) }
+    return props.getProperty("loginEnabled")?.toBoolean() ?: false
+}
+
+/**
  * AdMob 앱 ID·광고 단위 ID 세 개 (KAN-196). 우선순위는 [kakaoNativeAppKey]와 같다 -
  * `-P<키>=` → 환경변수 → local.properties의 `<키>=`. 셋 다 없으면 **Google 테스트 ID**다.
  *
@@ -231,10 +290,11 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 7인 이유는 iOS 사정이다: TestFlight에 1.0 빌드 5까지 올라가 있었고 빌드 6은 C2
-        // 아이콘으로 올라갔다(2026-09-23). 다음 업로드는 7부터여야 받아지고, 7이 확정 도상 D3를
-        // 싣는 첫 빌드다 (xcconfig 주석). Play에는 아직 아무것도 올라가지 않았다.
-        versionCode = 7
+        // 8인 이유는 iOS 사정이다: TestFlight에 1.0 빌드 7까지 올라가 있어 다음 업로드는 8부터여야
+        // 받아진다. 빌드 7(2026-09-23)은 소셜 로그인 게이트(KAN-224) 이전 커밋이라 심사에 제출할 수
+        // 없고, 8이 현재 Dev(로그인·가입 동의·세션 만료 출구·실패 재응시 포함)를 싣는 첫 빌드다
+        // (xcconfig 주석). Play에는 아직 아무것도 올라가지 않았다.
+        versionCode = 8
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -261,6 +321,43 @@ android {
             )
         }
         buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoKey\"")
+        /*
+         * 카카오 로그인의 리다이렉트 스킴 (KAN-224). AuthCodeHandlerActivity가 `kakao<앱 키>://oauth`를 받는다.
+         * 키가 비면 스킴이 그냥 `kakao`가 돼 남의 앱 리다이렉트를 가로챌 수 있어, 아무도 쓰지 않는 이름으로 막아 둔다
+         * - 그 빌드에는 카카오 버튼 자체가 없다.
+         */
+        manifestPlaceholders["kakaoScheme"] = if (kakaoKey.isBlank()) "accentury-kakao-unset" else "kakao$kakaoKey"
+
+        /*
+         * 로그인 IdP 설정 (KAN-224). 빗장 두 개는 카카오 키 빗장과 같은 자리(릴리스 워크플로)에서 켠다 -
+         * 빈 값으로 스토어에 나가면 그 IdP 버튼이 사라진 채 배포된다.
+         */
+        val googleServerClientId = idpProperty("googleServerClientId", "GOOGLE_SERVER_CLIENT_ID")
+        val naverClientId = idpProperty("naverClientId", "NAVER_CLIENT_ID")
+        val naverClientSecret = idpProperty("naverClientSecret", "NAVER_CLIENT_SECRET")
+        if (googleServerClientId.isBlank() && switchOn("requireGoogleServerClientId")) {
+            error(
+                "구글 서버 클라이언트 ID가 비어 있다 (KAN-224, -PrequireGoogleServerClientId).\n" +
+                    "  릴리스 산출물은 빈 값으로 나갈 수 없다 - 이 상태로 배포하면 구글 로그인 버튼이 사라진다.\n" +
+                    "  CI라면 GOOGLE_SERVER_CLIENT_ID 시크릿이, 로컬이라면 local.properties의 googleServerClientId= 값이 있는지 확인해라.",
+            )
+        }
+        if ((naverClientId.isBlank() || naverClientSecret.isBlank()) && switchOn("requireNaverClient")) {
+            error(
+                "네이버 클라이언트 ID 또는 시크릿이 비어 있다 (KAN-224, -PrequireNaverClient).\n" +
+                    "  릴리스 산출물은 빈 값으로 나갈 수 없다 - 이 상태로 배포하면 네이버 로그인 버튼이 사라진다.\n" +
+                    "  CI라면 NAVER_CLIENT_ID·NAVER_CLIENT_SECRET 시크릿이, 로컬이라면 local.properties의\n" +
+                    "  naverClientId=·naverClientSecret= 값이 있는지 확인해라.",
+            )
+        }
+        buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$googleServerClientId\"")
+        buildConfigField("String", "NAVER_CLIENT_ID", "\"$naverClientId\"")
+        buildConfigField("String", "NAVER_CLIENT_SECRET", "\"$naverClientSecret\"")
+        // 가짜 IdP는 기본 꺼짐이고 debug만 fakeIdp()를 본다 - release는 이 false를 그대로 쓴다.
+        buildConfigField("boolean", "FAKE_IDP", "false")
+        // 로그인 관문 (KAN-270 5단계). debug·release 공통 - 예: ./gradlew :app:installDebug -PloginEnabled=true
+        // (또는 local.properties에 loginEnabled=true). 기본 false = 익명 모드.
+        buildConfigField("boolean", "LOGIN_ENABLED", "${loginEnabled()}")
 
         /*
          * AdMob ID 세 개 (KAN-196). 앱 ID는 SDK가 매니페스트 meta-data에서 초기화 시점에 읽으므로
@@ -316,6 +413,9 @@ android {
             // 예: ./gradlew :app:installDebug -PfakeMic=fake_mic.wav (audio/PcmSources.kt).
             // Android Studio Run은 프로퍼티를 못 받으므로 local.properties의 fakeMic=도 읽는다.
             buildConfigField("String", "FAKE_MIC_ASSET", "\"${fakeMicAsset()}\"")
+            // 로그인 버튼이 SDK 대신 `fake:dev-<provider>`를 보낸다 (KAN-224, auth/IdpSignIn.kt).
+            // 예: ./gradlew :app:installDebug -PfakeIdp=true (또는 local.properties에 fakeIdp=true).
+            buildConfigField("boolean", "FAKE_IDP", "${fakeIdp()}")
         }
         release {
             // 이 키스토어 하나가 앱 정체성의 뿌리다 (KAN-163). 여기서 나오는 인증서 지문이
@@ -368,9 +468,14 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
-    // 결과 공유 (KAN-30). 피드 템플릿 공유만 쓰므로 v2-share 하나다 - 카카오 로그인(v2-user)은
-    // 우리 인증에 없다.
+    // 결과 공유 (KAN-30)와 카카오 로그인 (KAN-224).
     implementation(libs.kakao.share)
+    implementation(libs.kakao.user)
+    // 구글·네이버 로그인 (KAN-224). auth/IdpSdks.kt 참조.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+    implementation(libs.naver.oauth)
     // 익명 계측·크래시 (KAN-33). 위 조건부 apply와 달리 의존성은 늘 붙는다 - 설정이 없으면
     // FirebaseApp이 초기화되지 않고 sink가 만들어지지 않을 뿐이다 (analytics/FirebaseEventSink.kt).
     implementation(platform(libs.firebase.bom))
@@ -380,6 +485,8 @@ dependencies {
     // 넣는 것은 Firebase와 같은 이유다 - 설정 유무에 따라 컴파일되는 소스가 갈리면 안 된다.
     // ID가 없는 빌드는 Google 테스트 ID로 돈다 (위 admobProperty 주석).
     implementation(libs.play.services.ads)
+    // 계정 토큰 저장 (KAN-224). auth/KeystoreTokenStore.kt 참조.
+    implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)

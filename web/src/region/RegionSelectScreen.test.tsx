@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { REQUIRED_BRIDGE_VERSION } from '../bridge/bridge'
 import type { RegionCode } from './regions'
 import { RegionSelectScreen } from './RegionSelectScreen'
 
@@ -11,6 +12,10 @@ import { RegionSelectScreen } from './RegionSelectScreen'
 const DISPLAY_LABELS = ['서울', '강원', '경기', '충북', '전북', '충남', '전남', '경북', '제주', '경남']
 
 const TITLE = '출신 지역이 어디신가요?'
+
+afterEach(() => {
+  delete window.AccenturyBridge
+})
 
 function renderScreen() {
   const onDone = vi.fn<(region: RegionCode) => void>()
@@ -81,5 +86,22 @@ describe('RegionSelectScreen — [다음]', () => {
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
     expect(onDone).toHaveBeenCalledTimes(1)
     expect(onDone).toHaveBeenCalledWith('GYEONGNAM')
+  })
+})
+
+describe('RegionSelectScreen — 햅틱 (KAN-258)', () => {
+  it('지역을 고르면 탭 햅틱을 요청한다 — 어휘 문항 선택과 같은 규칙', () => {
+    const vibrate = vi.fn()
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      haptic: vibrate,
+    }
+    renderScreen()
+
+    fireEvent.click(screen.getByRole('radio', { name: '제주' }))
+    expect(vibrate).toHaveBeenCalledTimes(1)
+    expect(vibrate).toHaveBeenCalledWith('tap')
   })
 })

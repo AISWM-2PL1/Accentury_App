@@ -26,6 +26,7 @@ final class MockURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var handler: Handler?
     private static var recorded: [Recorded] = []
+    private static var hangs = false
 
     /// 이 세션의 요청은 전부 가짜 서버로 간다. 테스트마다 새로 만들어 쓴다.
     static func makeSession() -> URLSession {
@@ -38,6 +39,7 @@ final class MockURLProtocol: URLProtocol {
         lock.lock()
         handler = nil
         recorded = []
+        hangs = false
         lock.unlock()
     }
 
@@ -58,9 +60,34 @@ final class MockURLProtocol: URLProtocol {
         }
     }
 
+    /// 응답 여러 건을 차례로 예약한다. `MockWebServer.enqueue`를 여러 번 부르는 자리 (KAN-224).
+    /// 예약이 떨어진 뒤의 요청은 전송 실패다 — 테스트가 예상보다 많이 부른 것을 조용히 넘기지 않는다.
+    static func respondInOrder(_ responses: [(status: Int, body: String)]) {
+        let queue = ResponseQueue(responses)
+        setHandler { request in
+            guard let next = queue.pop() else { throw URLError(.cannotConnectToHost) }
+            let response = HTTPURLResponse(url: request.url!, statusCode: next.status, httpVersion: "HTTP/1.1", headerFields: nil)!
+            return (response, Data(next.body.utf8))
+        }
+    }
+
+    /// 나간 요청 전부, 나간 순서대로. `server.takeRequest()`를 여러 번 부르는 자리.
+    static func requests() -> [Recorded] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
     /// 응답 대신 전송 실패를 낸다. `server.shutdown()` 뒤에 요청을 던지는 자리다.
     static func fail(with error: Error) {
         setHandler { _ in throw error }
+    }
+
+    /// 요청을 받고 끝내 답하지 않는다 — 서버가 매달린 경우 (KAN-247, 로그아웃 시간 상한).
+    static func hang() {
+        lock.lock()
+        hangs = true
+        lock.unlock()
     }
 
     static func setHandler(_ handler: @escaping Handler) {
@@ -98,7 +125,10 @@ final class MockURLProtocol: URLProtocol {
             )
         )
         let handler = Self.handler
+        let hangs = Self.hangs
         Self.lock.unlock()
+
+        if hangs { return }
 
         guard let handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
@@ -132,5 +162,21 @@ final class MockURLProtocol: URLProtocol {
             data.append(buffer, count: read)
         }
         return data
+    }
+}
+
+/// ``MockURLProtocol/respondInOrder(_:)``의 줄. URLProtocol 스레드에서 꺼내므로 잠근다.
+private final class ResponseQueue: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [(status: Int, body: String)]
+
+    init(_ items: [(status: Int, body: String)]) {
+        self.items = items
+    }
+
+    func pop() -> (status: Int, body: String)? {
+        lock.lock()
+        defer { lock.unlock() }
+        return items.isEmpty ? nil : items.removeFirst()
     }
 }

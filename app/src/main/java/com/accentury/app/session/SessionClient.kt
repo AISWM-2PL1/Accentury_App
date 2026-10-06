@@ -1,6 +1,9 @@
 package com.accentury.app.session
 
 import com.accentury.app.net.await
+import com.accentury.app.net.decodeErrorEnvelope
+import com.accentury.app.net.isRetryableStatus
+import com.accentury.app.net.retryAfterMsOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -19,13 +22,8 @@ import java.util.concurrent.TimeUnit
 private const val PATH_SESSIONS = "v0/sessions"
 private const val PLATFORM_ANDROID = "ANDROID"
 private const val JSON_MEDIA_TYPE = "application/json"
-private const val HEADER_AUTHORIZATION = "Authorization"
 private const val HEADER_CORRELATION_ID = "X-Correlation-Id"
 private const val HEADER_RETRY_AFTER = "Retry-After"
-private const val BEARER_PREFIX = "Bearer "
-
-private const val STATUS_REQUEST_TIMEOUT = 408
-private const val STATUS_TOO_MANY_REQUESTS = 429
 
 /**
  * 세션 생성 한 건의 절대 상한.
@@ -37,7 +35,13 @@ private const val STATUS_TOO_MANY_REQUESTS = 429
  */
 private const val CREATE_CALL_TIMEOUT_SEC = 15L
 
-private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+/**
+ * 세션 생성에 쓸 클라이언트 — [base]에 [CREATE_CALL_TIMEOUT_SEC] 상한만 얹는다.
+ *
+ * 로그인한 앱은 [base]로 인증 클라이언트(`AuthClients.authedClient`, KAN-224)를 넘긴다. newBuilder라
+ * Bearer 인터셉터·Authenticator·디스패처는 그대로 물려받고 상한만 세션 생성용으로 좁혀진다.
+ */
+fun sessionCreationClient(base: OkHttpClient = OkHttpClient()): OkHttpClient = base.newBuilder()
     .callTimeout(CREATE_CALL_TIMEOUT_SEC, TimeUnit.SECONDS)
     .build()
 
@@ -67,25 +71,63 @@ sealed interface SessionResult {
  *
  * [previousToken]이 이 인터페이스에 있는 이유: 재응시도 같은 호출이다 (KAN-107, §3.1). 이전 세션의
  * 토큰을 함께 보내면 서버가 그 세션과 결과를 즉시 폐기하고 새 세션을 발급한다. 최초 응시와
- * 재응시가 다른 메서드로 갈리면 헤더 하나 차이인 두 경로가 따로 늙으므로 파라미터로 둔다.
- * 호출부는 아직 최초 응시뿐이다 — 재응시 결선은 KAN-34 2단계다.
+ * 재응시가 다른 메서드로 갈리면 본문 필드 하나 차이인 두 경로가 따로 늙으므로 파라미터로 둔다.
+ *
+ * 로그인한 앱(KAN-224)은 이 호출에 `Authorization: Bearer <Access JWT>`를 싣는다. 헤더는 인증
+ * 클라이언트의 인터셉터가 붙이고([sessionCreationClient]) 이 클래스는 모른다 — 익명과 로그인이
+ * 같은 코드를 탄다. 계정 세션의 출신지역은 서버가 계정 값으로 채우므로 `region`은 보내지 않는다(익명 세션만 싣는다,
+ * KAN-270 7단계).
+ * 서버가 403 `AUTH_PROFILE_INCOMPLETE`를 주면 [SessionResult.Rejected]로 올라오고, 추가 정보
+ * 화면으로 돌리는 판정은 호출부(`AuthGateController.onProfileIncomplete`)가 한다.
  */
 interface SessionClient {
     /**
      * @param appVersion 익명 집계용 앱 버전 (서버 상한 32자)
      * @param previousToken 재응시일 때 폐기할 이전 세션의 토큰. 최초 응시는 null
      * @param campaignToken App Link로 들어온 공유 유입 계측 코드 (KAN-32). 링크 진입이 아니면 null
+     * @param voiceConsentVersion 익명 모드에서 음성 저장에 동의했을 때의 문안 버전 (KAN-270 5단계). 서버는 계정 세션에서는
+     *   이 필드를 무시한다 — 계정 모드는 null로 둔다. 미동의도 null
+     * @param region 익명 모드의 출신 지역 코드 (KAN-270 7단계). 지역을 골랐으면 동의와 무관하게 싣는다 (KAN-274) — 계정 모드는 null
      */
     suspend fun create(
         appVersion: String,
         previousToken: String? = null,
         campaignToken: String? = null,
+        voiceConsentVersion: String? = null,
+        region: String? = null,
     ): SessionResult
+}
+
+/** 동의 버전이 서버 게시 버전과 어긋났을 때 서버가 주는 코드 (§2.4) */
+internal const val CODE_VALIDATION_FAILED = "VALIDATION_FAILED"
+
+/**
+ * 세션 생성 + 동의 버전 폴백 (KAN-270 5단계, 웹 `App.tsx` startStandaloneTest와 같은 규칙).
+ *
+ * 동의를 실었는데 400 `VALIDATION_FAILED`면 이 빌드의 문안 버전이 서버 게시 버전보다 낡았다(서버가 버전을 먼저 올린
+ * 배포 사이). 동의 없이 **한 번만** 다시 만든다 — 선택 동의 하나 때문에 응시가 막히면 안 된다(팀 결정 2026-10-06).
+ * 이전 토큰은 그대로 싣는다: 400은 본문 검증에서 나므로 서버가 옛 세션을 폐기하기 전이고, 두 번째 요청이 그 폐기를
+ * 다시 맡는다. 미동의 요청의 400이나 다른 거절은 그대로 돌려준다.
+ *
+ * 재시도에서도 [region]은 그대로 싣는다 (KAN-274) — 지역은 동의와 무관하게 받는 값이고, 서버가 동의하지 않은 익명
+ * 세션도 음성 없이 점수와 지역을 남긴다. 웹 `App.tsx`의 폴백과 같다.
+ */
+suspend fun SessionClient.createWithConsentFallback(
+    appVersion: String,
+    previousToken: String?,
+    campaignToken: String?,
+    voiceConsentVersion: String?,
+    region: String? = null,
+): SessionResult {
+    val first = create(appVersion, previousToken, campaignToken, voiceConsentVersion, region)
+    val retry = voiceConsentVersion != null &&
+        first is SessionResult.Rejected && first.code == CODE_VALIDATION_FAILED
+    return if (retry) create(appVersion, previousToken, campaignToken, voiceConsentVersion = null, region = region) else first
 }
 
 class OkHttpSessionClient(
     baseUrl: String,
-    private val client: OkHttpClient = defaultClient(),
+    private val client: OkHttpClient = sessionCreationClient(),
 ) : SessionClient {
 
     private val baseUrl: HttpUrl = baseUrl.toHttpUrl()
@@ -96,8 +138,10 @@ class OkHttpSessionClient(
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
+        voiceConsentVersion: String?,
+        region: String?,
     ): SessionResult = try {
-        client.await(buildRequest(appVersion, previousToken, campaignToken)).use { response ->
+        client.await(buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion, region)).use { response ->
             val body = withContext(Dispatchers.IO) { response.body.string() }
             toResult(response.code, body, response.header(HEADER_RETRY_AFTER))
         }
@@ -105,7 +149,13 @@ class OkHttpSessionClient(
         SessionResult.TransportError(e.message ?: e.javaClass.simpleName)
     }
 
-    private fun buildRequest(appVersion: String, previousToken: String?, campaignToken: String?): Request {
+    private fun buildRequest(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?,
+        region: String?,
+    ): Request {
         val url = baseUrl.newBuilder().addPathSegments(PATH_SESSIONS).build()
         /*
          * 바디 전체가 선택이지만(§3.1) client는 채워 보낸다 — 익명 집계가 플랫폼별 응시·완주를
@@ -121,24 +171,17 @@ class OkHttpSessionClient(
             CreateSessionBody.serializer(),
             CreateSessionBody(
                 campaignToken = campaignToken,
+                previousSessionToken = previousToken,
+                voiceConsentVersion = voiceConsentVersion,
+                region = region,
                 client = ClientBody(platform = PLATFORM_ANDROID, appVersion = appVersion),
             ),
         )
-        val builder = Request.Builder()
+        return Request.Builder()
             .url(url)
             .post(payload.toRequestBody(JSON_MEDIA_TYPE.toMediaType()))
             .header(HEADER_CORRELATION_ID, UUID.randomUUID().toString())
-        /*
-         * 재응시라면 이전 토큰을 실어 이전 세션과 결과를 즉시 폐기시킨다 (KAN-107).
-         *
-         * 만료됐거나 서버가 모르는 토큰은 조용히 무시되고 응답이 최초 응시와 구분되지 않는다 —
-         * 401도 404도 오지 않는다. 그래서 여기서 토큰의 생사를 미리 따지지 않는다: 따져 봐야
-         * 알 수 없고, 알아도 할 일이 같다(새 세션을 받는다).
-         */
-        if (previousToken != null) {
-            builder.header(HEADER_AUTHORIZATION, BEARER_PREFIX + previousToken)
-        }
-        return builder.build()
+            .build()
     }
 
     private fun toResult(status: Int, body: String, retryAfterHeader: String?): SessionResult {
@@ -173,26 +216,40 @@ class OkHttpSessionClient(
                 )
             }
         }
-        val envelope = runCatching { json.decodeFromString(ErrorEnvelope.serializer(), body) }.getOrNull()
+        val envelope = decodeErrorEnvelope(body)
         return SessionResult.Rejected(
             code = envelope?.code,
             message = envelope?.message ?: "오류 봉투 없는 응답($status)",
-            // 봉투가 없으면 재시도 여부를 서버가 알려주지 않으므로 상태 코드로 판단한다.
             retryable = envelope?.retryable ?: isRetryableStatus(status),
-            // 서버는 429에 봉투의 retryAfterMs와 Retry-After 헤더(초)를 함께 보낸다
-            // (GlobalExceptionHandler). 봉투를 못 읽는 응답에서도 대기 시간 안내를 살리려고
-            // 헤더를 예비로 읽는다 — 헤더가 HTTP-date 꼴이면 숫자로 읽히지 않아 null이 된다.
-            retryAfterMs = envelope?.retryAfterMs ?: retryAfterHeader?.toLongOrNull()?.times(1_000),
+            retryAfterMs = retryAfterMsOf(envelope, retryAfterHeader),
         )
     }
-
-    private fun isRetryableStatus(status: Int): Boolean =
-        status >= 500 || status == STATUS_REQUEST_TIMEOUT || status == STATUS_TOO_MANY_REQUESTS
 }
 
-/** 요청 바디 (§3.1). 모든 필드가 선택이라 서버는 바디 자체가 없어도 세션을 만든다. */
+/**
+ * 요청 바디 (§3.1). 모든 필드가 선택이라 서버는 바디 자체가 없어도 세션을 만든다.
+ *
+ * [previousSessionToken]은 재응시에서 폐기할 이전 세션 토큰이다 (KAN-107). 예전에는 `Authorization:
+ * Bearer st_...` 헤더로 보냈지만 로그인한 앱은 그 헤더를 Access 토큰이 차지한다 (KAN-224) — 서버는
+ * 본문 값이 있으면 헤더의 `st_` 토큰보다 우선해 읽는다 (Accentury_Server
+ * `backend/.../session/SessionService.java` create()의 bodyRetakeToken). 익명·로그인 모두 본문으로 보내
+ * 경로를 하나로 둔다. 만료됐거나 서버가 모르는 토큰은 조용히 무시되고 응답이 최초 응시와 구분되지
+ * 않으므로(401도 404도 없다) 여기서 토큰의 생사를 따지지 않는다. null이면 키째 빠진다.
+ *
+ * [voiceConsentVersion]은 익명 모드의 음성 저장 동의다 (KAN-270 5단계, 웹 webSession.ts와 같은 필드). 역시 null이면 빠진다.
+ * [region]은 익명 모드의 출신 지역 코드다 (KAN-270 7단계). 서버가 S3 키·학습 라벨에 쓴다. null이면 빠진다.
+ */
 @Serializable
-private data class CreateSessionBody(val campaignToken: String? = null, val client: ClientBody)
+private data class CreateSessionBody(
+    val campaignToken: String? = null,
+    val previousSessionToken: String? = null,
+    val voiceConsentVersion: String? = null,
+    val region: String? = null,
+    val client: ClientBody,
+) {
+    // 이전 세션 토큰이 로그에 찍히지 않게 한다 (KAN-224).
+    override fun toString(): String = "CreateSessionBody[client=$client]"
+}
 
 @Serializable
 private data class ClientBody(val platform: String, val appVersion: String)
@@ -206,13 +263,4 @@ private data class CreatedBody(
     val voiceSet: Int,
     val scoreVersion: String,
     val expiresAt: String,
-)
-
-@Serializable
-private data class ErrorEnvelope(
-    val code: String? = null,
-    val message: String? = null,
-    val retryable: Boolean,
-    val retryAfterMs: Long? = null,
-    val correlationId: String? = null,
 )

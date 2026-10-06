@@ -13,6 +13,12 @@ private val json = Json
 /** 봉투를 읽을 수 있을 때의 요청 제한 코드 (§2.5). */
 private const val CODE_RATE_LIMITED = "RATE_LIMITED"
 
+/**
+ * 로그인한 계정의 프로필이 미완료라 세션 생성이 막혔다 (403, KAN-224). 다른 기기에서 값이 지워지는 등
+ * 앱이 든 로그인 상태가 낡은 경우다 — 실패 화면이 아니라 추가 정보 화면으로 돌린다.
+ */
+internal const val CODE_PROFILE_INCOMPLETE = "AUTH_PROFILE_INCOMPLETE"
+
 /** 서버가 준 밀리초를 사용자에게 읽어 줄 초로 올림한다 — 서버가 Retry-After를 만드는 규칙과 같다. */
 private fun ceilSeconds(millis: Long): Long = (millis + 999) / 1_000
 
@@ -31,6 +37,12 @@ sealed interface SessionGateState {
 
     /** 세션을 확보했다. 이 값이 곧 테스트 진입이다. */
     data class Ready(val session: Session) : SessionGateState
+
+    /**
+     * 서버가 403 `AUTH_PROFILE_INCOMPLETE`로 막았다 (KAN-224). 다시 시도할 일이 아니라 추가 정보를 받을
+     * 일이라 [Failed]와 따로 둔다 — 화면은 이 상태를 보면 곧바로 추가 정보 화면으로 넘긴다.
+     */
+    data object ProfileIncomplete : SessionGateState
 }
 
 /**
@@ -44,6 +56,12 @@ sealed interface RetestOutcome {
 
     /** 새 세션으로 교체됐다. 서버는 이전 세션과 결과를 이미 폐기했다 (KAN-107). */
     data class Replaced(val session: Session) : RetestOutcome
+
+    /**
+     * 프로필이 미완료라 막혔다 (403 `AUTH_PROFILE_INCOMPLETE`, KAN-224). 결과 화면에 회신할 실패가 아니라
+     * 추가 정보 화면으로 갈 일이다. 이전 세션은 [Failed]와 같은 이유로 그대로 살아 있다.
+     */
+    data object ProfileIncomplete : RetestOutcome
 
     /**
      * 세션을 받지 못했다. **이전 세션은 그대로 살아 있다** — 서버도 지우지 않았고(폐기는 새 세션
@@ -175,7 +193,9 @@ class SessionGateController private constructor(initialState: SessionGateState) 
             state = SessionGateState.Ready(result.session)
             return RetestOutcome.Replaced(result.session)
         }
-        val failed = stateOf(result) as SessionGateState.Failed
+        val folded = stateOf(result)
+        if (folded == SessionGateState.ProfileIncomplete) return RetestOutcome.ProfileIncomplete
+        val failed = folded as SessionGateState.Failed
         return RetestOutcome.Failed(
             reason = failed.reason,
             code = (result as? SessionResult.Rejected)?.code,
@@ -192,6 +212,9 @@ class SessionGateController private constructor(initialState: SessionGateState) 
 
         is SessionResult.TransportError ->
             SessionGateState.Failed(SessionFailureReason.Network, retryAfterSeconds = null)
+
+        // 코드로만 가른다 — 403은 다른 거절(차단 등)에도 쓰일 수 있다.
+        is SessionResult.Rejected if result.code == CODE_PROFILE_INCOMPLETE -> SessionGateState.ProfileIncomplete
 
         is SessionResult.Rejected -> SessionGateState.Failed(
             reason = when {
