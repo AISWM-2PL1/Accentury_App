@@ -86,6 +86,7 @@ import com.accentury.app.analytics.create
 import com.accentury.app.analytics.log
 import com.accentury.app.analytics.channelParam
 import com.accentury.app.auth.AnonymousSettingsScreen
+import com.accentury.app.auth.AnonymousRegionScreen
 import com.accentury.app.auth.AnonymousVoiceConsentStore
 import com.accentury.app.auth.AuthCheckScreen
 import com.accentury.app.auth.AuthGateController
@@ -101,9 +102,11 @@ import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
 import com.accentury.app.auth.VoiceConsentScreen
+import com.accentury.app.auth.anonymousSessionRegion
 import com.accentury.app.auth.anonymousVoiceConsentVersion
 import com.accentury.app.auth.configuredProviders
 import com.accentury.app.auth.idpSignInFor
+import com.accentury.app.auth.needsAnonymousRegion
 import com.accentury.app.auth.shouldPromptVoiceConsent
 import com.accentury.app.auth.visibleProviders
 import com.accentury.app.share.ResultSharer
@@ -391,7 +394,8 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
 
 /**
  * 인트로(웹) → 시작 게이트(마이크 권한 → 세션 생성) → 테스트 진입(웹) → VOICE 문항마다 녹음
- * 오버레이 (KAN-100, KAN-34). 익명 모드는 권한 → **동의(설치당 1회)** → 점검 → 세션이다 (KAN-270 5단계).
+ * 오버레이 (KAN-100, KAN-34). 익명 모드는 권한 → **동의(설치당 1회)** → **지역(동의했고 아직 없을 때, 설치당 1회)** →
+ * 점검 → 세션이다 (KAN-270 5·7단계).
  *
  * **WebView는 인트로부터 테스트 끝까지 한 인스턴스로 산다.** 진행의 정본이 웹 상태 머신이라
  * WebView를 내리면 어디까지 왔는지가 같이 사라진다 — 네이티브 화면(권한 게이트·세션 준비·녹음)은
@@ -401,7 +405,8 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
  * @param appLink App Link 진입 (KAN-32). Activity가 Intent에서 읽어 흘려보낸다
  * @param sessionHttpClient 세션 생성 클라이언트. 계정 모드는 계정 Access 토큰을 싣는 `AuthClients.authedClient`(KAN-224),
  *   익명 모드는 plain `OkHttpClient`
- * @param anonymousConsent 익명 모드의 로컬 동의 (KAN-270 5단계). null이면 계정 모드 — 동의 단계가 없고 body에 버전을 싣지 않는다
+ * @param anonymousConsent 익명 모드의 로컬 동의·지역 (KAN-270 5·7단계). null이면 계정 모드 — 동의·지역 단계가 없고 body에
+ *   버전·지역을 싣지 않는다
  * @param onProfileIncomplete 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224)
  * @param onOpenSettings 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(AuthGate)가 이 위에 덮는다 (KAN-247)
  */
@@ -467,7 +472,8 @@ private fun TestFlow(
      * 자원)을 든 채 점검에 붙들리는 구간이 생긴다.
      *
      * 익명 모드(KAN-270 5단계)는 권한과 점검 사이에 음성 저장 동의가 한 칸 더 선다 — 웹과 같은 순서다. 설치당 한 번이라
-     * 통과 표시는 이 상태가 아니라 [AnonymousVoiceConsentStore]가 든다.
+     * 통과 표시는 이 상태가 아니라 [AnonymousVoiceConsentStore]가 든다. 동의했으면 그 뒤에 출신 지역이 한 칸 더 선다
+     * (7단계) — 역시 설치당 한 번이고 저장소가 든다.
      *
      * 넷 다 회전·프로세스 복원을 넘긴다. 증발하면 통과한 게이트가 다시 서고 인트로로 되돌아가는데,
      * 세션이 증발하는 경우는 그보다 나빠서 — 응답에서 한 번만 노출되는 토큰이라(Session KDoc)
@@ -486,6 +492,7 @@ private fun TestFlow(
     }
     // 세션 생성 순간의 값을 읽는다 — 설정에서 바꾸면 다음 생성(재응시 포함)부터 반영된다.
     fun voiceConsentVersion(): String? = anonymousConsent?.let { anonymousVoiceConsentVersion(it.consented()) }
+    fun sessionRegion(): String? = anonymousConsent?.let { anonymousSessionRegion(it.consented(), it.region()) }
     val session = sessionGate.session
 
     val flow = rememberSaveable(saver = TestFlowController.saver()) { TestFlowController() }
@@ -705,6 +712,7 @@ private fun TestFlow(
                 // 그 링크가 만든 응시라, 코드를 그대로 물려준다.
                 campaignToken = campaignToken,
                 voiceConsentVersion = voiceConsentVersion(),
+                region = sessionRegion(),
             )
             when (val outcome = sessionGate.onRetestResult(result)) {
                 is RetestOutcome.Replaced -> {
@@ -919,6 +927,13 @@ private fun TestFlow(
                         details = VOICE_CONSENT_DETAILS_ANONYMOUS,
                     )
 
+                // 익명 모드의 출신 지역 (KAN-270 7단계) — 동의한 사용자에게 설치당 한 번. 설정에서 뒤늦게 동의를 켠
+                // 사람도 다음 시작 때 여기 걸린다. 고르면 store에 region이 생겨 조건이 풀린다.
+                anonymousConsent != null && startRequested && session == null && micPassed &&
+                    anonymousConsent.asked() &&
+                    needsAnonymousRegion(anonymousConsent.consented(), anonymousConsent.region()) ->
+                    AnonymousRegionScreen(onDone = anonymousConsent::saveRegion)
+
                 // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
                 // 마이크가 막 열린 자리라 여기서 확인하고, 잰 값은 이후 모든 문항의 곡선 축이 된다.
                 startRequested && session == null && micPassed && voiceCenterHz == null ->
@@ -936,6 +951,7 @@ private fun TestFlow(
                     appVersion = BuildConfig.VERSION_NAME,
                     campaignToken = campaignToken,
                     voiceConsentVersion = voiceConsentVersion(),
+                    region = sessionRegion(),
                     onBackToIntro = ::resetStartGates,
                     onProfileIncomplete = ::leaveForProfile,
                 )

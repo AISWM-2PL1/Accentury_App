@@ -162,6 +162,26 @@ class OkHttpSessionClientTest {
     }
 
     @Test
+    fun `익명 지역을 바디 region으로 싣는다 (KAN-270 7단계)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
+
+        client().create(appVersion = "1.0", voiceConsentVersion = "2026-10-04", region = "JEJU")
+
+        val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("JEJU", body["region"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `지역이 없으면 region 키 자체를 빼고 보낸다 (KAN-270 7단계)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
+
+        client().create(appVersion = "1.0", voiceConsentVersion = "2026-10-04")
+
+        val body = server.takeRequest().body.readUtf8()
+        assertFalse(body, body.contains("region"))
+    }
+
+    @Test
     fun `인증 클라이언트를 주면 Access JWT를 Bearer로 싣고 region은 보내지 않는다 (KAN-224)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
         val store = InMemoryTokenStore(AuthTokens("jwt_access", "rt_1"))

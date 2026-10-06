@@ -75,7 +75,8 @@ sealed interface SessionResult {
  *
  * 로그인한 앱(KAN-224)은 이 호출에 `Authorization: Bearer <Access JWT>`를 싣는다. 헤더는 인증
  * 클라이언트의 인터셉터가 붙이고([sessionCreationClient]) 이 클래스는 모른다 — 익명과 로그인이
- * 같은 코드를 탄다. 계정 세션의 출신지역은 서버가 계정 값으로 채우므로 `region`은 보내지 않는다.
+ * 같은 코드를 탄다. 계정 세션의 출신지역은 서버가 계정 값으로 채우므로 `region`은 보내지 않는다(익명 세션만 싣는다,
+ * KAN-270 7단계).
  * 서버가 403 `AUTH_PROFILE_INCOMPLETE`를 주면 [SessionResult.Rejected]로 올라오고, 추가 정보
  * 화면으로 돌리는 판정은 호출부(`AuthGateController.onProfileIncomplete`)가 한다.
  */
@@ -86,12 +87,14 @@ interface SessionClient {
      * @param campaignToken App Link로 들어온 공유 유입 계측 코드 (KAN-32). 링크 진입이 아니면 null
      * @param voiceConsentVersion 익명 모드에서 음성 저장에 동의했을 때의 문안 버전 (KAN-270 5단계). 서버는 계정 세션에서는
      *   이 필드를 무시한다 — 계정 모드는 null로 둔다. 미동의도 null
+     * @param region 익명 모드의 출신 지역 코드 (KAN-270 7단계). 동의하고 지역을 골랐을 때만 — 계정 모드·미동의는 null
      */
     suspend fun create(
         appVersion: String,
         previousToken: String? = null,
         campaignToken: String? = null,
         voiceConsentVersion: String? = null,
+        region: String? = null,
     ): SessionResult
 }
 
@@ -105,17 +108,21 @@ internal const val CODE_VALIDATION_FAILED = "VALIDATION_FAILED"
  * 배포 사이). 동의 없이 **한 번만** 다시 만든다 — 선택 동의 하나 때문에 응시가 막히면 안 된다(팀 결정 2026-10-06).
  * 이전 토큰은 그대로 싣는다: 400은 본문 검증에서 나므로 서버가 옛 세션을 폐기하기 전이고, 두 번째 요청이 그 폐기를
  * 다시 맡는다. 미동의 요청의 400이나 다른 거절은 그대로 돌려준다.
+ *
+ * 재시도에서는 [region]도 뺀다(KAN-270 7단계) — 동의 없는 세션의 음성은 저장되지 않으니 라벨만 남길 이유가 없다.
+ * 웹 `App.tsx`는 region을 유지하지만 웹의 region은 staging 전용 라벨 수집이라 동의와 무관하게 실린다.
  */
 suspend fun SessionClient.createWithConsentFallback(
     appVersion: String,
     previousToken: String?,
     campaignToken: String?,
     voiceConsentVersion: String?,
+    region: String? = null,
 ): SessionResult {
-    val first = create(appVersion, previousToken, campaignToken, voiceConsentVersion)
+    val first = create(appVersion, previousToken, campaignToken, voiceConsentVersion, region)
     val retry = voiceConsentVersion != null &&
         first is SessionResult.Rejected && first.code == CODE_VALIDATION_FAILED
-    return if (retry) create(appVersion, previousToken, campaignToken, voiceConsentVersion = null) else first
+    return if (retry) create(appVersion, previousToken, campaignToken, voiceConsentVersion = null, region = null) else first
 }
 
 class OkHttpSessionClient(
@@ -132,8 +139,9 @@ class OkHttpSessionClient(
         previousToken: String?,
         campaignToken: String?,
         voiceConsentVersion: String?,
+        region: String?,
     ): SessionResult = try {
-        client.await(buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion)).use { response ->
+        client.await(buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion, region)).use { response ->
             val body = withContext(Dispatchers.IO) { response.body.string() }
             toResult(response.code, body, response.header(HEADER_RETRY_AFTER))
         }
@@ -146,6 +154,7 @@ class OkHttpSessionClient(
         previousToken: String?,
         campaignToken: String?,
         voiceConsentVersion: String?,
+        region: String?,
     ): Request {
         val url = baseUrl.newBuilder().addPathSegments(PATH_SESSIONS).build()
         /*
@@ -164,6 +173,7 @@ class OkHttpSessionClient(
                 campaignToken = campaignToken,
                 previousSessionToken = previousToken,
                 voiceConsentVersion = voiceConsentVersion,
+                region = region,
                 client = ClientBody(platform = PLATFORM_ANDROID, appVersion = appVersion),
             ),
         )
@@ -227,12 +237,14 @@ class OkHttpSessionClient(
  * 않으므로(401도 404도 없다) 여기서 토큰의 생사를 따지지 않는다. null이면 키째 빠진다.
  *
  * [voiceConsentVersion]은 익명 모드의 음성 저장 동의다 (KAN-270 5단계, 웹 webSession.ts와 같은 필드). 역시 null이면 빠진다.
+ * [region]은 익명 모드의 출신 지역 코드다 (KAN-270 7단계). 서버가 S3 키·학습 라벨에 쓴다. null이면 빠진다.
  */
 @Serializable
 private data class CreateSessionBody(
     val campaignToken: String? = null,
     val previousSessionToken: String? = null,
     val voiceConsentVersion: String? = null,
+    val region: String? = null,
     val client: ClientBody,
 ) {
     // 이전 세션 토큰이 로그에 찍히지 않게 한다 (KAN-224).
