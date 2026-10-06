@@ -89,7 +89,10 @@ class AccenturyApplication : Application() {
         /*
          * 로그인 상태 확인은 프로세스당 한 번 (KAN-224). Activity에서 걸면 회전마다 갱신이 한 번 더 나가 Refresh가
          * 괜히 회전한다. 첫 화면은 이 확인이 끝날 때까지 스플래시를 붙든다 (MainActivity).
+         *
+         * 로그인을 끈 빌드(익명 모드, KAN-270 5단계)는 확인할 것이 없다 — [authGate]·[authClients] lazy를 아예 깨우지
+         * 않아 Keystore 접근과 클라이언트 생성을 건너뛴다.
          */
-        authGate.retry()
+        if (BuildConfig.LOGIN_ENABLED) authGate.retry()
     }
 }

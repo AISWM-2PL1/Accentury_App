@@ -31,6 +31,7 @@ import kotlinx.coroutines.ensureActive
  *
  * @param gate 상태 머신. 결과 판정과 재시도가 전부 여기로 모인다
  * @param campaignToken App Link로 들어온 공유 유입 계측 코드 (KAN-32). 링크 진입이 아니면 null
+ * @param voiceConsentVersion 익명 모드의 음성 저장 동의 버전 (KAN-270 5단계). 계정 모드·미동의는 null
  * @param onBackToIntro 다시 시도해도 소용없는 실패에서 인트로로 돌려보낸다
  * @param onProfileIncomplete 서버가 프로필 미완료(403 `AUTH_PROFILE_INCOMPLETE`)로 막았다 — 추가 정보 화면으로 (KAN-224)
  */
@@ -40,6 +41,7 @@ fun SessionGateScreen(
     client: SessionClient,
     appVersion: String,
     campaignToken: String?,
+    voiceConsentVersion: String?,
     onBackToIntro: () -> Unit,
     onProfileIncomplete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,10 +66,12 @@ fun SessionGateScreen(
          * URL의 `?c=`만으로는 서버 쪽 세션에 유입 경로가 남지 않는다 — 링크에서 온 것이 URL과
          * 세션 양쪽에 같은 값으로 실려야 공유 유입이 끝까지 이어진다.
          */
-        val result = client.create(
+        // 익명 모드의 동의 버전도 싣는다 (KAN-270 5단계). 낡은 버전의 400은 동의 없이 한 번 더 만든다.
+        val result = client.createWithConsentFallback(
             appVersion = appVersion,
             previousToken = gate.pendingPreviousToken,
             campaignToken = campaignToken,
+            voiceConsentVersion = voiceConsentVersion,
         )
 
         // 취소된 뒤 도착한 앞 시도의 결과는 버린다. 재시도가 이 이펙트를 다시 걸었는데 앞 시도의

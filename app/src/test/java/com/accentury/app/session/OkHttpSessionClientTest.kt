@@ -140,6 +140,28 @@ class OkHttpSessionClientTest {
     }
 
     @Test
+    fun `익명 동의 버전을 바디 voiceConsentVersion으로 싣는다 - Authorization은 없다 (KAN-270)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
+
+        client().create(appVersion = "1.0", voiceConsentVersion = "2026-10-04")
+
+        val recorded = server.takeRequest()
+        assertNull(recorded.getHeader("Authorization"))
+        val body = recorded.body.readUtf8()
+        assertTrue(body, body.contains(""""voiceConsentVersion":"2026-10-04""""))
+    }
+
+    @Test
+    fun `동의 버전이 없으면 voiceConsentVersion 키 자체를 빼고 보낸다 (KAN-270)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
+
+        client().create(appVersion = "1.0")
+
+        val body = server.takeRequest().body.readUtf8()
+        assertFalse(body, body.contains("voiceConsentVersion"))
+    }
+
+    @Test
     fun `인증 클라이언트를 주면 Access JWT를 Bearer로 싣고 region은 보내지 않는다 (KAN-224)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
         val store = InMemoryTokenStore(AuthTokens("jwt_access", "rt_1"))

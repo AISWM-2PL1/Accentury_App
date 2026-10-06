@@ -46,16 +46,22 @@ import kotlinx.coroutines.launch
  * 설정 화면처럼 TestFlow 위에 덮인다(호출자 AuthGate). 시스템 뒤로 가기는 막지 않는다 — Activity가 닫히고, 다음
  * 실행에 아직 표시 기록이 없으면 다시 뜬다.
  *
- * @param onConsent [AuthGateController.setVoiceConsent] `true`. 성공하면 호출자가 표시 기록을 남기고 화면을 걷는다
+ * 로그인을 끈 빌드(익명 모드, 5단계)는 시작 게이트의 마이크 권한 뒤에서 설치당 한 번 같은 화면을 띄운다 — 선택은
+ * [AnonymousVoiceConsentStore]에 남고, 문안은 [details]로 셋째 줄만 웹처럼 바꾼다.
+ *
+ * @param onConsent 동의를 남긴다. true면 성공 — 계정 모드는 `setVoiceConsent(true)`가 성공했는가, 익명 모드는 늘 true.
+ *   성공하면 호출자가 화면을 걷고, 실패면 한 줄 안내를 남긴다
  * @param onSkip 표시 기록만 남기고 걷는다. 서버에 보낼 것이 없다(건너뜀 = 미동의)
  * @param onOpenPrivacy 방침 문서 (LoginScreen과 같은 호출)
+ * @param details 보관 항목·기간·철회 줄. 익명 모드는 [VOICE_CONSENT_DETAILS_ANONYMOUS]
  */
 @Composable
 fun VoiceConsentScreen(
-    onConsent: suspend () -> AuthResult<Account>,
+    onConsent: suspend () -> Boolean,
     onSkip: () -> Unit,
     onOpenPrivacy: () -> Unit,
     modifier: Modifier = Modifier,
+    details: List<String> = VOICE_CONSENT_DETAILS,
 ) {
     val scope = rememberCoroutineScope()
     var checked by rememberSaveable { mutableStateOf(false) }
@@ -103,7 +109,7 @@ fun VoiceConsentScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.x2)) {
-                VOICE_CONSENT_DETAILS.forEach {
+                details.forEach {
                     Text(
                         "· $it",
                         style = MaterialTheme.typography.bodyMedium,
@@ -127,7 +133,7 @@ fun VoiceConsentScreen(
                     submitting = true
                     scope.launch {
                         try {
-                            failed = onConsent() !is AuthResult.Success
+                            failed = !onConsent()
                         } finally {
                             submitting = false
                         }
