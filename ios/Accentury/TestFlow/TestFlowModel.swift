@@ -178,7 +178,7 @@ final class TestFlowModel: ObservableObject {
     ///   - onProfileIncomplete: 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224).
     ///     기본값이 로그인 관문(``AuthHub/gate``)이다.
     ///   - anonymousConsent: 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). 주면 시작 게이트가 권한 → 동의(설치당 1회) →
-    ///     지역(동의했고 아직 없을 때, 설치당 1회) → 점검 → 세션이 되고, 세션 생성 body에 동의 버전·지역을 싣는다.
+    ///     지역(아직 없을 때, 동의와 무관, 설치당 1회) → 점검 → 세션이 되고, 세션 생성 body에 동의 버전·지역을 싣는다.
     ///     nil이 계정 모드다.
     init(
         defaults: UserDefaults = .standard,

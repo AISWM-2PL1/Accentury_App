@@ -363,7 +363,7 @@ struct TestFlowView: View {
                 details: voiceConsentDetailsAnonymous
             )
 
-        // 익명 모드의 출신 지역 (KAN-270 7단계) — 동의한 사용자에게 설치당 한 번. 고르면 저장소에 region이 생겨 조건이 풀린다.
+        // 익명 모드의 출신 지역 (KAN-270 7단계) — 동의와 무관하게 모두에게 설치당 한 번 (KAN-274). 고르면 저장소에 region이 생겨 조건이 풀린다.
         } else if model.startRequested, model.session == nil, model.micPassed, model.needsAnonymousRegion {
             AnonymousRegionScreen(onDone: { model.onAnonymousRegionChosen($0) })
 
