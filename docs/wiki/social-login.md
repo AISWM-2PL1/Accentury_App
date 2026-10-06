@@ -192,7 +192,9 @@ OAuth 클라이언트는 한 프로젝트 안에 셋 이상을 만든다.
 
 1. App ID `com.accentury.app`에 **Sign in with Apple** capability를 켠다. 앱 쪽 entitlement
    (`Accentury.entitlements`의 `com.apple.developer.applesignin` = `Default`)는 들어가 있고, 자동 서명이
-   export 때 그 키를 보고 프로파일에 싣는다. `ios-release.yml`이 서명된 `.app`의 entitlement에서 이 키를 다시 확인한다.
+   export 때 그 키를 보고 프로파일에 싣는다. 서명된 앱에 실리려면 export 앞에서 앱이 그 파일로 ad-hoc 서명돼
+   있어야 한다(`app-store-listing.md` §2 「entitlement 싣기」, 2026-10-07 전 빌드는 빠져 있었다).
+   `ios-release.yml`이 서명된 `.app`의 entitlement에서 이 키를 다시 확인한다.
 2. 앱에 넣을 설정값은 없다. 서버 `ACCENTURY_AUTH_APPLEBUNDLEID` = `com.accentury.app`(identityToken의 `aud`).
 3. nonce: 앱이 원문(32바이트 난수 → 16진 64자)을 만들어 **SHA-256만** 애플 요청에 싣고 원문은 서버로 보낸다.
    서버가 원문을 해시해 ID 토큰의 `nonce` 클레임과 대조한다 (`AppleNonce.swift`).

@@ -24,7 +24,10 @@
  * KAN-191은 그 결정을 뒤집지 않고 **되돌아갈 길이 없는 상태에만** 예외를 둔다. 셋으로 갈린다.
  *
  * - `FAILED`(재시도 불가 실패 — 봉투 없는 403, 세션 만료 등)와 손댈 문항이 없는
- *   `ACTION_REQUIRED`([deadEnd]): 이 화면 안에 되살릴 방법이 하나도 없다. 여기서만
+ *   `ACTION_REQUIRED`([deadEnd]): 이 화면 안에 되살릴 방법이 하나도 없다. [deadEnd]는 서버가
+ *   행동을 요구했는데 목록에 재녹음할 줄이 없는 경우뿐이다(예: `missingItems`가 어휘 문항뿐).
+ *   KAN-271부터 브라우저 단독 실행도 [다시 녹음]을 그리므로 "브리지가 없어서" 막다른 길이 되는
+ *   경로는 없다. 여기서만
  *   [다시 테스트하기]를 준다. 결과 화면과 **같은 벌**([RetestAction])이라 앱에서는 네이티브가
  *   세션을 갈아 끼우고 브라우저에서는 인트로로 되돌아간다 — 화면마다 다른 출구를 만들지 않는다
  * - `EXHAUSTED`는 [다시 시도]만 그대로 준다. 폴링을 접었을 뿐 분석은 서버에서 아직 돌고 있을
@@ -56,7 +59,6 @@ import { Fragment, useEffect, useRef } from 'react'
 import { AdSlot } from '../ads/AdSlot'
 import { showInterstitialAdOnce } from '../ads/interstitial'
 import type { RetakeReason } from '../analytics/events'
-import { track } from '../analytics/track'
 import { Button, StatusBlock } from '../ui'
 import { CheckSmallIcon } from '../ui/icons'
 import { TextHero } from '../ui/TextHero'
@@ -80,14 +82,15 @@ export interface AnalysisWaitingScreenProps {
   /** 결과가 확정됐다. 화면 이동은 호출자 몫이다 (App의 진입 쿼리 계약을 화면이 알 필요가 없다) */
   onReady: () => void
   /**
-   * 이 문항을 다시 녹음한다. 없으면 재녹음 버튼을 그리지 않는다 —
-   * 네이티브 결선이 없는 브라우저 단독 실행에서 눌러도 아무 일 없는 버튼을 두지 않기 위해서다.
+   * 재녹음을 시작한다 (KAN-271). 누른 문항을 맨 앞에, 나머지 재녹음 대상을 seq 순서로 실어
+   * 한 번에 넘긴다 — 호출자(TestRunner)가 이 목록을 대기열로 삼아 문항 화면을 연달아 연 뒤
+   * 마지막 문항이 끝나면 이 화면을 다시 세운다. 앱(네이티브 녹음)과 브라우저(웹 녹음) 모두
+   * 같은 경로라 필수다 — 예전처럼 "브리지가 없으면 버튼을 그리지 않는" 실행이 더는 없다.
    */
-  onRetake?: (itemId: string) => void
+  onRetake: (targets: RetakeTarget[]) => void
   /**
    * 막다른 상태의 [다시 테스트하기] (KAN-191, 파일 헤더 참고). **없으면 그 버튼을 그리지
-   * 않는다** — `onRetake`와 같은 규칙이다: 재응시를 실제로 태울 길이 없는 실행에서 눌러도
-   * 아무 일 없는 버튼을 두지 않는다.
+   * 않는다** — 재응시를 실제로 태울 길이 없는 실행에서 눌러도 아무 일 없는 버튼을 두지 않는다.
    *
    * 핸들러 하나가 아니라 상태를 통째로 받는 이유는 결과 화면과 같다. 재응시는 네이티브
    * 왕복이라 성공이 이 화면으로 돌아오지 않고(페이지가 통째로 교체된다), 실패 회신 수신자는
@@ -95,7 +98,10 @@ export interface AnalysisWaitingScreenProps {
    */
   retest?: RetestControl
   /**
-   * 값이 바뀌면 폴링을 처음부터 다시 시작한다. 재녹음 결과가 네이티브에서 돌아왔다는 신호다.
+   * 값이 바뀌면 폴링을 처음부터 다시 시작한다. 이 화면이 서 있는 동안 네이티브 결과가 돌아왔다는
+   * 신호다. KAN-271부터 [다시 녹음]은 이 화면을 내리고 문항 화면을 띄우므로(돌아오면 새 마운트라
+   * 폴링이 처음부터 선다) 그 경로에는 쓰이지 않고, 네이티브 녹음 중 WebView가 다시 로드된 뒤
+   * 도착한 결과 같은 경우에만 쓰인다 (TestFlowScreen `resultNonce` 주석).
    *
    * 콜백이 아니라 숫자인 이유: 네이티브 결과 수신 지점(`installItemResultReceiver`)은 화면
    * 전체가 하나만 설치한다 — 이 화면이 자기 수신자를 따로 걸면, 마운트 순서상 부모 것이
@@ -103,6 +109,13 @@ export interface AnalysisWaitingScreenProps {
    * 변화만 본다.
    */
   refreshNonce?: number
+  /**
+   * 웹 배너를 그릴지 (KAN-271, 기본 true). 재녹음 뒤 돌아온 대기 화면에서는 배너를 다시 띄우지
+   * 않는다(티켓 Requirements §4·AC). false면 [AdSlot]을 아예 렌더하지 않는다 — 요청만 막고 상자를
+   * 남기면 빈 자리 100px가 단계 표시 아래에 뜬다. 전면 광고의 세션당 1회는 `ads/interstitial.ts`가
+   * 따로 지킨다.
+   */
+  showBanner?: boolean
   fetchImpl?: FetchLike
 }
 
@@ -118,6 +131,18 @@ export interface WaitingVoiceItem {
   item: VoiceItem
   /** 전체 문항 기준 1-기반 순번 */
   itemNumber: number
+}
+
+/**
+ * 재녹음 대기열의 한 칸 (KAN-271). 번호와 사유는 `recording_retake` 계측에 쓴다 — 사유를
+ * 아는 곳이 이 화면뿐이라(상태에서 뽑는다) 대기열에 실어 보낸다. 계측은 문항 화면이 실제로
+ * 열릴 때 TestRunner가 한 번씩 센다: 연속 재녹음을 중간에 떠나면 열리지 않은 문항은 세지 않는다.
+ */
+export interface RetakeTarget {
+  itemId: string
+  /** 전체 문항 기준 1-기반 순번 (`WaitingVoiceItem.itemNumber`) */
+  itemNumber: number
+  reason: RetakeReason
 }
 
 /** 사용자에게 보이는 상태 문구. 코드 이름을 그대로 노출하지 않는다 */
@@ -157,6 +182,7 @@ export function AnalysisWaitingScreen({
   onRetake,
   retest,
   refreshNonce = 0,
+  showBanner = true,
   fetchImpl,
 }: AnalysisWaitingScreenProps) {
   const { status, items, lastError, queueAhead, restart } = useAnalysisPolling({
@@ -223,8 +249,7 @@ export function AnalysisWaitingScreen({
    * "다시 녹음해 주세요"라고 말하는 것보다, 할 수 있는 일을 말해 주는 편이 낫다.
    */
   const actionRequired = status.kind === 'ACTION_REQUIRED'
-  const hasActionableRow =
-    onRetake !== undefined && rows.some((row) => row.status !== null && isRetakeable(row.status))
+  const hasActionableRow = rows.some((row) => row.status !== null && isRetakeable(row.status))
   const deadEnd = actionRequired && !hasActionableRow
 
   useEffect(() => {
@@ -234,9 +259,25 @@ export function AnalysisWaitingScreen({
     console.error('[analysis] 사용자가 손댈 수 있는 문항이 없습니다', {
       reason: status.reason,
       itemIds: status.itemIds,
-      onRetakeAvailable: onRetake !== undefined,
     })
-  }, [deadEnd, status, onRetake])
+  }, [deadEnd, status])
+
+  /*
+   * 재녹음 대상 목록 (KAN-271). 누른 문항이 맨 앞이고 나머지 대상은 목록(seq) 순서다 — 실패가
+   * 2·4·6번이고 4번을 누르면 [4, 2, 6]. 사용자가 고른 문항을 먼저 열어야 "누른 것이 열렸다"가
+   * 맞고, 나머지를 이어서 열어야 실패 문항마다 대기 화면으로 돌아와 다시 누르는 왕복이 없다.
+   */
+  const retakeFrom = (itemId: string) => {
+    const targets = rows.flatMap(({ item, itemNumber, status: analysis }) =>
+      analysis !== null && isRetakeable(analysis)
+        ? [{ itemId: item.itemId, itemNumber, reason: retakeReason(analysis.status) }]
+        : [],
+    )
+    onRetake([
+      ...targets.filter((target) => target.itemId === itemId),
+      ...targets.filter((target) => target.itemId !== itemId),
+    ])
+  }
 
   /*
    * 시안의 세 칸(곡선 추출 / 분포 비교 / 등급 계산). 값은 폴링이 이미 들고 있는 상태에서
@@ -362,7 +403,7 @@ export function AnalysisWaitingScreen({
               없는 빌드에서는 이 컴포넌트가 아무것도 그리지 않으므로 (`AdSlot`) 여기 있는 것만
               으로 기존 화면이 달라지지 않는다.
             */}
-            <AdSlot />
+            {showBanner && <AdSlot />}
           </div>
         )}
 
@@ -383,7 +424,7 @@ export function AnalysisWaitingScreen({
               /*
                * "앱을 다시 시작해"라고 말하던 자리다 (KAN-191). 이제 이 화면이 재응시 버튼을
                * 들고 있어 앱을 끄라고 할 이유가 없고, 애초에 브라우저 단독 실행에는 끌 앱도
-               * 없었다 — 그 실행이 [deadEnd]로 떨어지는 두 경로 중 하나다.
+               * 없었다.
                */
               detail="테스트를 처음부터 다시 진행해 주세요"
               action={retest === undefined ? undefined : <RetestAction retest={retest} />}
@@ -425,23 +466,12 @@ export function AnalysisWaitingScreen({
                   ? ` · ${analysis.quality}`
                   : ''}
               </span>
-              {onRetake !== undefined && analysis !== null && RETAKEABLE.includes(analysis.status) && (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    /*
-                     * 사유를 아는 곳이 여기뿐이다 (KAN-33). 재녹음을 실제로 여는 것은 부모의
-                     * `onRetake`인데, 그쪽은 itemId만 받으므로 이 문항이 왜 목록에 올라왔는지를
-                     * 모른다 — 사유를 부모까지 끌고 가면 계약이 계측 때문에 넓어진다.
-                     */
-                    track({
-                      name: 'recording_retake',
-                      item_seq: itemNumber,
-                      reason: retakeReason(analysis.status),
-                    })
-                    onRetake(item.itemId)
-                  }}
-                >
+              {analysis !== null && RETAKEABLE.includes(analysis.status) && (
+                /*
+                 * `recording_retake`는 여기서 세지 않는다 (KAN-271). 누른 문항 뒤로 남은 실패 문항이
+                 * 이어서 열리므로, 문항 화면이 실제로 열리는 자리(TestRunner)가 문항마다 한 번 센다.
+                 */
+                <Button variant="secondary" onClick={() => retakeFrom(item.itemId)}>
                   다시 녹음
                 </Button>
               )}

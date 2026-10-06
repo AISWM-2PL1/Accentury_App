@@ -100,6 +100,10 @@ for fw in build/Accentury.xcarchive/Products/Applications/Accentury.app/Framewor
   codesign --remove-signature "$fw"
 done
 
+# 앱에 entitlement를 실은 ad-hoc 서명을 단다 — 무서명이면 export가 권한을 못 읽는다 (아래 불릿)
+codesign --force --sign - --entitlements Accentury/Accentury.entitlements \
+  build/Accentury.xcarchive/Products/Applications/Accentury.app
+
 xcodebuild -exportArchive -archivePath build/Accentury.xcarchive \
   -exportPath build/export -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates
 ```
@@ -121,6 +125,12 @@ xcodebuild -exportArchive -archivePath build/Accentury.xcarchive \
   (`Invalid Signature … is not properly signed`). 지워 두면 export가 물려받을 서명이 없어 DR을
   번들 식별자에서 새로 만든다. `codesign --verify --deep --strict`로는 이 결함이 안 잡힌다
   (`docs/wiki/app-store-listing.md` §2).
+- **export 앞에서 앱을 entitlement와 함께 ad-hoc 서명한다.** export는 아카이브된 앱의 기존 서명에 실린
+  entitlement를 읽어 배포용으로 고쳐 재서명한다. 무서명이면 읽을 것이 없어 기본 넷만 남고
+  Sign in with Apple·Associated Domains(Universal Links)가 조용히 빠진다 — 2026-10-07 이전의 릴리스 빌드가
+  전부 그랬다. `--deep`은 쓰지 않는다(바로 위에서 지운 프레임워크 서명이 되살아나면 DR 함정이 돌아온다).
+  아카이브에 `AD_HOC_CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-`를 주는 길은
+  `"Accentury" requires a provisioning profile`로 막힌다 (`docs/wiki/app-store-listing.md` §2).
 - 두 단계로 갈린 이유는 **팀에 등록된 기기가 0대**라서다. 자동 서명 `archive`는 개발용
   프로비저닝 프로파일을 만들려다 막히고, export 단계는 기기 목록을 보지 않는다.
   `ExportOptions.plist`(레포에 있다)가 `app-store-connect` · `signingStyle automatic` ·
@@ -138,6 +148,9 @@ codesign -dv --verbose=4 ipa/Payload/Accentury.app 2>&1 | grep Authority
 # DR이 자기 번들 식별자인지 — arm64-apple이 보이면 업로드가 거절된다 (위 링커 서명 불릿)
 codesign -d -r- ipa/Payload/Accentury.app/Frameworks/GoogleMobileAds.framework 2>&1 | grep designated
 # designated => ... identifier "com.google.GoogleMobileAds" ...
+
+# entitlement — applesignin과 associated-domains가 보여야 한다 (기본 넷뿐이면 위 ad-hoc 서명이 빠졌다)
+codesign -d --entitlements - --xml ipa/Payload/Accentury.app 2>/dev/null | plutil -p -
 ```
 
 `Apple Development`가 나오면 export가 개발 인증서를 골랐다는 뜻이고 TestFlight가 받지 않는다.
@@ -151,7 +164,7 @@ codesign -d -r- ipa/Payload/Accentury.app/Frameworks/GoogleMobileAds.framework 2
 `upload`(기본 꺼짐, 켜면 TestFlight까지)와 `allow_test_ads`(기본 꺼짐, 켜면 AdMob 테스트 ID로
 빌드하고 업로드는 막힌다). 위 아카이브·export 명령을 **그대로** 쓰고, `.ipa`를 풀어 서명
 Authority와 번들 `Info.plist`의 `WEB_URL`·카카오 키·광고 ID·로그인 IdP 값과 URL 스킴, `FAKE_IDP` 키 부재,
-Sign in with Apple entitlement를 확인한 뒤 아티팩트로 남긴다. 시크릿 열세 개(ASC 셋 + AdMob iOS 셋 +
+Sign in with Apple·Associated Domains entitlement를 확인한 뒤 아티팩트로 남긴다. 시크릿 열세 개(ASC 셋 + AdMob iOS 셋 +
 `KAKAO_NATIVE_APP_KEY` + 로그인 IdP 여섯)의 이름과 발급 위치, 스텝별 설명은
 `docs/wiki/app-store-listing.md` §2 「릴리스 워크플로」에, 로그인 셋의 콘솔 설정은
 `docs/wiki/social-login.md` §3에 있다.

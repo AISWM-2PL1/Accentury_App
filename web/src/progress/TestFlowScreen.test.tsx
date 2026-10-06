@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetAdSenseForTests } from '../ads/adsense'
 import { createFakeCapture, sineChunk, type FakeCapture } from '../audio/testing/fakeCapture'
 import { START_COUNTDOWN_SECONDS, TestFlowScreen } from './TestFlowScreen'
 import { START_SCREEN_SUBTITLE } from './TestStartScreen'
@@ -1195,7 +1196,7 @@ describe('분석 대기 결선 (KAN-14)', () => {
     expect(onAnalysisReady).not.toHaveBeenCalled()
   })
 
-  it('브리지가 없으면 재녹음 버튼을 그리지 않는다 — 눌러도 녹음 화면이 열리지 않는다', async () => {
+  it('브리지가 없어도 재녹음 버튼을 그린다 — 웹 녹음 패널로 열린다 (KAN-271)', async () => {
     const view = renderScreen(
       waitingFetch({
         analyses: () => ({
@@ -1214,7 +1215,7 @@ describe('분석 대기 결선 (KAN-14)', () => {
 
     await finishAllItems(capture)
 
-    expect(screen.queryByRole('button', { name: '다시 녹음' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '다시 녹음' })).toHaveLength(3)
   })
 
   /*
@@ -1278,7 +1279,7 @@ describe('분석 대기 결선 (KAN-14)', () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     const events = stubGtag()
     const retestFallback = vi.fn()
-    // 브리지 없음 = 브라우저 단독 실행. 재녹음 버튼이 없어 되살릴 방법이 하나도 없는 자리다
+    // 브리지 없음 = 브라우저 단독 실행. 음성은 전부 끝나 재녹음할 줄이 없고 서버는 어휘를 짚는다
     const { capture } = renderScreen(deadEndFetch(), { sessionId: 'sess-1', retestFallback })
     await findRecordButton()
 
@@ -1306,7 +1307,13 @@ describe('분석 대기 결선 (KAN-14)', () => {
     errorLog.mockRestore()
   })
 
-  it('재녹음 결과가 돌아오면 폴링을 다시 세운다', async () => {
+  /*
+   * 대기 화면의 재녹음은 KAN-271부터 대기 화면을 내리고 문항 화면을 띄우므로 이 경로를 타지 않는다.
+   * 남은 경로는 대기 화면이 서 있는 동안 네이티브 결과가 도착하는 경우다 — 재녹음 도중 앱이 프로세스
+   * 복원되면 네이티브는 녹음 화면을 스스로 되살리고, 웹은 대기열 없이 대기 화면으로 돌아온다. 그
+   * 녹음의 결과가 여기로 들어온다.
+   */
+  it('대기열 없이 대기 화면이 서 있는 동안 네이티브 결과가 돌아오면 폴링을 다시 세운다 (프로세스 복원)', async () => {
     stubBridge()
     const fetchImpl = waitingFetch({})
     renderScreen(fetchImpl, { sessionId: 'sess-1' })
@@ -1319,6 +1326,289 @@ describe('분석 대기 결선 (KAN-14)', () => {
 
     const after = fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/analyses')).length
     expect(after).toBe(before + 1)
+  })
+})
+
+describe('분석 대기 화면의 재녹음 — 실패 문항만 이어서 (KAN-271)', () => {
+  /*
+   * 분석 대기 화면에서 짚힌 음성 문항(id → 상태)을 돌려주는 대역. 나머지 음성은 COMPLETED이고,
+   * `/complete`는 409 `RESULT_RETAKE_REQUIRED`로 폴링을 멈춘다. `/recording`의 n번째 업로드(0부터)만
+   * 주어진 봉투로 거절할 수 있다.
+   */
+  function retakeFetch(
+    failed: Record<string, string>,
+    rejections: Record<number, { status: number; body: object }> = {},
+  ): ReturnType<typeof vi.fn<FetchLike>> {
+    const res = (status: number, body: unknown) =>
+      ({
+        ok: status >= 200 && status < 300,
+        status,
+        headers: { get: (name: string) => (name === '' ? '' : null) },
+        json: async () => body,
+      }) as Response
+    let uploads = 0
+    return vi.fn<FetchLike>(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/analyses')) {
+        return res(200, {
+          pollAfterMs: 800,
+          items: VOICE_SEQS.map((seq) => {
+            const itemId = `item-${seq}`
+            const status = failed[itemId] ?? 'COMPLETED'
+            return status === 'RETRYABLE_FAILED'
+              ? { itemId, status, error: { code: 'AUDIO_TOO_QUIET', retryable: true } }
+              : { itemId, status, ...(status === 'COMPLETED' ? { quality: 'OK' } : {}) }
+          }),
+        })
+      }
+      if (url.endsWith('/complete')) {
+        return res(409, {
+          code: 'RESULT_RETAKE_REQUIRED',
+          message: '실패한 문항이 있습니다.',
+          retryable: true,
+          retryAfterMs: null,
+          correlationId: 'c_test',
+          retakeItems: Object.keys(failed),
+        })
+      }
+      if (url.endsWith('/answer')) return res(200, { accepted: true })
+      if (url.endsWith('/recording')) {
+        const rejection = rejections[uploads++]
+        return rejection === undefined ? res(202, { analysisJobId: 'job-web' }) : res(rejection.status, rejection.body)
+      }
+      return res(200, sevenItemDefinition())
+    })
+  }
+
+  const RETAKE_NOTICE = '일부 문항을 다시 녹음해야 해요'
+
+  function countUrls(fetchImpl: ReturnType<typeof vi.fn<FetchLike>>, suffix: string): number {
+    return urls(fetchImpl).filter((url) => url.endsWith(suffix)).length
+  }
+
+  function recordingItems(fetchImpl: ReturnType<typeof vi.fn<FetchLike>>): string[] {
+    return urls(fetchImpl)
+      .filter((url) => url.endsWith('/recording'))
+      .map((url) => url.split('/voice-items/')[1].split('/')[0])
+  }
+
+  it('브라우저: [다시 녹음]이 그 문항의 녹음 화면을 같은 번호로 열고, 올리면 대기 화면으로 돌아와 폴링을 다시 돈다', async () => {
+    const fetchImpl = retakeFetch({ 'item-2': 'RETRYABLE_FAILED' })
+    const { capture } = renderScreen(fetchImpl)
+    await findRecordButton()
+    await finishAllItems(capture)
+    expect(screen.getByText(RETAKE_NOTICE)).toBeInTheDocument()
+    const analysesBefore = countUrls(fetchImpl, '/analyses')
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+
+    // 첫 응시와 같은 전체 기준 번호 — 분모도 그대로다
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.queryByText(RETAKE_NOTICE)).not.toBeInTheDocument()
+    await recordAndSend(capture)
+    await act(async () => {})
+
+    expect(await screen.findByText(RETAKE_NOTICE)).toBeInTheDocument()
+    expect(recordingItems(fetchImpl)).toEqual(['item-1', 'item-2', 'item-4', 'item-2'])
+    // 대기 화면이 새로 서며 폴링이 처음부터 다시 돈다
+    expect(countUrls(fetchImpl, '/analyses')).toBeGreaterThan(analysesBefore)
+  })
+
+  it('브라우저: 실패가 여럿이면 누른 문항 → 남은 실패 문항(seq 순) → 대기 화면이고, 문항마다 recording_retake를 한 번 센다', async () => {
+    const events = stubGtag()
+    const fetchImpl = retakeFetch({ 'item-1': 'FAILED', 'item-2': 'RETRYABLE_FAILED', 'item-4': 'NOT_SUBMITTED' })
+    const { capture } = renderScreen(fetchImpl)
+    await findRecordButton()
+    await finishAllItems(capture)
+    const submittedBefore = events.filter((event) => event.event === 'item_submitted').length
+    const shownBefore = events.filter((event) => event.event === 'item_shown').length
+
+    // 줄 순서는 1·2·4번이다 — 2번을 누른다
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 녹음' })[1])
+
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+    await recordAndSend(capture)
+    expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
+    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
+    await recordAndSend(capture)
+    expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
+    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
+    await recordAndSend(capture)
+    await act(async () => {})
+
+    expect(await screen.findByText(RETAKE_NOTICE)).toBeInTheDocument()
+    // 성공한 음성 문항·어휘 문항은 다시 나오지 않는다 — 업로드는 대상 셋뿐이다
+    expect(recordingItems(fetchImpl).slice(3)).toEqual(['item-2', 'item-1', 'item-4'])
+    expect(screen.queryByText(/어휘 문항/)).not.toBeInTheDocument()
+    expect(events.filter((event) => event.event === 'recording_retake')).toEqual([
+      { event: 'recording_retake', item_seq: 2, reason: 'QUALITY' },
+      { event: 'recording_retake', item_seq: 1, reason: 'FAILED' },
+      { event: 'recording_retake', item_seq: 4, reason: 'USER' },
+    ])
+    // 진행 퍼널은 재녹음으로 늘지 않는다
+    expect(events.filter((event) => event.event === 'item_submitted')).toHaveLength(submittedBefore)
+    expect(events.filter((event) => event.event === 'item_shown')).toHaveLength(shownBefore)
+  })
+
+  it('앱: 결과를 받을 때마다 다음 실패 문항으로 startVoiceItem을 부르고, 마지막 뒤 대기 화면으로 돌아온다', async () => {
+    const startVoiceItem = stubBridge()
+    const showInterstitialAd = vi.fn()
+    window.AccenturyBridge!.showInterstitialAd = showInterstitialAd
+    // 전면 광고의 세션당 1회는 모듈 상태라 다른 테스트와 세션 id를 겹치지 않는다
+    renderScreen(retakeFetch({ 'item-2': 'RETRYABLE_FAILED', 'item-4': 'FAILED' }), { sessionId: 'sess-retake-app' })
+    await findRecordingWait()
+    await finishAllItemsWithBridge()
+    expect(screen.getByText(RETAKE_NOTICE)).toBeInTheDocument()
+    expect(showInterstitialAd).toHaveBeenCalledTimes(1)
+
+    startVoiceItem.mockClear()
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 녹음' })[0])
+
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
+    // 첫 응시와 같은 번호·분모다
+    expect(JSON.parse(startVoiceItem.mock.calls[0][0])).toMatchObject({ itemId: 'item-2', itemNumber: 2, totalItems: 7 })
+
+    deliverResult('item-2')
+    expect(startVoiceItem).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(startVoiceItem.mock.calls[1][0])).toMatchObject({ itemId: 'item-4', itemNumber: 4, totalItems: 7 })
+
+    deliverResult('item-4')
+    await act(async () => {})
+    expect(await screen.findByText(RETAKE_NOTICE)).toBeInTheDocument()
+    expect(startVoiceItem).toHaveBeenCalledTimes(2)
+    // 대기 화면이 다시 마운트돼도 전면 광고는 세션당 한 번이다 (KAN-196)
+    expect(showInterstitialAd).toHaveBeenCalledTimes(1)
+  })
+
+  it('앱: 대기열 맨 앞이 아닌 문항의 결과는 대기열을 넘기지 않는다 — 열지 않은 문항을 건너뛰지 않는다', async () => {
+    const startVoiceItem = stubBridge()
+    renderScreen(retakeFetch({ 'item-2': 'RETRYABLE_FAILED', 'item-4': 'FAILED' }), { sessionId: 'sess-retake-other' })
+    await findRecordingWait()
+    await finishAllItemsWithBridge()
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 녹음' })[0])
+    startVoiceItem.mockClear()
+
+    // 네이티브의 VOICE_SLOT_MISSING 복구가 앞 문항(1번) 결과를 먼저 넣는 경우
+    deliverResult('item-1')
+
+    expect(startVoiceItem).not.toHaveBeenCalled()
+    expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
+    deliverResult('item-2')
+    expect(JSON.parse(startVoiceItem.mock.calls[0][0])).toMatchObject({ itemId: 'item-4' })
+  })
+
+  /*
+   * 앱의 시도 상한 출구 (KAN-271). 네이티브가 429 `RATE_RETAKE_EXCEEDED`로 녹음 화면을 닫아도 웹은
+   * 그 실패를 듣지 못한다 — 대기 단계 재녹음 화면의 대기 푸터에는 [다시 테스트하기]를 늘 둔다.
+   */
+  it('앱: 대기 단계 재녹음 화면은 [녹음 화면 다시 열기]와 [다시 테스트하기]를 함께 두고, origin은 item이다', async () => {
+    const events = stubGtag()
+    stubBridge()
+    // 앱 안이라 계측이 브리지로 나간다 — 받아서 같은 목록에 모은다
+    window.AccenturyBridge!.logEvent = (name: string, paramsJson: string) => {
+      events.push({ event: name, ...(JSON.parse(paramsJson) as Record<string, unknown>) })
+    }
+    const retestFallback = vi.fn()
+    renderScreen(retakeFetch({ 'item-2': 'RETRYABLE_FAILED' }), { sessionId: 'sess-retake-exit', retestFallback })
+    await findRecordingWait()
+    // 첫 응시 문항 화면에는 출구가 없다 (KAN-147)
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+    await finishAllItemsWithBridge()
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+
+    expect(await screen.findByRole('button', { name: '녹음 화면 다시 열기' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+    expect(events).toContainEqual(expect.objectContaining({ event: 'retest_started', from: 'item' }))
+  })
+
+  it('브라우저: 재녹음 뒤 돌아온 대기 화면에는 웹 배너 자리가 없다 (티켓 Requirements §4)', async () => {
+    vi.stubEnv('VITE_ADSENSE_CLIENT_ID', 'ca-pub-1234567890123456')
+    vi.stubEnv('VITE_ADSENSE_SLOT_ID', '9876543210')
+    try {
+      // 분석이 끝나지 않은 상태(POLLING)라 히어로와 배너가 서고, 실패 줄의 [다시 녹음]도 함께 있다
+      let retaken = false
+      const fetchImpl = waitingFetch({
+        analyses: () => ({
+          pollAfterMs: 800,
+          items: VOICE_SEQS.map((seq) =>
+            seq === 2 && !retaken
+              ? { itemId: 'item-2', status: 'RETRYABLE_FAILED', error: { code: 'AUDIO_TOO_QUIET', retryable: true } }
+              : { itemId: `item-${seq}`, status: 'PROCESSING' },
+          ),
+        }),
+      })
+      const { capture } = renderScreen(fetchImpl)
+      await findRecordButton()
+      await finishAllItems(capture)
+      expect(screen.getByRole('complementary', { name: '광고' })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+      expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+      retaken = true
+      await recordAndSend(capture)
+      await act(async () => {})
+
+      expect(await screen.findByText('결과를 만들고 있어요')).toBeInTheDocument()
+      expect(screen.queryByRole('complementary', { name: '광고' })).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllEnvs()
+      resetAdSenseForTests()
+      delete window.adsbygoogle
+      document.head.querySelectorAll('script[src*="adsbygoogle"]').forEach((el) => el.remove())
+    }
+  })
+
+  it('재녹음 도중 다시 열면(새로고침) 대기 화면으로 돌아오고 실패 줄에서 다시 시작할 수 있다', async () => {
+    const storage = memoryStorage()
+    const fetchImpl = retakeFetch({ 'item-1': 'FAILED', 'item-2': 'FAILED' })
+    const first = renderScreen(fetchImpl, { storage })
+    await findRecordButton()
+    await finishAllItems(first.capture)
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 녹음' })[0])
+    expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
+    first.unmount()
+
+    renderScreen(fetchImpl, { storage })
+
+    expect(await screen.findByText(RETAKE_NOTICE)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 녹음' })[1])
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+  })
+
+  it('재녹음 업로드가 VOICE_SLOT_MISSING이면 빠진 문항을 대기열에 합쳐 녹음한 뒤 대기 화면으로 돌아온다', async () => {
+    const events = stubGtag()
+    // 업로드 순서: 1, 2, 4(첫 응시), 2(재녹음 — 거절, 1번을 잃었다)
+    const fetchImpl = retakeFetch(
+      { 'item-2': 'RETRYABLE_FAILED' },
+      { 3: { status: 409, body: { code: 'VOICE_SLOT_MISSING', message: '', retryable: false, missingItems: ['item-1'] } } },
+    )
+    const { capture } = renderScreen(fetchImpl)
+    await findRecordButton()
+    await finishAllItems(capture)
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+    await recordAndSend(capture)
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+    // seq 순서로 다시 선다 — 1번, 그다음 거절당한 2번
+    expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
+    await recordAndSend(capture)
+    expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
+    await recordAndSend(capture)
+    await act(async () => {})
+
+    expect(await screen.findByText(RETAKE_NOTICE)).toBeInTheDocument()
+    expect(recordingItems(fetchImpl).slice(3)).toEqual(['item-2', 'item-1', 'item-2'])
+    /*
+     * 대기열이 세는 것은 화면이 열린 2번 하나다 — 사유를 모르는 끼어든 1번은 세지 않고, 다시 선 2번도
+     * 다시 세지 않는다. 둘째 줄은 거절 화면의 [다시 녹음]을 녹음 패널이 스스로 센 것(KAN-261 그대로)이다.
+     */
+    expect(events.filter((event) => event.event === 'recording_retake')).toEqual([
+      { event: 'recording_retake', item_seq: 2, reason: 'QUALITY' },
+      { event: 'recording_retake', item_seq: 2, reason: 'FAILED' },
+    ])
   })
 })
 

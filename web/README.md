@@ -67,7 +67,7 @@ vitest가 못 보는 것을 실제 Chromium에서 본다 — `getUserMedia`·`Au
 | `e2e/smoke.spec.ts` | 인트로 숫자 카드 → 시작 게이트 통과 → `?screen=test` | 스택 |
 | `e2e/full-run.spec.ts` | 10문항 완주 → 분석 대기 → 결과 등급·점수 | 스택, `E2E_FAIL_ITEM` **없음** |
 | `e2e/feedback.spec.ts` | 완주 → 결과 화면 후기 시트 → 실패·재시도(같은 멱등 키)·저장·리로드 후 409 | 스택, `E2E_FAIL_ITEM` **없음** |
-| `e2e/retake.spec.ts` | 음성 문항 분석 실패 → 막다른 길 안내 | 스택, `E2E_FAIL_ITEM` **있음** |
+| `e2e/retake.spec.ts` | 음성 문항 분석 실패 → [다시 녹음] → 그 문항만 재녹음 → 결과 완주 (`E2E_FAIL_TIMES=1`) / 재녹음도 실패하면 [다시 녹음]이 다시 선다 (`E2E_FAIL_TIMES` 없음) | 스택, `E2E_FAIL_ITEM` **있음** |
 | `e2e/mic-blocked.spec.ts` | 마이크 거부·점유 안내, 세션 미생성 | 없음 (BE를 부르지 않는다) |
 
 #### 스택 띄우기
@@ -140,16 +140,26 @@ npx playwright show-trace test-results/<실패한-스펙>/trace.zip
 **대칭 스킵**으로 갈랐다 — 스택을 갈아 끼우고 두 번 돌린다.
 
 ```bash
-# 레포 루트에서. ai만 갈아 끼운다 — --no-deps라 DB·BE는 그대로 살아 있다.
-E2E_FAIL_ITEM=v3 docker compose -f docker-compose.yml -f /tmp/ai-ports.yml up -d --no-deps --wait ai
-(cd web && E2E_FAIL_ITEM=v3 npm run test:e2e)   # full-run이 skip되고 retake가 깨어난다
+# Accentury_Server 루트에서. ai만 갈아 끼운다 — --no-deps라 DB·BE는 그대로 살아 있다.
+# (1) 재녹음 완주 — v3를 처음 1번만 실패시킨다. 카운터가 ai 전역이라 다시 돌릴 때마다 --force-recreate.
+E2E_FAIL_ITEM=v3 E2E_FAIL_TIMES=1 docker compose -f docker-compose.yml -f /tmp/ai-ports.yml up -d --no-deps --force-recreate --wait ai
+(cd <앱 레포>/web && E2E_FAIL_ITEM=v3 E2E_FAIL_TIMES=1 npm run test:e2e -- retake)
+
+# (2) 재실패 — v3를 언제나 실패시킨다.
+E2E_FAIL_ITEM=v3 E2E_FAIL_TIMES= docker compose -f docker-compose.yml -f /tmp/ai-ports.yml up -d --no-deps --force-recreate --wait ai
+(cd <앱 레포>/web && E2E_FAIL_ITEM=v3 npm run test:e2e)   # full-run·feedback이 skip되고 retake 재실패 테스트가 돈다
 
 # 복구 — 값을 비워서 다시 띄운다. 설정을 기동 시 1회만 읽으므로 재기동이 필요하다.
 # (위를 서브셸로 감싼 이유: cd가 남으면 이 줄이 web/에서 돌아 compose 파일을 못 찾는다.)
-E2E_FAIL_ITEM= docker compose -f docker-compose.yml -f /tmp/ai-ports.yml up -d --no-deps --wait ai
+E2E_FAIL_ITEM= E2E_FAIL_TIMES= docker compose -f docker-compose.yml -f /tmp/ai-ports.yml up -d --no-deps --force-recreate --wait ai
 ```
 
-`E2E_FAIL_ITEM`은 반드시 **인라인**으로 준다. `export`하면 위 복구 명령까지 같은 값을
+`E2E_FAIL_TIMES`는 서버 KAN-271의 가짜 엔진에만 있다 — 낡은 ai 이미지는 이 값을 조용히 무시하므로
+처음 한 번 `DOCKER_BUILDKIT=0 docker compose build ai`로 다시 빌드한다. 음성 세트는 스펙이 세션
+생성 요청에 `voiceSet=1`(v1~v3)을 실어 고정한다. 활성 정의가 `gn-2026.10.1`이어야 한다(새 DB는
+`gn-2026.09.4` — [browser-e2e.md](../docs/wiki/browser-e2e.md) 「실측 (2026-10-06)」).
+
+`E2E_FAIL_ITEM`·`E2E_FAIL_TIMES`는 반드시 **인라인**으로 준다. `export`하면 위 복구 명령까지 같은 값을
 물려받아 복구가 성립하지 않는다 (`scripts/e2e-smoke-local.sh`가 같은 이유로 인라인을 쓴다).
 
 #### 배포 환경 겨누기
@@ -168,10 +178,9 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
 
 - **레이트 리밋**: 세션 생성·업로드가 각각 IP당 분당 30이다(`application.yml`). `--repeat-each=3`
   한 판이 세션 6 + 업로드 15라 안전하지만, 그 위로 올리면 업로드 쪽이 먼저 걸려 429가 난다.
-- **브라우저 단독에는 재녹음 복구가 없다.** 브리지가 없으면 `onRetake`를 넘기지 않으므로
-  (`TestFlowScreen.tsx`) 분석이 실패한 문항을 다시 녹음할 통로가 없다. `retake.spec.ts`가
-  완주가 아니라 막다른 길 안내를 확인하는 이유다. 복구 흐름은 앱(WebView + 네이티브) 몫이라
-  브라우저 E2E의 범위 밖이다.
+- **브라우저 단독도 재녹음으로 복구한다 (KAN-271).** 실패 줄의 [다시 녹음]이 웹 녹음 패널로 그
+  문항을 다시 열고, 접수되면 대기 화면으로 돌아와 결과까지 간다. 네이티브 녹음 화면으로 하는
+  재녹음은 여전히 앱(WebView + 네이티브) 몫이라 브라우저 E2E의 범위 밖이다.
 - **CI**: `.github/workflows/test.yml`의 `web-e2e` job이 두 스택 상태를 차례로 돈다. 실패하면
   trace·리포트가 `playwright-evidence` 아티팩트로 7일 남는다. 아직 required check는 아니다.
 

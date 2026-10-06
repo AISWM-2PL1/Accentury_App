@@ -64,6 +64,7 @@ App Store에는 Play의 비공개 테스트 강제 요건에 해당하는 것이
 ```sh
 xcodebuild archive … CODE_SIGNING_ALLOWED=NO
 codesign --remove-signature <아카이브>/…/Accentury.app/Frameworks/*.framework   # ← export 전에
+codesign --force --sign - --entitlements Accentury/Accentury.entitlements <아카이브>/…/Accentury.app   # ← 그다음
 xcodebuild -exportArchive -exportOptionsPlist ios/ExportOptions.plist -allowProvisioningUpdates
 ```
 
@@ -97,6 +98,33 @@ export가 DR을 번들 식별자에서 새로 만든다. export 뒤에 손대면
 
 **왜 지금까지 안 터졌나.** TestFlight 빌드 5(2026-09-01)까지는 임베디드 바이너리 프레임워크가
 아예 없었다 — Firebase가 9/5, AdMob이 9/11에 들어왔고 그 뒤로 업로드까지 가 본 적이 없었다.
+
+### entitlement 싣기 — 그다음 한 줄 (2026-10-07)
+
+**무서명 아카이브는 entitlement도 export에 넘기지 못한다.** export는 아카이브된 앱의 기존 서명에 실린
+entitlement를 읽어 배포용으로 고쳐(`application-identifier`·`get-task-allow` 등) 재서명한다. 서명이
+없으면 읽을 것이 없어 기본 넷(`application-identifier`·`beta-reports-active`·`team-identifier`·
+`get-task-allow`)만 남는다. `Accentury.entitlements`의 Sign in with Apple과 Associated Domains는
+조용히 빠지고 빌드는 성공한다.
+
+2026-10-07 Release 실행이 「산출물 검증」의 applesignin 검사에서 멈춰 드러났다. 09-29 성공 빌드의
+`.ipa`를 대조하니 프로비저닝 프로파일에는 두 권한이 다 있었다(콘솔 설정은 정상). 서명된 앱에만
+없었다. 그러니 이 경로로 만든 릴리스 빌드는 전부 Universal Links 권한 없이 나갔다 (`app-links.md` §6).
+
+고침은 링커 서명을 지운 뒤 앱 바깥 껍데기를 entitlements 파일과 함께 ad-hoc 서명하는 것이다.
+`--deep`은 쓰지 않는다 — 지운 프레임워크를 다시 서명하면 위 DR 함정이 돌아온다. 파일에 빌드 설정
+변수(`$(...)`)가 없어 그대로 넘긴다.
+
+로컬 실험(Xcode 26.6, 같은 무서명 아카이브 둘): 이 줄을 넣은 export의 `.ipa`는 `Apple Distribution:
+Seongju Lee (559P9SYY57)` 서명에 applesignin·associated-domains(두 호스트)·`application-identifier`·
+`get-task-allow=false`가 실리고 DR은 앱·프레임워크 넷 모두 자기 `CFBundleIdentifier`였다. 이 줄 없이
+export하면 기본 넷만 남았다.
+
+| 버린 대안 | 왜 안 되나 |
+|---|---|
+| 아카이브에서 Xcode가 ad-hoc 서명 (`AD_HOC_CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual`, `CODE_SIGNING_REQUIRED=NO`를 더해도) | `error: "Accentury" requires a provisioning profile` — 프로파일이 필요한 권한이 든 entitlements라 Xcode가 프로파일 없이 서명하지 않는다 |
+| 러너에서 자동 서명 archive | 실행마다 "Created via API" 개발 인증서가 팀에 쌓인다 (기기는 2026-10-01에 1대 등록됐지만 이 문제는 남는다) |
+| p12·프로파일을 시크릿으로 두는 수동 배포 서명 | 시크릿이 늘고 인증서·프로파일 갱신을 사람이 챙겨야 한다 |
 
 export 설정은 `ios/ExportOptions.plist`가 정본이다 (KAN-175 3단계에 신설). 전체 명령과
 아카이브에 같이 줘야 하는 값들(AdMob·카카오)은 `ios/README.md` 「릴리스 아카이브 · TestFlight」에 있다.
@@ -144,13 +172,14 @@ TestFlight 업로드는 워크플로의 `workflow_dispatch` 입력 `upload` 스�
 | `upload` | **꺼짐** | 켜면 TestFlight까지 올린다. 기본을 끈 이유는 빌드 번호가 소모품이 아니어서다 — 아카이브가 되는지 보려고 돌린 실행이 올라가면 그 번호는 영영 다시 못 쓴다 |
 | `allow_test_ads` | **꺼짐** | 켜면 AdMob 빗장을 풀고 `Base.xcconfig`의 Google 테스트 ID로 빌드한다. 광고 시크릿 셋이 없는 동안 「아카이브·서명 경로가 사는가」만 보려는 스위치다. `upload`와 함께 켜면 **첫 스텝에서 실패**한다 (테스트 광고 빌드를 TestFlight에 올리면 AdMob 정책 위반이고 빌드 번호만 버린다) |
 
-12스텝: ① checkout ② 도구 버전 ③ **입력·시크릿 검사**(20분 아카이브를 태우기 전에) ④ 짧은 SHA
+13스텝: ① checkout ② 도구 버전 ③ **입력·시크릿 검사**(20분 아카이브를 태우기 전에) ④ 짧은 SHA
 ⑤ ASC `.p8`을 `$RUNNER_TEMP`에 base64 디코딩(체크아웃 밖 — 레포 안에 두면 아티팩트에 딸려 나갈 수
 있다) ⑥ `xcodebuild archive … CODE_SIGNING_ALLOWED=NO` ⑦ **임베디드 프레임워크 링커 서명 제거**
-(위 「링커 서명 제거」) ⑧ `-exportArchive`로 재서명·`.ipa` ⑨ **산출물 검증** ⑩ 아티팩트 업로드
-⑪ TestFlight 업로드(`upload`가 켜진 실행만) ⑫ 실행 요약.
+(위 「링커 서명 제거」) ⑧ **앱에 entitlement 싣기**(위 「entitlement 싣기」) ⑨ `-exportArchive`로
+재서명·`.ipa` ⑩ **산출물 검증**(entitlement에 applesignin과 entitlements 파일의 `applinks:` 호스트 전부 포함)
+⑪ 아티팩트 업로드 ⑫ TestFlight 업로드(`upload`가 켜진 실행만) ⑬ 실행 요약.
 
-**⑥⑦⑧은 `ios/README.md` 「아카이브 → export」와 같은 명령이다.** 로컬과 CI가 갈리면 한쪽에서만
+**⑥⑦⑧⑨는 `ios/README.md` 「아카이브 → export」와 같은 명령이다.** 로컬과 CI가 갈리면 한쪽에서만
 재현되는 서명 문제를 쫓게 된다.
 
 #### 시크릿

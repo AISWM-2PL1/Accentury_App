@@ -321,6 +321,27 @@ describe('업로드 (§3.3·§5.1)', () => {
       expect(retest.onRetest).toHaveBeenCalledTimes(1)
     })
 
+    it('문항 시도 상한(429 RATE_RETAKE_EXCEEDED)도 서버 문구와 [다시 테스트하기]로 나간다 (KAN-271)', async () => {
+      const retest = dummyRetest()
+      const upload = vi
+        .fn<UploadFn>()
+        .mockRejectedValue(
+          new UploadError('이 문항의 업로드 횟수 상한을 넘었습니다. (최대 5회)', 'RATE_RETAKE_EXCEEDED', false),
+        )
+      const { capture } = renderRecorder(upload, voiceItem(), retest)
+
+      await recordFor(capture, 2_000)
+      click('다음')
+      await act(async () => {})
+
+      expect(screen.getByText('이 문항의 업로드 횟수 상한을 넘었습니다. (최대 5회)')).toBeInTheDocument()
+      // 재녹음해도 같은 429다 — 같은 거절을 되풀이하는 버튼은 두지 않는다
+      expect(screen.queryByRole('button', { name: '재녹음' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+      click('다시 테스트하기')
+      expect(retest.onRetest).toHaveBeenCalledTimes(1)
+    })
+
     it('retest를 받았어도 세션 종료가 아닌 재시도 불가 실패는 [재녹음]만 남긴다', async () => {
       // 출구는 세션 종료 코드에만 선다 — retryable=false 전부로 넓히면 형식 오류 사용자를 시험 밖으로 내보낸다
       const upload = vi

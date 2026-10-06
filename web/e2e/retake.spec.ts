@@ -1,138 +1,164 @@
 /**
- * 분석 실패 갈래 (KAN-181 3단계, KAN-191로 뒤집음) — 음성 문항 하나가 판정에 실패했을 때
- * 브라우저 단독 응시자가 실제로 보는 화면.
+ * 분석 실패 갈래 (KAN-181 3단계 → KAN-191 → KAN-271로 뒤집음) — 음성 문항 하나가 판정에
+ * 실패했을 때 브라우저 단독 응시자가 재녹음으로 완주하는가.
  *
- * ## 이 스펙이 밝힌 것, 그리고 그 뒤에 바뀐 것
+ * ## 이력
  *
- * 처음 겨눈 것은 "재녹음으로 복구해 완주한다"였는데, 그 길은 브라우저에 **없다**.
- * `TestFlowScreen`이 브리지가 없으면 `onRetake`를 넘기지 않는다 — 눌러도 네이티브 녹음
- * 화면이 열리지 않아 아무 일도 하지 않는 버튼이 되기 때문이다. 버튼이 없으니
- * [AnalysisWaitingScreen]의 `hasActionableRow`가 거짓이 되고, 서버가 "사용자가 움직여야
- * 한다"(409 RETAKE)고 말한 상황에 화면에는 누를 것이 하나도 없는 **막다른 길**이 된다.
+ * KAN-181이 처음 겨눈 것은 "재녹음으로 복구해 완주한다"였지만 그때 브라우저에는 그 길이 없었다 —
+ * 브리지가 없으면 [다시 녹음]이 그려지지 않아 대기 화면이 막다른 길이 됐고, 스펙은 그 막다름을
+ * 단언했다. KAN-191은 막다름에 [다시 테스트하기] 출구를 붙였고 스펙은 그 출구를 단언했다.
  *
- * 여기까지는 그대로다. 바뀐 것은 그 막다름에서 나가는 길이다. 스펙을 처음 쓸 때는 버튼이
- * 하나도 없는 것을 단언했고("앱을 다시 시작해…"), 그 안내가 브라우저에서 온 사람에게는
- * 어긋난다는 것이 이 스펙이 남긴 후속 티켓 후보였다 — 탭을 새로 여는 것이 답인데 화면은 앱을
- * 끄라고 말했다. **KAN-191이 그것을 닫았다**: 되돌아갈 길이 없는 상태(FAILED·deadEnd)에만
- * 결과 화면과 같은 [다시 테스트하기]를 준다.
+ * **KAN-271이 재녹음 자체를 웹 대기열로 옮겼다.** 실패 줄의 [다시 녹음]이 웹 녹음 패널로 그 문항
+ * 화면을 열고, 업로드가 접수되면 남은 실패 문항으로, 없으면 대기 화면으로 돌아와 폴링을 다시
+ * 돌린다. 그래서 이 스펙은 다시 처음 겨눈 것, 곧 **완주**를 단언한다.
  *
- * 그래서 이 스펙이 지금 확인하는 것은 **막다름이 제대로 안내되고, 거기서 실제로 나갈 수
- * 있는가**다. 브라우저에는 브리지가 없으므로 그 버튼은 `startRetest` 대신 폴백(`goToIntro`)을
- * 타고 인트로로 되돌아간다 — 단위 테스트가 콜백 호출까지만 보는 자리를 여기서는 주소가
- * 실제로 바뀌는 것으로 확인한다.
+ * ## 테스트 둘과 `E2E_FAIL_TIMES`
  *
- * 재녹음 복구 흐름 자체는 여전히 앱(WebView + 네이티브) 몫이라 브라우저 E2E의 범위 밖이다.
- * 설령 버튼이 있었어도 로컬에서는 복구되지 않는다: AI 스텁은 `itemId`만 보고 실패시키므로
- * (`ai/app/engine.py:355`) 같은 문항을 다시 올려도 같은 판정이 나온다. 복구를 보려면
- * 스텁을 실패 설정 없이 다시 띄워야 하는데, 그건 스펙이 할 일이 아니라 무대의 일이다.
+ * 가짜 AI 엔진은 `E2E_FAIL_ITEM`(compose → `ACCENTURY_AI_FAKE_FAIL_ITEM`) 문항을 언제나
+ * 실패시켰다. 그러면 재녹음해도 같은 판정이라 완주를 볼 수 없다. 서버 KAN-271이
+ * `E2E_FAIL_TIMES`(→ `ACCENTURY_AI_FAKE_FAIL_TIMES`)를 더해 처음 N번만 실패시킬 수 있게 됐다.
  *
- * ## 왜 환경 변수로 건너뛰는가
+ * - `E2E_FAIL_ITEM` + `E2E_FAIL_TIMES=1` 무대 → 완주 테스트 (첫 판정만 실패, 재녹음은 성공)
+ * - `E2E_FAIL_ITEM`만 있는 무대 → 재실패 테스트 (재녹음도 실패, 다시 [다시 녹음]이 서는가)
  *
- * 이 스펙은 AI 스텁이 `ACCENTURY_AI_STUB_FAIL_ITEM`을 물고 떠 있어야만 의미가 있고,
- * `full-run.spec.ts`는 반대로 그 설정이 없어야 통과한다. 한 스택이 두 조건을 동시에 만족할
- * 수 없으므로 **대칭 스킵**으로 갈랐다 — 스택을 두 번 띄우고 각 상태에서 전체를 돌린다.
+ * 둘은 `E2E_FAIL_TIMES` 유무로 서로 skip된다. 스펙은 스택 설정을 알아낼 길이 없어
+ * (browser-e2e.md 「스택 두 상태와 대칭 스킵」) 환경 변수를 무대를 세운 쪽과 똑같이 줘야 한다.
  *
- * 스택 상태를 스펙이 직접 알아내는 길도 찾아봤지만 없었다. AI의 `/internal/v0/health`는
- * `{"status":"UP"}`만 주고 스텁 설정을 노출하지 않는다(실측). 노출한다 해도 웹 스펙이 AI를
- * 직접 부르는 것은 구조에 어긋난다 — 그 서버는 BE만 호출하는 사설망 서비스이고
- * (`docker-compose.yml`), staging을 겨눌 때는 닿지도 않는다. 환경 변수는 로컬·CI·staging에서
- * 똑같이 동작하는 유일한 신호다. 이름을 새로 짓지 않고 `E2E_FAIL_ITEM`을 쓰는 이유는
- * 레포가 이미 그 이름을 쓰기 때문이다 (`docker-compose.yml`, `scripts/e2e-smoke-local.sh`).
+ * **실패 카운터는 ai 프로세스 전역이다.** 요청에 세션 식별자가 없어 가짜 엔진이 세션별로 셀 수
+ * 없다. 한 번 실패를 쓰고 나면 그 ai는 더는 실패시키지 않으므로, 완주 테스트를 다시 돌리려면 ai를
+ * `--force-recreate`로 다시 띄워야 한다. 같은 이유로 **이 파일은 재시도를 끈다** — CI의
+ * `retries: 1`이 두 번째 시도를 돌리면 카운터가 이미 소진돼 409가 오지 않고, 첫 시도의 진짜 실패
+ * 원인 대신 엉뚱한 시간 초과가 남는다.
+ *
+ * ## 실패 문항이 세션에 실리게 하기 — 세트를 고정한다
+ *
+ * 서버가 세션마다 음성 세트를 무작위로 고르므로(KAN-205) 그대로 두면 `E2E_FAIL_ITEM`이 이 세션에
+ * 없을 수 있다 (gn-2026.10.1은 세트가 수십 개라 거의 언제나 없다). 세션 생성 API는 `voiceSet`을
+ * 받으므로(KAN-182), 요청을 가로채 [VOICE_SET]을 실어 보낸다. 웹은 응답의 세트를 그대로 따르므로
+ * 화면 흐름은 무작위 배정과 같다.
  */
 
-import { expect, test } from '@playwright/test'
-import { answerAllItems, startTest } from './helpers/testFlow'
+import { expect, test, type Page } from '@playwright/test'
+import { answerAllItems, answerVoiceItem, awaitItem, startTest } from './helpers/testFlow'
 
 /** 실패시킬 음성 문항 id. 무대를 세운 쪽(compose)과 같은 값을 봐야 한다 */
 const failItem = process.env.E2E_FAIL_ITEM
-
-test.skip(
-  failItem === undefined || failItem === '',
-  'AI 스텁이 특정 문항을 실패시키도록 떠 있어야 한다: E2E_FAIL_ITEM=v3 docker compose up -d --no-deps --wait ai',
-)
+const hasFailItem = failItem !== undefined && failItem !== ''
+/** 처음 N번만 실패시키는 무대인가. 없으면 언제나 실패 */
+const failsOnce = process.env.E2E_FAIL_TIMES !== undefined && process.env.E2E_FAIL_TIMES !== ''
 
 /**
- * 문항 10건(약 19초)에 `/complete`가 409로 굳을 때까지의 대기가 붙는다. 실측 19초의
- * 여섯 배에서 끊는다 — CI 러너가 느린 것을 감안했고, 폴링이 멎는 화면이라 잘못되면 영원히
- * 기다리게 되는 자리라 상한이 반드시 있어야 한다.
+ * `E2E_FAIL_ITEM`이 실리는 세트. `VoiceSets` 규칙상 세트 1은 음성 풀의 처음 3개(v1~v3)라
+ * 문서가 권하는 v3가 들어 있다. 다른 문항을 실패시키려면 `E2E_VOICE_SET`으로 그 문항의 세트를 준다.
  */
-test.setTimeout(120_000)
+const VOICE_SET = Number(process.env.E2E_VOICE_SET ?? '1')
 
-test('음성 문항 분석 실패 - 막다름을 안내하고 [다시 테스트하기]로 내보낸다', async ({ page }) => {
-  /*
-   * 화면이 막다름을 감지하면 진단을 콘솔에 남긴다 (`AnalysisWaitingScreen`의 useEffect).
-   * 그 한 줄이 이 스펙의 부검 자료라 흘려보낸다.
-   */
+test.skip(
+  !hasFailItem,
+  'AI가 특정 문항을 실패시키도록 떠 있어야 한다: E2E_FAIL_ITEM=v3 [E2E_FAIL_TIMES=1] docker compose up -d --no-deps --wait ai',
+)
+
+// 카운터가 ai 전역이라 두 번째 시도는 실패를 만나지 못한다 (헤더 「테스트 둘과 E2E_FAIL_TIMES」)
+test.describe.configure({ retries: 0 })
+
+/** 문항 7건 + 409 대기 + 재녹음 + 두 번째 분석 대기. 완주 실측의 몇 배에서 끊는다 */
+test.setTimeout(180_000)
+
+const isConflict = (url: string, status: number) => url.includes('/complete') && status === 409
+
+/**
+ * 첫 응시를 마치고 409를 확인한 뒤, 실패 줄의 [다시 녹음]을 눌러 같은 번호의 문항 화면까지 간다.
+ *
+ * @returns 재녹음 구간의 요청 수를 세는 카운터 (클릭 직전부터 센다)
+ */
+async function failAndOpenRetake(page: Page) {
   page.on('console', (message) => {
     if (message.type() === 'error') console.log(`[browser:error] ${message.text()}`)
   })
 
+  await page.route('**/v0/sessions', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    await route.continue({ postData: JSON.stringify({ ...body, voiceSet: VOICE_SET }) })
+  })
+
   /*
-   * `/complete`의 409를 잡아 둔다. 화면 문구만 보면 "무언가 실패했다"까지만 알 수 있는데,
-   * **우리가 심은 그 문항이** 실패했는지는 서버가 짚어 준 목록으로만 확인된다 — 다른 이유로
-   * 실패해도 화면은 같은 안내를 내므로, 이것이 없으면 스펙이 엉뚱한 실패에도 통과한다.
+   * 서버가 짚은 실패 목록으로 **우리가 심은 그 문항이** 실패했는지 본다 — 화면 문구는 다른 이유의
+   * 실패에도 같다. `retakeItems`는 봉투의 최상위 필드다(파싱 뒤 `itemIds`로 묶이기 전 원문).
    */
-  const conflict = page.waitForResponse(
-    (response) => response.url().includes('/complete') && response.status() === 409,
-    { timeout: 90_000 },
-  )
+  const conflict = page.waitForResponse((r) => isConflict(r.url(), r.status()), { timeout: 90_000 })
 
   await startTest(page)
   await answerAllItems(page)
 
-  /*
-   * 봉투에서 `retakeItems`는 **최상위 필드**다. 클라이언트가 읽고 나면 `itemIds` 아래로
-   * 묶이지만(`errorEnvelope.ts`의 `readErrorEnvelope`) 그건 파싱 뒤의 모양이라, 원문을
-   * 보는 여기서는 서버가 실제로 보낸 자리를 봐야 한다.
-   */
   const envelope = await (await conflict).json()
   expect(envelope.code).toBe('RESULT_RETAKE_REQUIRED')
   expect(envelope.retakeItems).toEqual([failItem])
 
-  /*
-   * 막다른 길 안내. `여기서는 더 진행할 수 없어요`는 `deadEnd`일 때만 나온다 — 재녹음
-   * 버튼이 있는 앱에서는 `일부 문항을 다시 녹음해야 해요`가 대신 뜬다. 즉 이 문구 자체가
-   * "브라우저에는 복구 통로가 없다"의 증거다.
-   */
-  await expect(page.getByText('여기서는 더 진행할 수 없어요')).toBeVisible({ timeout: 60_000 })
-  /*
-   * 안내가 "앱을 다시 시작해"에서 바뀐 자리다 (KAN-191). 브라우저에서 온 사람에게 끌 앱은
-   * 없었고, 이제 그 일을 아래 버튼이 대신한다.
-   */
-  await expect(page.getByText('테스트를 처음부터 다시 진행해 주세요')).toBeVisible()
+  await expect(page.getByText('일부 문항을 다시 녹음해야 해요')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText('아래 목록에서 해당 문항을 다시 녹음해 주세요')).toBeVisible()
 
-  /*
-   * 목록에서 실패한 문항 하나만 재녹음 대상으로 표시된다 (`STATUS_LABEL.RETRYABLE_FAILED`).
-   * 개수를 세는 이유: 하나여야 우리가 심은 실패이고, 여럿이면 스택이 다른 이유로 무너진 것이다.
-   *
-   * 몇 번 문항인지는 세지 않는다. 문항 번호는 정의의 배열 순서에서 나오는 값이라
-   * (지금 정의 gn-2026.10.1에서는 v3가 4번이다) 정의가 바뀌면 따라 움직이는데, 어느
-   * 문항이 실패했는지는 위 봉투가 id로 이미 못 박았다.
-   */
-  await expect(page.getByText('다시 녹음이 필요해요')).toHaveCount(1)
-
-  /*
-   * 화면에 있는 버튼은 **정확히 하나**다. 개수를 세는 것이 요점이다 — 복구 통로가 없다는
-   * 사실(재녹음 없음)과 출구가 있다는 사실(KAN-191)을 한 단언으로 함께 못 박는다. [다시 녹음]도,
-   * 폴링을 되살릴 [다시 시도]도, KAN-147이 걷어낸 이탈 버튼도 여전히 없다.
-   */
-  const retest = page.getByRole('button', { name: '다시 테스트하기' })
-  await expect(page.getByRole('button')).toHaveCount(1)
-  await expect(retest).toBeVisible()
-
-  // 결과 화면으로는 끝내 넘어가지 않는다 — 완주하지 못한 세션이다.
+  // 실패 줄 하나에 [다시 녹음] 하나. KAN-271 전의 막다름 출구는 더는 없다
+  const retake = page.getByRole('button', { name: '다시 녹음', exact: true })
+  await expect(retake).toHaveCount(1)
+  await expect(page.getByRole('button', { name: '다시 테스트하기' })).toHaveCount(0)
+  await expect(page.getByText('여기서는 더 진행할 수 없어요')).toHaveCount(0)
   await expect(page).toHaveURL(/screen=test/)
 
   /*
-   * 여기서부터가 KAN-191이 더한 구간이다. 브라우저에는 `window.AccenturyBridge`가 없어
-   * `startRetest()`가 false를 돌려주고, [useRetest]가 곧바로 폴백(App의 `goToIntro`)을 부른다.
-   *
-   * 단위 테스트는 그 폴백이 **불렸는지**까지만 본다. jsdom이 `location.href` 대입을 구현하지
-   * 않아 주입한 `navigate`가 받은 문자열이 끝이기 때문이다. 여기서는 문서가 실제로 옮겨 가는
-   * 것을 본다 — 진입 쿼리가 걷히고([buildIntroUrl]) 인트로가 다시 선다.
+   * 줄의 번호는 첫 응시의 전체 기준 번호다. 재녹음 화면의 진행 표기가 같은 번호여야 사용자가
+   * "아까 그 문항"으로 알아본다. 번호 자체는 정의의 순서라 박지 않고 화면에서 읽는다.
    */
-  await retest.click()
+  const label = await page
+    .getByRole('listitem')
+    .filter({ has: retake })
+    .getByText(/^\d+번 문항$/)
+    .textContent()
+  const itemNumber = Number(label?.replace('번 문항', ''))
+  expect(itemNumber).toBeGreaterThan(0)
 
-  await expect(page).not.toHaveURL(/screen=test/)
-  await expect(page.getByRole('button', { name: '시작하기', exact: true })).toBeVisible()
+  const counts = { uploads: 0, answers: 0 }
+  page.on('request', (request) => {
+    if (request.method() !== 'POST') return
+    if (/\/voice-items\/[^/]+\/recording$/.test(request.url())) counts.uploads++
+    if (/\/vocab-items\/[^/]+\/answer$/.test(request.url())) counts.answers++
+  })
+
+  await retake.click()
+  expect(await awaitItem(page, itemNumber)).toBe('VOICE')
+  return counts
+}
+
+test('음성 문항 분석 실패 - 실패 문항만 다시 녹음해 결과까지 완주한다', async ({ page }) => {
+  test.skip(!failsOnce, 'E2E_FAIL_TIMES가 없는 무대는 재녹음도 실패한다 (아래 재실패 테스트가 그 무대를 쓴다)')
+
+  const counts = await failAndOpenRetake(page)
+  await answerVoiceItem(page)
+
+  // 대기 화면으로 돌아와 폴링이 다시 돈다 (진행률 막대는 대기 화면의 두 상태 모두에 있다)
+  await expect(page.getByRole('progressbar', { name: '분석 진행률' })).toBeVisible()
+  await expect(page).toHaveURL(/screen=result/, { timeout: 60_000 })
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.getByText(/^\d+개 등급 중 \d+번째$/)).toBeVisible()
+
+  // 재녹음 구간에는 실패한 그 문항 하나만 — 성공한 음성 문항도 어휘 문항도 다시 나오지 않았다
+  expect(counts).toEqual({ uploads: 1, answers: 0 })
+})
+
+test('재녹음한 문항이 다시 실패하면 대기 화면에 다시 실패로 표시되고 다시 녹음할 수 있다', async ({ page }) => {
+  test.skip(failsOnce, 'E2E_FAIL_TIMES가 있는 무대에서는 재녹음이 성공한다 (위 완주 테스트가 그 무대를 쓴다)')
+
+  const counts = await failAndOpenRetake(page)
+  // 재녹음 뒤 두 번째 409. 시도 상한(5회)에 닿지 않게 재녹음은 한 번만 한다
+  const again = page.waitForResponse((r) => isConflict(r.url(), r.status()), { timeout: 90_000 })
+  await answerVoiceItem(page)
+
+  const envelope = await (await again).json()
+  expect(envelope.retakeItems).toEqual([failItem])
+
+  await expect(page.getByText('일부 문항을 다시 녹음해야 해요')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText('다시 녹음이 필요해요')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: '다시 녹음', exact: true })).toHaveCount(1)
+  await expect(page).toHaveURL(/screen=test/)
+  expect(counts).toEqual({ uploads: 1, answers: 0 })
 })
