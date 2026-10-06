@@ -14,13 +14,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AnalysisWaitingScreen } from '../analysis/AnalysisWaitingScreen'
+import { AnalysisWaitingScreen, type RetakeTarget } from '../analysis/AnalysisWaitingScreen'
 import { AnalysisApiError } from '../analysis/errorEnvelope'
 import { fetchAnalysisStatuses } from '../analysis/fetchAnalysisStatuses'
 import { track } from '../analytics/track'
 import type { CaptureFactory, Recording } from '../audio'
 import { uploadRecording } from '../audio/uploadRecording'
-import { getSessionToken, installItemResultReceiver, startVoiceItem } from '../bridge/bridge'
+import { getSessionToken, installItemResultReceiver } from '../bridge/bridge'
 import type { ItemResult } from '../bridge/itemResult'
 import { useRetest } from '../result/useRetest'
 import { fetchTestDefinition, type FetchLike } from './fetchTestDefinition'
@@ -69,8 +69,7 @@ export interface TestFlowScreenProps {
    * 들고 있고, 이 화면은 URL을 알 필요가 없다.
    *
    * **없으면 분석 대기 화면에 [다시 테스트하기]를 그리지 않는다.** 브라우저 단독 실행에서
-   * 폴백까지 없으면 눌러도 아무 일이 없는 버튼이 되는데, 그런 버튼은 두지 않는다는 것이
-   * `onRetake`에서 이미 내린 판단이다.
+   * 폴백까지 없으면 눌러도 아무 일이 없는 버튼이 되는데, 그런 버튼은 두지 않는다.
    */
   retestFallback?: () => void
   /**
@@ -226,6 +225,13 @@ function TestRunner({
    * 네이티브가 문항 결과를 돌려줄 때마다 오른다. 대기 화면은 이 값의 변화를 재녹음 완료
    * 신호로 읽어 폴링을 다시 세운다 — 진행 중에 오르는 것은 무해하다. 그때는 대기 화면이
    * 마운트되어 있지 않아 아무도 보지 않는다.
+   *
+   * KAN-271 이후 대기 화면의 재녹음은 문항 화면을 띄우고(대기 화면은 내려간다) 대기열이 비면
+   * 대기 화면을 **새로 마운트**하므로, 그 경로에서는 이 값이 쓰이지 않는다(새 마운트가 곧 폴링
+   * 재시작이다). 그래도 남겨 두는 이유는 대기 화면이 서 있는 동안 네이티브 결과가 도착하는
+   * 경로가 아직 있기 때문이다 — 네이티브 녹음 중에 WebView가 다시 로드되면 대기열(메모리 상태)이
+   * 사라져 대기 화면이 서고, 그 뒤 도착한 결과가 이 신호로 폴링을 다시 세운다. 없으면 멈춘
+   * 재녹음 안내가 그대로 남아 사용자가 같은 문항을 한 번 더 녹음한다(시도 상한 5회 소모).
    */
   const [resultNonce, setResultNonce] = useState(0)
 
@@ -269,6 +275,15 @@ function TestRunner({
           track({ name: 'item_submitted', item_seq: index + 1, item_type: item.type })
         }
       }
+      /*
+       * 재녹음 대기열을 한 칸 넘긴다 (KAN-261·KAN-271). 브리지(네이티브 녹음)와 브라우저 녹음이
+       * 모두 이 함수로 들어오므로 여기 한 곳에서 넘겨야 앱에서도 연속 재녹음이 이어진다 — 앱은
+       * 다음 문항 화면이 마운트되며 `startVoiceItem`을 다시 부르는, 첫 응시의 음성→음성 전환과
+       * 같은 순서다. 맨 앞 문항의 결과일 때만 넘긴다: 다른 문항의 늦은 결과로 대기열이 밀리면
+       * 열지도 않은 문항을 건너뛴다. 함수형 갱신인 이유는 의존성에 대기열을 넣지 않기 위해서다
+       * (위 수신 지점 재설치 주석과 같은 이유).
+       */
+      setRedoQueue((queue) => (queue[0] === result.itemId ? queue.slice(1) : queue))
       setResultNonce((n) => n + 1)
     },
     [submit],
@@ -353,46 +368,20 @@ function TestRunner({
   }, [apiBase, sessionId, readToken, fetchImpl])
 
   /*
-   * 재녹음 — 대기 화면이 실패한 문항을 짚으면 그 문항으로 녹음 화면을 다시 연다.
-   *
-   * 브리지 계약을 늘리지 않는다. `startVoiceItem`은 문항 컨텍스트를 통째로 받는 호출이라
-   * 어느 문항으로든 다시 부를 수 있고, 네이티브 입장에서 이것은 "그 문항을 녹음하라"는 같은
-   * 지시다 — 재녹음 전용 메서드를 새로 만들면 계약 버전이 올라가고(§5), 구버전 앱에서
-   * 대기 화면 전체가 업데이트 안내로 막힌다.
-   *
-   * 서버 쪽에서도 이것은 새 시도(attempt)일 뿐이다. 채점 대상은 문항당 최신 성공 시도 1건이라
-   * (§5.1) 이전 시도를 지울 필요가 없고, 진행 상태 머신도 건드리지 않는다 — 그 문항은 이미
-   * 제출된 것으로 남아 있어야 진행률 분모가 흔들리지 않는다.
-   */
-  const retake = useCallback(
-    (itemId: string) => {
-      const index = state.items.findIndex((item) => item.itemId === itemId)
-      const item = state.items[index]
-      if (item === undefined || item.type !== 'VOICE') return
-      startVoiceItem({
-        itemId: item.itemId,
-        prompt: item.prompt,
-        // 첫 녹음 때 네이티브가 그린 번호와 같아야 한다 — 사용자가 "3번 문항"으로 기억한다
-        itemNumber: index + 1,
-        totalItems: state.items.length,
-        maxDurationMs: item.maxDurationMs,
-        guideF0: item.guideF0,
-      })
-    },
-    [state.items],
-  )
-
-  /*
    * 보관 음성 유실 복구 (KAN-261 2단계) — 브라우저 녹음 경로의 앞 문항 재녹음 대기열.
    *
    * 세 번째 음성 업로드가 `VOICE_SLOT_MISSING`으로 거절되면, 서버가 잃은 앞 문항(missingItems)의
-   * 녹음 화면을 seq 순서로 다시 연 뒤 거절당한 지금 문항으로 돌아온다. 브라우저에는 앞 문항으로
-   * 돌아가는 수단이 없어(대기 화면 재녹음도 브리지가 있을 때만 연결된다) 이 대기열이 그 최소 경로다.
+   * 녹음 화면을 seq 순서로 다시 연 뒤 거절당한 지금 문항으로 돌아온다. 진행 중에는 앞 문항으로
+   * 돌아가는 다른 수단이 없어 이 대기열이 그 최소 경로다.
    *
-   * 진행 상태 머신은 건드리지 않는다(`retake` 주석과 같은 원칙). 대기열이 비어 있지 않은 동안
+   * **분석 대기 화면의 재녹음도 이 대기열을 쓴다** (KAN-271, 아래 `startRetake`). 대기 단계에서는
+   * 지금 문항이 없으므로 대기열이 빌 때까지 문항 화면을 띄우고, 비면 대기 화면이 다시 선다.
+   *
+   * 진행 상태 머신은 건드리지 않는다. 대기열이 비어 있지 않은 동안
    * 녹음 화면만 앞 문항으로 바꿔 끼우고, 진행률은 그대로 지금 문항을 가리킨다. 앞 문항의 새 업로드는
-   * 같은 `receiveResult`로 들어오지만 이미 제출된 문항이라 상태 머신이 거부해 진행이 밀리지 않는다.
-   * 대기열이 비면 지금 문항(거절당한 문항)이 새 녹음 화면으로 다시 선다.
+   * 같은 `receiveResult`로 들어오지만 이미 제출된 문항이라 상태 머신이 거부해 진행이 밀리지 않는다
+   * (서버 쪽에서도 새 시도일 뿐이다 — 채점 대상은 문항당 최신 성공 시도 1건, §5.1). 대기열도 그
+   * 함수가 넘긴다. 대기열이 비면 지금 문항(거절당한 문항)이 새 녹음 화면으로 다시 선다.
    *
    * 음성이 아닌 id·모르는 id·지금 문항 id는 거른다. 남는 게 없으면 대기열이 비어 지금 문항만 다시
    * 녹음하는 기존 재녹음으로 떨어진다(막다른 길 금지).
@@ -422,13 +411,47 @@ function TestRunner({
   )
   const redoIndex = redoQueue.length > 0 ? state.items.findIndex((item) => item.itemId === redoQueue[0]) : -1
   const redoItem = redoIndex >= 0 ? state.items[redoIndex] : undefined
-  const receiveRedoResult = useCallback(
-    (result: ItemResult) => {
-      receiveResult(result)
-      setRedoQueue((queue) => queue.slice(1))
+
+  /*
+   * 분석 대기 화면의 재녹음 (KAN-271). 대기 화면이 순서를 정한 대상 목록(누른 문항 먼저, 나머지
+   * seq 순)을 그대로 대기열로 세운다 — 대기열이 비어 있지 않은 동안 대기 화면 대신 문항 화면이
+   * 서고, `VoiceItemScreen`의 마운트가 브리지가 있으면 네이티브 녹음 화면을, 없으면 웹 녹음
+   * 패널을 연다. 예전에는 여기서 `startVoiceItem`을 직접 불러 앱에서만 열렸고 한 문항이 끝나면
+   * 다음 실패 문항을 또 눌러야 했다.
+   *
+   * 브리지 계약은 그대로다. `startVoiceItem`은 문항 컨텍스트를 통째로 받는 호출이라 어느
+   * 문항으로든 다시 부를 수 있다 — 재녹음 전용 메서드를 만들면 계약 버전이 오르고(§5) 구버전
+   * 앱에서 대기 화면 전체가 업데이트 안내로 막힌다.
+   *
+   * 음성이 아니거나 모르는 id는 거른다. 번호·사유는 계측용으로 따로 들고(`retakeTargets`), 화면이
+   * 실제로 열릴 때 한 번 센다.
+   */
+  const retakeTargets = useRef(new Map<string, RetakeTarget>())
+  const startRetake = useCallback(
+    (targets: RetakeTarget[]) => {
+      const voice = targets.filter((target) =>
+        state.items.some((item) => item.itemId === target.itemId && item.type === 'VOICE'),
+      )
+      retakeTargets.current = new Map(voice.map((target) => [target.itemId, target]))
+      setRedoQueue(voice.map((target) => target.itemId))
     },
-    [receiveResult],
+    [state.items],
   )
+
+  /*
+   * 재녹음 계측 (KAN-33 `recording_retake`, KAN-271). 대기열 맨 앞 문항이 바뀌어 그 화면이 열릴 때
+   * 한 번 센다 — 연속 재녹음을 중간에 떠나면 열리지 않은 문항은 세지 않는다. 센 문항은 맵에서
+   * 지우므로 StrictMode 이중 실행·리렌더로 다시 나가지 않는다. `VOICE_SLOT_MISSING`으로 끼어든
+   * 문항(KAN-261)은 맵에 없어 세지 않는다 — 사유를 모른다.
+   */
+  const redoItemId = redoItem?.itemId
+  useEffect(() => {
+    if (redoItemId === undefined) return
+    const target = retakeTargets.current.get(redoItemId)
+    if (target === undefined) return
+    retakeTargets.current.delete(redoItemId)
+    track({ name: 'recording_retake', item_seq: target.itemNumber, reason: target.reason })
+  }, [redoItemId])
 
   /*
    * 막다른 상태의 [다시 테스트하기] (KAN-191 분석 대기, KAN-237 문항 제출).
@@ -450,10 +473,12 @@ function TestRunner({
    * 화면마다 훅을 하나씩 두지 않는 이유가 위 §8과 같은 슬롯 문제다: 한 컴포넌트에서 두 번
    * 부르면 나중 훅이 `onRetestFailed` 슬롯을 덮어, 대기 화면 버튼은 실패 회신(광고 중도 닫기
    * 등)을 받지 못한 채 "준비 중…"에 잠긴다. 문항 화면과 대기 화면은 동시에 서지 않으므로 훅은
-   * 하나로 두고 계측 origin(`RetestOrigin`)만 지금 선 화면으로 고른다.
+   * 하나로 두고 계측 origin(`RetestOrigin`)만 지금 선 화면으로 고른다. 대기 단계의 재녹음
+   * 문항 화면(KAN-271)은 문항 화면이라 `item`이다.
    */
   const awaitingAnalysis = state.phase === 'AWAITING_ANALYSIS' || current === null
-  const retest = useRetest(retestFallback ?? noop, awaitingAnalysis ? 'waiting' : 'item')
+  const redoing = redoItem !== undefined && redoItem.type === 'VOICE'
+  const retest = useRetest(retestFallback ?? noop, awaitingAnalysis && !redoing ? 'waiting' : 'item')
 
   /*
    * 대기 화면이 그릴 음성 문항. 순번은 **전체 문항 기준**으로 매겨서 넘긴다 — 음성 안에서
@@ -467,6 +492,42 @@ function TestRunner({
         .filter((entry): entry is { item: VoiceItem; itemNumber: number } => entry.item.type === 'VOICE'),
     [state.items],
   )
+
+  /*
+   * 재녹음 대기열의 문항 화면 (KAN-261 진행 중 복구, KAN-271 대기 화면 재녹음). 분석 대기 분기
+   * **앞**에 둔다 — 대기 단계에서도 대기열이 비어 있지 않으면 대기 화면 대신 이 화면이 선다.
+   * 대기열이 비면 대기 화면이 새로 마운트돼 폴링이 처음부터 다시 돈다.
+   *
+   * key가 지금 문항과 달라 진행 중이면 지금 문항의 녹음 화면은 내려가고, 대기열이 비면 같은 key로
+   * 새로 마운트돼 빈 녹음 화면으로 돌아온다. 번호는 전체 문항 기준이라 첫 응시와 같다.
+   */
+  if (redoing) {
+    return (
+      <main className="item-screen">
+        {/*
+          진행 중(KAN-261)에는 지금 문항(거절당한 음성 문항)을 그대로 가리켜 진행이 되감기지 않는다.
+          대기 단계(KAN-271)에는 지금 문항이 없으므로 재녹음 중인 문항의 번호를 쓴다 — 분모는 그대로다.
+          두 경우 모두 음성 문항이라 표기는 "음성"이다.
+        */}
+        <ProgressIndicator
+          current={awaitingAnalysis ? redoIndex + 1 : progress.current}
+          total={progress.total}
+          note="음성"
+        />
+        <VoiceItemScreen
+          key={`redo:${redoItem.itemId}`}
+          item={redoItem}
+          itemNumber={redoIndex + 1}
+          totalItems={progress.total}
+          webRecording={{ upload: uploadWebRecording, capture, userCurveCenterHz }}
+          onWebUploaded={receiveResult}
+          retest={retestFallback === undefined ? undefined : retest}
+          probeSession={probeSession}
+          onSlotMissing={queueMissingItems}
+        />
+      </main>
+    )
+  }
 
   // 마지막 문항까지 제출됨 — 여기서부터 분석 대기 화면이 폴링을 맡는다 (KAN-14).
   if (awaitingAnalysis) {
@@ -484,11 +545,10 @@ function TestRunner({
         totalItems={progress.total}
         onReady={onAnalysisReady ?? noop}
         /*
-         * 브리지가 없는 브라우저 단독 실행에서는 재녹음 버튼을 그리지 않는다. 눌러도 네이티브
-         * 녹음 화면이 열리지 않아 아무 일도 일어나지 않는 버튼이 된다 (어휘 문항의 개발용
-         * 통로와 같은 판정).
+         * 브리지 유무와 무관하게 넘긴다 (KAN-271). 재녹음은 대기열의 문항 화면이 열고, 그 화면이
+         * 브리지가 없으면 웹 녹음 패널로 녹음한다 — 브라우저 단독 실행도 버튼이 실제로 동작한다.
          */
-        onRetake={window.AccenturyBridge === undefined ? undefined : retake}
+        onRetake={startRetake}
         /*
          * 폴백을 주지 않은 호출자에게는 재응시 버튼도 주지 않는다 (KAN-191). 앱 안에서는
          * 브리지가 받아 가므로 폴백이 쓰일 일이 없지만, 폴백이 없다는 것은 곧 "이 호출자는
@@ -535,23 +595,7 @@ function TestRunner({
         본문은 유형이 정한다. 두 화면 모두 문항이 바뀔 때 새로 마운트되도록 itemId를 key로 준다 —
         음성 화면은 그 마운트가 곧 "네이티브에 전환을 알리는" 시점이다.
       */}
-      {redoItem !== undefined && redoItem.type === 'VOICE' ? (
-        /*
-          보관 음성 유실 복구 중인 앞 문항 (KAN-261). key가 지금 문항과 달라 지금 문항의 녹음 화면은
-          내려가고, 대기열이 비면 같은 key로 새로 마운트돼 빈 녹음 화면으로 돌아온다.
-        */
-        <VoiceItemScreen
-          key={`redo:${redoItem.itemId}`}
-          item={redoItem}
-          itemNumber={redoIndex + 1}
-          totalItems={progress.total}
-          webRecording={{ upload: uploadWebRecording, capture, userCurveCenterHz }}
-          onWebUploaded={receiveRedoResult}
-          retest={retestFallback === undefined ? undefined : retest}
-          probeSession={probeSession}
-          onSlotMissing={queueMissingItems}
-        />
-      ) : current.type === 'VOICE' ? (
+      {current.type === 'VOICE' ? (
         <VoiceItemScreen
           key={current.itemId}
           item={current}

@@ -108,6 +108,7 @@ function props(overrides: Partial<AnalysisWaitingScreenProps> = {}): AnalysisWai
     voiceItems: VOICE_ITEMS,
     totalItems: 7,
     onReady: vi.fn(),
+    onRetake: vi.fn(),
     fetchImpl: fetchFor({}),
     ...overrides,
   }
@@ -376,7 +377,7 @@ describe('재녹음', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
 
-    expect(onRetake).toHaveBeenCalledWith('v3')
+    expect(onRetake).toHaveBeenCalledWith([{ itemId: 'v3', itemNumber: 4, reason: 'FAILED' }])
   })
 
   it('누르면 그 문항의 itemId로 호출한다', async () => {
@@ -391,15 +392,45 @@ describe('재녹음', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
 
-    expect(onRetake).toHaveBeenCalledWith('v3')
+    expect(onRetake).toHaveBeenCalledWith([{ itemId: 'v3', itemNumber: 4, reason: 'QUALITY' }])
   })
 
-  it('onRetake가 없으면 버튼을 그리지 않는다 — 눌러도 아무 일 없는 버튼을 두지 않는다', async () => {
+  /*
+   * 예전에는 브리지가 없는 브라우저 단독 실행이 `onRetake`를 받지 못해 버튼이 없었다. KAN-271부터는
+   * 재녹음이 문항 화면(웹 녹음 패널)으로 열리므로 실패 줄마다 버튼이 선다 — 브리지를 붙이지 않은
+   * 이 파일의 기본 실행이 곧 브라우저 단독이다.
+   */
+  it('브리지가 없어도 실패 줄마다 버튼을 준다 (KAN-271)', async () => {
     await renderScreen({
       fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(3).fill('RETRYABLE_FAILED'))) }),
     })
 
-    expect(screen.queryByRole('button', { name: '다시 녹음' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '다시 녹음' })).toHaveLength(3)
+  })
+
+  it('누른 문항을 맨 앞에, 나머지 재녹음 대상을 seq 순서로 넘긴다 (KAN-271)', async () => {
+    const onRetake = vi.fn()
+    await renderScreen({
+      voiceItems: OLD_TEN_ITEM_VOICE_ITEMS,
+      totalItems: 10,
+      onRetake,
+      fetchImpl: fetchFor({
+        analyses: () =>
+          jsonResponse(
+            200,
+            statusesBody(['RETRYABLE_FAILED', 'COMPLETED', 'FAILED', 'PROCESSING', 'NOT_SUBMITTED']),
+          ),
+      }),
+    })
+
+    // 대상은 1·5·9번(v1·v3·v5). 5번을 누르면 5 → 1 → 9 순서다 — 완료·분석 중인 줄은 빠진다
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 녹음' })[1])
+
+    expect(onRetake).toHaveBeenCalledWith([
+      { itemId: 'v3', itemNumber: 5, reason: 'FAILED' },
+      { itemId: 'v1', itemNumber: 1, reason: 'QUALITY' },
+      { itemId: 'v5', itemNumber: 9, reason: 'USER' },
+    ])
   })
 })
 
@@ -502,12 +533,12 @@ describe('멈춘 상태의 출구', () => {
     errorLog.mockRestore()
   })
 
-  it('브리지가 없어 버튼을 못 그리는 경우도 같은 출구로 간다', async () => {
+  it('브리지가 없어도 실패 줄이 있으면 막다른 길이 아니다 — [다시 녹음]이 서고 출구는 없다 (KAN-271)', async () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     const retest = retestControl()
     await renderScreen({
       retest,
-      // onRetake 없음 = 브라우저 단독 실행
+      // 브리지 없음 = 브라우저 단독 실행. KAN-271 전에는 여기가 [다시 테스트하기]로 떨어졌다
       fetchImpl: fetchFor({
         analyses: () => jsonResponse(200, statusesBody(Array(3).fill('RETRYABLE_FAILED'))),
         complete: () =>
@@ -520,16 +551,18 @@ describe('멈춘 상태의 출구', () => {
       }),
     })
 
-    expect(screen.getByText('여기서는 더 진행할 수 없어요')).toBeInTheDocument()
-    // 재녹음이 불가능한 실행이라 더더욱 여기가 유일한 출구다 (KAN-191)
-    expect(screen.getByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
+    expect(screen.queryByText('여기서는 더 진행할 수 없어요')).not.toBeInTheDocument()
+    expect(screen.getByText('일부 문항을 다시 녹음해야 해요')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '다시 녹음' })).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+    expect(errorLog).not.toHaveBeenCalled()
     errorLog.mockRestore()
   })
 
   it('폴백조차 없는 호출자에게는 버튼을 그리지 않는다 — 눌러도 아무 일 없는 버튼은 두지 않는다', async () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     await renderScreen({
-      // retest 없음 = 재응시를 태울 길이 없는 실행 (`onRetake`와 같은 규칙)
+      // retest 없음 = 재응시를 태울 길이 없는 실행
       fetchImpl: fetchFor({
         analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'))),
         complete: () =>
@@ -781,7 +814,12 @@ describe('재녹음 계측 (KAN-33)', () => {
     expect(retakeReason('NOT_SUBMITTED')).toBe('USER')
   })
 
-  it('[다시 녹음]을 누르면 그 문항의 번호와 사유가 나간다', async () => {
+  /*
+   * KAN-271부터 이 화면은 세지 않는다. 누른 문항 뒤로 남은 실패 문항이 이어서 열리므로 문항 화면이
+   * 실제로 열리는 자리(TestRunner)가 문항마다 한 번 센다 — 여기서는 번호·사유를 대상 목록에 실어
+   * 보내는 것까지만 본다 (`TestFlowScreen.test.tsx`의 재녹음 계측).
+   */
+  it('[다시 녹음]은 그 문항의 번호와 사유를 실어 보내고, 클릭 자리에서는 세지 않는다', async () => {
     const events = stubGtag()
     const onRetake = vi.fn()
     await renderScreen({
@@ -798,13 +836,8 @@ describe('재녹음 계측 (KAN-33)', () => {
     fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
 
     // v2는 정의 전체 7문항 기준 2번이다 (VOICE_ITEMS의 itemNumber)
-    expect(events).toContainEqual({
-      event: 'recording_retake',
-      item_seq: 2,
-      reason: 'QUALITY',
-    })
-    // 세는 것과 여는 것은 다른 일이다 — 계측이 붙어도 재녹음은 그대로 열린다
-    expect(onRetake).toHaveBeenCalledWith('v2')
+    expect(onRetake).toHaveBeenCalledWith([{ itemId: 'v2', itemNumber: 2, reason: 'QUALITY' }])
+    expect(events.filter((event) => event.event === 'recording_retake')).toEqual([])
   })
 })
 

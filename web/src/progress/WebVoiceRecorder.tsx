@@ -467,6 +467,9 @@ function ReviewPanel({
      *
      * 문구는 서버 봉투 그대로다("세션이 만료되었습니다. 테스트를 다시 시작해 주세요.") — 원인과
      * 할 일을 이미 한 줄에 담고 있다. `retest`가 없는 호출자(폴백 없음)는 아래 기존 갈래를 탄다.
+     *
+     * 문항 시도 상한(429 `RATE_RETAKE_EXCEEDED`, KAN-271)도 이 갈래다 — 재녹음해도 같은 429라
+     * 예전 [다시 시도]/[재녹음]이 막다른 길이었다 (`sessionExit.ts`).
      */
     return <StatusBlock tone="error" message={uploadState.message} action={<RetestAction retest={retest} />} />
   }
