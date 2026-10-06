@@ -23,7 +23,11 @@ public enum AuthGateState: Equatable, Sendable {
     case needsProfile(AuthUser, error: AuthFailure?)
 
     /// 테스트에 들어갈 수 있다.
-    case signedIn(AuthUser)
+    ///
+    /// `voiceConsent`는 계정의 음성 저장 선택 동의다 (KAN-270). nil = 모른다 — 로그인 직후 `me()`가 실패했거나
+    /// 옛 서버다. 모르는 상태에는 동의 화면을 띄우지 않고(``shouldPromptVoiceConsent(state:wasPrompted:)``), 설정
+    /// 화면이 다시 읽게 한다.
+    case signedIn(AuthUser, voiceConsent: VoiceConsent?)
 
     /// 시작 확인이 판정 없이 끝났다 (전송 실패·429·5xx). **토큰은 그대로다** — 여기서 로그인 화면으로 보내면
     /// 망이 잠깐 끊긴 사용자를 로그아웃시키는 셈이다. 화면은 [다시 시도]로 ``AuthGateController/bootstrap()``을 다시 부른다.
@@ -153,10 +157,57 @@ public final class AuthGateController: ObservableObject {
                 state = .signedOut(AuthFailure(.retry))
                 return
             }
-            state = Self.state(of: success.account)
+            state = await withVoiceConsent(Self.state(of: success.account))
         } else {
             state = .signedOut(Self.failure(of: result))
         }
+    }
+
+    /// 로그인 응답(LoginResponse)에는 `voiceConsent`가 없어서, 로그인으로 곧장 `signedIn`이 된 계정은 `me()`를 한 번
+    /// 더 불러 동의 상태를 채운다 (KAN-270, 안드로이드 `withVoiceConsent`와 같다). 동의 화면은 `signedIn`에 닿을 때
+    /// 판정하므로 여기서 모르면 묻지 못한다.
+    ///
+    /// `me()`가 실패하면 동의를 모르는 채(nil) 들어간다 — 동의는 선택 항목이라 로그인을 막을 이유가 없고, 설정
+    /// 화면에서 다시 읽을 수 있다. 갱신 거절로 저장소가 비었으면 로그아웃 콜백이 이미 로그인 화면으로 돌렸다 — 그
+    /// 판정을 따른다. `me()`가 프로필 미완료를 말하면(다른 기기에서 지워진 경우) 그쪽이 더 새 정보다.
+    private func withVoiceConsent(_ state: AuthGateState) async -> AuthGateState {
+        guard case .signedIn = state else { return state }
+        if case .success(let account) = await api.me() { return Self.state(of: account) }
+        return await store.read() == nil ? .signedOut(nil) : state
+    }
+
+    /// 음성 저장 동의를 켜거나 끈다 (KAN-270). ``AuthGateState/signedIn(_:voiceConsent:)``이 아니면 아무것도 보내지 않는다.
+    /// 결과를 그대로 돌려줘 화면(동의 화면·설정 토글)이 실패 안내를 그리게 한다 — 상태는 성공일 때만 바꾼다.
+    ///
+    /// 켤 때 싣는 버전은 서버가 준 ``VoiceConsent/currentVersion``이다. 앱 상수를 두지 않는 이유: 서버가 문안 버전을
+    /// 올려도 앱 배포 없이 동의가 계속 맞는 버전으로 나간다(다르면 400). 동의 상태를 모르면(nil) `me()`로 먼저 읽는다.
+    public func setVoiceConsent(_ consented: Bool) async -> AuthResult<Account> {
+        guard case .signedIn(_, let known) = state else {
+            return .rejected(status: 0, code: nil, message: "로그인 상태가 아님", retryable: false, retryAfterMs: nil)
+        }
+        let result: AuthResult<Account>
+        if consented {
+            var version = known?.currentVersion
+            if version == nil {
+                let me = await api.me()
+                guard case .success(let account) = me else { return me }
+                version = account.voiceConsent?.currentVersion
+            }
+            guard let version else {
+                return .rejected(status: 0, code: nil, message: "서버가 동의 버전을 주지 않음", retryable: false, retryAfterMs: nil)
+            }
+            result = await api.consentToVoice(version: version)
+        } else {
+            result = await api.withdrawVoiceConsent()
+        }
+        if case .success(let account) = result, case .signedIn = state { state = Self.state(of: account) }
+        return result
+    }
+
+    /// 설정 화면의 [다시 시도] — 동의 상태를 `me()`로 다시 읽는다 (KAN-270). `signedIn`이 아니거나 실패하면 그대로 둔다.
+    public func reloadVoiceConsent() async {
+        guard case .signedIn = state else { return }
+        if case .success(let account) = await api.me(), case .signedIn = state { state = Self.state(of: account) }
     }
 
     /// 추가 정보를 제출한다. ``AuthGateState/needsProfile(_:error:)``가 아니면 무시한다.
@@ -173,9 +224,9 @@ public final class AuthGateController: ObservableObject {
     }
 
     /// 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔을 때 부른다. 서버가 프로필을 미완료로 본다면(다른 기기에서
-    /// 값이 지워지는 등) 앱이 들고 있던 ``AuthGateState/signedIn(_:)``이 낡은 것이다 — 추가 정보 화면으로 돌린다.
+    /// 값이 지워지는 등) 앱이 들고 있던 ``AuthGateState/signedIn(_:voiceConsent:)``이 낡은 것이다 — 추가 정보 화면으로 돌린다.
     public func onProfileIncomplete() {
-        guard case .signedIn(let user) = state else { return }
+        guard case .signedIn(let user, _) = state else { return }
         state = .needsProfile(user, error: nil)
     }
 
@@ -204,7 +255,7 @@ public final class AuthGateController: ObservableObject {
 
     private static func state(of account: Account) -> AuthGateState {
         switch account.profileStatus {
-        case .COMPLETE: return .signedIn(account.user)
+        case .COMPLETE: return .signedIn(account.user, voiceConsent: account.voiceConsent)
         case .INCOMPLETE: return .needsProfile(account.user, error: nil)
         }
     }

@@ -144,17 +144,7 @@ private struct ConsentRow: View {
         HStack(spacing: 0) {
             Button { checked.toggle() } label: {
                 HStack(spacing: Papercut.space2) {
-                    // 안드로이드 Material 체크박스 자리. 색으로 상태를 알리지 않는 팔레트라 잉크 면 + 크림 체크 한 벌이다.
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(checked ? Papercut.ink : Color.clear)
-                        .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(Papercut.ink, lineWidth: Papercut.borderStrong))
-                        .overlay {
-                            if checked {
-                                Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(Papercut.cream)
-                            }
-                        }
-                        .frame(width: 20, height: 20)
-                        .padding(Papercut.space3)
+                    ConsentCheckMark(checked: checked)
                     Text("개인정보 수집·이용 동의 (필수)")
                         .papercutType(.bodySmall)
                         .foregroundColor(Papercut.ink)
@@ -169,6 +159,25 @@ private struct ConsentRow: View {
 
             AccenturyButton(text: "보기", variant: .text, action: onOpenPrivacy)
         }
+    }
+}
+
+/// 체크박스 그림 한 칸. 안드로이드 Material 체크박스 자리다. 색으로 상태를 알리지 않는 팔레트라 잉크 면 + 크림 체크
+/// 한 벌이다. 로그인 필수 동의와 음성 저장 선택 동의(``VoiceConsentScreen``, KAN-270)가 같은 그림을 쓴다.
+struct ConsentCheckMark: View {
+    let checked: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(checked ? Papercut.ink : Color.clear)
+            .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(Papercut.ink, lineWidth: Papercut.borderStrong))
+            .overlay {
+                if checked {
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(Papercut.cream)
+                }
+            }
+            .frame(width: 20, height: 20)
+            .padding(Papercut.space3)
     }
 }
 
