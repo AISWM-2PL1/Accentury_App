@@ -36,6 +36,16 @@ export const BACKOFF_CEILING_MS = 5000
 export const POLL_BUDGET_MS = 60_000
 
 /**
+ * 서버가 혼잡을 알린 대기의 누적 상한 (API 명세서 §5.3 규칙 5, KAN-272).
+ *
+ * 300초는 서버의 실행 잔류 한도(`processing-timeout`, §3.4)와 같은 값이다 - 그 안에 분석은
+ * 성공이든 실패든 종결된다. 60초를 그대로 쓰면 응시가 몰려 대기열이 1분을 넘는 순간 화면이
+ * [다시 시도]로 바뀌는데, 분석은 서버에서 계속 돌고 있다 (2026-10-06 prod: 진행 중 19건,
+ * 평균 소요 121초). 무한 폴링 금지는 그대로다 - 늘어난 상한에도 끝이 있다.
+ */
+export const POLL_BUDGET_CONGESTED_MS = 300_000
+
+/**
  * 지터 폭 ±20% (요구 3항). 동시에 테스트를 시작한 사용자들의 요청이 같은 순간에 몰리는 것을
  * 흩는 장치라, 폭 자체보다 "매 회차 새로 뽑는다"가 핵심이다.
  */
@@ -64,6 +74,15 @@ export interface PollInput {
    * 이 값이 있으면 다른 모든 계산을 덮는다.
    */
   retryAfterMs: number | null
+  /**
+   * 이번 대기에서 서버가 혼잡 안내(§3.4의 `queue`)를 한 번이라도 줬는가 (KAN-272).
+   * true면 예산이 [POLL_BUDGET_CONGESTED_MS]다. 생략은 false다.
+   *
+   * "지금 혼잡한가"가 아니라 "한 번이라도"인 이유: 줄의 맨 앞에 서면 서버는 안내를 접는데
+   * (혼잡 판정이 풀리거나 이 세션의 분석이 끝나 가는 순간), 그때 예산이 60초로 돌아가면 이미
+   * 2분을 기다린 사용자가 결과 직전에 [다시 시도]를 만난다. 훅이 대기 한 번 동안 붙들고 넘긴다.
+   */
+  congested?: boolean
 }
 
 /**
@@ -92,7 +111,8 @@ export type PollPlan =
  */
 export function planNextPoll(input: PollInput, random: Random = Math.random): PollPlan {
   const delayMs = nextDelayMs(input, random)
-  if (input.elapsedMs + delayMs > POLL_BUDGET_MS) {
+  const budgetMs = input.congested === true ? POLL_BUDGET_CONGESTED_MS : POLL_BUDGET_MS
+  if (input.elapsedMs + delayMs > budgetMs) {
     return { kind: 'EXHAUSTED' }
   }
   return { kind: 'WAIT', delayMs }

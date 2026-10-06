@@ -62,6 +62,14 @@ export interface AnalysisStatuses {
   pollAfterMs: number
   /** 음성 문항 전부. seq 오름차순이 서버 계약이라 정렬을 다시 하지 않는다 */
   items: AnalysisItem[]
+  /**
+   * 혼잡 안내 - 이 세션의 분석 앞에 선 건수 (§3.4의 `queue.ahead`, KAN-272).
+   *
+   * 서버가 혼잡하고 이 세션에 분석 중인 시도가 있을 때만 값이 있다. null은 "혼잡하지 않다"이지
+   * "모른다"가 아니다 - 대기 화면은 이 값이 한 번이라도 오면 폴링 상한을 늘리고(§5.3 규칙 5)
+   * "앞에 N건이 있어요"를 보여 준다. 0은 이 세션이 맨 앞이라는 뜻이다.
+   */
+  queueAhead: number | null
 }
 
 /** 조회에 필요한 전부 */
@@ -157,7 +165,7 @@ async function toApiError(response: Response): Promise<AnalysisApiError> {
  */
 function parseStatuses(body: unknown): AnalysisStatuses | null {
   if (typeof body !== 'object' || body === null) return null
-  const { pollAfterMs, items } = body as Record<string, unknown>
+  const { pollAfterMs, items, queue } = body as Record<string, unknown>
 
   if (typeof pollAfterMs !== 'number' || !Number.isFinite(pollAfterMs)) return null
   if (!Array.isArray(items)) return null
@@ -168,7 +176,21 @@ function parseStatuses(body: unknown): AnalysisStatuses | null {
     if (item === null) return null
     parsed.push(item)
   }
-  return { pollAfterMs, items: parsed }
+  return { pollAfterMs, items: parsed, queueAhead: parseQueueAhead(queue) }
+}
+
+/**
+ * 혼잡 안내의 앞선 건수. 형태가 이상하면 null로 접는다 - 응답 전체를 거절하지 않는다.
+ *
+ * 이 필드는 부가 정보다. 없어도 문항 상태는 그릴 수 있고, 여기서 응답을 버리면 서버가 가장
+ * 바쁜 순간에 대기 화면이 "형태가 계약과 다르다"로 멈춘다. null로 접힌 최악은 예전 동작
+ * (60초 상한, 안내 없음)이다.
+ */
+function parseQueueAhead(value: unknown): number | null {
+  if (typeof value !== 'object' || value === null) return null
+  const { ahead } = value as Record<string, unknown>
+  if (typeof ahead !== 'number' || !Number.isFinite(ahead) || ahead < 0) return null
+  return Math.floor(ahead)
 }
 
 function parseItem(raw: unknown): AnalysisItem | null {
