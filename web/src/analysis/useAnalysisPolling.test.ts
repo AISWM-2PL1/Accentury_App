@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
-import { POLL_BUDGET_MS } from './pollSchedule'
+import { POLL_BUDGET_CONGESTED_MS, POLL_BUDGET_MS } from './pollSchedule'
 import { useAnalysisPolling, type UseAnalysisPollingOptions } from './useAnalysisPolling'
 import type { Random } from './pollSchedule'
 
@@ -358,6 +358,84 @@ describe('누적 60초 예산 (요구 5항)', () => {
 
     expect(result.current.status).toEqual({ kind: 'POLLING' })
     expect(callsTo(fetchImpl, '/analyses')).toBe(before + 1)
+  })
+})
+
+/*
+ * 혼잡 안내를 받은 대기 (API 명세서 §3.4의 `queue`, §5.3 규칙 5, KAN-272).
+ * 2026-10-06 prod에서 진행 중 분석이 19건까지 쌓여 평균 소요가 121초였는데, 화면은 60초에
+ * [다시 시도]로 바뀌었다 - 분석은 서버에서 계속 돌고 있었다.
+ */
+describe('혼잡 안내를 받은 대기는 상한이 300초다', () => {
+  const congestedBody = (ahead: number) => ({ ...statusesBody(3000), queue: { ahead } })
+
+  it('앞선 건수를 싣고, 60초를 넘겨도 폴링을 이어 간다', async () => {
+    const fetchImpl = fetchFor({ analyses: () => jsonResponse(200, congestedBody(12)) })
+    const { result } = renderHook(() => useAnalysisPolling(options(fetchImpl)))
+    await act(async () => {})
+
+    expect(result.current.queueAhead).toBe(12)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_BUDGET_MS + 30_000)
+    })
+
+    expect(result.current.status).toEqual({ kind: 'POLLING' })
+  })
+
+  it('늘어난 상한도 다 쓰면 EXHAUSTED로 멈춘다 - 무한 폴링은 없다', async () => {
+    const fetchImpl = fetchFor({ analyses: () => jsonResponse(200, congestedBody(12)) })
+    const { result } = renderHook(() => useAnalysisPolling(options(fetchImpl)))
+    await act(async () => {})
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_BUDGET_CONGESTED_MS + 10_000)
+    })
+
+    expect(result.current.status).toEqual({ kind: 'EXHAUSTED' })
+  })
+
+  it('안내가 사라져도 늘어난 상한은 그 대기가 끝날 때까지 유지된다', async () => {
+    // 줄의 맨 앞에 서면 서버가 안내를 접는다. 그때 60초로 돌아가면 이미 오래 기다린 사용자가
+    // 결과 직전에 [다시 시도]를 만난다
+    let congested = true
+    const fetchImpl = fetchFor({
+      analyses: () => jsonResponse(200, congested ? congestedBody(3) : statusesBody(800)),
+    })
+    const { result } = renderHook(() => useAnalysisPolling(options(fetchImpl)))
+    await act(async () => {})
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_BUDGET_MS + 10_000)
+    })
+    expect(result.current.status).toEqual({ kind: 'POLLING' })
+
+    congested = false
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+
+    expect(result.current.queueAhead).toBeNull()
+    expect(result.current.status).toEqual({ kind: 'POLLING' })
+  })
+
+  it('restart는 상한을 60초로 되돌린다 - 새 대기는 안내를 다시 받아야 늘어난다', async () => {
+    let congested = true
+    const fetchImpl = fetchFor({
+      analyses: () => jsonResponse(200, congested ? congestedBody(3) : statusesBody(800)),
+    })
+    const { result } = renderHook(() => useAnalysisPolling(options(fetchImpl)))
+    await act(async () => {})
+
+    congested = false
+    await act(async () => {
+      result.current.restart()
+    })
+    await act(async () => {})
+    expect(result.current.queueAhead).toBeNull()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_BUDGET_MS + 10_000)
+    })
+
+    expect(result.current.status).toEqual({ kind: 'EXHAUSTED' })
   })
 })
 

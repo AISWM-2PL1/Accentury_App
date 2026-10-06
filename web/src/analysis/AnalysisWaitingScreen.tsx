@@ -159,7 +159,7 @@ export function AnalysisWaitingScreen({
   refreshNonce = 0,
   fetchImpl,
 }: AnalysisWaitingScreenProps) {
-  const { status, items, lastError, restart } = useAnalysisPolling({
+  const { status, items, lastError, queueAhead, restart } = useAnalysisPolling({
     apiBase,
     sessionId,
     sessionToken,
@@ -316,9 +316,15 @@ export function AnalysisWaitingScreen({
             <h1 className="type-headline">
               {status.kind === 'READY' ? '결과 화면으로 이동합니다' : '결과를 만들고 있어요'}
             </h1>
-            {/* 일시적 오류는 여기 부연으로만 알린다 — 문항 목록을 지우지 않는다 */}
+            {/*
+              일시적 오류는 여기 부연으로만 알린다 - 문항 목록을 지우지 않는다.
+              서버가 혼잡을 알리면 같은 자리에 줄 안내를 건다 (KAN-272). 오류가 먼저인 이유는
+              지금 일어난 일이 더 급한 소식이라서다 - 오류가 가시면 다음 회차에 안내가 돌아온다.
+            */}
             {status.kind === 'POLLING' && (
-              <p className="type-caption status-block__detail">{lastError ?? '잠시만 기다려 주세요'}</p>
+              <p className="type-caption status-block__detail">
+                {lastError ?? (queueAhead !== null ? queueNotice(queueAhead) : '잠시만 기다려 주세요')}
+              </p>
             )}
             <div className="analysis-steps">
               {ANALYSIS_STAGES.map((label, index) => {
@@ -448,6 +454,18 @@ export function AnalysisWaitingScreen({
 }
 
 /** 재녹음 대상 판정을 화면 바깥(결선·테스트)에서도 같은 규칙으로 쓰기 위해 열어 둔다 */
+/**
+ * 혼잡할 때의 줄 안내 (API 명세서 §3.4의 `queue.ahead`, KAN-272).
+ *
+ * 시간이 아니라 건수를 말한다 - 서버가 주는 값이 건수이고(AI 대수에 따라 같은 건수의 소요가
+ * 두세 배 달라진다), 화면이 "약 2분"을 지어내면 틀린 약속이 된다. 0건은 이 세션이 맨 앞이라는
+ * 뜻이라 "앞에 0건"이라고 쓰지 않는다.
+ */
+export function queueNotice(ahead: number): string {
+  if (ahead <= 0) return '지금 응시자가 많아요. 곧 차례예요. 잠시만 기다려주세요!'
+  return `지금 응시자가 많아요. 앞에 ${ahead}건이 있어요. 잠시만 기다려주세요!`
+}
+
 export function isRetakeable(item: AnalysisItem): boolean {
   return RETAKEABLE.includes(item.status)
 }

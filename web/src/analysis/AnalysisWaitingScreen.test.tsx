@@ -4,6 +4,7 @@ import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { VoiceItem } from '../progress/testDefinition'
 import {
   AnalysisWaitingScreen,
+  queueNotice,
   retakeReason,
   type AnalysisWaitingScreenProps,
 } from './AnalysisWaitingScreen'
@@ -619,6 +620,46 @@ describe('멈춘 상태의 출구', () => {
 
     expect(analysesCalls).toBe(before + 1)
     expect(screen.queryByText('분석이 예상보다 오래 걸리고 있어요')).not.toBeInTheDocument()
+  })
+
+  /*
+   * 혼잡 안내 (API 명세서 §3.4의 `queue.ahead`, KAN-272). 문구는 2026-10-06에 정했다.
+   */
+  it('서버가 혼잡을 알리면 앞에 몇 건이 있는지 보여 주고 60초에 끊지 않는다', async () => {
+    vi.useFakeTimers()
+    render(
+      <AnalysisWaitingScreen
+        {...props({
+          fetchImpl: fetchFor({
+            analyses: () =>
+              jsonResponse(200, { ...statusesBody(Array(3).fill('PROCESSING')), queue: { ahead: 12 } }),
+          }),
+        })}
+      />,
+    )
+    await act(async () => {})
+
+    expect(
+      screen.getByText('지금 응시자가 많아요. 앞에 12건이 있어요. 잠시만 기다려주세요!'),
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70_000)
+    })
+    expect(screen.queryByText('분석이 예상보다 오래 걸리고 있어요')).not.toBeInTheDocument()
+    expect(screen.getByText('결과를 만들고 있어요')).toBeInTheDocument()
+  })
+
+  it('혼잡하지 않으면 안내 없이 평소 문구다', async () => {
+    await renderScreen()
+
+    expect(screen.getByText('잠시만 기다려 주세요')).toBeInTheDocument()
+    expect(screen.queryByText(/지금 응시자가 많아요/)).not.toBeInTheDocument()
+  })
+
+  it('맨 앞이면 0건이라고 쓰지 않는다', () => {
+    expect(queueNotice(0)).toBe('지금 응시자가 많아요. 곧 차례예요. 잠시만 기다려주세요!')
+    expect(queueNotice(1)).toBe('지금 응시자가 많아요. 앞에 1건이 있어요. 잠시만 기다려주세요!')
   })
 
   /*

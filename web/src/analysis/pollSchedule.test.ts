@@ -3,6 +3,7 @@ import {
   BACKOFF_CEILING_MS,
   BACKOFF_MS,
   JITTER_RATIO,
+  POLL_BUDGET_CONGESTED_MS,
   POLL_BUDGET_MS,
   backoffMs,
   nextDelayMs,
@@ -122,6 +123,35 @@ describe('planNextPoll — 누적 60초 예산', () => {
       noJitter,
     )
     expect(plan).toEqual({ kind: 'EXHAUSTED' })
+  })
+
+  /*
+   * 서버가 혼잡을 알린 대기는 상한이 300초다 (API 명세서 §5.3 규칙 5, KAN-272). 60초 그대로면
+   * 대기열이 1분을 넘는 순간 화면이 [다시 시도]로 바뀌는데 분석은 서버에서 계속 돌고 있다.
+   */
+  it('혼잡 안내를 받은 대기는 60초를 넘겨도 기다린다', () => {
+    const plan = planNextPoll(
+      input({ round: 99, elapsedMs: POLL_BUDGET_MS + 30_000, congested: true }),
+      noJitter,
+    )
+    expect(plan).toEqual({ kind: 'WAIT', delayMs: BACKOFF_CEILING_MS })
+  })
+
+  it('늘어난 상한에도 끝이 있다 - 300초를 넘길 대기는 시작하지 않는다', () => {
+    const edge = POLL_BUDGET_CONGESTED_MS - BACKOFF_CEILING_MS
+    expect(planNextPoll(input({ round: 99, elapsedMs: edge, congested: true }), noJitter)).toEqual({
+      kind: 'WAIT',
+      delayMs: BACKOFF_CEILING_MS,
+    })
+    expect(planNextPoll(input({ round: 99, elapsedMs: edge + 1, congested: true }), noJitter)).toEqual({
+      kind: 'EXHAUSTED',
+    })
+  })
+
+  it('혼잡 안내가 없으면 상한은 그대로 60초다', () => {
+    const over = input({ round: 99, elapsedMs: POLL_BUDGET_MS - BACKOFF_CEILING_MS + 1 })
+    expect(planNextPoll(over, noJitter)).toEqual({ kind: 'EXHAUSTED' })
+    expect(planNextPoll({ ...over, congested: false }, noJitter)).toEqual({ kind: 'EXHAUSTED' })
   })
 
   it('사다리를 끝까지 밟아도 20회 안팎에서 예산이 끝난다 (요구 5항 "약 20회")', () => {
