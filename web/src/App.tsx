@@ -244,8 +244,9 @@ function IntroRoute({
    */
   const [micGranted, setMicGranted] = useState(false)
   /*
-   * 고른 출신 지역 (KAN-202). null은 아직 지역 화면을 지나지 않았다는 뜻이다 — 웹 단독 실행은 늘 이
-   * 화면을 지나므로(KAN-274가 빌드 스위치를 걷어냈다) 세션을 만들 때는 값이 잡혀 있다.
+   * 고른 출신 지역 (KAN-202). null은 아직 지역 화면을 지나지 않았다는 뜻이다 — 웹 단독 실행은 음성
+   * 저장 동의 화면에서 무엇을 골랐든 늘 이 화면을 지나므로(KAN-274) 세션을 만들 때는 값이 잡혀 있다.
+   * 서버가 동의하지 않은 익명 세션도 음성 없이 점수와 지역을 남기기 때문에 지역은 모두에게서 받는다.
    * `micGranted`와 같은 이유로 URL 화면이 아니라 이 문서의 상태다 — 리로드하면 권한부터 다시
    * 받는 흐름이라 지역도 그 문서 안에서만 살면 되고, 세션을 만들 때 한 번 쓰고 나면 필요 없다
    * (`RegionSelectScreen` 헤더).
@@ -376,7 +377,7 @@ function startedTest(sessionId: string, campaign: string | null): void {
  * 화면은 화면 전환(문서 리로드)을 건너온 뒤에 그 값을 읽는다.
  *
  * @param userCurveCenterHz 목소리 점검이 잰 이 화자의 중심 음높이 (Hz)
- * @param region 출신 지역 코드 (KAN-202). 스위치가 꺼진 빌드에서는 늘 null이라 본문이 그대로다
+ * @param region 출신 지역 코드 (KAN-202). 동의와 무관하게 모든 응시자가 고른다 (KAN-274)
  * @param voiceConsented 음성 저장 선택 동의 화면에서 체크했는가 (KAN-270)
  * @throws Error 사용자에게 보일 문구를 담은 오류 ([startFailureMessage] 참고)
  */
@@ -406,8 +407,8 @@ async function startStandaloneTest(
     // 세션 전체가 아니라 토큰만 본다 (KAN-205) - 세트가 계약에 들어오기 전에 저장된
     // 세션도 폐기 대상이다. 읽지 못하면 폐기 없이 새 세션만 만들어진다.
     previousToken: getWebSessionToken(),
-    // staging의 지역 선택이 준 값 (KAN-202). 스위치가 꺼진 빌드에서는 null이고, 그때
-    // `createWebSession`이 필드째 빼므로 prod 본문은 이 티켓 전과 같다.
+    // 지역 선택 화면이 준 값 (KAN-202). 동의와 무관하게 싣는다 (KAN-274) — 서버가 동의하지 않은
+    // 익명 세션도 음성 없이 점수와 지역을 남긴다. 그래서 아래 400 폴백에서도 지역은 빼지 않는다.
     region,
     // 동의한 세션만 버전을 싣는다 (KAN-270). 미동의면 null이라 필드째 빠진다.
     voiceConsentVersion: voiceConsented ? VOICE_CONSENT_VERSION : null,

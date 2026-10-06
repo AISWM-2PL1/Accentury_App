@@ -87,8 +87,8 @@ public extension SessionClient {
     /// 이전 토큰은 그대로 싣는다: 400은 본문 검증에서 나므로 서버가 옛 세션을 폐기하기 전이고, 두 번째 요청이 그 폐기를
     /// 다시 맡는다. 미동의 요청의 400이나 다른 거절은 그대로 돌려준다.
     ///
-    /// 재시도에서는 `region`도 뺀다(KAN-270 7단계) — 동의 없는 세션의 음성은 저장되지 않으니 라벨만 남길 이유가 없다.
-    /// 웹 `App.tsx`는 region을 유지하지만 웹의 region은 staging 전용 라벨 수집이라 동의와 무관하게 실린다.
+    /// 재시도에서도 `region`은 그대로 싣는다 (KAN-274) — 지역은 동의와 무관하게 받는 값이고, 서버가 동의하지 않은 익명
+    /// 세션도 음성 없이 점수와 지역을 남긴다. 웹 `App.tsx`의 폴백과 같다.
     func createWithConsentFallback(
         appVersion: String,
         previousToken: String?,
@@ -112,7 +112,7 @@ public extension SessionClient {
             previousToken: previousToken,
             campaignToken: campaignToken,
             voiceConsentVersion: nil,
-            region: nil
+            region: region
         )
     }
 }

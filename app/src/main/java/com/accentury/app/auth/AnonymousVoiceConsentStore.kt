@@ -20,7 +20,8 @@ import androidx.compose.runtime.setValue
  * 시작 전에 설정에서 켠 사람에게 동의 화면이 또 뜨지 않는다.
  *
  * 출신 지역(KAN-270 7단계, 키 `region`)도 같은 파일에 둔다. 익명 세션은 프로필이 없어 서버 라벨이 `UNKNOWN`으로
- * 남기 때문에, 동의한 사용자에게만 설치당 한 번 묻는다([needsAnonymousRegion]). 동의를 껐다 켜도 지역은 지우지 않는다.
+ * 남기 때문에 설치당 한 번 묻는다([needsAnonymousRegion]). 동의 여부와 무관하게 모두에게 묻는다 (KAN-274) — 서버가
+ * 동의하지 않은 익명 세션도 음성 없이 점수와 지역을 남기기 때문이다. 동의를 껐다 켜도 지역은 지우지 않는다.
  */
 class AnonymousVoiceConsentStore(context: Context) {
     private val prefs: SharedPreferences =
@@ -61,8 +62,9 @@ class AnonymousVoiceConsentStore(context: Context) {
 /** 익명 세션 생성 body에 실을 동의 버전. 미동의면 null(키째 빠진다) */
 fun anonymousVoiceConsentVersion(consented: Boolean): String? = if (consented) VOICE_CONSENT_VERSION else null
 
-/** 시작 게이트에 지역 단계를 세울지 (KAN-270 7단계). 동의했는데 아직 안 골랐을 때만 — 미동의면 라벨 받을 음성이 없다 */
-fun needsAnonymousRegion(consented: Boolean, region: String?): Boolean = consented && region == null
-
-/** 익명 세션 생성 body에 실을 `region`. 동의했을 때만 저장값을 싣고, 미동의면 null(키째 빠진다) */
-fun anonymousSessionRegion(consented: Boolean, region: String?): String? = if (consented) region else null
+/**
+ * 시작 게이트에 지역 단계를 세울지 (KAN-270 7단계). 아직 안 골랐으면 동의 여부와 무관하게 세운다 (KAN-274) — 서버가
+ * 동의하지 않은 익명 세션도 음성 없이 점수와 지역을 남기므로 라벨은 모두에게서 받는다. 세션 생성 body의 `region`도
+ * 같은 이유로 저장값을 그대로 싣는다([AnonymousVoiceConsentStore.region]).
+ */
+fun needsAnonymousRegion(region: String?): Boolean = region == null

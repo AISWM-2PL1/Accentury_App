@@ -13,7 +13,8 @@ let regionDisplayOrder: [Region] = [
 ]
 
 /// 익명 모드의 출신 지역 선택 (KAN-270 7단계). 안드로이드 `auth/AnonymousRegionScreen.kt`의 이식본이다. 시작 게이트에서
-/// 동의 다음, 동의했고 아직 지역이 없을 때만 선다(``AccenturyCore/needsAnonymousRegion(consented:region:)``). 고른 값은
+/// 동의 화면 다음, 아직 지역이 없을 때 선다(``AccenturyCore/needsAnonymousRegion(region:)``). 동의 화면에서 무엇을
+/// 골랐든 모두에게 묻는다 (KAN-274). 고른 값은
 /// ``AccenturyCore/AnonymousVoiceConsentStore/saveRegion(_:)``으로 남고 세션 body `region`이 된다.
 ///
 /// 규칙은 웹 지역 화면과 같다 — 기본 선택이 없고(그냥 [다음]을 누른 녹음이 엉뚱한 라벨로 쌓이지 않게) 건너뛰기도 없다.

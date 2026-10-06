@@ -9,7 +9,8 @@
 ## 웹 흐름
 
 [내 억양 테스트하기](마이크 권한) → **동의 화면** → 출신 지역 → 목소리 점검 → 세션 생성. 지역 화면은
-예전에 staging 빌드에만 있었고 KAN-274가 빌드 스위치를 걷어내 두 환경 모두 늘 선다.
+예전에 staging 빌드에만 있었고 KAN-274가 빌드 스위치를 걷어내 두 환경 모두 늘 선다. 동의 화면에서 체크했는지와
+무관하다. 서버가 동의하지 않은 익명 세션도 음성 없이 점수와 지역을 남기기 때문이다(아래 「동의하지 않은 익명 세션」).
 
 - 별도 화면이다 (`web/src/legal/VoiceConsentScreen.tsx`). 네트워크를 쓰지 않으므로 지역·점검과
   같은 근거로 세션 앞에 둔다 — 어디서 멈추든 고아 세션이 남지 않는다.
@@ -127,14 +128,14 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
   동의를 다시 보므로 「그 뒤의 녹음부터」가 맞다.
 - 문안은 `VOICE_CONSENT_DETAILS_ANONYMOUS`다. 1·2줄은 계정과 같고, 셋째 줄이 웹처럼 세션 만료 뒤 삭제 불가를
   말한다.
-- **출신 지역 (7단계)**: 익명 세션은 프로필이 없어 서버 S3 키·학습 라벨이 `UNKNOWN`으로 남았다. 그래서 **동의한
-  사용자에게만** 동의 다음 칸에서 설치당 한 번 지역을 묻는다(`needsAnonymousRegion(consented, region)` = 동의 &&
-  지역 없음). 게이트 순서는 권한 → 동의 → **지역** → 점검 → 세션이다. 설정에서 뒤늦게 동의를 켠 사람은 다음 시작 때
-  자동으로 지역 칸에 걸린다. 값은 같은 prefs의 키 `region`(`saveRegion`)에 `Region.name`으로 남고, 동의를 껐다 켜도
+- **출신 지역 (7단계)**: 익명 세션은 프로필이 없어 서버 S3 키와 학습 라벨이 `UNKNOWN`으로 남았다. 그래서 동의
+  다음 칸에서 설치당 한 번 지역을 묻는다(`needsAnonymousRegion(region)` = 지역 없음). **동의 화면에서 무엇을 골랐든
+  모두에게 묻는다 (KAN-274)**. 처음에는 동의한 사용자에게만 물었는데, 서버가 동의하지 않은 익명 세션도 음성 없이
+  점수와 지역을 남기게 되면서 바뀌었다. 게이트 순서는 권한 → 동의 → **지역** → 점검 → 세션이다. 값은 같은 prefs의 키 `region`(`saveRegion`)에 `Region.name`으로 남고, 동의를 껐다 켜도
   지우지 않는다. 설정에서 바꾸는 UI는 없다.
 - **재응시 직전에도 묻는다 (PR #22 리뷰)**: 시작 게이트의 지역 칸은 세션이 없을 때만 선다. 그런데 재응시는 세션을
-  든 채 결과 화면에서 새 세션을 만들어서, 처음에 건너뛴 사람이 설정에서 동의를 켠 뒤 앱을 다시 시작하지 않고
-  재응시하면 지역을 묻지 못하고 라벨이 `UNKNOWN`으로 남았다. 그래서 재응시 본체(`proceedRetest`, iOS
+  든 채 결과 화면에서 새 세션을 만들어서, 지역 없이 세션을 만든 사람(지역 화면이 생기기 전 빌드에서 넘어온 설치)이
+  앱을 다시 시작하지 않고 재응시하면 지역을 묻지 못하고 라벨이 `UNKNOWN`으로 남았다. 그래서 재응시 본체(`proceedRetest`, iOS
   `TestFlowModel.startRetest()`)가 세션 요청과 잠금(`beginRetest()`) 앞에서 같은 판정(`needsAnonymousRegion`)을 보고,
   참이면 `retestRegionPending`을 세워 결과 화면 위에 지역 화면을 덮는다. [다음]을 누르면 지역을 저장하고 멈췄던
   재응시를 이어 간다. 광고는 그 앞에서 이미 끝났으므로 다시 보지 않는다. 웹 결과 화면은 광고 때와 같이 pending으로
@@ -142,12 +143,11 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 - **지역 화면** `AnonymousRegionScreen`: 질문은 `ProfileScreen` 지역 칸과 같은 「어느 지역 말씨가 몸에 배어
   있나요?」, 부제·캡션·[다음] 규칙은 웹 `RegionSelectScreen`과 같다(기본 선택 없음, 건너뛰기 없음, 고른 뒤 활성).
   나열은 웹 `DISPLAY_ORDER`(`REGION_DISPLAY_ORDER`) 2열이다.
-- **본문 `region`**: `anonymousSessionRegion(consented, region)` — 동의했고 지역이 있을 때만 싣고 아니면 키째
-  빠진다. 첫 응시·재응시 둘 다. 계정 모드는 보내지 않는다(서버가 프로필 지역을 쓴다). 서버는 코드 10개만 받고
+- **본문 `region`**: 저장된 지역이 있으면 동의와 무관하게 싣는다 (KAN-274, `AnonymousVoiceConsentStore.region()`).
+  없으면 키째 빠진다. 첫 응시와 재응시 둘 다. 계정 모드는 보내지 않는다(서버가 프로필 지역을 쓴다). 서버는 코드 10개만 받고
   그 밖은 400이다.
-- **폴백에서 region도 뺀다**: 400 `VALIDATION_FAILED`로 동의 없이 다시 만들 때 `region`도 함께 뺀다. 동의 없는
-  세션의 음성은 저장되지 않아 라벨만 남길 이유가 없다. 웹은 region을 유지하는데, 웹은 동의와 무관하게 모든
-  응시자에게 지역을 묻고 세션에 남기기 때문이다(KAN-274부터 두 환경 모두).
+- **폴백에서 region은 유지한다 (KAN-274)**: 400 `VALIDATION_FAILED`로 동의 없이 다시 만들 때 동의 버전만 빼고
+  `region`은 그대로 싣는다. 지역은 동의와 무관한 값이고, 동의 없는 익명 세션도 서버가 점수와 지역을 남긴다. 웹과 같다.
 
 | | 계정 모드 (`LOGIN_ENABLED=true`) | 익명 모드 (기본) |
 |---|---|---|
@@ -155,7 +155,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | 동의 저장 | 서버 계정 (`PUT\|DELETE /v0/users/me/voice-consent`) | 기기 로컬 prefs |
 | 묻는 때 | 로그인 뒤 TestFlow 위 오버레이, 계정당 한 번 | 시작 게이트 권한 뒤, 설치당 한 번 |
 | 세션 본문 `voiceConsentVersion` | 보내지 않음 (서버가 계정 값 사용) | 동의면 `VOICE_CONSENT_VERSION` |
-| 출신 지역 | 추가 정보 화면(프로필), 본문에 안 실음 | 동의한 사용자만 동의 다음 칸에서 설치당 한 번, 본문 `region` |
+| 출신 지역 | 추가 정보 화면(프로필), 본문에 안 실음 | 모든 사용자에게 동의 다음 칸에서 설치당 한 번, 본문 `region` |
 | 버전 출처 | 서버 `currentVersion` | 앱 상수 (400이면 폴백) |
 | 설정 화면 | 계정·개인정보·로그아웃 | 개인정보만 |
 
@@ -172,7 +172,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | `MainActivity` `AuthGate` / `AnonymousFlow` 분기 | `ContentView.rootScreen`: `AuthGateView` / `AnonymousFlowView`(`Auth/AuthGateView.swift`) |
 | `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`·`region`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`·`.region`, `@MainActor ObservableObject`) |
 | `anonymousVoiceConsentVersion(consented)` | `anonymousVoiceConsentVersion(consented:)` (같은 파일) |
-| `needsAnonymousRegion`·`anonymousSessionRegion`·`saveRegion` (7단계) | `needsAnonymousRegion(consented:region:)`·`anonymousSessionRegion(consented:region:)`·`saveRegion(_:)` (같은 파일) |
+| `needsAnonymousRegion(region)`·`saveRegion` (7단계, KAN-274에서 동의 조건 제거) | `needsAnonymousRegion(region:)`·`saveRegion(_:)` (같은 파일) |
 | `auth/AnonymousRegionScreen.kt`·`REGION_DISPLAY_ORDER` | `Accentury/Auth/AnonymousRegionScreen.swift`·`regionDisplayOrder` (`ChoiceButton` 재사용) |
 | `VOICE_CONSENT_VERSION`·`VOICE_CONSENT_DETAILS_ANONYMOUS`·`VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS` | `voiceConsentVersion`·`voiceConsentDetailsAnonymous`·`voiceConsentSettingCaptionAnonymous` (`VoiceConsentText.swift`) |
 | `SessionClient.create(..., voiceConsentVersion, region)`·`createWithConsentFallback(..., region)`·`CODE_VALIDATION_FAILED` | 프로토콜 요구사항 5인자 `create`(7단계에 `region` 추가), 확장 `createWithConsentFallback`, `codeValidationFailed` (`Session/SessionClient.swift`). 4인자 이하 `create`는 확장 오버로드 |
@@ -224,6 +224,23 @@ UserDefaults 키 이름은 광고 동의(`ad_consent.state`)와 같은 규칙이
 
 심사 가이드라인 5.1.1(ii)의 목적 문자열이라 처분이 사실과 맞아야 한다(`app-store-listing.md` §5).
 
+## 동의하지 않은 익명 세션 (KAN-274)
+
+동의하지 않아도 익명 세션(웹, 로그인을 끈 앱)의 분석 결과는 음성 없이 남는다. 서버가 분석이 끝난 음성 문항마다
+라벨 JSON 하나를 별도 접두에 쓴다. 클라이언트가 할 일은 지역을 동의와 무관하게 싣는 것뿐이다.
+
+| | 동의한 익명 세션 | 동의하지 않은 익명 세션 |
+|---|---|---|
+| S3에 남는 것 | WAV와 라벨 JSON 한 쌍 | 라벨 JSON 하나 (음성 없음) |
+| 키 | `<env>/<region>/<testVersion>/<sessionId>/<itemId>/<analysisJobId>.wav`와 `.json` | `<env>/_no-audio/<region>/<testVersion>/<sessionId>/<itemId>/<analysisJobId>.json` |
+| JSON의 `audioStored` | `true` | `false` |
+| JSON의 동의 버전과 동의 시각 | 있음 | 없음 |
+| 식별자 | 원문 그대로 | 원문 그대로 |
+
+음성 트리와 접두를 가른 이유는 음성 트리의 칸이 언제나 WAV와 JSON 한 쌍이라는 규약을 지키기 위해서다. 같은 트리에
+JSON만 있는 칸이 섞이면 학습 쪽 코드가 JSON을 보고 없는 WAV를 찾는다. `_no-audio`는 환경 접두 아래라 backend의 쓰기
+권한과 버킷 정책이 그대로다. 로그인한 계정 세션은 동의하지 않으면 아무것도 남기지 않는다.
+
 ## 검증
 
 ### 로컬 (2026-10-06)
@@ -261,8 +278,8 @@ S3 키 모양은 다음과 같다. 분석이 종결된 음성 문항마다 WAV�
 예) staging/<지역코드 또는 UNKNOWN>/gn-2026.09.4/s_…/v116/a_….json
 ```
 
-`UNKNOWN`은 세션에 저장된 region이 없거나 코드 10개 밖일 때다. 지역 스위치가 남은 옛 웹 번들, 지역을 고르기 전의
-앱 익명 세션, 전송 오류로 값이 빠진 세션이 여기로 모인다(서버 `Region.forStorage`가 접고 `TrainingSample.keyPrefix`가 키 첫 조각으로 쓴다).
+`UNKNOWN`은 세션에 저장된 region이 없거나 코드 10개 밖일 때다. 웹과 앱 익명 모드 모두 지역을 싣고 오므로,
+지역 스위치가 남은 옛 웹 번들이나 전송 오류로 값이 빠진 세션만 여기로 모인다(서버 `Region.forStorage`가 접고 `TrainingSample.keyPrefix`가 키 첫 조각으로 쓴다).
 
 세션 id와 작업 id는 원래 값이 `s_`·`a_`로 시작한다. 키 조각은 그 값 그대로다(서버 `TrainingSample.keyPrefix`). 그래서
 스펙 로그의 `sessionId=s_…`를 그대로 grep하면 된다.
