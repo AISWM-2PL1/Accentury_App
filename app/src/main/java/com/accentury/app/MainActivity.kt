@@ -482,6 +482,15 @@ private fun TestFlow(
     var startRequested by rememberSaveable { mutableStateOf(false) }
     var micPassed by rememberSaveable { mutableStateOf(false) }
     var voiceCenterHz by rememberSaveable { mutableStateOf<Float?>(null) }
+    /*
+     * 재응시 직전의 출신 지역 단계 (KAN-270, PR #22 리뷰). 시작 게이트의 지역 칸은 `session == null`일 때만 서는데,
+     * 재응시는 세션을 든 채 결과 화면에서 새 세션을 만든다. 그래서 처음에 건너뛴 사람이 설정에서 동의를 켠 뒤
+     * 재응시하면 지역을 묻지 못하고 라벨이 UNKNOWN으로 남았다. [proceedRetest]가 세션 요청 앞에서 이 값을 세우고,
+     * 지역 화면의 [다음]이 내린 뒤 재응시를 이어 간다.
+     *
+     * 회전을 넘긴다. 회전으로 사라지면 웹 결과 화면이 다시 로드되어 버튼은 열리지만, 사용자가 광고를 한 번 더 봐야 한다.
+     */
+    var retestRegionPending by rememberSaveable { mutableStateOf(false) }
     val sessionGate = rememberSaveable(saver = SessionGateController.saver()) { SessionGateController() }
     /*
      * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
@@ -698,6 +707,17 @@ private fun TestFlow(
      * 넘겨줄 뿐이다.
      */
     fun proceedRetest() {
+        /*
+         * 동의는 켰는데 지역이 아직 없으면 세션을 만들기 전에 지역부터 묻는다 (KAN-270, PR #22 리뷰). 잠금
+         * (`beginRetest()`)보다 앞이라 지역 화면이 떠 있는 동안 세션 요청도 진행 중 플래그도 없다. 웹 결과 화면은
+         * 광고를 볼 때처럼 pending으로 기다리고(시간 기반 해제가 없다), 지역을 고르면 여기로 다시 들어온다.
+         */
+        if (anonymousConsent != null &&
+            needsAnonymousRegion(anonymousConsent.consented(), anonymousConsent.region())
+        ) {
+            retestRegionPending = true
+            return
+        }
         // null이면 이미 요청이 나가 있거나 버릴 세션이 없다 — 어느 쪽이든 할 일은 없다.
         val previousToken = sessionGate.beginRetest() ?: return
         scope.launch {
@@ -913,6 +933,17 @@ private fun TestFlow(
             }
 
             when {
+                // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던
+                // 재응시를 이어 간다. 이번에는 지역이 있어 [proceedRetest]가 곧장 세션 요청으로 간다.
+                retestRegionPending && anonymousConsent != null ->
+                    AnonymousRegionScreen(
+                        onDone = { code ->
+                            anonymousConsent.saveRegion(code)
+                            retestRegionPending = false
+                            proceedRetest()
+                        },
+                    )
+
                 // 시작 게이트 1칸 — 마이크 권한 (KAN-98). 통과 표시를 따로 두는 이유는 뒤에 세션
                 // 생성이 이어지기 때문이다: 세션을 기다리는 동안 권한 화면으로 되돌아가면 안 된다.
                 startRequested && session == null && !micPassed ->
@@ -1052,8 +1083,10 @@ private fun TestFlow(
              * 녹음 오버레이 뒤에 그려 그 위에 선다. 녹음 화면 본문은 위 64dp부터라 톱니(8~56dp)와 겹치지 않는다.
              * 시스템 바 여백은 Scaffold의 innerPadding이 이미 뺐다.
              */
+            // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
             val nativeCovering = (startRequested && session == null) ||
-                phase is TestFlowPhase.NeedsPermission
+                phase is TestFlowPhase.NeedsPermission ||
+                retestRegionPending
             if (!nativeCovering) {
                 SettingsGearButton(
                     onClick = onOpenSettings,

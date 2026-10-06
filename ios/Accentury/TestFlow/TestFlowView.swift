@@ -337,9 +337,17 @@ struct TestFlowView: View {
     /// 가져간 경우를 뒤 분기가 다시 적지 않는다.
     @ViewBuilder
     private var overlay: some View {
+        // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던 재응시를
+        // 이어 간다. 이번에는 지역이 있어 ``TestFlowModel/startRetest()``가 곧장 세션 요청으로 간다.
+        if model.retestRegionPending {
+            AnonymousRegionScreen(onDone: { code in
+                model.onRetestRegionChosen(code)
+                Task { @MainActor in await proceedRetest() }
+            })
+
         // 시작 게이트 1칸 — 마이크 권한 (KAN-98). 통과 표시를 따로 두는 이유는 뒤에 세션 생성이
         // 이어지기 때문이다: 세션을 기다리는 동안 권한 화면으로 되돌아가면 안 된다.
-        if model.startRequested, model.session == nil, !model.micPassed {
+        } else if model.startRequested, model.session == nil, !model.micPassed {
             PermissionGateView(onGranted: { model.onStartGateMicPassed() })
 
         // 익명 모드의 음성 저장 동의 (KAN-270 6단계) — 설치당 한 번. 고르면 저장소가 asked를 세워 조건이 풀린다.
@@ -415,6 +423,8 @@ struct TestFlowView: View {
     private var nativeCovering: Bool {
         if model.startRequested, model.session == nil { return true }
         if case .needsPermission = model.phase { return true }
+        // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
+        if model.retestRegionPending { return true }
         return false
     }
 
