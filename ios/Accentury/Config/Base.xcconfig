@@ -91,6 +91,12 @@ NAVER_URL_SCHEME =
 // Debug.xcconfig 주석 참고. Info-Release.plist에는 키 자체가 없고 읽는 코드도 `#if DEBUG`다.
 FAKE_IDP = NO
 
+// 로그인 관문 (KAN-270 6단계). 기본 NO = 익명 모드 — 관문·앱 시작 Refresh 확인·계정 설정이 빠지고 음성 저장 동의는
+// 설치당 한 번 묻는다. FAKE_IDP와 달리 Debug·Release 모두 이 값을 본다(릴리스 허용). 그래서 아래 Local.xcconfig
+// include '앞'에 두어 로컬 파일의 `LOGIN_ENABLED = YES`가 두 구성 모두를 덮고, Release.xcconfig는 다시 못 박지 않는다.
+// 안드로이드 `-PloginEnabled=true`(local.properties `loginEnabled=true`) 자리다. `xcodebuild ... LOGIN_ENABLED=YES`도 된다.
+LOGIN_ENABLED = NO
+
 // 여기서 Local.xcconfig를 한 번 읽는 이유는 ACCENTURY_TEAM_ID 하나 때문이다 — Release도
 // 팀 ID는 필요하다. WEB_URL·API_BASE_URL 오버라이드는 이 지점이 아니라 Debug.xcconfig 끝의
 // 두 번째 `#include?`가 담당한다. Release의 URL은 이 include '뒤'에 놓여 있어(Release.xcconfig)

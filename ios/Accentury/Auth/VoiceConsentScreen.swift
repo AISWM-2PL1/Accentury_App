@@ -14,14 +14,21 @@ import SwiftUI
 /// 줄 전체가 한 요소로 읽히고 체크하면 "선택됨"이 붙는다(로그인 `ConsentRow`와 같은 접근성 구성).
 ///
 /// 설정 화면처럼 ``TestFlowView`` 위에 덮인다(호출자 `SignedInScreen`).
+///
+/// 로그인을 끈 빌드(익명 모드, 6단계)는 시작 게이트의 마이크 권한 뒤에서 설치당 한 번 같은 화면을 띄운다
+/// (``TestFlowView`` 오버레이) — 선택은 ``AccenturyCore/AnonymousVoiceConsentStore``에 남고, 문안은 ``details``로 셋째
+/// 줄부터 웹처럼 바꾼다.
 struct VoiceConsentScreen: View {
 
-    /// ``AccenturyCore/AuthGateController/setVoiceConsent(_:)`` `true`. 성공하면 호출자가 표시 기록을 남기고 화면을 걷는다
-    let onConsent: () async -> AuthResult<Account>
+    /// 동의를 남긴다. true면 성공 — 계정 모드는 ``AccenturyCore/AuthGateController/setVoiceConsent(_:)`` `true`가
+    /// 성공했는가, 익명 모드는 늘 true. 성공하면 호출자가 화면을 걷고, 실패면 한 줄 안내를 남긴다
+    let onConsent: () async -> Bool
     /// 표시 기록만 남기고 걷는다. 서버에 보낼 것이 없다(건너뜀 = 미동의)
     let onSkip: () -> Void
     /// 방침 문서 (로그인 화면과 같은 호출)
     let onOpenPrivacy: () -> Void
+    /// 보관 항목·기간·철회 줄. 익명 모드는 ``AccenturyCore/voiceConsentDetailsAnonymous``
+    var details: [String] = voiceConsentDetails
 
     @State private var checked = false
     @State private var submitting = false
@@ -56,7 +63,7 @@ struct VoiceConsentScreen: View {
                 .accessibilityAddTraits(checked ? .isSelected : [])
 
                 VStack(alignment: .leading, spacing: Papercut.space2) {
-                    ForEach(voiceConsentDetails, id: \.self) { line in
+                    ForEach(details, id: \.self) { line in
                         Text("· \(line)").papercutType(.bodySmall).foregroundColor(Papercut.muted)
                     }
                     Text("\(voiceConsentPolicyLead) 개인정보처리방침\(voiceConsentPolicyTail)")
@@ -70,7 +77,7 @@ struct VoiceConsentScreen: View {
                 AccenturyButton(text: "동의하고 계속", enabled: checked && !submitting, fillsWidth: true) {
                     submitting = true
                     Task {
-                        if case .success = await onConsent() { failed = false } else { failed = true }
+                        failed = await !onConsent()
                         submitting = false
                     }
                 }

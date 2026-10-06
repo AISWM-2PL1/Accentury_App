@@ -49,9 +49,14 @@ struct AccenturyApp: App {
          * 없다). 로그인 상태 확인은 프로세스당 한 번 — 안드로이드 `AccenturyApplication`이 `authGate.bootstrap()`을
          * 거는 자리다. 화면(`AuthGateView`)에서 걸면 화면이 다시 만들어질 때마다 갱신이 한 번 더 나가 Refresh가 괜히
          * 회전한다. 확인이 끝날 때까지 첫 화면은 런치 화면 얼굴을 유지한다(AuthCheckScreen).
+         *
+         * 로그인을 끈 빌드(익명 모드, KAN-270 6단계)는 확인할 것이 없다 — ``AuthHub``의 static let을 아예 깨우지 않아
+         * Keychain 접근과 클라이언트 생성을 건너뛴다. 안드로이드 `if (BuildConfig.LOGIN_ENABLED) authGate.retry()`와 같다.
          */
         initializeIdpSdks()
-        Task { await AuthHub.gate.bootstrap() }
+        if AppConfig.loginEnabled {
+            Task { await AuthHub.gate.bootstrap() }
+        }
     }
 
     var body: some Scene {

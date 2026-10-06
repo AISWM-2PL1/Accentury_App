@@ -28,18 +28,69 @@ public protocol SessionClient: Sendable {
     ///   - previousToken: 재응시일 때 폐기할 이전 세션의 토큰. 최초 응시는 nil
     ///   - campaignToken: Universal Link로 들어온 공유 유입 계측 코드 (KAN-32).
     ///     링크 진입이 아니면 nil
-    func create(appVersion: String, previousToken: String?, campaignToken: String?) async -> SessionResult
+    ///   - voiceConsentVersion: 익명 모드에서 음성 저장에 동의했을 때의 문안 버전 (KAN-270 6단계). 서버는 계정 세션에서는
+    ///     이 필드를 무시한다 — 계정 모드는 nil로 둔다. 미동의도 nil
+    func create(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?
+    ) async -> SessionResult
 }
 
 public extension SessionClient {
-    /// 안드로이드의 기본 인자(`previousToken: String? = null`, `campaignToken: String? = null`)
-    /// 자리. 프로토콜 요구사항에는 기본값을 적을 수 없어 확장으로 둔다.
+    /// 안드로이드의 기본 인자(`previousToken: String? = null`, `campaignToken: String? = null`,
+    /// `voiceConsentVersion: String? = null`) 자리. 프로토콜 요구사항에는 기본값을 적을 수 없어 확장으로 둔다.
     func create(appVersion: String) async -> SessionResult {
-        await create(appVersion: appVersion, previousToken: nil, campaignToken: nil)
+        await create(appVersion: appVersion, previousToken: nil, campaignToken: nil, voiceConsentVersion: nil)
     }
 
     /// 안드로이드의 기본 인자(`campaignToken: String? = null`) 자리.
     func create(appVersion: String, previousToken: String?) async -> SessionResult {
-        await create(appVersion: appVersion, previousToken: previousToken, campaignToken: nil)
+        await create(appVersion: appVersion, previousToken: previousToken, campaignToken: nil, voiceConsentVersion: nil)
+    }
+
+    /// 안드로이드의 기본 인자(`voiceConsentVersion: String? = null`) 자리 — 계정 모드의 호출 모양이다.
+    func create(appVersion: String, previousToken: String?, campaignToken: String?) async -> SessionResult {
+        await create(
+            appVersion: appVersion,
+            previousToken: previousToken,
+            campaignToken: campaignToken,
+            voiceConsentVersion: nil
+        )
+    }
+
+    /// 세션 생성 + 동의 버전 폴백 (KAN-270 6단계). 안드로이드 `createWithConsentFallback`, 웹 `App.tsx`
+    /// startStandaloneTest와 같은 규칙이다.
+    ///
+    /// 동의를 실었는데 400 `VALIDATION_FAILED`면 이 빌드의 문안 버전이 서버 게시 버전보다 낡았다(서버가 버전을 먼저 올린
+    /// 배포 사이). 동의 없이 **한 번만** 다시 만든다 — 선택 동의 하나 때문에 응시가 막히면 안 된다(팀 결정 2026-10-06).
+    /// 이전 토큰은 그대로 싣는다: 400은 본문 검증에서 나므로 서버가 옛 세션을 폐기하기 전이고, 두 번째 요청이 그 폐기를
+    /// 다시 맡는다. 미동의 요청의 400이나 다른 거절은 그대로 돌려준다.
+    func createWithConsentFallback(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?
+    ) async -> SessionResult {
+        let first = await create(
+            appVersion: appVersion,
+            previousToken: previousToken,
+            campaignToken: campaignToken,
+            voiceConsentVersion: voiceConsentVersion
+        )
+        guard voiceConsentVersion != nil,
+              case .rejected(let code, _, _, _) = first,
+              code == codeValidationFailed
+        else { return first }
+        return await create(
+            appVersion: appVersion,
+            previousToken: previousToken,
+            campaignToken: campaignToken,
+            voiceConsentVersion: nil
+        )
     }
 }
+
+/// 동의 버전이 서버 게시 버전과 어긋났을 때 서버가 주는 코드 (§2.4)
+public let codeValidationFailed = "VALIDATION_FAILED"

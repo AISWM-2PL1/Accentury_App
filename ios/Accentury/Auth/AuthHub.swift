@@ -11,6 +11,9 @@ enum AuthHub {
     /// 저장소·갱신 관문·인증 API. `nonisolated`로 읽히는 값이라 세션 클라이언트를 만드는 기본 인자에서도 쓴다.
     static let clients = AuthClients(baseURL: AppConfig.apiBaseURL, store: KeychainTokenStore())
 
-    /// 로그인 상태 머신. 시작 확인(bootstrap)은 프로세스당 한 번 ``AuthGateView``가 건다.
+    /// 로그인 상태 머신. 시작 확인(bootstrap)은 프로세스당 한 번 ``AccenturyApp``의 이니셜라이저가 건다.
+    ///
+    /// 로그인을 끈 빌드(익명 모드, KAN-270 6단계)에서는 두 값 모두 깨어나지 않는다 — 읽는 곳이 전부
+    /// `AppConfig.loginEnabled` 분기 안쪽이다(``AccenturyApp``, ``ContentView``, ``TestFlowModel``의 기본 인자).
     @MainActor static let gate = AuthGateController(api: clients.api, store: clients.store, refresher: clients.refresher)
 }

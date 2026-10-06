@@ -120,6 +120,31 @@ final class URLSessionSessionClientTests: XCTestCase {
         XCTAssertFalse(body.contains("previousSessionToken"), body)
     }
 
+    func test익명_동의_버전을_바디_voiceConsentVersion으로_싣는다_Authorization은_없다_KAN270() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(
+            appVersion: "1.0",
+            previousToken: nil,
+            campaignToken: nil,
+            voiceConsentVersion: "2026-10-04"
+        )
+
+        let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
+        XCTAssertNil(recorded.header("Authorization"))
+        let body = try XCTUnwrap(String(data: recorded.body, encoding: .utf8))
+        XCTAssertTrue(body.contains(#""voiceConsentVersion":"2026-10-04""#), body)
+    }
+
+    func test동의_버전이_없으면_voiceConsentVersion_키_자체를_빼고_보낸다_KAN270() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(appVersion: "1.0")
+
+        let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))
+        XCTAssertFalse(body.contains("voiceConsentVersion"), body)
+    }
+
     func test429_봉투의_retryAfterMs를_결과에_싣는다() async {
         MockURLProtocol.respond(
             status: 429,

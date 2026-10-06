@@ -96,9 +96,9 @@ private struct SignedInScreen: View {
             if consentShown {
                 VoiceConsentScreen(
                     onConsent: {
-                        let result = await gate.setVoiceConsent(true)
-                        if case .success = result { finishConsentPrompt() }
-                        return result
+                        guard case .success = await gate.setVoiceConsent(true) else { return false }
+                        finishConsentPrompt()
+                        return true
                     },
                     onSkip: finishConsentPrompt,
                     onOpenPrivacy: openPrivacy
@@ -134,5 +134,35 @@ private struct SignedInScreen: View {
 
     private func openPrivacy() {
         ExternalBrowser.open(privacyPolicyURL)
+    }
+}
+
+/// 로그인을 끈 빌드(익명 모드)의 최상위 (KAN-270 6단계, `AppConfig.loginEnabled == false`). 안드로이드 `MainActivity.AnonymousFlow`
+/// 이식본이고 ``AuthGateView`` 자리에 선다(``ContentView``).
+///
+/// 관문·추가 정보·계정 동의 오버레이가 없고, 음성 저장 동의는 ``TestFlowView``의 시작 게이트가 설치당 한 번 묻는다.
+/// 설정 톱니는 그대로이고 ``AnonymousSettingsScreen``(「개인정보」만)을 덮는다 — ``SignedInScreen``과 같은 `ZStack` 구조다.
+///
+/// 세션 생성은 plain 클라이언트다(``TestFlowModel``의 기본 클라이언트가 `AppConfig.loginEnabled`를 본다). 예전 로그인 빌드가
+/// 남긴 토큰이 Keychain에 있어도 Bearer가 실리지 않게 하려는 것이다 — 실리면 서버가 계정 세션으로 보고 voiceConsentVersion을
+/// 무시한다.
+struct AnonymousFlowView: View {
+
+    @StateObject private var consentStore = AnonymousVoiceConsentStore()
+    @State private var settingsOpen = false
+
+    var body: some View {
+        ZStack {
+            TestFlowView(anonymousConsent: consentStore, onOpenSettings: { settingsOpen = true })
+                .accessibilityHidden(settingsOpen)
+            if settingsOpen {
+                AnonymousSettingsScreen(
+                    consented: consentStore.consented(),
+                    onChange: { consentStore.save(consented: $0) },
+                    onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
+                    onClose: { settingsOpen = false }
+                )
+            }
+        }
     }
 }

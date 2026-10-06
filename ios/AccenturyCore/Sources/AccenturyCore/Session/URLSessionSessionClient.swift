@@ -59,10 +59,11 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
     public func create(
         appVersion: String,
         previousToken: String?,
-        campaignToken: String?
+        campaignToken: String?,
+        voiceConsentVersion: String?
     ) async -> SessionResult {
         do {
-            let request = try buildRequest(appVersion, previousToken, campaignToken)
+            let request = try buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion)
             let (data, response) = try await send(request)
             let http = response as? HTTPURLResponse
             return Self.toResult(
@@ -78,7 +79,8 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
     private func buildRequest(
         _ appVersion: String,
         _ previousToken: String?,
-        _ campaignToken: String?
+        _ campaignToken: String?,
+        _ voiceConsentVersion: String?
     ) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appendingPathComponent(pathSessions))
         request.httpMethod = "POST"
@@ -97,6 +99,7 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
             CreateSessionBody(
                 campaignToken: campaignToken,
                 previousSessionToken: previousToken,
+                voiceConsentVersion: voiceConsentVersion,
                 client: ClientBody(platform: platformIOS, appVersion: appVersion)
             )
         )
@@ -167,9 +170,12 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
 /// `st_` 토큰보다 우선해 읽는다 (Accentury_Server `backend/.../session/SessionService.java` create()). 익명·로그인
 /// 모두 본문으로 보내 경로를 하나로 둔다. 만료됐거나 서버가 모르는 토큰은 조용히 무시되고 응답이 최초 응시와
 /// 구분되지 않으므로(401도 404도 없다) 여기서 토큰의 생사를 따지지 않는다. nil이면 키째 빠진다.
+///
+/// `voiceConsentVersion`은 익명 모드의 음성 저장 동의다 (KAN-270 6단계, 웹 webSession.ts와 같은 필드). 역시 nil이면 빠진다.
 struct CreateSessionBody: Encodable, CustomStringConvertible {
     let campaignToken: String?
     let previousSessionToken: String?
+    let voiceConsentVersion: String?
     let client: ClientBody
 
     // 이전 세션 토큰이 로그에 찍히지 않게 한다 (KAN-224).

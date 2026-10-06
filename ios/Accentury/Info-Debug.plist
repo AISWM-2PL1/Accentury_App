@@ -79,6 +79,11 @@
 	<key>FAKE_IDP</key>
 	<string>$(FAKE_IDP)</string>
 
+	<!-- 로그인 관문 스위치 (KAN-270 6단계). 값의 출처는 Config/Base.xcconfig이고 기본 NO(익명 모드)다. FAKE_IDP와 달리
+	     Info-Debug.plist·Info-Release.plist 둘 다에 있다 — 릴리스에서도 켤 수 있는 값이다(AppConfig.loginEnabled). -->
+	<key>LOGIN_ENABLED</key>
+	<string>$(LOGIN_ENABLED)</string>
+
 	<!-- 카카오 네이티브 앱 키 (KAN-180). 값의 출처는 Config/Base.xcconfig이고 **기본은 빈 문자열**이다 —
 	     그 상태가 정상이며 카카오 경로가 꺼진 것을 뜻한다(AppConfig.kakaoNativeAppKey가 nil이 되고
 	     AccenturyApp이 initSDK를 건너뛴다). 안드로이드 local.properties의 `kakaoNativeAppKey=`
