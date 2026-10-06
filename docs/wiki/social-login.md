@@ -282,7 +282,7 @@ IdP 콘솔 없이 게이트·추가 정보 화면을 돌리는 길이다. 서버
 | 어디 | 켜는 법 |
 |---|---|
 | Android | `./gradlew :app:installDebug -PloginEnabled=true`, 또는 `local.properties`에 `loginEnabled=true`. `FAKE_IDP`와 달리 release도 이 값을 본다 |
-| iOS | 6단계에서 같은 키로 옮긴다 |
+| iOS | `ios/Accentury/Config/Local.xcconfig`에 `LOGIN_ENABLED = YES`(Debug·Release 공통, 예시는 `Local.xcconfig.example`), 또는 `xcodebuild ... LOGIN_ENABLED=YES`. `FAKE_IDP`와 달리 Release.xcconfig가 다시 못 박지 않는다 (KAN-270 6단계) |
 
 ## 6. 실기기 실증표
 

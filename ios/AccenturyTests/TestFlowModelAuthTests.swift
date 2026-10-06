@@ -57,11 +57,72 @@ final class TestFlowModelAuthTests: XCTestCase {
         XCTAssertFalse(restored.micPassed)
         XCTAssertNil(restored.campaignToken)
     }
+
+    /// 익명 모드 (KAN-270 6단계). 저장소 값이 세션 생성 body의 동의 버전으로 가고, 계정 모드(nil 주입)는 싣지 않는다.
+    func test익명_동의를_주입하면_세션_생성에_동의_버전을_싣고_계정_모드는_싣지_않는다() async {
+        let consented = AnonymousVoiceConsentStore(defaults: defaults)
+        consented.save(consented: true)
+        let anonymousClient = RecordingClient()
+        await startAndCreate(TestFlowModel(
+            defaults: defaults, sessionClient: anonymousClient, isMicGranted: { true }, onProfileIncomplete: {},
+            anonymousConsent: consented
+        ))
+        XCTAssertEqual(["2026-10-04"], anonymousClient.versions)
+
+        TestFlowModel.clearSavedState(in: defaults)
+        let accountClient = RecordingClient()
+        await startAndCreate(TestFlowModel(
+            defaults: defaults, sessionClient: accountClient, isMicGranted: { true }, onProfileIncomplete: {}
+        ))
+        XCTAssertEqual([nil], accountClient.versions)
+    }
+
+    func test익명_동의를_아직_안_물었으면_권한_다음에_동의_단계가_서고_고르면_걷힌다() {
+        let store = AnonymousVoiceConsentStore(defaults: defaults)
+        let model = TestFlowModel(
+            defaults: defaults, sessionClient: nil, isMicGranted: { true }, onProfileIncomplete: {},
+            anonymousConsent: store
+        )
+        XCTAssertTrue(model.needsAnonymousConsent)
+
+        model.onAnonymousConsentChosen(consented: false)
+
+        XCTAssertFalse(model.needsAnonymousConsent)
+        XCTAssertTrue(store.asked())
+        XCTAssertFalse(store.consented())
+    }
+
+    private func startAndCreate(_ model: TestFlowModel) async {
+        model.onRequestMicPermission()
+        model.onStartGateMicPassed()
+        model.onVoiceCheckDone(centerHz: 180)
+        await model.createSessionIfNeeded()
+    }
+}
+
+/// 받은 동의 버전을 적는 세션 생성. 결과는 재시도 없는 전송 실패라 폴백도 타지 않는다.
+private final class RecordingClient: SessionClient, @unchecked Sendable {
+    private(set) var versions: [String?] = []
+
+    func create(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?
+    ) async -> SessionResult {
+        versions.append(voiceConsentVersion)
+        return .transportError(reason: "test")
+    }
 }
 
 /// 서버가 프로필 미완료로 막는 세션 생성.
 private struct ProfileIncompleteClient: SessionClient {
-    func create(appVersion: String, previousToken: String?, campaignToken: String?) async -> SessionResult {
+    func create(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?
+    ) async -> SessionResult {
         .rejected(code: "AUTH_PROFILE_INCOMPLETE", message: "m", retryable: false, retryAfterMs: nil)
     }
 }

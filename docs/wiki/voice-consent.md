@@ -31,7 +31,7 @@
 2. `privacy.html`의 `accentury-policy-version`
 3. `VOICE_CONSENT_VERSION` (`voiceConsent.ts`)
 4. Android `VOICE_CONSENT_VERSION` (`app/src/main/java/com/accentury/app/auth/VoiceConsentText.kt`, 익명 모드 세션용 — 5단계)
-5. iOS `VoiceConsentText.swift`의 같은 상수 (6단계에서 추가)
+5. iOS `voiceConsentVersion` (`ios/AccenturyCore/Sources/AccenturyCore/Auth/VoiceConsentText.swift`, 익명 모드 세션용 — 6단계)
 
 인트로 고지(`PrivacyNotice`)는 "따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요."로
 조건부 문장이 됐다. 앱 WebView에도 그대로 보이는데, 조건을 단 문장이라 플랫폼 공통으로 맞다.
@@ -104,7 +104,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 
 앱은 로그인 관문이 늘 켜져 있었다. 계정 세션은 서버가 본문 `voiceConsentVersion`을 무시하므로, 로그인을 끈
 빌드에서 익명 세션으로는 동의를 실을 길이 없었다. 5단계(Android)에서 플래그를 두고 웹과 같은 방식으로 본문에
-버전을 싣는다. 서버 변경은 없다. iOS는 6단계에서 같은 계약을 옮긴다.
+버전을 싣는다. 서버 변경은 없다. 6단계(iOS)가 같은 계약을 옮겼다 — 아래 「iOS 대응」.
 
 - **플래그 `LOGIN_ENABLED`**: 기본 `false`(익명 모드). `-PloginEnabled=true` 또는 `local.properties`
   `loginEnabled=true`로 켠다. `FAKE_IDP`와 달리 debug·release 모두 이 값을 보고, 두 값 다 릴리스에 허용된다
@@ -134,7 +134,30 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 
 계측 전용이라 단위 테스트가 덮지 못하는 곳: 시작 게이트의 동의 단계, `AnonymousFlow`, 익명 설정 화면 결선.
 
-## iOS (3단계)
+### iOS 대응 (6단계)
+
+규칙·문안·키 의미는 위와 같다. 판정과 저장소는 `AccenturyCore`에 두어 `swift test`로 돈다.
+
+| Android | iOS |
+|---|---|
+| `build.gradle.kts` `loginEnabled()` → `BuildConfig.LOGIN_ENABLED` | xcconfig `LOGIN_ENABLED`(기본 `NO`, `Base.xcconfig`의 Local include 앞) → `Info-Debug.plist`·`Info-Release.plist` 둘 다 → `AppConfig.loginEnabled`(`#if DEBUG` 없음). 켜는 법은 `social-login.md` §5 |
+| `AccenturyApplication` `if (LOGIN_ENABLED) authGate.retry()` | `AccenturyApp.init` `if AppConfig.loginEnabled { bootstrap }` — `AuthHub` static let을 깨우지 않아 Keychain 접근도 없다 |
+| `MainActivity` `AuthGate` / `AnonymousFlow` 분기 | `ContentView.rootScreen`: `AuthGateView` / `AnonymousFlowView`(`Auth/AuthGateView.swift`) |
+| `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`, `@MainActor ObservableObject`) |
+| `anonymousVoiceConsentVersion(consented)` | `anonymousVoiceConsentVersion(consented:)` (같은 파일) |
+| `VOICE_CONSENT_VERSION`·`VOICE_CONSENT_DETAILS_ANONYMOUS` | `voiceConsentVersion`·`voiceConsentDetailsAnonymous` (`VoiceConsentText.swift`) |
+| `SessionClient.create(..., voiceConsentVersion)`·`createWithConsentFallback`·`CODE_VALIDATION_FAILED` | 프로토콜 요구사항 4인자 `create`, 확장 `createWithConsentFallback`, `codeValidationFailed` (`Session/SessionClient.swift`). 3인자 이하 `create`는 확장 오버로드 |
+| TestFlow `anonymousConsent` 인자, when 체인 동의 단계 | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`, `TestFlowView` overlay 사슬의 권한과 점검 사이 |
+| plain `OkHttpClient()` | `TestFlowModel.defaultSessionClient()`가 `loginEnabled == false`면 plain `URLSessionSessionClient(baseURL:)` (`-StubSession`은 그대로 우선) |
+| `AnonymousSettingsScreen` | `SettingsScreen.swift` `AnonymousSettingsScreen` |
+
+저장소 변화는 `TestFlowModel`이 `objectWillChange`로 다시 알린다. 그래서 `TestFlowView`는 모델만 보고도 고른 즉시
+동의 단계를 걷는다. `TestFlowView`의 톱니는 시작 게이트 동안 이미 숨으므로(`nativeCovering`) 동의 단계에서도 안 보인다.
+
+## iOS (3·6단계)
+
+6단계(익명 모드)는 위 「iOS 대응」이다. `VoiceConsentScreen`의 `onConsent`가 `Bool`을 돌려주고 `details`를
+받도록, `VoiceConsentSection`이 `consented: Bool?`·`onChange: (Bool) async -> Bool`을 받도록 Android처럼 일반화됐다.
 
 Android와 같은 상태 모양, 메서드 이름, 문안을 옮겼다. 상태 흐름·로컬 플래그·설정 토글의 규칙은 위 Android 절과
 같다. 판정과 저장소는 `AccenturyCore`에 두어 `swift test`로 돈다.
@@ -182,6 +205,7 @@ UserDefaults 키 이름은 광고 동의(`ad_consent.state`)와 같은 규칙이
 | 웹 `tsc --noEmit` · `tsc -p e2e --noEmit` | 오류 0 |
 | Android `:app:testDebugUnitTest` | 635 tests, 실패 0 |
 | iOS `swift test` (`AccenturyCore`) | XCTest 628 tests, 실패 0 |
+| iOS 6단계 `swift test` · 앱 타깃 `AccenturyTests` | 642 tests · 191 tests, 실패 0 |
 | e2e 전체 (격리 스택) | 7 passed, 1 skipped(retake) · `E2E_VOICE_CONSENT=true` full-run 2 passed |
 
 e2e는 서버 origin/Dev(KAN-269 포함)를 `git archive`로 풀어 띄운 격리 스택에서 돌렸다. 로컬 서버 체크아웃의 작업

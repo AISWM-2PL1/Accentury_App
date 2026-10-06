@@ -19,15 +19,26 @@ struct ContentView: View {
             if UserDefaults.standard.bool(forKey: "DebugSmokeMenu") {
                 DebugSmokeMenu()
             } else {
-                AuthGateView()
+                rootScreen
             }
         }
         // `-TestCrash 1`: 스모크 메뉴 뒤가 아니라 여기인 이유는 두 화면 어느 쪽으로 떠도
         // 같은 통로여야 해서다. 릴리스에는 이 줄째 없다 (``TestCrash``).
         .task { TestCrash.fireIfRequested() }
         #else
-        AuthGateView()
+        rootScreen
         #endif
+    }
+
+    /// 로그인을 끈 빌드(익명 모드, KAN-270 6단계)는 관문 자리에 ``AnonymousFlowView``가 선다 — 안드로이드
+    /// `if (BuildConfig.LOGIN_ENABLED) AuthGate(...) else AnonymousFlow(...)`와 같다.
+    @ViewBuilder
+    private var rootScreen: some View {
+        if AppConfig.loginEnabled {
+            AuthGateView()
+        } else {
+            AnonymousFlowView()
+        }
     }
 }
 

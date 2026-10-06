@@ -26,11 +26,17 @@ struct TestFlowView: View {
     /// 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(``AuthGateView``)가 이 위에 덮는다 (KAN-247)
     private let onOpenSettings: () -> Void
 
-    init(onOpenSettings: @escaping () -> Void) {
+    /// - Parameter anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
+    init(anonymousConsent: AnonymousVoiceConsentStore? = nil, onOpenSettings: @escaping () -> Void) {
         self.onOpenSettings = onOpenSettings
+        // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
+        _model = StateObject(
+            wrappedValue: anonymousConsent.map { TestFlowModel(onProfileIncomplete: {}, anonymousConsent: $0) }
+                ?? TestFlowModel()
+        )
     }
 
-    @StateObject private var model = TestFlowModel()
+    @StateObject private var model: TestFlowModel
 
     /// 녹음·목소리 점검·업로드의 주인. 화면 값이 다시 만들어져도 살아남아야 하는 것들이라
     /// `@StateObject`다 — 안드로이드가 `ViewModel`에 둔 자리와 같다.
@@ -335,6 +341,19 @@ struct TestFlowView: View {
         // 이어지기 때문이다: 세션을 기다리는 동안 권한 화면으로 되돌아가면 안 된다.
         if model.startRequested, model.session == nil, !model.micPassed {
             PermissionGateView(onGranted: { model.onStartGateMicPassed() })
+
+        // 익명 모드의 음성 저장 동의 (KAN-270 6단계) — 설치당 한 번. 고르면 저장소가 asked를 세워 조건이 풀린다.
+        // 웹과 같이 권한과 점검 사이다. 톱니는 ``nativeCovering``의 시작 게이트 조건이 이미 숨긴다.
+        } else if model.startRequested, model.session == nil, model.micPassed, model.needsAnonymousConsent {
+            VoiceConsentScreen(
+                onConsent: {
+                    model.onAnonymousConsentChosen(consented: true)
+                    return true
+                },
+                onSkip: { model.onAnonymousConsentChosen(consented: false) },
+                onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
+                details: voiceConsentDetailsAnonymous
+            )
 
         // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
         } else if model.startRequested, model.session == nil, model.micPassed, model.voiceCenterHz == nil {

@@ -45,3 +45,7 @@
 // --- 가짜 IdP (KAN-224, Debug 전용) ---
 // SDK 없이 로그인 버튼 넷을 돌린다. 로컬 서버가 accentury.auth.fake-idp=true여야 받는다.
 // FAKE_IDP = YES
+
+// --- 로그인 관문 (KAN-270 6단계, Debug·Release 공통) ---
+// 기본은 꺼짐(익명 모드). 로그인 관문·계정 설정을 켜려면 주석을 푼다.
+// LOGIN_ENABLED = YES

@@ -139,6 +139,11 @@
 	<key>NAVER_URL_SCHEME</key>
 	<string>$(NAVER_URL_SCHEME)</string>
 
+	<!-- 로그인 관문 스위치 (KAN-270 6단계). 값의 출처는 Config/Base.xcconfig이고 기본 NO(익명 모드)다. FAKE_IDP와 달리
+	     이 plist에도 있다 — 릴리스에서도 켤 수 있는 값이다(AppConfig.loginEnabled). -->
+	<key>LOGIN_ENABLED</key>
+	<string>$(LOGIN_ENABLED)</string>
+
 	<!-- 광고 관련 동의 기본값을 끈다 (KAN-33). 웹에서 `allow_google_signals`·
 	     `allow_ad_personalization_signals`를 끈 것과 같은 요구이고, 안드로이드 매니페스트의
 	     `google_analytics_adid_collection_enabled=false` 자리다.

@@ -54,6 +54,13 @@ enum AppConfig {
         #endif
     }
 
+    /// 로그인 관문 스위치 (KAN-270 6단계). 안드로이드 `BuildConfig.LOGIN_ENABLED` 자리. **기본 꺼짐(익명 모드)**이고,
+    /// ``fakeIdp``와 달리 Debug·Release 모두 이 값을 본다(두 값 다 릴리스 허용) — 그래서 `#if DEBUG`가 없고 키도 두 plist에
+    /// 다 있다. 꺼지면 로그인 관문·앱 시작 Refresh 확인·계정 설정이 전부 빠지고, 음성 저장 동의는 설치당 한 번 묻고
+    /// 기기에 둔다(``AccenturyCore/AnonymousVoiceConsentStore``). 값의 사슬은 Config/Base.xcconfig의 `LOGIN_ENABLED`
+    /// → Info-*.plist → 여기다.
+    static let loginEnabled: Bool = value(for: "LOGIN_ENABLED", in: Bundle.main.infoDictionary) == "YES"
+
     /// 웹에 스큐 협상용으로 알리는 앱 버전 (`CFBundleShortVersionString` = MARKETING_VERSION).
     static let appVersionName: String = value(for: "CFBundleShortVersionString", in: Bundle.main.infoDictionary) ?? "0"
 

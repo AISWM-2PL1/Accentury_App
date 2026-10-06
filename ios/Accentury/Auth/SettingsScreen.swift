@@ -86,8 +86,11 @@ struct SettingsScreen: View {
                 }
 
                 VoiceConsentSection(
-                    voiceConsent: voiceConsent,
-                    onChange: onVoiceConsentChange,
+                    consented: voiceConsent?.consented,
+                    onChange: {
+                        if case .success = await onVoiceConsentChange($0) { return true }
+                        return false
+                    },
                     onReload: onReloadVoiceConsent,
                     onOpenPrivacy: onOpenPrivacy
                 )
@@ -122,10 +125,14 @@ struct SettingsScreen: View {
 ///
 /// 토글은 서버 값(``AccenturyCore/VoiceConsent/consented``)을 따른다. 누르는 동안만 새 값을 먼저 보여 주고, 실패하면 그
 /// 값을 버려 원래 자리로 돌아간 뒤 한 줄 안내를 남긴다. 서버가 받은 값이 아니면 켜진 것처럼 보이면 안 된다.
+///
+/// 익명 모드(KAN-270 6단계, ``AnonymousSettingsScreen``)도 이 섹션을 쓴다 — 값은 기기 로컬이고 바꾸기는 늘 성공한다.
 private struct VoiceConsentSection: View {
 
-    let voiceConsent: VoiceConsent?
-    let onChange: (Bool) async -> AuthResult<Account>
+    /// 지금 값. nil이면(계정 모드에서 상태를 못 받음) 토글 대신 [다시 시도]
+    let consented: Bool?
+    /// 새 값을 남긴다. true면 성공
+    let onChange: (Bool) async -> Bool
     let onReload: () async -> Void
     let onOpenPrivacy: () -> Void
 
@@ -139,8 +146,8 @@ private struct VoiceConsentSection: View {
                 .papercutType(.label)
                 .foregroundColor(Papercut.muted)
                 .accessibilityAddTraits(.isHeader)
-            if let voiceConsent {
-                Toggle(isOn: Binding(get: { pending ?? voiceConsent.consented }, set: change)) {
+            if let consented {
+                Toggle(isOn: Binding(get: { pending ?? consented }, set: change)) {
                     Text(voiceConsentSettingLabel).papercutType(.body).foregroundColor(Papercut.ink)
                 }
                 .tint(Papercut.ink)
@@ -173,8 +180,44 @@ private struct VoiceConsentSection: View {
         pending = next
         failed = false
         Task {
-            if case .success = await onChange(next) { failed = false } else { failed = true }
+            failed = await !onChange(next)
             pending = nil
         }
+    }
+}
+
+/// 로그인을 끈 빌드(익명 모드)의 설정 화면 (KAN-270 6단계). 안드로이드 `AnonymousSettingsScreen` 이식본이다. 톱니는 그대로
+/// 두고 「개인정보」만 남긴다 — 계정 섹션·로그아웃·계정 동의 토글은 없다. 스위치는 ``AccenturyCore/AnonymousVoiceConsentStore``를
+/// 바꾸고 다음 세션 생성부터 반영된다. 덮는 방식은 ``SettingsScreen``과 같다(``AnonymousFlowView``).
+struct AnonymousSettingsScreen: View {
+
+    let consented: Bool
+    let onChange: (Bool) -> Void
+    let onOpenPrivacy: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Papercut.space6) {
+                HStack {
+                    Text("설정")
+                        .papercutType(.title)
+                        .foregroundColor(Papercut.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    AccenturyButton(text: "닫기", variant: .text, action: onClose)
+                }
+                // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다.
+                VoiceConsentSection(
+                    consented: consented,
+                    onChange: { onChange($0); return true },
+                    onReload: {},
+                    onOpenPrivacy: onOpenPrivacy
+                )
+            }
+            .padding(.horizontal, Papercut.space6)
+            .padding(.vertical, Papercut.space4)
+        }
+        .background(Papercut.cream.ignoresSafeArea())
     }
 }
