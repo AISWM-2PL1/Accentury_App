@@ -8,7 +8,12 @@ import org.junit.Test
 /** 동의 버전 폴백 (KAN-270 5단계, 웹 App.tsx와 같은 규칙) */
 class SessionClientConsentFallbackTest {
 
-    private data class Call(val previousToken: String?, val campaignToken: String?, val voiceConsentVersion: String?)
+    private data class Call(
+        val previousToken: String?,
+        val campaignToken: String?,
+        val voiceConsentVersion: String?,
+        val region: String? = null,
+    )
 
     /** 미리 준 결과를 차례로 돌려주고 받은 인자를 적는다 */
     private class FakeClient(vararg results: SessionResult) : SessionClient {
@@ -20,8 +25,9 @@ class SessionClientConsentFallbackTest {
             previousToken: String?,
             campaignToken: String?,
             voiceConsentVersion: String?,
+            region: String?,
         ): SessionResult {
-            calls += Call(previousToken, campaignToken, voiceConsentVersion)
+            calls += Call(previousToken, campaignToken, voiceConsentVersion, region)
             return queue.removeFirst()
         }
     }
@@ -41,6 +47,17 @@ class SessionClientConsentFallbackTest {
             listOf(Call("st_old", "c1", "2026-10-04"), Call("st_old", "c1", null)),
             client.calls,
         )
+    }
+
+    @Test
+    fun `폴백 재시도에서는 region도 함께 뺀다 (KAN-270 7단계)`() = runTest {
+        val client = FakeClient(validationFailed, created)
+
+        client.createWithConsentFallback(
+            "1.0", previousToken = null, campaignToken = null, voiceConsentVersion = "2026-10-04", region = "JEJU",
+        )
+
+        assertEquals(listOf(Call(null, null, "2026-10-04", "JEJU"), Call(null, null, null, null)), client.calls)
     }
 
     @Test
