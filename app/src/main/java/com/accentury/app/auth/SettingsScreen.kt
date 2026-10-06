@@ -146,7 +146,12 @@ fun SettingsScreen(
                 // [회원 탈퇴]는 KAN-251이 이 자리(계정 섹션 맨 아래)에 붙인다.
             }
 
-            VoiceConsentSection(voiceConsent, onVoiceConsentChange, onReloadVoiceConsent, onOpenPrivacy)
+            VoiceConsentSection(
+                consented = voiceConsent?.consented,
+                onChange = { onVoiceConsentChange(it) is AuthResult.Success },
+                onReload = onReloadVoiceConsent,
+                onOpenPrivacy = onOpenPrivacy,
+            )
 
             AccenturyButton(
                 text = "로그아웃",
@@ -201,11 +206,16 @@ fun SettingsScreen(
  *
  * 스위치는 서버 값([VoiceConsent.consented])을 따른다. 누르는 동안만 새 값을 먼저 보여 주고, 실패하면 그 값을 버려
  * 원래 자리로 돌아간 뒤 한 줄 안내를 남긴다. 서버가 받은 값이 아니면 켜진 것처럼 보이면 안 된다.
+ *
+ * 익명 모드(KAN-270 5단계, [AnonymousSettingsScreen])도 이 섹션을 쓴다 — 값은 기기 로컬이고 바꾸기는 늘 성공한다.
+ *
+ * @param consented 지금 값. null이면(계정 모드에서 상태를 못 받음) 스위치 대신 [다시 시도]
+ * @param onChange 새 값을 남긴다. true면 성공
  */
 @Composable
 private fun VoiceConsentSection(
-    voiceConsent: VoiceConsent?,
-    onChange: suspend (Boolean) -> AuthResult<Account>,
+    consented: Boolean?,
+    onChange: suspend (Boolean) -> Boolean,
     onReload: suspend () -> Unit,
     onOpenPrivacy: () -> Unit,
 ) {
@@ -221,7 +231,7 @@ private fun VoiceConsentSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.semantics { heading() },
         )
-        if (voiceConsent == null) {
+        if (consented == null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(VOICE_CONSENT_SETTING_LABEL, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Text("상태를 불러오지 못했어요", style = MaterialTheme.typography.bodyMedium)
@@ -242,7 +252,7 @@ private fun VoiceConsentSection(
                 enabled = !reloading,
             )
         } else {
-            val checked = pending ?: voiceConsent.consented
+            val checked = pending ?: consented
             // 줄 전체가 스위치 하나로 읽히고 눌린다(48dp 터치) — LoginScreen 동의 줄과 같은 구성.
             Row(
                 modifier = Modifier
@@ -254,7 +264,7 @@ private fun VoiceConsentSection(
                         failed = false
                         scope.launch {
                             try {
-                                failed = onChange(next) !is AuthResult.Success
+                                failed = !onChange(next)
                             } finally {
                                 pending = null
                             }
@@ -273,6 +283,47 @@ private fun VoiceConsentSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         AccenturyButton(text = "개인정보처리방침", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
+    }
+}
+
+/**
+ * 로그인을 끈 빌드(익명 모드)의 설정 화면 (KAN-270 5단계). 톱니는 그대로 두고 「개인정보」만 남긴다 — 계정 섹션·
+ * 로그아웃·계정 동의 토글은 없다. 스위치는 [AnonymousVoiceConsentStore]를 바꾸고 다음 세션 생성부터 반영된다.
+ * 덮는 방식·뒤로 가기는 [SettingsScreen]과 같다.
+ */
+@Composable
+fun AnonymousSettingsScreen(
+    consented: Boolean,
+    onChange: (Boolean) -> Unit,
+    onOpenPrivacy: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BackHandler(onBack = onClose)
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.x6, vertical = Spacing.x4),
+            verticalArrangement = Arrangement.spacedBy(Spacing.x6),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "설정",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                AccenturyButton(text = "닫기", onClick = onClose, variant = ButtonVariant.Text)
+            }
+            // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다.
+            VoiceConsentSection(
+                consented = consented,
+                onChange = { onChange(it); true },
+                onReload = {},
+                onOpenPrivacy = onOpenPrivacy,
+            )
+        }
     }
 }
 

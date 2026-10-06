@@ -84,12 +84,38 @@ interface SessionClient {
      * @param appVersion 익명 집계용 앱 버전 (서버 상한 32자)
      * @param previousToken 재응시일 때 폐기할 이전 세션의 토큰. 최초 응시는 null
      * @param campaignToken App Link로 들어온 공유 유입 계측 코드 (KAN-32). 링크 진입이 아니면 null
+     * @param voiceConsentVersion 익명 모드에서 음성 저장에 동의했을 때의 문안 버전 (KAN-270 5단계). 서버는 계정 세션에서는
+     *   이 필드를 무시한다 — 계정 모드는 null로 둔다. 미동의도 null
      */
     suspend fun create(
         appVersion: String,
         previousToken: String? = null,
         campaignToken: String? = null,
+        voiceConsentVersion: String? = null,
     ): SessionResult
+}
+
+/** 동의 버전이 서버 게시 버전과 어긋났을 때 서버가 주는 코드 (§2.4) */
+internal const val CODE_VALIDATION_FAILED = "VALIDATION_FAILED"
+
+/**
+ * 세션 생성 + 동의 버전 폴백 (KAN-270 5단계, 웹 `App.tsx` startStandaloneTest와 같은 규칙).
+ *
+ * 동의를 실었는데 400 `VALIDATION_FAILED`면 이 빌드의 문안 버전이 서버 게시 버전보다 낡았다(서버가 버전을 먼저 올린
+ * 배포 사이). 동의 없이 **한 번만** 다시 만든다 — 선택 동의 하나 때문에 응시가 막히면 안 된다(팀 결정 2026-10-06).
+ * 이전 토큰은 그대로 싣는다: 400은 본문 검증에서 나므로 서버가 옛 세션을 폐기하기 전이고, 두 번째 요청이 그 폐기를
+ * 다시 맡는다. 미동의 요청의 400이나 다른 거절은 그대로 돌려준다.
+ */
+suspend fun SessionClient.createWithConsentFallback(
+    appVersion: String,
+    previousToken: String?,
+    campaignToken: String?,
+    voiceConsentVersion: String?,
+): SessionResult {
+    val first = create(appVersion, previousToken, campaignToken, voiceConsentVersion)
+    val retry = voiceConsentVersion != null &&
+        first is SessionResult.Rejected && first.code == CODE_VALIDATION_FAILED
+    return if (retry) create(appVersion, previousToken, campaignToken, voiceConsentVersion = null) else first
 }
 
 class OkHttpSessionClient(
@@ -105,8 +131,9 @@ class OkHttpSessionClient(
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
+        voiceConsentVersion: String?,
     ): SessionResult = try {
-        client.await(buildRequest(appVersion, previousToken, campaignToken)).use { response ->
+        client.await(buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion)).use { response ->
             val body = withContext(Dispatchers.IO) { response.body.string() }
             toResult(response.code, body, response.header(HEADER_RETRY_AFTER))
         }
@@ -114,7 +141,12 @@ class OkHttpSessionClient(
         SessionResult.TransportError(e.message ?: e.javaClass.simpleName)
     }
 
-    private fun buildRequest(appVersion: String, previousToken: String?, campaignToken: String?): Request {
+    private fun buildRequest(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?,
+    ): Request {
         val url = baseUrl.newBuilder().addPathSegments(PATH_SESSIONS).build()
         /*
          * 바디 전체가 선택이지만(§3.1) client는 채워 보낸다 — 익명 집계가 플랫폼별 응시·완주를
@@ -131,6 +163,7 @@ class OkHttpSessionClient(
             CreateSessionBody(
                 campaignToken = campaignToken,
                 previousSessionToken = previousToken,
+                voiceConsentVersion = voiceConsentVersion,
                 client = ClientBody(platform = PLATFORM_ANDROID, appVersion = appVersion),
             ),
         )
@@ -192,11 +225,14 @@ class OkHttpSessionClient(
  * `backend/.../session/SessionService.java` create()의 bodyRetakeToken). 익명·로그인 모두 본문으로 보내
  * 경로를 하나로 둔다. 만료됐거나 서버가 모르는 토큰은 조용히 무시되고 응답이 최초 응시와 구분되지
  * 않으므로(401도 404도 없다) 여기서 토큰의 생사를 따지지 않는다. null이면 키째 빠진다.
+ *
+ * [voiceConsentVersion]은 익명 모드의 음성 저장 동의다 (KAN-270 5단계, 웹 webSession.ts와 같은 필드). 역시 null이면 빠진다.
  */
 @Serializable
 private data class CreateSessionBody(
     val campaignToken: String? = null,
     val previousSessionToken: String? = null,
+    val voiceConsentVersion: String? = null,
     val client: ClientBody,
 ) {
     // 이전 세션 토큰이 로그에 찍히지 않게 한다 (KAN-224).

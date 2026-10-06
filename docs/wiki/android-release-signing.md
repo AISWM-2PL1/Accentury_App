@@ -88,6 +88,8 @@ naverClientId=...
 naverClientSecret=...
 # 디버그 전용 가짜 IdP - 서버도 accentury.auth.fake-idp=true여야 한다 (social-login.md §5)
 # fakeIdp=true
+# 로그인 관문 (KAN-270 5단계) - 기본 꺼짐(익명 모드), release도 켤 수 있다 (social-login.md §5)
+# loginEnabled=true
 ```
 
 그 다음 `./gradlew :app:assembleRelease` (JAVA_HOME은 Android Studio JBR).

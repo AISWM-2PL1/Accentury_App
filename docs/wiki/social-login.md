@@ -273,6 +273,17 @@ IdP 콘솔 없이 게이트·추가 정보 화면을 돌리는 길이다. 서버
 - 같은 계정으로 처음부터 다시 보려면 서버 DB의 `app_user`에서 그 행(`provider_user_id = 'dev-<provider>'`)을
   지운다.
 
+### 로그인 관문 스위치 `LOGIN_ENABLED` (KAN-270 5단계)
+
+`false`면 로그인 관문·앱 시작 Refresh 확인(`authGate.retry()`)·스플래시 유지·계정 설정·계정 동의 오버레이가
+전부 빠진 익명 모드다. 세션은 plain 클라이언트로 만들고 음성 저장 동의는 설치당 한 번 기기에 둔다
+(`voice-consent.md` 「익명 모드」). **기본값과 릴리스 기본값이 `false`다.**
+
+| 어디 | 켜는 법 |
+|---|---|
+| Android | `./gradlew :app:installDebug -PloginEnabled=true`, 또는 `local.properties`에 `loginEnabled=true`. `FAKE_IDP`와 달리 release도 이 값을 본다 |
+| iOS | 6단계에서 같은 키로 옮긴다 |
+
 ## 6. 실기기 실증표
 
 **아직 비어 있다.** 가짜 IdP로는 SDK·콘솔 설정·URL 스킴 왕복을 하나도 밟지 않는다. 채울 때 날짜·기기·빌드

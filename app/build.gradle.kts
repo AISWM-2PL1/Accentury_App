@@ -210,6 +210,20 @@ fun fakeIdp(): Boolean {
 }
 
 /**
+ * 로그인 관문 스위치 (KAN-270 5단계). `-PloginEnabled=true` → local.properties의 `loginEnabled=true` 순 - [fakeIdp]와
+ * 같은 꼴이다. **기본 꺼짐(익명 모드)**이고, [fakeIdp]와 달리 debug·release 모두 이 값을 본다(두 값 다 릴리스 허용).
+ * 꺼지면 로그인 관문·앱 시작 Refresh 확인·계정 설정이 전부 빠지고, 음성 저장 동의는 설치당 한 번 묻고 기기에 둔다.
+ */
+fun loginEnabled(): Boolean {
+    (project.findProperty("loginEnabled") as String?)?.let { return it.toBoolean() }
+    val local = rootProject.file("local.properties")
+    if (!local.exists()) return false
+    val props = Properties()
+    local.inputStream().use { props.load(it) }
+    return props.getProperty("loginEnabled")?.toBoolean() ?: false
+}
+
+/**
  * AdMob 앱 ID·광고 단위 ID 세 개 (KAN-196). 우선순위는 [kakaoNativeAppKey]와 같다 -
  * `-P<키>=` → 환경변수 → local.properties의 `<키>=`. 셋 다 없으면 **Google 테스트 ID**다.
  *
@@ -341,6 +355,9 @@ android {
         buildConfigField("String", "NAVER_CLIENT_SECRET", "\"$naverClientSecret\"")
         // 가짜 IdP는 기본 꺼짐이고 debug만 fakeIdp()를 본다 - release는 이 false를 그대로 쓴다.
         buildConfigField("boolean", "FAKE_IDP", "false")
+        // 로그인 관문 (KAN-270 5단계). debug·release 공통 - 예: ./gradlew :app:installDebug -PloginEnabled=true
+        // (또는 local.properties에 loginEnabled=true). 기본 false = 익명 모드.
+        buildConfigField("boolean", "LOGIN_ENABLED", "${loginEnabled()}")
 
         /*
          * AdMob ID 세 개 (KAN-196). 앱 ID는 SDK가 매니페스트 meta-data에서 초기화 시점에 읽으므로

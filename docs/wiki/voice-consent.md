@@ -30,6 +30,8 @@
 1. 서버 `AccenturyProperties.VOICE_CONSENT_VERSION` (`Accentury_Server` 레포)
 2. `privacy.html`의 `accentury-policy-version`
 3. `VOICE_CONSENT_VERSION` (`voiceConsent.ts`)
+4. Android `VOICE_CONSENT_VERSION` (`app/src/main/java/com/accentury/app/auth/VoiceConsentText.kt`, 익명 모드 세션용 — 5단계)
+5. iOS `VoiceConsentText.swift`의 같은 상수 (6단계에서 추가)
 
 인트로 고지(`PrivacyNotice`)는 "따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요."로
 조건부 문장이 됐다. 앱 WebView에도 그대로 보이는데, 조건을 단 문장이라 플랫폼 공통으로 맞다.
@@ -47,7 +49,8 @@
 ## Android (2단계)
 
 웹과 달리 동의가 **계정**에 묶인다. 서버 `PUT|DELETE /v0/users/me/voice-consent`로 켜고 끄고, 세션 생성은
-계정 동의를 쓰므로(본문 `voiceConsentVersion` 무시) `SessionClient`는 그대로다.
+계정 동의를 쓰므로(본문 `voiceConsentVersion` 무시) 계정 모드는 본문에 버전을 싣지 않는다. 로그인을 끈 빌드는
+아래 「익명 모드」.
 
 ### 상태 흐름
 
@@ -96,6 +99,40 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 - 권한 설명(Rationale): 따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요
 - 권한 거부(Denied): 발음을 들어야 분석할 수 있어요 · 음성은 따로 동의한 경우에만 보관돼요
 - 인트로 안심 문구 셋째 줄: 음성은 따로 동의한 경우에만 보관
+
+## 익명 모드 (로그인 끈 빌드, 5·6단계)
+
+앱은 로그인 관문이 늘 켜져 있었다. 계정 세션은 서버가 본문 `voiceConsentVersion`을 무시하므로, 로그인을 끈
+빌드에서 익명 세션으로는 동의를 실을 길이 없었다. 5단계(Android)에서 플래그를 두고 웹과 같은 방식으로 본문에
+버전을 싣는다. 서버 변경은 없다. iOS는 6단계에서 같은 계약을 옮긴다.
+
+- **플래그 `LOGIN_ENABLED`**: 기본 `false`(익명 모드). `-PloginEnabled=true` 또는 `local.properties`
+  `loginEnabled=true`로 켠다. `FAKE_IDP`와 달리 debug·release 모두 이 값을 보고, 두 값 다 릴리스에 허용된다
+  (`app-release.yml`의 `FAKE_IDP` 가드와 무관). 레시피는 `social-login.md` §5.
+- **설치당 한 번**: 시작 게이트가 권한 → **동의** → 점검 → 세션 순서로 선다(웹 순서). 선택은
+  SharedPreferences `voice_consent_anonymous`(키 `asked`·`consented`, `AnonymousVoiceConsentStore`)에 남고, 이후
+  첫 응시·재응시마다 `anonymousVoiceConsentVersion(consented)`로 본문을 정한다. 기본은 미동의다.
+- **본문과 폴백**: `SessionClient.create(..., voiceConsentVersion)`. null이면 키째 빠진다. 첫 응시
+  (`SessionGateScreen`)와 재응시(`proceedRetest`) 둘 다 `createWithConsentFallback`을 탄다. 동의를 실은 요청이
+  400 `VALIDATION_FAILED`면 동의 없이 한 번 더 만든다(위 「400 폴백」과 같은 규칙).
+- **세션 클라이언트는 plain `OkHttpClient`**: 예전 로그인 빌드의 토큰이 Keystore에 남아 있어도 Bearer가 실리지
+  않게 한다. 실리면 서버가 계정 세션으로 보고 동의를 무시한다. TestFlow에서 계정 클라이언트를 쓰던 곳은 세션
+  생성 하나뿐이었다.
+- **철회**: 톱니는 그대로이고 `AnonymousSettingsScreen`이 「개인정보」(로컬 스위치 + 방침 링크)만 보인다.
+  설정에서 바꾼 것도 "물어봤다"로 친다. 시작 전에 설정에서 켠 사람에게 동의 화면을 또 띄우지 않는다.
+- 문안은 `VOICE_CONSENT_DETAILS_ANONYMOUS`다. 1·2줄은 계정과 같고, 셋째 줄이 웹처럼 세션 만료 뒤 삭제 불가를
+  말한다.
+
+| | 계정 모드 (`LOGIN_ENABLED=true`) | 익명 모드 (기본) |
+|---|---|---|
+| 첫 화면 | 로그인 관문, 스플래시가 Refresh 확인을 기다림 | 곧장 인트로, 앱 시작 확인 없음 |
+| 동의 저장 | 서버 계정 (`PUT\|DELETE /v0/users/me/voice-consent`) | 기기 로컬 prefs |
+| 묻는 때 | 로그인 뒤 TestFlow 위 오버레이, 계정당 한 번 | 시작 게이트 권한 뒤, 설치당 한 번 |
+| 세션 본문 `voiceConsentVersion` | 보내지 않음 (서버가 계정 값 사용) | 동의면 `VOICE_CONSENT_VERSION` |
+| 버전 출처 | 서버 `currentVersion` | 앱 상수 (400이면 폴백) |
+| 설정 화면 | 계정·개인정보·로그아웃 | 개인정보만 |
+
+계측 전용이라 단위 테스트가 덮지 못하는 곳: 시작 게이트의 동의 단계, `AnonymousFlow`, 익명 설정 화면 결선.
 
 ## iOS (3단계)
 

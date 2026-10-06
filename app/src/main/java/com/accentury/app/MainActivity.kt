@@ -85,6 +85,8 @@ import com.accentury.app.analytics.crashIfRequested
 import com.accentury.app.analytics.create
 import com.accentury.app.analytics.log
 import com.accentury.app.analytics.channelParam
+import com.accentury.app.auth.AnonymousSettingsScreen
+import com.accentury.app.auth.AnonymousVoiceConsentStore
 import com.accentury.app.auth.AuthCheckScreen
 import com.accentury.app.auth.AuthGateController
 import com.accentury.app.auth.AuthGateState
@@ -97,13 +99,16 @@ import com.accentury.app.auth.ProfileScreen
 import com.accentury.app.auth.SettingsGearButton
 import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.VoiceConsentPromptStore
+import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
 import com.accentury.app.auth.VoiceConsentScreen
+import com.accentury.app.auth.anonymousVoiceConsentVersion
 import com.accentury.app.auth.configuredProviders
 import com.accentury.app.auth.idpSignInFor
 import com.accentury.app.auth.shouldPromptVoiceConsent
 import com.accentury.app.auth.visibleProviders
 import com.accentury.app.share.ResultSharer
 import com.accentury.app.session.OkHttpSessionClient
+import com.accentury.app.session.createWithConsentFallback
 import com.accentury.app.session.RetestOutcome
 import com.accentury.app.session.SessionGateController
 import com.accentury.app.session.SessionGateScreen
@@ -163,9 +168,13 @@ class MainActivity : ComponentActivity() {
          * 로그인 상태를 확인하는 동안은 스플래시를 붙든다 (KAN-224). 예전에는 첫 화면이 웹뷰라 붙들
          * 기준이 없었지만, 이제 첫 화면이 로그인 관문이라 확인이 끝나기 전에 걷으면 로그인된 사용자에게도
          * 로그인 화면이 한 번 번쩍인다. 확인은 Application이 프로세스당 한 번 건다.
+         *
+         * 로그인을 끈 빌드(익명 모드, KAN-270 5단계)는 붙들 것이 없다. `&&`가 먼저 끊어 authGate lazy를 깨우지 않는다.
          */
-        val authGate = (application as AccenturyApplication).authGate
-        installSplashScreen().setKeepOnScreenCondition { authGate.state.value is AuthGateState.Checking }
+        val app = application as AccenturyApplication
+        installSplashScreen().setKeepOnScreenCondition {
+            BuildConfig.LOGIN_ENABLED && app.authGate.state.value is AuthGateState.Checking
+        }
         super.onCreate(savedInstanceState)
         /*
          * 시스템 바를 **항상 밝은 배경용**으로 고정한다 (KAN-161 4단계).
@@ -201,7 +210,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             AccenturyTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    AuthGate(gate = authGate, appLink = appLink, modifier = Modifier.padding(innerPadding))
+                    if (BuildConfig.LOGIN_ENABLED) {
+                        AuthGate(gate = app.authGate, appLink = appLink, modifier = Modifier.padding(innerPadding))
+                    } else {
+                        AnonymousFlow(appLink = appLink, modifier = Modifier.padding(innerPadding))
+                    }
                 }
             }
         }
@@ -295,7 +308,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             Box(modifier = modifier) {
                 TestFlow(
                     appLink = appLink,
-                    authedClient = authClients.authedClient,
+                    sessionHttpClient = authClients.authedClient,
+                    anonymousConsent = null,
                     onProfileIncomplete = gate::onProfileIncomplete,
                     onOpenSettings = { settingsOpen = true },
                 )
@@ -305,7 +319,9 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         consentPromptDone = true
                     }
                     VoiceConsentScreen(
-                        onConsent = { gate.setVoiceConsent(true).also { if (it is AuthResult.Success) finish() } },
+                        onConsent = {
+                            (gate.setVoiceConsent(true) is AuthResult.Success).also { if (it) finish() }
+                        },
                         onSkip = finish,
                         onOpenPrivacy = onOpenPrivacy,
                     )
@@ -338,8 +354,44 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
 }
 
 /**
+ * 로그인을 끈 빌드(익명 모드)의 최상위 (KAN-270 5단계, `BuildConfig.LOGIN_ENABLED == false`). [AuthGate] 자리에 선다.
+ *
+ * 관문·추가 정보·계정 동의 오버레이가 없고, 음성 저장 동의는 [TestFlow]의 시작 게이트가 설치당 한 번 묻는다.
+ * 설정 톱니는 그대로이고 [AnonymousSettingsScreen](「개인정보」만)을 덮는다.
+ *
+ * 세션 생성은 plain `OkHttpClient`다. 예전 로그인 빌드가 남긴 토큰이 Keystore에 있어도 Bearer가 실리지 않게 하려는
+ * 것이다 — 실리면 서버가 계정 세션으로 보고 voiceConsentVersion을 무시한다. TestFlow에서 `authedClient`를 쓰던 곳은
+ * 세션 생성 하나뿐이고, 업로드·결과 등은 `st_` 세션 토큰을 쓰는 기존 클라이언트라 이것으로 충분하다.
+ */
+@Composable
+private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val consentStore = remember(context) { AnonymousVoiceConsentStore(context) }
+    val sessionHttpClient = remember { OkHttpClient() }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        TestFlow(
+            appLink = appLink,
+            sessionHttpClient = sessionHttpClient,
+            anonymousConsent = consentStore,
+            // 익명 세션에는 프로필이 없어 서버가 이 거절을 주지 않는다.
+            onProfileIncomplete = {},
+            onOpenSettings = { settingsOpen = true },
+        )
+        if (settingsOpen) {
+            AnonymousSettingsScreen(
+                consented = consentStore.consented(),
+                onChange = consentStore::save,
+                onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+                onClose = { settingsOpen = false },
+            )
+        }
+    }
+}
+
+/**
  * 인트로(웹) → 시작 게이트(마이크 권한 → 세션 생성) → 테스트 진입(웹) → VOICE 문항마다 녹음
- * 오버레이 (KAN-100, KAN-34).
+ * 오버레이 (KAN-100, KAN-34). 익명 모드는 권한 → **동의(설치당 1회)** → 점검 → 세션이다 (KAN-270 5단계).
  *
  * **WebView는 인트로부터 테스트 끝까지 한 인스턴스로 산다.** 진행의 정본이 웹 상태 머신이라
  * WebView를 내리면 어디까지 왔는지가 같이 사라진다 — 네이티브 화면(권한 게이트·세션 준비·녹음)은
@@ -347,14 +399,17 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
  * 여기는 Android·Compose 결선만 한다.
  *
  * @param appLink App Link 진입 (KAN-32). Activity가 Intent에서 읽어 흘려보낸다
- * @param authedClient 세션 생성에 계정 Access 토큰을 싣는 클라이언트 (KAN-224, AuthClients.authedClient)
+ * @param sessionHttpClient 세션 생성 클라이언트. 계정 모드는 계정 Access 토큰을 싣는 `AuthClients.authedClient`(KAN-224),
+ *   익명 모드는 plain `OkHttpClient`
+ * @param anonymousConsent 익명 모드의 로컬 동의 (KAN-270 5단계). null이면 계정 모드 — 동의 단계가 없고 body에 버전을 싣지 않는다
  * @param onProfileIncomplete 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224)
  * @param onOpenSettings 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(AuthGate)가 이 위에 덮는다 (KAN-247)
  */
 @Composable
 private fun TestFlow(
     appLink: StateFlow<AppLinkEntry?>,
-    authedClient: OkHttpClient,
+    sessionHttpClient: OkHttpClient,
+    anonymousConsent: AnonymousVoiceConsentStore?,
     onProfileIncomplete: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -411,6 +466,9 @@ private fun TestFlow(
      * 네트워크를 쓰기 전이라 전부 기기 안에서 끝난다. 세션 뒤로 밀면 이미 발급된 세션(만료가 도는
      * 자원)을 든 채 점검에 붙들리는 구간이 생긴다.
      *
+     * 익명 모드(KAN-270 5단계)는 권한과 점검 사이에 음성 저장 동의가 한 칸 더 선다 — 웹과 같은 순서다. 설치당 한 번이라
+     * 통과 표시는 이 상태가 아니라 [AnonymousVoiceConsentStore]가 든다.
+     *
      * 넷 다 회전·프로세스 복원을 넘긴다. 증발하면 통과한 게이트가 다시 서고 인트로로 되돌아가는데,
      * 세션이 증발하는 경우는 그보다 나빠서 — 응답에서 한 번만 노출되는 토큰이라(Session KDoc)
      * 되찾을 길이 없고 진행 중이던 응시가 통째로 죽는다.
@@ -423,9 +481,11 @@ private fun TestFlow(
      * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
      * 업로드·결과 등 세션 범위 API는 `st_` 세션 토큰을 쓰는 기존 클라이언트 그대로다 (AuthClients KDoc).
      */
-    val sessionClient = remember(authedClient) {
-        OkHttpSessionClient(BuildConfig.API_BASE_URL, sessionCreationClient(authedClient))
+    val sessionClient = remember(sessionHttpClient) {
+        OkHttpSessionClient(BuildConfig.API_BASE_URL, sessionCreationClient(sessionHttpClient))
     }
+    // 세션 생성 순간의 값을 읽는다 — 설정에서 바꾸면 다음 생성(재응시 포함)부터 반영된다.
+    fun voiceConsentVersion(): String? = anonymousConsent?.let { anonymousVoiceConsentVersion(it.consented()) }
     val session = sessionGate.session
 
     val flow = rememberSaveable(saver = TestFlowController.saver()) { TestFlowController() }
@@ -638,12 +698,13 @@ private fun TestFlow(
              * 이전 토큰을 실어 서버가 이전 세션과 결과를 **즉시** 폐기하게 한다 (KAN-107).
              * 폐기와 발급이 한 요청이라, 실패하면 이전 세션이 그대로 살아 있는 것도 보장된다.
              */
-            val result = sessionClient.create(
+            val result = sessionClient.createWithConsentFallback(
                 appVersion = BuildConfig.VERSION_NAME,
                 previousToken = previousToken,
                 // 재응시도 같은 유입이다 (KAN-32) — 공유 링크로 들어온 사람이 한 번 더 보는 것까지가
                 // 그 링크가 만든 응시라, 코드를 그대로 물려준다.
                 campaignToken = campaignToken,
+                voiceConsentVersion = voiceConsentVersion(),
             )
             when (val outcome = sessionGate.onRetestResult(result)) {
                 is RetestOutcome.Replaced -> {
@@ -849,6 +910,15 @@ private fun TestFlow(
                 startRequested && session == null && !micPassed ->
                     PermissionGate(onGranted = { micPassed = true })
 
+                // 익명 모드의 음성 저장 동의 (KAN-270 5단계) — 설치당 한 번. 고르면 store가 asked를 세워 조건이 풀린다.
+                anonymousConsent != null && startRequested && session == null && micPassed && !anonymousConsent.asked() ->
+                    VoiceConsentScreen(
+                        onConsent = { anonymousConsent.save(true); true },
+                        onSkip = { anonymousConsent.save(false) },
+                        onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+                        details = VOICE_CONSENT_DETAILS_ANONYMOUS,
+                    )
+
                 // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
                 // 마이크가 막 열린 자리라 여기서 확인하고, 잰 값은 이후 모든 문항의 곡선 축이 된다.
                 startRequested && session == null && micPassed && voiceCenterHz == null ->
@@ -865,6 +935,7 @@ private fun TestFlow(
                     client = sessionClient,
                     appVersion = BuildConfig.VERSION_NAME,
                     campaignToken = campaignToken,
+                    voiceConsentVersion = voiceConsentVersion(),
                     onBackToIntro = ::resetStartGates,
                     onProfileIncomplete = ::leaveForProfile,
                 )
