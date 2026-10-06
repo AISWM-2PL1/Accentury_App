@@ -49,6 +49,20 @@ test.skip(
 )
 
 /**
+ * 음성 저장 동의를 켜고 완주한다 (KAN-270 4단계). AC 6 staging 검증용이다.
+ *
+ * 서버는 동의한 세션의 음성을 **분석이 종결될 때** 학습 버킷에 남긴다(서버 KAN-269). 그래서
+ * 시작 게이트만 지나는 `voice-consent.spec.ts`로는 저장이 일어나지 않고, 완주하는 이 스펙이
+ * 그 자리다. 완주 뒤 찍는 sessionId(`s_…`)를 S3 키의 세션 조각과 그대로 대조한다
+ * (`docs/wiki/voice-consent.md` 「검증」).
+ *
+ * `E2E_FAIL_ITEM`과 같은 이유로 환경 변수다 — 로컬·CI·staging에서 같은 신호로 동작한다
+ * (browser-e2e.md 「스택 두 상태와 대칭 스킵」). 정확히 `'true'`만 켜고, 없으면 지금까지처럼
+ * 미동의로 돈다. 아래 KAN-197 스펙은 광고를 보는 자리라 이 값을 읽지 않는다.
+ */
+const VOICE_CONSENT = process.env.E2E_VOICE_CONSENT === 'true'
+
+/**
  * 등급 이름. **서버가 정하는 값이다** — 화면은 `tier.name`을 그대로 그리고 클라이언트에는
  * 등급 표가 없다 (`tierAssets.ts` 헤더의 KAN-29 결정).
  *
@@ -65,7 +79,9 @@ test('웹 단독 완주 - 정의의 문항을 전부 풀고 분석을 기다려 
   })
 
   const startedAt = Date.now()
-  await startTest(page)
+  await startTest(page, { voiceConsent: VOICE_CONSENT })
+  // 문항 화면 주소에 실린 값이다 (`startTest`가 `sessionId=`까지 단언한다)
+  const sessionId = new URL(page.url()).searchParams.get('sessionId')
 
   const seen = await answerAllItems(page)
   expect(seen).toHaveLength(TOTAL_ITEMS)
@@ -121,6 +137,8 @@ test('웹 단독 완주 - 정의의 문항을 전부 풀고 분석을 기다려 
   console.log(
     `완주 ${finishedAt - startedAt}ms (문항 ${submittedAt - startedAt}ms + 분석 대기 ${finishedAt - submittedAt}ms)`,
   )
+  // S3 키 대조용. 동의 여부도 함께 찍어 대조군 판과 섞이지 않게 한다
+  console.log(`[e2e] sessionId=${sessionId} voiceConsent=${VOICE_CONSENT}`)
 })
 
 /**
