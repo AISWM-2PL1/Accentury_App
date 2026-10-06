@@ -552,11 +552,18 @@ jobs:
           # 도메인은 레포 entitlements 파일에서 읽는다 - 호스트를 늘려도 이 검사를 따로 고치지 않게.
           entitlements=$(codesign -d --entitlements - --xml "$app" 2>/dev/null || true)
           expected_ents=(com.apple.developer.applesignin com.apple.developer.associated-domains)
+          # plutil 키 경로는 점을 구분자로 읽으므로 키 이름 안의 점은 `\.`로 이스케이프한다. 이스케이프 없이는
+          # 추출이 매번 실패하고 2>/dev/null이 그 오류를 가려, 호스트를 0개 읽고도 통과했다(PR #25 리뷰에서 발견).
+          # 같은 실수가 다시 묻히지 않게 0개면 실패시킨다.
           i=0
-          while domain=$(plutil -extract "com.apple.developer.associated-domains.$i" raw -o - Accentury/Accentury.entitlements 2>/dev/null); do
+          while domain=$(plutil -extract "com\.apple\.developer\.associated-domains.$i" raw -o - Accentury/Accentury.entitlements 2>/dev/null); do
             expected_ents+=("$domain")
             i=$((i + 1))
           done
+          if [ "$i" -eq 0 ]; then
+            echo "::error title=Associated Domains 호스트 없음::Accentury/Accentury.entitlements에서 Associated Domains 호스트를 하나도 읽지 못했습니다. plutil 키 경로(점 이스케이프) 또는 entitlements 파일 배치를 확인하세요." >&2
+            exit 1
+          fi
           for ent in "${expected_ents[@]}"; do
             case "$entitlements" in
               *"$ent"*) ;;
@@ -566,7 +573,7 @@ jobs:
                 ;;
             esac
           done
-          echo "로그인 IdP 주입 확인 (plist 5개 + URL 스킴 2개, FAKE_IDP 없음, LOGIN_ENABLED=NO, Sign in with Apple·Associated Domains entitlement)"
+          echo "로그인 IdP 주입 확인 (plist 5개 + URL 스킴 2개, FAKE_IDP 없음, LOGIN_ENABLED=NO, Sign in with Apple·Associated Domains entitlement, applinks 호스트 ${i}개 대조)"
 
           # AC3 (AdMob). project.yml의 preBuild 빗장은 **빌드 입력**을 본다 - 그 조건문이 잘못되면
           # 조용히 통과한다. 여기서는 산출물의 plist를 직접 보는 두 번째 잠금이다.
