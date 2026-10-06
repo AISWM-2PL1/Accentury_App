@@ -355,6 +355,10 @@ struct TestFlowView: View {
                 details: voiceConsentDetailsAnonymous
             )
 
+        // 익명 모드의 출신 지역 (KAN-270 7단계) — 동의한 사용자에게 설치당 한 번. 고르면 저장소에 region이 생겨 조건이 풀린다.
+        } else if model.startRequested, model.session == nil, model.micPassed, model.needsAnonymousRegion {
+            AnonymousRegionScreen(onDone: { model.onAnonymousRegionChosen($0) })
+
         // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
         } else if model.startRequested, model.session == nil, model.micPassed, model.voiceCenterHz == nil {
             VoiceCheckScreen(model: voiceCheck) { centerHz in

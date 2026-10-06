@@ -30,6 +30,31 @@ final class AnonymousVoiceConsentTests: XCTestCase {
         XCTAssertNil(anonymousVoiceConsentVersion(consented: false))
     }
 
+    func test동의했고_지역이_없으면_지역을_묻는다_KAN270_7단계() {
+        XCTAssertTrue(needsAnonymousRegion(consented: true, region: nil))
+    }
+
+    func test동의했고_지역이_있으면_묻지_않는다() {
+        XCTAssertFalse(needsAnonymousRegion(consented: true, region: "SEOUL"))
+    }
+
+    func test미동의면_지역을_묻지_않고_body에도_싣지_않는다() {
+        XCTAssertFalse(needsAnonymousRegion(consented: false, region: nil))
+        XCTAssertNil(anonymousSessionRegion(consented: false, region: "SEOUL"))
+        XCTAssertEqual("SEOUL", anonymousSessionRegion(consented: true, region: "SEOUL"))
+    }
+
+    func test지역을_저장하면_다음_실행에도_읽히고_동의를_바꿔도_남는다() {
+        let store = AnonymousVoiceConsentStore(defaults: defaults)
+        XCTAssertNil(store.region())
+
+        store.saveRegion("JEJU")
+        store.save(consented: false)
+
+        XCTAssertEqual("JEJU", defaults.string(forKey: "voice_consent_anonymous.region"))
+        XCTAssertEqual("JEJU", AnonymousVoiceConsentStore(defaults: defaults).region())
+    }
+
     func test처음에는_묻지_않았고_미동의다() {
         let store = AnonymousVoiceConsentStore(defaults: defaults)
 

@@ -30,15 +30,34 @@ public protocol SessionClient: Sendable {
     ///     링크 진입이 아니면 nil
     ///   - voiceConsentVersion: 익명 모드에서 음성 저장에 동의했을 때의 문안 버전 (KAN-270 6단계). 서버는 계정 세션에서는
     ///     이 필드를 무시한다 — 계정 모드는 nil로 둔다. 미동의도 nil
+    ///   - region: 익명 모드의 출신 지역 코드 (KAN-270 7단계). 동의하고 지역을 골랐을 때만 — 계정 모드·미동의는 nil.
+    ///     계정 세션의 지역은 서버가 프로필 값으로 채운다
+    func create(
+        appVersion: String,
+        previousToken: String?,
+        campaignToken: String?,
+        voiceConsentVersion: String?,
+        region: String?
+    ) async -> SessionResult
+}
+
+public extension SessionClient {
+    /// 안드로이드의 기본 인자(`region: String? = null`) 자리 (KAN-270 7단계).
     func create(
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
         voiceConsentVersion: String?
-    ) async -> SessionResult
-}
+    ) async -> SessionResult {
+        await create(
+            appVersion: appVersion,
+            previousToken: previousToken,
+            campaignToken: campaignToken,
+            voiceConsentVersion: voiceConsentVersion,
+            region: nil
+        )
+    }
 
-public extension SessionClient {
     /// 안드로이드의 기본 인자(`previousToken: String? = null`, `campaignToken: String? = null`,
     /// `voiceConsentVersion: String? = null`) 자리. 프로토콜 요구사항에는 기본값을 적을 수 없어 확장으로 둔다.
     func create(appVersion: String) async -> SessionResult {
@@ -67,17 +86,22 @@ public extension SessionClient {
     /// 배포 사이). 동의 없이 **한 번만** 다시 만든다 — 선택 동의 하나 때문에 응시가 막히면 안 된다(팀 결정 2026-10-06).
     /// 이전 토큰은 그대로 싣는다: 400은 본문 검증에서 나므로 서버가 옛 세션을 폐기하기 전이고, 두 번째 요청이 그 폐기를
     /// 다시 맡는다. 미동의 요청의 400이나 다른 거절은 그대로 돌려준다.
+    ///
+    /// 재시도에서는 `region`도 뺀다(KAN-270 7단계) — 동의 없는 세션의 음성은 저장되지 않으니 라벨만 남길 이유가 없다.
+    /// 웹 `App.tsx`는 region을 유지하지만 웹의 region은 staging 전용 라벨 수집이라 동의와 무관하게 실린다.
     func createWithConsentFallback(
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
-        voiceConsentVersion: String?
+        voiceConsentVersion: String?,
+        region: String? = nil
     ) async -> SessionResult {
         let first = await create(
             appVersion: appVersion,
             previousToken: previousToken,
             campaignToken: campaignToken,
-            voiceConsentVersion: voiceConsentVersion
+            voiceConsentVersion: voiceConsentVersion,
+            region: region
         )
         guard voiceConsentVersion != nil,
               case .rejected(let code, _, _, _) = first,
@@ -87,7 +111,8 @@ public extension SessionClient {
             appVersion: appVersion,
             previousToken: previousToken,
             campaignToken: campaignToken,
-            voiceConsentVersion: nil
+            voiceConsentVersion: nil,
+            region: nil
         )
     }
 }

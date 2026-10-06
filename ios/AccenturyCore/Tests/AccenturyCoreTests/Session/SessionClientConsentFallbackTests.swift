@@ -1,13 +1,14 @@
 import XCTest
 @testable import AccenturyCore
 
-/// 동의 버전 폴백 (KAN-270 6단계). 안드로이드 `session/SessionClientConsentFallbackTest.kt`의 1:1 이식본 (5개).
+/// 동의 버전 폴백 (KAN-270 6단계). 안드로이드 `session/SessionClientConsentFallbackTest.kt`의 1:1 이식본 (6개).
 final class SessionClientConsentFallbackTests: XCTestCase {
 
     private struct Call: Equatable {
         let previousToken: String?
         let campaignToken: String?
         let voiceConsentVersion: String?
+        var region: String? = nil
     }
 
     /// 미리 준 결과를 차례로 돌려주고 받은 인자를 적는다.
@@ -21,9 +22,13 @@ final class SessionClientConsentFallbackTests: XCTestCase {
             appVersion: String,
             previousToken: String?,
             campaignToken: String?,
-            voiceConsentVersion: String?
+            voiceConsentVersion: String?,
+            region: String?
         ) async -> SessionResult {
-            calls.append(Call(previousToken: previousToken, campaignToken: campaignToken, voiceConsentVersion: voiceConsentVersion))
+            calls.append(Call(
+                previousToken: previousToken, campaignToken: campaignToken, voiceConsentVersion: voiceConsentVersion,
+                region: region
+            ))
             return queue.removeFirst()
         }
 
@@ -55,6 +60,22 @@ final class SessionClientConsentFallbackTests: XCTestCase {
             [
                 Call(previousToken: "st_old", campaignToken: "c1", voiceConsentVersion: "2026-10-04"),
                 Call(previousToken: "st_old", campaignToken: "c1", voiceConsentVersion: nil),
+            ],
+            client.calls
+        )
+    }
+
+    func test폴백_재시도에서는_region도_함께_뺀다_KAN270_7단계() async {
+        let client = FakeClient(validationFailed, created)
+
+        _ = await client.createWithConsentFallback(
+            appVersion: "1.0", previousToken: nil, campaignToken: nil, voiceConsentVersion: "2026-10-04", region: "JEJU"
+        )
+
+        XCTAssertEqual(
+            [
+                Call(previousToken: nil, campaignToken: nil, voiceConsentVersion: "2026-10-04", region: "JEJU"),
+                Call(previousToken: nil, campaignToken: nil, voiceConsentVersion: nil, region: nil),
             ],
             client.calls
         )

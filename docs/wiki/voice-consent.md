@@ -153,7 +153,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 
 계측 전용이라 단위 테스트가 덮지 못하는 곳: 시작 게이트의 동의·지역 단계, `AnonymousFlow`, 익명 설정 화면 결선.
 
-### iOS 대응 (6단계)
+### iOS 대응 (6·7단계)
 
 규칙·문안·키 의미는 위와 같다. 판정과 저장소는 `AccenturyCore`에 두어 `swift test`로 돈다.
 
@@ -162,11 +162,13 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | `build.gradle.kts` `loginEnabled()` → `BuildConfig.LOGIN_ENABLED` | xcconfig `LOGIN_ENABLED`(기본 `NO`, `Base.xcconfig`의 Local include 앞) → `Info-Debug.plist`·`Info-Release.plist` 둘 다 → `AppConfig.loginEnabled`(`#if DEBUG` 없음). 켜는 법은 `social-login.md` §5 |
 | `AccenturyApplication` `if (LOGIN_ENABLED) authGate.retry()` | `AccenturyApp.init` `if AppConfig.loginEnabled { bootstrap }` — `AuthHub` static let을 깨우지 않아 Keychain 접근도 없다 |
 | `MainActivity` `AuthGate` / `AnonymousFlow` 분기 | `ContentView.rootScreen`: `AuthGateView` / `AnonymousFlowView`(`Auth/AuthGateView.swift`) |
-| `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`, `@MainActor ObservableObject`) |
+| `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`·`region`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`·`.region`, `@MainActor ObservableObject`) |
 | `anonymousVoiceConsentVersion(consented)` | `anonymousVoiceConsentVersion(consented:)` (같은 파일) |
+| `needsAnonymousRegion`·`anonymousSessionRegion`·`saveRegion` (7단계) | `needsAnonymousRegion(consented:region:)`·`anonymousSessionRegion(consented:region:)`·`saveRegion(_:)` (같은 파일) |
+| `auth/AnonymousRegionScreen.kt`·`REGION_DISPLAY_ORDER` | `Accentury/Auth/AnonymousRegionScreen.swift`·`regionDisplayOrder` (`ChoiceButton` 재사용) |
 | `VOICE_CONSENT_VERSION`·`VOICE_CONSENT_DETAILS_ANONYMOUS`·`VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS` | `voiceConsentVersion`·`voiceConsentDetailsAnonymous`·`voiceConsentSettingCaptionAnonymous` (`VoiceConsentText.swift`) |
-| `SessionClient.create(..., voiceConsentVersion)`·`createWithConsentFallback`·`CODE_VALIDATION_FAILED` | 프로토콜 요구사항 4인자 `create`, 확장 `createWithConsentFallback`, `codeValidationFailed` (`Session/SessionClient.swift`). 3인자 이하 `create`는 확장 오버로드 |
-| TestFlow `anonymousConsent` 인자, when 체인 동의 단계 | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`, `TestFlowView` overlay 사슬의 권한과 점검 사이 |
+| `SessionClient.create(..., voiceConsentVersion, region)`·`createWithConsentFallback(..., region)`·`CODE_VALIDATION_FAILED` | 프로토콜 요구사항 5인자 `create`(7단계에 `region` 추가), 확장 `createWithConsentFallback`, `codeValidationFailed` (`Session/SessionClient.swift`). 4인자 이하 `create`는 확장 오버로드 |
+| TestFlow `anonymousConsent` 인자, when 체인 동의·지역 단계 | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`·`needsAnonymousRegion`, `TestFlowView` overlay 사슬의 권한과 점검 사이(동의 → 지역) |
 | plain `OkHttpClient()` | `TestFlowModel.defaultSessionClient()`가 `loginEnabled == false`면 plain `URLSessionSessionClient(baseURL:)` (`-StubSession`은 그대로 우선) |
 | `AnonymousSettingsScreen` | `SettingsScreen.swift` `AnonymousSettingsScreen` |
 

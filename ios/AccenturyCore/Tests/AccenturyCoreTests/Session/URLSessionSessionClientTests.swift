@@ -145,6 +145,35 @@ final class URLSessionSessionClientTests: XCTestCase {
         XCTAssertFalse(body.contains("voiceConsentVersion"), body)
     }
 
+    func test익명_지역을_바디_region으로_싣는다_KAN270_7단계() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(
+            appVersion: "1.0",
+            previousToken: nil,
+            campaignToken: nil,
+            voiceConsentVersion: "2026-10-04",
+            region: "JEJU"
+        )
+
+        let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))
+        XCTAssertTrue(body.contains(#""region":"JEJU""#), body)
+    }
+
+    func test지역이_없으면_region_키_자체를_빼고_보낸다_KAN270_7단계() async throws {
+        MockURLProtocol.respond(status: 201, body: createdBody)
+
+        _ = await client().create(
+            appVersion: "1.0",
+            previousToken: nil,
+            campaignToken: nil,
+            voiceConsentVersion: "2026-10-04"
+        )
+
+        let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))
+        XCTAssertFalse(body.contains("region"), body)
+    }
+
     func test429_봉투의_retryAfterMs를_결과에_싣는다() async {
         MockURLProtocol.respond(
             status: 429,
