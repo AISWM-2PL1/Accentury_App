@@ -350,6 +350,87 @@ final class TestFlowControllerTests: XCTestCase {
     }
 
     /*
+     * 분석 실패 문항 연속 재녹음 (KAN-271). 웹이 재녹음 대기열을 쥐고 이미 결과가 나간 문항의
+     * startVoiceItem → 녹음·업로드 → onItemResult 주입 → 다음 문항 startVoiceItem 순서로 부른다.
+     * 아래 테스트들은 네이티브가 이 순서를 고치지 않고 따라간다는 것을 못 박는다.
+     */
+    func testAlreadyDeliveredItemCanBeStartedAgain() {
+        let controller = TestFlowController()
+        let start = voiceItem(itemId: "item_1")
+        controller.onStartVoiceItem(start, micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+        controller.onUploadsChanged(["at_1": .done(analysisJobId: "job_1")])
+        controller.onResultDelivered(attemptId: "at_1")
+
+        // KAN-271: 웹의 재녹음 대기열이 결과가 나간 문항을 다시 연다.
+        controller.onStartVoiceItem(start, micGranted: true)
+
+        XCTAssertEqual(.recording(start), controller.phase)
+    }
+
+    func testRetakeQueueNextStartAfterDeliveryOpensNextItem() {
+        let controller = TestFlowController()
+        let first = voiceItem(itemId: "item_1")
+        let second = voiceItem(itemId: "item_2", number: 2)
+        controller.onStartVoiceItem(first, micGranted: true)
+        controller.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+        controller.onUploadsChanged(["redo_1": .done(analysisJobId: "job_1")])
+        controller.onResultDelivered(attemptId: "redo_1")
+
+        // KAN-271: 웹은 A 결과를 받자마자 대기열의 다음 문항 B를 부른다.
+        controller.onStartVoiceItem(second, micGranted: true)
+        XCTAssertEqual(.recording(second), controller.phase)
+
+        controller.onRecordingFinished(attemptId: "redo_2", durationMs: 3_200, quality: .normal)
+        let results = controller.onUploadsChanged(["redo_2": .done(analysisJobId: "job_2")])
+        XCTAssertEqual(["item_2"], results.map(\.itemId))
+        controller.onResultDelivered(attemptId: "redo_2")
+
+        XCTAssertEqual(.web, controller.phase)
+    }
+
+    /*
+     * 웹은 onItemResult를 받는 즉시 다음 문항을 부르므로, 네이티브 쪽 주입 완료 콜백이 그보다
+     * 늦게 돌 수 있다. 뒤늦은 완료가 새로 연 녹음 화면을 걷으면 재녹음 사슬이 끊긴다.
+     */
+    func testNextStartBeforeDeliveryCallbackKeepsNewRecording() {
+        let controller = TestFlowController()
+        let second = voiceItem(itemId: "item_2", number: 2)
+        controller.onStartVoiceItem(voiceItem(itemId: "item_1"), micGranted: true)
+        controller.onRecordingFinished(attemptId: "redo_1", durationMs: 3_200, quality: .normal)
+        controller.onUploadsChanged(["redo_1": .done(analysisJobId: "job_1")])
+
+        // KAN-271: 웹의 재녹음 대기열이 주입 완료 콜백보다 먼저 B를 부른다.
+        controller.onStartVoiceItem(second, micGranted: true)
+        controller.onResultDelivered(attemptId: "redo_1")
+
+        XCTAssertEqual(.recording(second), controller.phase)
+    }
+
+    func testRetakeShipsUnderNewAttemptId() {
+        let controller = TestFlowController()
+        let start = voiceItem(itemId: "item_1")
+        controller.onStartVoiceItem(start, micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+        controller.onUploadsChanged(["at_1": .done(analysisJobId: "job_1")])
+        controller.onResultDelivered(attemptId: "at_1")
+
+        // KAN-271: 이미 결과가 나간 문항이라 밀려날 앞 시도가 없다.
+        controller.onStartVoiceItem(start, micGranted: true)
+        XCTAssertEqual(
+            [],
+            controller.onRecordingFinished(attemptId: "at_2", durationMs: 4_100, quality: .normal)
+        )
+        XCTAssertEqual(.submitting(start, attemptId: "at_2"), controller.phase)
+
+        let results = controller.onUploadsChanged(["at_2": .done(analysisJobId: "job_2")])
+
+        XCTAssertEqual(["at_2"], results.map(\.attemptId))
+        XCTAssertEqual(["item_1"], results.map(\.itemId))
+        XCTAssertEqual(["job_2"], results.map(\.analysisJobId))
+    }
+
+    /*
      * 같은 문항의 재녹음은 여전히 막지 않는다. 다만 앞 시도는 여기서 밀려난다 (KAN-147) — 한 문항에
      * 살아 있는 시도가 둘이면 상태 바에 앞 시도의 [재시도]가 그대로 서 있고, 그걸 누르면 같은 문항에
      * 분석 작업이 둘 생겨 웹이 결과를 두 번 받는다.
