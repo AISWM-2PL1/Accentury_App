@@ -453,7 +453,6 @@ export function AnalysisWaitingScreen({
   )
 }
 
-/** 재녹음 대상 판정을 화면 바깥(결선·테스트)에서도 같은 규칙으로 쓰기 위해 열어 둔다 */
 /**
  * 혼잡할 때의 줄 안내 (API 명세서 §3.4의 `queue.ahead`, KAN-272).
  *
@@ -462,10 +461,11 @@ export function AnalysisWaitingScreen({
  * 뜻이라 "앞에 0건"이라고 쓰지 않는다.
  */
 export function queueNotice(ahead: number): string {
-  if (ahead <= 0) return '지금 응시자가 많아요. 곧 차례예요. 잠시만 기다려주세요!'
-  return `지금 응시자가 많아요. 앞에 ${ahead}건이 있어요. 잠시만 기다려주세요!`
+  if (ahead <= 0) return '지금 응시자가 많아요. 곧 차례예요. 잠시만 기다려 주세요!'
+  return `지금 응시자가 많아요. 앞에 ${ahead}건이 있어요. 잠시만 기다려 주세요!`
 }
 
+/** 재녹음 대상 판정을 화면 바깥(결선·테스트)에서도 같은 규칙으로 쓰기 위해 열어 둔다 */
 export function isRetakeable(item: AnalysisItem): boolean {
   return RETAKEABLE.includes(item.status)
 }

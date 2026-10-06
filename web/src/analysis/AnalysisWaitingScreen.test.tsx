@@ -640,7 +640,7 @@ describe('멈춘 상태의 출구', () => {
     await act(async () => {})
 
     expect(
-      screen.getByText('지금 응시자가 많아요. 앞에 12건이 있어요. 잠시만 기다려주세요!'),
+      screen.getByText('지금 응시자가 많아요. 앞에 12건이 있어요. 잠시만 기다려 주세요!'),
     ).toBeInTheDocument()
 
     await act(async () => {
@@ -648,6 +648,37 @@ describe('멈춘 상태의 출구', () => {
     })
     expect(screen.queryByText('분석이 예상보다 오래 걸리고 있어요')).not.toBeInTheDocument()
     expect(screen.getByText('결과를 만들고 있어요')).toBeInTheDocument()
+  })
+
+  it('혼잡 상태로 60초를 넘겨 기다린 뒤 분석이 끝나면 결과 화면으로 넘어간다', async () => {
+    // 예전에는 60초에 [다시 시도]로 바뀌어 사용자가 눌러야 결과를 받았다
+    vi.useFakeTimers()
+    const onReady = vi.fn()
+    let done = false
+    render(
+      <AnalysisWaitingScreen
+        {...props({
+          onReady,
+          fetchImpl: fetchFor({
+            analyses: () =>
+              jsonResponse(200, { ...statusesBody(Array(3).fill('PROCESSING')), queue: { ahead: 3 } }),
+            complete: () => jsonResponse(200, { status: done ? 'READY' : 'PROCESSING' }),
+          }),
+        })}
+      />,
+    )
+    await act(async () => {})
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90_000)
+    })
+    expect(onReady).not.toHaveBeenCalled()
+
+    done = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    expect(onReady).toHaveBeenCalledTimes(1)
   })
 
   it('혼잡하지 않으면 안내 없이 평소 문구다', async () => {
@@ -658,8 +689,8 @@ describe('멈춘 상태의 출구', () => {
   })
 
   it('맨 앞이면 0건이라고 쓰지 않는다', () => {
-    expect(queueNotice(0)).toBe('지금 응시자가 많아요. 곧 차례예요. 잠시만 기다려주세요!')
-    expect(queueNotice(1)).toBe('지금 응시자가 많아요. 앞에 1건이 있어요. 잠시만 기다려주세요!')
+    expect(queueNotice(0)).toBe('지금 응시자가 많아요. 곧 차례예요. 잠시만 기다려 주세요!')
+    expect(queueNotice(1)).toBe('지금 응시자가 많아요. 앞에 1건이 있어요. 잠시만 기다려 주세요!')
   })
 
   /*

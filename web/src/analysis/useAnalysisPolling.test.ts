@@ -382,6 +382,33 @@ describe('혼잡 안내를 받은 대기는 상한이 300초다', () => {
     expect(result.current.status).toEqual({ kind: 'POLLING' })
   })
 
+  it('60초를 넘겨 기다린 뒤 분석이 끝나면 READY가 되고 대기 시간이 그대로 나간다', async () => {
+    // 이 티켓이 살리려는 경로다 - 예전에는 60초에 EXHAUSTED로 빠져 여기까지 오지 못했다.
+    // 대기 시간 지표(analysis_wait_duration)에 60초가 넘는 값이 들어오기 시작한다는 뜻이기도 하다
+    const events = stubGtag()
+    let done = false
+    const fetchImpl = fetchFor({
+      analyses: () => jsonResponse(200, congestedBody(12)),
+      complete: () => jsonResponse(200, { status: done ? 'READY' : 'PROCESSING' }),
+    })
+    const { result } = renderHook(() => useAnalysisPolling(options(fetchImpl)))
+    await act(async () => {})
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_BUDGET_MS + 30_000)
+    })
+    expect(result.current.status).toEqual({ kind: 'POLLING' })
+
+    done = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    expect(result.current.status).toEqual({ kind: 'READY' })
+    const [waited] = eventsNamed(events, 'analysis_wait_duration')
+    expect(waited.duration_ms).toBeGreaterThan(POLL_BUDGET_MS)
+    expect(eventsNamed(events, 'poll_abandoned')).toEqual([])
+  })
+
   it('늘어난 상한도 다 쓰면 EXHAUSTED로 멈춘다 - 무한 폴링은 없다', async () => {
     const fetchImpl = fetchFor({ analyses: () => jsonResponse(200, congestedBody(12)) })
     const { result } = renderHook(() => useAnalysisPolling(options(fetchImpl)))
