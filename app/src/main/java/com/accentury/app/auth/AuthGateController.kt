@@ -212,6 +212,7 @@ class AuthGateController(
     suspend fun setVoiceConsent(consented: Boolean): AuthResult<Account> {
         val current = _state.value as? AuthGateState.SignedIn
             ?: return AuthResult.Rejected(0, null, "로그인 상태가 아님", false, null)
+        val userId = current.user.id
         val result = if (consented) {
             val version = current.voiceConsent?.currentVersion
                 ?: when (val me = api.me()) {
@@ -223,15 +224,21 @@ class AuthGateController(
         } else {
             api.withdrawVoiceConsent()
         }
-        if (result is AuthResult.Success && _state.value is AuthGateState.SignedIn) _state.value = stateOf(result.value)
+        // 요청 한 번 사이에 로그아웃 뒤 다른 계정 로그인이 끝난 경우 앞 계정 응답으로 덮지 않는다(리뷰 P2-4, 이론상 경합).
+        if (result is AuthResult.Success && (_state.value as? AuthGateState.SignedIn)?.user?.id == userId) {
+            _state.value = stateOf(result.value)
+        }
         return result
     }
 
     /** 설정 화면의 [다시 시도] — 동의 상태를 `me()`로 다시 읽는다 (KAN-270). SignedIn이 아니거나 실패하면 그대로 둔다. */
     suspend fun reloadVoiceConsent() {
-        if (_state.value !is AuthGateState.SignedIn) return
+        val userId = (_state.value as? AuthGateState.SignedIn)?.user?.id ?: return
         val me = api.me()
-        if (me is AuthResult.Success && _state.value is AuthGateState.SignedIn) _state.value = stateOf(me.value)
+        // 요청 한 번 사이에 로그아웃 뒤 다른 계정 로그인이 끝난 경우 앞 계정 응답으로 덮지 않는다(리뷰 P2-4, 이론상 경합).
+        if (me is AuthResult.Success && (_state.value as? AuthGateState.SignedIn)?.user?.id == userId) {
+            _state.value = stateOf(me.value)
+        }
     }
 
     /** 추가 정보를 제출한다. [AuthGateState.NeedsProfile]이 아니면 무시한다. */

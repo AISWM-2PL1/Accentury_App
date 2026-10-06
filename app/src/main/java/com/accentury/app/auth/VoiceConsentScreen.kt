@@ -123,8 +123,9 @@ fun VoiceConsentScreen(
             AccenturyButton(
                 text = "동의하고 계속",
                 onClick = {
+                    // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(리뷰 P2-2, iOS는 동기라 해당 없음).
+                    submitting = true
                     scope.launch {
-                        submitting = true
                         try {
                             failed = onConsent() !is AuthResult.Success
                         } finally {

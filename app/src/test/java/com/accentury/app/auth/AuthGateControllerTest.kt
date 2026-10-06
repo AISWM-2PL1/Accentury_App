@@ -566,4 +566,58 @@ class AuthGateControllerTest {
 
         assertEquals(AuthGateState.SignedIn(user, consented), gate.state.value)
     }
+
+    @Test
+    fun `로그인 뒤 me에서 갱신이 거절돼 저장소가 비면 로그인 화면이다`() = runTest {
+        val store = InMemoryTokenStore()
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(loginComplete))
+        // me 401 → Authenticator 갱신 → 갱신 401 → 저장소 비움(onSignedOut). SignedIn으로 덮으면 안 된다(리뷰 P2-5).
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false)))
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_REUSED", false)))
+
+        gate.login(google, privacyPolicyVersion = "v1")
+
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertNull(store.tokens)
+    }
+
+    @Test
+    fun `로그인 응답은 COMPLETE여도 뒤이은 me가 INCOMPLETE면 추가 정보 화면이다`() = runTest {
+        val gate = controller(InMemoryTokenStore())
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("INCOMPLETE")))
+
+        gate.login(google, privacyPolicyVersion = "v1")
+
+        // 더 새 정보(me)가 이긴다(리뷰 P2-5).
+        assertEquals(AuthGateState.NeedsProfile(user), gate.state.value)
+    }
+
+    @Test
+    fun `동의 요청 중 로그아웃이 끝나면 늦게 온 응답이 로그인 상태로 되돌리지 않는다`() = runTest {
+        val gate = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE", consent(false))))
+        gate.bootstrap()
+        // PUT 응답을 문으로 막아 두고 그 사이에 로그아웃을 끝낸다(리뷰 P2-5).
+        val requested = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.method != "PUT") return MockResponse().setResponseCode(204)
+                requested.countDown()
+                release.await()
+                return MockResponse().setBody(account("COMPLETE", consent(true)))
+            }
+        }
+
+        val consentJob = launch { gate.setVoiceConsent(true) }
+        withContext(Dispatchers.IO) { requested.await() }
+        gate.logout()
+        release.countDown()
+        consentJob.join()
+
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
 }

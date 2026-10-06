@@ -249,9 +249,10 @@ private fun VoiceConsentSection(
                     .fillMaxWidth()
                     .defaultMinSize(minHeight = Dimens.touchTargetMin)
                     .toggleable(value = checked, role = Role.Switch, enabled = pending == null) { next ->
+                        // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(리뷰 P2-1, iOS는 동기라 해당 없음).
+                        pending = next
+                        failed = false
                         scope.launch {
-                            pending = next
-                            failed = false
                             try {
                                 failed = onChange(next) !is AuthResult.Success
                             } finally {

@@ -674,6 +674,68 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
       expect(loadWebSession()?.sessionToken).toBe('st_web')
     })
 
+    it('동의 없이 다시 만든 요청도 5xx면 시작 실패로 남고, [다음]을 다시 누르면 또 보낸다', async () => {
+      setSearch('')
+      stubMicrophone()
+      const created = {
+        ok: true,
+        status: 201,
+        headers: { get: () => null },
+        json: async () => ({
+          sessionId: 's_web',
+          sessionToken: 'st_web',
+          testVersion: 'gn-2026.08.1',
+          voiceSet: 3,
+          scoreVersion: 'sv-0.3',
+          expiresAt: '2026-08-26T03:30:00Z',
+        }),
+      }
+      const fetchStub = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'VALIDATION_FAILED',
+            message: 'voiceConsentVersion이 게시 중인 음성 저장 동의 버전과 다릅니다.',
+            retryable: false,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'SERVICE_UNAVAILABLE',
+            message: '잠시 후 다시 시도해 주세요.',
+            retryable: true,
+          }),
+        })
+        .mockResolvedValueOnce(created)
+      vi.stubGlobal('fetch', fetchStub)
+      const navigate = vi.fn()
+      const capture = createFakeCapture()
+
+      render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
+      await tapStart()
+      await passVoiceConsent(true)
+      await passVoiceCheck(capture)
+
+      // 폴백은 한 번뿐이다 — 두 번째 실패는 점검 화면의 시작 실패(startFailure)로 남는다(리뷰 P2-3)
+      expect(fetchStub).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('alert')).toHaveTextContent('잠시 후 다시 시도해 주세요.')
+      expect(navigate).not.toHaveBeenCalled()
+
+      // 진행 중 잠금(startingRef)이 풀려 있어야 [다음]이 세 번째 요청을 보낸다
+      fireEvent.click(screen.getByRole('button', { name: '다음' }))
+      await act(async () => {})
+      await act(async () => {})
+
+      expect(fetchStub).toHaveBeenCalledTimes(3)
+      expect(navigate).toHaveBeenCalledTimes(1)
+    })
+
     it('미동의 세션의 400은 다시 만들지 않고 평소의 시작 실패로 남는다', async () => {
       setSearch('')
       stubMicrophone()

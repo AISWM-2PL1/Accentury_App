@@ -423,4 +423,51 @@ final class AuthGateControllerTests: XCTestCase {
 
         XCTAssertEqual(.signedIn(user, voiceConsent: consented), gate.state)
     }
+
+    func test로그인_뒤_me에서_갱신이_거절돼_저장소가_비면_로그인_화면이다() async {
+        let store = InMemoryTokenStore()
+        let (gate, _) = controller(store)
+        // me 401 → 인증 전송이 갱신 → 갱신 401 → 저장소 비움. signedIn으로 덮으면 안 된다(리뷰 P2-5).
+        MockURLProtocol.respondInOrder([
+            (200, loginComplete), (401, envelope("AUTH_TOKEN_INVALID", false)), (401, envelope("AUTH_REFRESH_REUSED", false)),
+        ])
+
+        await gate.login(google, privacyPolicyVersion: "v1")
+
+        XCTAssertEqual(.signedOut(nil), gate.state)
+        XCTAssertNil(store.tokens)
+    }
+
+    func test로그인_응답은_COMPLETE여도_뒤이은_me가_INCOMPLETE면_추가_정보_화면이다() async {
+        let (gate, _) = controller(InMemoryTokenStore())
+        MockURLProtocol.respondInOrder([(200, loginComplete), (200, account("INCOMPLETE"))])
+
+        await gate.login(google, privacyPolicyVersion: "v1")
+
+        // 더 새 정보(me)가 이긴다(리뷰 P2-5).
+        XCTAssertEqual(.needsProfile(user, error: nil), gate.state)
+    }
+
+    func test동의_요청_중_로그아웃이_끝나면_늦게_온_응답이_로그인_상태로_되돌리지_않는다() async throws {
+        // 로그아웃 서버 호출은 상한(0.1초)으로 끝낸다 — PUT이 전송 스레드를 막고 있어도 로그아웃이 마저 끝나게.
+        let (gate, _) = controller(InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")), logoutServerTimeout: .milliseconds(100))
+        MockURLProtocol.respondInOrder([(200, tokens(1)), (200, account("COMPLETE", voiceConsent: consent(false)))])
+        await gate.bootstrap()
+        // PUT 응답을 문으로 막아 두고 그 사이에 로그아웃을 끝낸다(리뷰 P2-5).
+        let release = DispatchSemaphore(value: 0)
+        let late = Data(account("COMPLETE", voiceConsent: consent(true)).utf8)
+        MockURLProtocol.setHandler { request in
+            if request.httpMethod == "PUT" { _ = release.wait(timeout: .now() + 5) }
+            return (HTTPURLResponse(url: request.url!, statusCode: request.httpMethod == "PUT" ? 200 : 204, httpVersion: "HTTP/1.1", headerFields: nil)!, request.httpMethod == "PUT" ? late : Data())
+        }
+
+        let consentTask = Task { await gate.setVoiceConsent(true) }
+        for _ in 0..<500 where MockURLProtocol.lastRequest()?.method != "PUT" { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual("PUT", MockURLProtocol.lastRequest()?.method)
+        await gate.logout()
+        release.signal()
+        _ = await consentTask.value
+
+        XCTAssertEqual(.signedOut(nil), gate.state)
+    }
 }
