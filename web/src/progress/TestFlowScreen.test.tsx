@@ -1308,10 +1308,11 @@ describe('분석 대기 결선 (KAN-14)', () => {
 
   /*
    * 대기 화면의 재녹음은 KAN-271부터 대기 화면을 내리고 문항 화면을 띄우므로 이 경로를 타지 않는다.
-   * 남은 경로는 대기 화면이 서 있는 동안 네이티브 결과가 도착하는 경우다 — 네이티브 녹음 중에
-   * WebView가 다시 로드돼 대기열이 사라진 뒤의 결과가 그렇다.
+   * 남은 경로는 대기 화면이 서 있는 동안 네이티브 결과가 도착하는 경우다 — 재녹음 도중 앱이 프로세스
+   * 복원되면 네이티브는 녹음 화면을 스스로 되살리고, 웹은 대기열 없이 대기 화면으로 돌아온다. 그
+   * 녹음의 결과가 여기로 들어온다.
    */
-  it('대기 화면이 서 있는 동안 네이티브 결과가 돌아오면 폴링을 다시 세운다', async () => {
+  it('대기열 없이 대기 화면이 서 있는 동안 네이티브 결과가 돌아오면 폴링을 다시 세운다 (프로세스 복원)', async () => {
     stubBridge()
     const fetchImpl = waitingFetch({})
     renderScreen(fetchImpl, { sessionId: 'sess-1' })
@@ -1477,6 +1478,48 @@ describe('분석 대기 화면의 재녹음 — 실패 문항만 이어서 (KAN-
     expect(startVoiceItem).toHaveBeenCalledTimes(2)
     // 대기 화면이 다시 마운트돼도 전면 광고는 세션당 한 번이다 (KAN-196)
     expect(showInterstitialAd).toHaveBeenCalledTimes(1)
+  })
+
+  it('앱: 대기열 맨 앞이 아닌 문항의 결과는 대기열을 넘기지 않는다 — 열지 않은 문항을 건너뛰지 않는다', async () => {
+    const startVoiceItem = stubBridge()
+    renderScreen(retakeFetch({ 'item-2': 'RETRYABLE_FAILED', 'item-4': 'FAILED' }), { sessionId: 'sess-retake-other' })
+    await findRecordingWait()
+    await finishAllItemsWithBridge()
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 녹음' })[0])
+    startVoiceItem.mockClear()
+
+    // 네이티브의 VOICE_SLOT_MISSING 복구가 앞 문항(1번) 결과를 먼저 넣는 경우
+    deliverResult('item-1')
+
+    expect(startVoiceItem).not.toHaveBeenCalled()
+    expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
+    deliverResult('item-2')
+    expect(JSON.parse(startVoiceItem.mock.calls[0][0])).toMatchObject({ itemId: 'item-4' })
+  })
+
+  /*
+   * 앱의 시도 상한 출구 (KAN-271). 네이티브가 429 `RATE_RETAKE_EXCEEDED`로 녹음 화면을 닫아도 웹은
+   * 그 실패를 듣지 못한다 — 대기 단계 재녹음 화면의 대기 푸터에는 [다시 테스트하기]를 늘 둔다.
+   */
+  it('앱: 대기 단계 재녹음 화면은 [녹음 화면 다시 열기]와 [다시 테스트하기]를 함께 두고, origin은 item이다', async () => {
+    const events = stubGtag()
+    stubBridge()
+    // 앱 안이라 계측이 브리지로 나간다 — 받아서 같은 목록에 모은다
+    window.AccenturyBridge!.logEvent = (name: string, paramsJson: string) => {
+      events.push({ event: name, ...(JSON.parse(paramsJson) as Record<string, unknown>) })
+    }
+    const retestFallback = vi.fn()
+    renderScreen(retakeFetch({ 'item-2': 'RETRYABLE_FAILED' }), { sessionId: 'sess-retake-exit', retestFallback })
+    await findRecordingWait()
+    // 첫 응시 문항 화면에는 출구가 없다 (KAN-147)
+    expect(screen.queryByRole('button', { name: '다시 테스트하기' })).not.toBeInTheDocument()
+    await finishAllItemsWithBridge()
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
+
+    expect(await screen.findByRole('button', { name: '녹음 화면 다시 열기' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+    expect(events).toContainEqual(expect.objectContaining({ event: 'retest_started', from: 'item' }))
   })
 
   it('재녹음 도중 다시 열면(새로고침) 대기 화면으로 돌아오고 실패 줄에서 다시 시작할 수 있다', async () => {
