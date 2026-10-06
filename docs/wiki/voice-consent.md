@@ -166,8 +166,11 @@ S3 키 모양은 다음과 같다. 분석이 종결된 음성 문항마다 WAV�
 
 ```
 <prefix>/<region|UNKNOWN>/<testVersion>/<sessionId>/<itemId>/<analysisJobId>.{wav,json}
-예) staging/UNKNOWN/gn-2026.09.4/s_…/v116/a_….json
+예) staging/<지역코드 또는 UNKNOWN>/gn-2026.09.4/s_…/v116/a_….json
 ```
+
+`UNKNOWN`은 세션에 저장된 region이 없거나 코드 10개 밖일 때다. 지역 선택이 꺼진 빌드, 앱 WebView 응시, 전송 오류로
+값이 빠진 세션이 여기로 모인다(서버 `Region.forStorage`가 접고 `TrainingSample.keyPrefix`가 키 첫 조각으로 쓴다).
 
 세션 id와 작업 id는 원래 값이 `s_`·`a_`로 시작한다. 키 조각은 그 값 그대로다(서버 `TrainingSample.keyPrefix`). 그래서
 스펙 로그의 `sessionId=s_…`를 그대로 grep하면 된다.
@@ -176,11 +179,14 @@ S3 키 모양은 다음과 같다. 분석이 종결된 음성 문항마다 WAV�
 
 1. Dev 머지 뒤 웹·서버 배포가 성공했는지 확인한다(Actions).
 2. 동의 판으로 완주하고, 로그의 `[e2e] sessionId=<id> voiceConsent=true`에서 id를 얻는다.
-3. 그 id로 S3를 조회해 음성 문항 수만큼 `.wav`·`.json` 쌍이 있는지 본다. staging은 지역 화면이 켜진 빌드라
+3. 그 id로 S3를 조회해 음성 문항 수만큼 `.wav`·`.json` 쌍이 있는지 본다. 저장은 분석 종결 뒤 비동기라 첫 `aws s3 ls`가
+   비면 30초~1분 뒤 다시 조회한다. staging은 지역 화면이 켜진 빌드라
    `<region>` 자리는 스펙이 고른 지역 코드다.
 4. 대조군으로 `E2E_VOICE_CONSENT` 없이 한 번 더 완주한다. 그 sessionId는 S3에 **없어야** 한다.
 5. 앱 계정 경로는 수동이다. staging 빌드(Android staging 플레이버 또는 TestFlight)에서 로그인하고 동의한 뒤
    완주하고, 같은 방식으로 조회한다. 앱 세션 id는 기기 로그나 서버 로그에서 얻는다.
+
+AWS 자격 증명 전제: 버킷 읽기 권한이 있는 프로필이어야 한다(`aws sts get-caller-identity`로 계정 325771561913 확인).
 
 ```bash
 cd web

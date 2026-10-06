@@ -182,7 +182,7 @@ public final class AuthGateController: ObservableObject {
     /// 켤 때 싣는 버전은 서버가 준 ``VoiceConsent/currentVersion``이다. 앱 상수를 두지 않는 이유: 서버가 문안 버전을
     /// 올려도 앱 배포 없이 동의가 계속 맞는 버전으로 나간다(다르면 400). 동의 상태를 모르면(nil) `me()`로 먼저 읽는다.
     public func setVoiceConsent(_ consented: Bool) async -> AuthResult<Account> {
-        guard case .signedIn(_, let known) = state else {
+        guard case .signedIn(let user, let known) = state else {
             return .rejected(status: 0, code: nil, message: "로그인 상태가 아님", retryable: false, retryAfterMs: nil)
         }
         let result: AuthResult<Account>
@@ -200,14 +200,20 @@ public final class AuthGateController: ObservableObject {
         } else {
             result = await api.withdrawVoiceConsent()
         }
-        if case .success(let account) = result, case .signedIn = state { state = Self.state(of: account) }
+        // 요청 한 번 사이에 로그아웃 뒤 다른 계정 로그인이 끝난 경우 앞 계정 응답으로 덮지 않는다(리뷰 P2-4, 이론상 경합).
+        if case .success(let account) = result, case .signedIn(let now, _) = state, now.id == user.id {
+            state = Self.state(of: account)
+        }
         return result
     }
 
     /// 설정 화면의 [다시 시도] — 동의 상태를 `me()`로 다시 읽는다 (KAN-270). `signedIn`이 아니거나 실패하면 그대로 둔다.
     public func reloadVoiceConsent() async {
-        guard case .signedIn = state else { return }
-        if case .success(let account) = await api.me(), case .signedIn = state { state = Self.state(of: account) }
+        guard case .signedIn(let user, _) = state else { return }
+        // 요청 한 번 사이에 로그아웃 뒤 다른 계정 로그인이 끝난 경우 앞 계정 응답으로 덮지 않는다(리뷰 P2-4, 이론상 경합).
+        if case .success(let account) = await api.me(), case .signedIn(let now, _) = state, now.id == user.id {
+            state = Self.state(of: account)
+        }
     }
 
     /// 추가 정보를 제출한다. ``AuthGateState/needsProfile(_:error:)``가 아니면 무시한다.
