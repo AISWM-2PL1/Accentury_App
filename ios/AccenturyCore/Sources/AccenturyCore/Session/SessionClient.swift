@@ -30,7 +30,7 @@ public protocol SessionClient: Sendable {
     ///     링크 진입이 아니면 nil
     ///   - voiceConsentVersion: 익명 모드에서 음성 저장에 동의했을 때의 문안 버전 (KAN-270 6단계). 서버는 계정 세션에서는
     ///     이 필드를 무시한다 — 계정 모드는 nil로 둔다. 미동의도 nil
-    ///   - region: 익명 모드의 출신 지역 코드 (KAN-270 7단계). 동의하고 지역을 골랐을 때만 — 계정 모드·미동의는 nil.
+    ///   - region: 익명 모드의 출신 지역 코드 (KAN-270 7단계). 지역을 골랐으면 동의와 무관하게 싣는다 (KAN-274) — 계정 모드는 nil.
     ///     계정 세션의 지역은 서버가 프로필 값으로 채운다
     func create(
         appVersion: String,
