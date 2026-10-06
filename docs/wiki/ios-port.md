@@ -243,7 +243,9 @@ SF Symbol로 세운 그림 셋(히어로 아이콘·녹음 버튼 안 도형·�
   ① `xcodebuild archive … CODE_SIGNING_ALLOWED=NO` (무서명 아카이브)
   — 임베디드 바이너리 프레임워크가 있으면 **export 전에 그 링커 ad-hoc 서명을 지워야 한다**. 안 지우면
   재서명이 `identifier "arm64-apple"` DR을 물려받아 애플 업로드가 거절한다
-  (`app-store-listing.md` §2 「링커 서명 제거」, KAN-175).
+  (`app-store-listing.md` §2 「링커 서명 제거」, KAN-175). 그다음 **앱을 `Accentury.entitlements`와 함께
+  ad-hoc 서명해야 한다** — 무서명 앱에서는 export가 읽을 entitlement가 없어 Sign in with Apple·Associated
+  Domains가 빠진 채 서명된다(2026-10-07 발견, `app-store-listing.md` §2 「entitlement 싣기」).
   ② `xcodebuild -exportArchive -exportOptionsPlist`(method `app-store-connect`, `signingStyle automatic`,
   `teamID 559P9SYY57`) `-allowProvisioningUpdates` — 이 단계가 App ID·Apple Distribution 인증서(Cloud Managed)·
   `iOS Team Store Provisioning Profile: com.accentury.app`을 스스로 만들어 재서명한다.

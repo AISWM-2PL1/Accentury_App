@@ -86,6 +86,9 @@
 #   KAN-224  로그인 IdP 주입: 아카이브에 `REQUIRE_IDP_CONFIG=YES`를 줘 project.yml의 preBuild 빗장이 빈 값을
 #        막고, 산출물 Info.plist에서 구글·네이버 값과 URL 스킴 둘이 비지 않았는지, Release plist에 `FAKE_IDP`
 #        키가 없는지, 서명된 앱의 entitlement에 Sign in with Apple이 있는지를 다시 본다.
+#   entitlement  같은 자리에서 Associated Domains(entitlements 파일의 `applinks:` 호스트 전부)도 본다. 무서명 아카이브가 entitlement를
+#        export에 넘기지 못해 두 권한이 릴리스 빌드에서 빠져 있던 사고(2026-10-07)의 빗장이다 -
+#        고침은 「앱에 entitlement 싣기」 스텝.
 #   KAN-274  로그인 끔 고정: 첫 스토어 심사는 로그인을 끈 익명 모드 빌드로 받는다 (KAN-270). 같은 자리에서
 #        번들 Info.plist의 `LOGIN_ENABLED`가 `NO`인지 본다. 로그인을 켜는 업데이트가 이 검사를 뒤집는다.
 #   AC4  로그에 시크릿 없음: 값을 echo하는 곳이 없다. 존재 검사는 `-z`로 이름만, 광고 ID 검사는
@@ -230,6 +233,7 @@ jobs:
       #
       # CODE_SIGNING_ALLOWED=NO로 무서명 아카이브를 만들고 서명은 export가 한다. 팀에 등록된
       # 기기가 0대라 자동 서명 archive가 개발용 프로파일을 만들려다 막히기 때문이다 (ios-port.md §7).
+      # 무서명이라 entitlement가 실리지 않으므로 export 앞 「앱에 entitlement 싣기」 스텝이 그 자리를 채운다.
       #
       # **WEB_URL·API_BASE_URL은 주지 않는다.** Release.xcconfig가 prod 도메인을 박아 두고
       # Local.xcconfig가 그 뒤라 덮지도 못한다 - 명령줄로 줄 수 있게 열어 두면 그 구조적 보호가
@@ -334,6 +338,36 @@ jobs:
             count=$((count + 1))
           done
           echo "링커 서명 제거: ${count}개"
+
+      # ── 왜 export 앞에서 앱을 ad-hoc으로 서명하는가 ─────────────────────────────
+      # export는 아카이브된 앱의 **기존 서명에 실린 entitlement**를 읽어 배포용으로 고쳐(application-
+      # identifier·get-task-allow 등) 재서명한다. 무서명 아카이브에는 읽을 서명이 없어 기본 넷만
+      # 남고, `Accentury.entitlements`의 Sign in with Apple·Associated Domains는 조용히 빠진다.
+      # 2026-10-07 Release 실행이 「산출물 검증」의 applesignin 검사에서 멈춰 드러났다 - 09-29 성공
+      # 빌드의 `.ipa`를 대조하니 프로비저닝 프로파일에는 두 권한이 다 있는데(콘솔 설정은 정상) 서명된
+      # 앱에는 기본 넷뿐이었다. 즉 Universal Links(associated-domains)도 이 경로의 모든 릴리스
+      # 빌드에서 빠져 있었다.
+      #
+      # 고침은 entitlements 파일을 실은 ad-hoc 서명을 앱에 달아 두는 것이다. 파일에 빌드 설정
+      # 변수(`$(...)`)가 없어 그대로 넘긴다 - 변수가 생기면 풀린 값으로 만들어 넘겨야 한다.
+      # `--deep`은 쓰지 않는다. 바로 앞 스텝이 지운 프레임워크를 다시 서명하면 그 서명을 export가
+      # 물려받아 DR이 어긋나는 같은 함정이 돌아온다 - 앱 바깥 껍데기만 서명한다.
+      #
+      # 로컬 실험(2026-10-07, Xcode 26.6): 이 스텝을 넣은 export의 `.ipa`는 Apple Distribution
+      # 서명에 두 권한 + `application-identifier`·`get-task-allow=false`, DR은 앱·프레임워크 넷
+      # 모두 자기 CFBundleIdentifier. 같은 아카이브를 이 스텝 없이 export하면 기본 넷만 남았다.
+      #
+      # **버린 대안**: (1) 아카이브에서 Xcode가 ad-hoc 서명(`AD_HOC_CODE_SIGNING_ALLOWED=YES
+      # CODE_SIGN_IDENTITY=-`, `CODE_SIGNING_REQUIRED=NO`를 더해도) → `"Accentury" requires a
+      # provisioning profile`. 프로파일이 필요한 권한이 든 entitlements라 Xcode가 프로파일 없이
+      # 서명하지 않는다. (2) 러너에서 자동 서명 archive → 기기 등록이 필요하고 실행마다 "Created
+      # via API" 개발 인증서가 팀에 쌓인다. (3) p12·프로파일을 시크릿으로 두는 수동 배포 서명 →
+      # 시크릿이 늘고 갱신 주기를 사람이 챙겨야 한다.
+      - name: 앱에 entitlement 싣기 (ad-hoc 서명)
+        run: |
+          app="$RUNNER_TEMP/Accentury.xcarchive/Products/Applications/Accentury.app"
+          codesign --force --sign - --entitlements Accentury/Accentury.entitlements "$app"
+          codesign -d --entitlements - --xml "$app" | plutil -p -
 
       # 레포의 ExportOptions.plist가 정본이다 (destination=export - .ipa를 떨구고 업로드는 하지 않는다).
       # `-allowProvisioningUpdates`가 App ID·Apple Distribution 인증서·프로비저닝 프로파일을
@@ -510,18 +544,29 @@ jobs:
             echo "::error title=로그인이 릴리스에 켜짐::번들 Info.plist의 LOGIN_ENABLED가 '${login_enabled}'입니다. 첫 스토어 심사 빌드는 로그인을 끈 익명 모드(NO)여야 합니다 (Config/Base.xcconfig, KAN-274). 로그인을 켜는 업데이트라면 이 검사를 같은 PR에서 뒤집으세요." >&2
             exit 1
           fi
-          # Sign in with Apple entitlement. 자동 서명이 Accentury.entitlements의 키를 보고 프로파일에 싣는데,
-          # App ID에 capability가 꺼져 있으면 export가 조용히 빼거나 실패한다. 빠진 채 나가면 애플 버튼이
-          # 늘 실패하고, 다른 소셜 로그인만 남아 심사 4.8에 걸린다. 서명된 앱에서 직접 확인한다.
+          # Sign in with Apple · Associated Domains entitlement. 빠지는 길은 둘이다 - App ID에 capability가
+          # 꺼져 프로파일에 없거나, 아카이브된 앱의 서명에 entitlement가 실리지 않아 export가 읽을 것이
+          # 없거나(「앱에 entitlement 싣기」 스텝, 2026-10-07 실제 원인). 애플 로그인이 빠지면 버튼이 늘
+          # 실패하고 심사 4.8에 걸리며, associated-domains가 빠지면 공유 링크가 앱 대신 사파리로 간다
+          # (docs/wiki/app-links.md). 서명된 앱에서 직접 확인한다.
+          # 도메인은 레포 entitlements 파일에서 읽는다 - 호스트를 늘려도 이 검사를 따로 고치지 않게.
           entitlements=$(codesign -d --entitlements - --xml "$app" 2>/dev/null || true)
-          case "$entitlements" in
-            *com.apple.developer.applesignin*) ;;
-            *)
-              echo "::error title=애플 로그인 entitlement 없음::서명된 앱에 com.apple.developer.applesignin이 없습니다. 개발자 콘솔 App ID(com.accentury.app)의 Sign in with Apple capability를 확인하세요 (KAN-224, docs/wiki/social-login.md §3)." >&2
-              exit 1
-              ;;
-          esac
-          echo "로그인 IdP 주입 확인 (plist 5개 + URL 스킴 2개, FAKE_IDP 없음, LOGIN_ENABLED=NO, Sign in with Apple entitlement)"
+          expected_ents=(com.apple.developer.applesignin com.apple.developer.associated-domains)
+          i=0
+          while domain=$(plutil -extract "com.apple.developer.associated-domains.$i" raw -o - Accentury/Accentury.entitlements 2>/dev/null); do
+            expected_ents+=("$domain")
+            i=$((i + 1))
+          done
+          for ent in "${expected_ents[@]}"; do
+            case "$entitlements" in
+              *"$ent"*) ;;
+              *)
+                echo "::error title=entitlement 없음::서명된 앱의 entitlement에 '${ent}'가 없습니다. (1) 「앱에 entitlement 싣기」 스텝이 Accentury/Accentury.entitlements로 ad-hoc 서명했는지 (2) 개발자 콘솔 App ID(com.accentury.app)에 Sign in with Apple·Associated Domains capability가 켜져 프로파일에 들어갔는지 확인하세요 (docs/wiki/social-login.md §3, docs/wiki/app-links.md)." >&2
+                exit 1
+                ;;
+            esac
+          done
+          echo "로그인 IdP 주입 확인 (plist 5개 + URL 스킴 2개, FAKE_IDP 없음, LOGIN_ENABLED=NO, Sign in with Apple·Associated Domains entitlement)"
 
           # AC3 (AdMob). project.yml의 preBuild 빗장은 **빌드 입력**을 본다 - 그 조건문이 잘못되면
           # 조용히 통과한다. 여기서는 산출물의 plist를 직접 보는 두 번째 잠금이다.
