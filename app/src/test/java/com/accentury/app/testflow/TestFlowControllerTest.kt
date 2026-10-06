@@ -377,6 +377,91 @@ class TestFlowControllerTest {
     }
 
     /*
+     * 분석 실패 문항 연속 재녹음 (KAN-271). 웹이 재녹음 대기열을 쥐고 이미 결과가 나간 문항의
+     * startVoiceItem → 녹음·업로드 → onItemResult 주입 → 다음 문항 startVoiceItem 순서로 부른다.
+     * 아래 테스트들은 네이티브가 이 순서를 고치지 않고 따라간다는 것을 못 박는다.
+     */
+    @Test
+    fun `결과가 나간 문항의 요청이 다시 오면 녹음 화면을 연다`() {
+        val controller = TestFlowController()
+        val start = voiceItem(itemId = "item_1")
+        controller.onStartVoiceItem(start, micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onUploadsChanged(mapOf("at_1" to UploadState.Done("job_1")))
+        controller.onResultDelivered("at_1")
+
+        // KAN-271: 웹의 재녹음 대기열이 결과가 나간 문항을 다시 연다
+        controller.onStartVoiceItem(start, micGranted = true)
+
+        assertEquals(TestFlowPhase.Recording(start), controller.phase)
+    }
+
+    @Test
+    fun `주입 완료 직후 이미 제출된 다른 문항의 요청이 연달아 와도 따라간다`() {
+        val controller = TestFlowController()
+        val first = voiceItem(itemId = "item_1")
+        val second = voiceItem(itemId = "item_2", number = 2)
+        controller.onStartVoiceItem(first, micGranted = true)
+        controller.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onUploadsChanged(mapOf("redo_1" to UploadState.Done("job_1")))
+        controller.onResultDelivered("redo_1")
+
+        // KAN-271: 웹은 A 결과를 받자마자 대기열의 다음 문항 B를 부른다
+        controller.onStartVoiceItem(second, micGranted = true)
+        assertEquals(TestFlowPhase.Recording(second), controller.phase)
+
+        controller.onRecordingFinished("redo_2", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        val results = controller.onUploadsChanged(mapOf("redo_2" to UploadState.Done("job_2")))
+        assertEquals(listOf("item_2"), results.map { it.itemId })
+        controller.onResultDelivered("redo_2")
+
+        assertEquals(TestFlowPhase.Web, controller.phase)
+    }
+
+    /*
+     * 웹은 onItemResult를 받는 즉시 다음 문항을 부르므로, 네이티브 쪽 주입 완료 콜백이 그보다
+     * 늦게 돌 수 있다. 뒤늦은 완료가 새로 연 녹음 화면을 걷으면 재녹음 사슬이 끊긴다.
+     */
+    @Test
+    fun `다음 문항 요청이 주입 완료보다 먼저 와도 뒤늦은 완료가 새 녹음 화면을 걷지 않는다`() {
+        val controller = TestFlowController()
+        val second = voiceItem(itemId = "item_2", number = 2)
+        controller.onStartVoiceItem(voiceItem(itemId = "item_1"), micGranted = true)
+        controller.onRecordingFinished("redo_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onUploadsChanged(mapOf("redo_1" to UploadState.Done("job_1")))
+
+        // KAN-271: 웹의 재녹음 대기열이 주입 완료 콜백보다 먼저 B를 부른다
+        controller.onStartVoiceItem(second, micGranted = true)
+        controller.onResultDelivered("redo_1")
+
+        assertEquals(TestFlowPhase.Recording(second), controller.phase)
+    }
+
+    @Test
+    fun `재녹음 시도는 첫 시도와 다른 attemptId로 결과가 나간다`() {
+        val controller = TestFlowController()
+        val start = voiceItem(itemId = "item_1")
+        controller.onStartVoiceItem(start, micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onUploadsChanged(mapOf("at_1" to UploadState.Done("job_1")))
+        controller.onResultDelivered("at_1")
+
+        // KAN-271: 이미 결과가 나간 문항이라 밀려날 앞 시도가 없다
+        controller.onStartVoiceItem(start, micGranted = true)
+        assertEquals(
+            emptyList<String>(),
+            controller.onRecordingFinished("at_2", durationMs = 4_100, quality = QualityStatus.NORMAL),
+        )
+        assertEquals(TestFlowPhase.Submitting(start, "at_2"), controller.phase)
+
+        val results = controller.onUploadsChanged(mapOf("at_2" to UploadState.Done("job_2")))
+
+        assertEquals(listOf("at_2"), results.map { it.attemptId })
+        assertEquals(listOf("item_1"), results.map { it.itemId })
+        assertEquals(listOf("job_2"), results.map { it.analysisJobId })
+    }
+
+    /*
      * 같은 문항의 재녹음은 여전히 막지 않는다. 다만 앞 시도는 여기서 밀려난다 (KAN-147, 지라
      * 코멘트 #2) - 한 문항에 살아 있는 시도가 둘이면 상태 바에 앞 시도의 [재시도]가 그대로 서 있고,
      * 그걸 누르면 같은 문항에 분석 작업이 둘 생겨 웹이 결과를 두 번 받는다.
