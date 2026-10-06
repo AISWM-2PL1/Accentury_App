@@ -105,7 +105,7 @@ rms를 9초 동안 0.28초 간격으로 재 봤다.
 | `E2E_BASE_URL` | `playwright.config.ts` | 있으면 그 주소(staging 등)를 두드리고 로컬 개발 서버를 띄우지 않는다 |
 | `E2E_FAIL_ITEM` | `full-run`·`retake` | AI 스텁이 실패시키는 문항. 켜지면 완주 스펙이, 꺼지면 실패 갈래 스펙이 skip (아래 절) |
 | `E2E_VOICE_CONSENT` | `full-run` 첫 스펙 | 정확히 `true`면 음성 저장 동의를 체크하고 완주한 뒤 `[e2e] sessionId=<id>`를 찍는다. 없으면 미동의 (KAN-270, AC 6 staging 저장 검증용 — [voice-consent.md](voice-consent.md) 「검증」) |
-| `VITE_REGION_SELECT` · `VITE_STORE_LISTING_READY` · `VITE_ADSENSE_*` | 로컬 개발 서버 빌드 | 빌드 변수. 셸 값이 `webServer.env`로 넘어간다. `E2E_BASE_URL` 판에서는 번들에 이미 박혀 무관하다 |
+| `VITE_STORE_LISTING_READY` · `VITE_ADSENSE_*` | 로컬 개발 서버 빌드 | 빌드 변수. 셸 값이 `webServer.env`로 넘어간다. `E2E_BASE_URL` 판에서는 번들에 이미 박혀 무관하다 |
 
 ## 스택 두 상태와 대칭 스킵
 
@@ -126,40 +126,22 @@ AI 스텁은 `ACCENTURY_AI_STUB_FAIL_ITEM`으로 특정 문항을 반드시 실�
 skip은 실패가 아니라 **"이 무대는 내 것이 아니다"라는 선언**이다. 조건부 분기를 한 스펙에
 밀어 넣는 것보다 각자 자기 무대에서만 도는 편이 실패했을 때 원인이 분명하다.
 
-## 지역 화면은 스펙이 아니라 헬퍼가 가른다 (KAN-202, 2026-09-11)
+## 지역 화면은 늘 지난다 (KAN-202, KAN-274)
 
-출신 지역 선택 화면은 빌드 변수 `VITE_REGION_SELECT`가 정확히 `'true'`인 번들에만 있다
-(`web/src/region/regions.ts`) — staging은 켜고 prod는 변수 자체가 없다. 위의 `E2E_FAIL_ITEM`과
-달리 이것은 **대칭 스킵으로 가르지 않았다.** 스택 상태가 아니라 화면 유무의 문제이고, 화면은
-스펙이 직접 볼 수 있기 때문이다.
+출신 지역 선택 화면은 예전에 빌드 변수가 켜진 번들(staging)에만 있었다. 그때는 `startTest`가 지역
+제목과 점검 제목 중 먼저 뜨는 쪽을 기다려 화면에 뜬 것을 보고 갈랐고, 같은 스펙 파일을 켠 판과 끈
+판으로 두 번 돌렸다. KAN-274가 스위치를 걷어내 웹 단독 실행이면 음성 저장 동의 화면 다음에 반드시
+선다. 지금은 유무를 보지 않고 제목을 기다린다. 안 뜨면 그 자체가 결함이고, 스위치가 남은 옛 번들을
+`E2E_BASE_URL`로 겨눈 경우도 여기서 드러난다.
 
-`startTest`가 [내 억양 테스트하기] 뒤에 지역 제목과 점검 제목 중 **먼저 뜨는 쪽**을 기다린다
-(`regionHeading.or(voiceHeading)`). 지역 화면이면 라디오 하나(경남)를 고르고 [다음], 아니면
-그대로 점검으로 간다. 빌드 변수를 읽지 않는 이유는 `E2E_BASE_URL`로 staging을 겨눌 때 스펙
-프로세스의 환경이 번들과 아무 관계가 없기 때문이다 — 스펙에 주소를 두지 않아 같은 스펙이
-로컬·배포 양쪽을 도는 원칙의 연장이다. 그래서 스펙 파일은 한 벌이고 켠 판·끈 판은 **같은
-파일을 두 번** 돌린다.
-
-두 순서가 중요하다.
-
-- `.or()`로 먼저 기다리고 나서 `isVisible()`로 어느 쪽인지 본다. `isVisible()`은 기다리지
-  않는 즉답이라, 먼저 부르면 권한 승인 직후의 빈 순간을 "지역 화면 없음"으로 읽는다.
 - 지역 라디오도 어휘 문항과 같은 `.choice__radio`(1px + clip-path)라 `check({ force: true })`다.
+- [다음]은 고르기 전에는 disabled라 고른 뒤에만 눌린다.
 
 "지나갔다"에서 끝내지 않는다. 세션 생성 요청을 `waitForRequest`로 따로 잡아 `postDataJSON()`을
-보고, 지역 화면을 봤으면 `region === 'GYEONGNAM'`, 못 봤으면 `'region' in body === false`를
-단언한다. 201 응답(`waitForResponse`)은 서버가 받아 줬다는 것만 말하고 무엇을 보냈는지는
-말하지 않는다 — 꺼진 빌드가 "키 자체를 안 보낸다"는 AC는 요청 본문에서만 확인된다.
+보고 `region === 'GYEONGNAM'`을 단언한다. 201 응답(`waitForResponse`)은 서버가 받아 줬다는 것만
+말하고 무엇을 보냈는지는 말하지 않는다.
 
-### 켜는 법과 `.env.local` 함정
-
-로컬은 `VITE_REGION_SELECT=true npm run test:e2e`. `playwright.config.ts`의 `webServer.env`가
-`VITE_REGION_SELECT: process.env.VITE_REGION_SELECT ?? ''`로 넘긴다. Playwright는 `env`를
-부모 환경 위에 얹으므로(`...process.env, ...env`, 1.62.1 소스 실측) 셸 값을 넘기는 데는 이
-줄이 필요 없다. 이 줄의 값은 **`?? ''`** 쪽에 있다 — Vite의 `loadEnv`는 `process.env`에 있는
-키를 `.env.local`보다 우선하므로, 개발자가 화면 확인용으로 `web/.env.local`에
-`VITE_REGION_SELECT=true`를 둔 채 E2E를 돌려도 빈 값이 그 파일을 눌러 끈 빌드가 뜬다.
-그 줄이 없으면 그 기계에서는 끈 판이 영영 돌지 않는다. `VITE_API_BASE: ''`와 같은 모양이다.
+변수 없이 `npm run test:e2e` 한 번이면 된다. 켠 판과 끈 판을 따로 돌리던 절차는 없어졌다.
 
 ## 동의 시트는 헬퍼가 걷는다 (KAN-197 2단계, 2026-09-13)
 
@@ -170,13 +152,11 @@ skip은 실패가 아니라 **"이 무대는 내 것이 아니다"라는 선언*
 hit-testing이 없어 `fireEvent.click`이 막을 뚫고 닿는다.
 
 그래서 `startTest`가 `goto('/')`와 h1 확인 **직후에** `passAdConsentIfShown(page)`를 부른다.
-시트가 있으면 「일반 광고만 보기」를 눌러 닫히기를 기다리고, 없으면 그냥 지나간다. 위의 지역
-화면과 같은 원칙이다 — 스펙은 자기가 어떤 판을 열었는지 모르므로 빌드 변수가 아니라 화면에
-뜬 것을 보고 간다. 셀렉터는 `adConsentText.ts`의 `AD_CONSENT_TITLE`·`AD_CONSENT_DENY`를
+시트가 있으면 「일반 광고만 보기」를 눌러 닫히기를 기다리고, 없으면 그냥 지나간다. 스펙은 자기가
+어떤 판을 열었는지 모르므로 빌드 변수가 아니라 화면에 뜬 것을 보고 간다. 셀렉터는 `adConsentText.ts`의 `AD_CONSENT_TITLE`·`AD_CONSENT_DENY`를
 import한다 (셀렉터 규칙 「화면의 상수를 import한다」).
 
-지역 화면과 다른 점이 하나 있다. 거기서는 `.or()`로 먼저 기다린 뒤 `isVisible()`을 보지만,
-이쪽은 `isVisible()` 하나로 충분하다 — 부르는 쪽이 이미 h1을 기다렸고 시트는 그 h1과 같은
+기다리지 않는 즉답인 `isVisible()` 하나로 충분하다 — 부르는 쪽이 이미 h1을 기다렸고 시트는 그 h1과 같은
 렌더에서 함께 그려지므로(`IntroScreen`이 둘을 한 번에 반환한다) 판정이 빈 순간에 걸릴 일이 없다.
 
 **거부를 고르는 것이 계약이다.** 3단계 AC가 「동의 거부 시 비맞춤 광고만」이라 E2E가 도는 동안
@@ -193,13 +173,13 @@ import한다 (셀렉터 규칙 「화면의 상수를 import한다」).
 지나간 것이다. 같은 스펙을 `VITE_ADSENSE_CLIENT_ID`·`VITE_ADSENSE_SLOT_ID`를 셸에 준 채로 한
 번 더 돌려도 2 passed다 — 태그 변수가 있는 빌드가 시작 게이트를 깨지 않는다(KAN-197 AC 6).
 Playwright가 `webServer.env`를 부모 환경 **위에** 얹으므로 셸의 값이 개발 서버까지 그대로
-간다 (`playwright.config.ts`의 `VITE_REGION_SELECT` 주석과 같은 경로).
+간다 (`playwright.config.ts`의 `webServer` 주석과 같은 경로).
 
 ## 음성 저장 동의 화면은 늘 지난다 (KAN-270, 2026-10-06)
 
-웹 단독 시작 게이트가 [내 억양 테스트하기] → 권한 → **음성 저장 선택 동의** → 지역(staging) →
+웹 단독 시작 게이트가 [내 억양 테스트하기] → 권한 → **음성 저장 선택 동의** → 지역 →
 점검 → 세션 생성이 됐다 (`web/src/legal/VoiceConsentScreen.tsx`, 설계는 [voice-consent.md](voice-consent.md)).
-지역·광고 시트와 달리 빌드 스위치가 없어 **유무를 보지 않고** 제목을 기다린다 — 안 뜨면 그 자체가
+광고 시트와 달리 늘 뜨는 화면이라 **유무를 보지 않고** 제목을 기다린다 — 안 뜨면 그 자체가
 결함이다. `startTest(page, { voiceConsent })`의 기본은 체크하지 않은 [다음]이고, 본문 단언에
 `voiceConsentVersion` 유무가 지역과 같은 방식으로 붙었다(체크했으면 게시 버전, 아니면 키 없음).
 체크박스는 지역 라디오와 달리 숨기지 않은 실물 표식이라 `check()`에 `force`가 필요 없다.

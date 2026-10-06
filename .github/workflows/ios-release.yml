@@ -86,6 +86,8 @@
 #   KAN-224  로그인 IdP 주입: 아카이브에 `REQUIRE_IDP_CONFIG=YES`를 줘 project.yml의 preBuild 빗장이 빈 값을
 #        막고, 산출물 Info.plist에서 구글·네이버 값과 URL 스킴 둘이 비지 않았는지, Release plist에 `FAKE_IDP`
 #        키가 없는지, 서명된 앱의 entitlement에 Sign in with Apple이 있는지를 다시 본다.
+#   KAN-274  로그인 끔 고정: 첫 스토어 심사는 로그인을 끈 익명 모드 빌드로 받는다 (KAN-270). 같은 자리에서
+#        번들 Info.plist의 `LOGIN_ENABLED`가 `NO`인지 본다. 로그인을 켜는 업데이트가 이 검사를 뒤집는다.
 #   AC4  로그에 시크릿 없음: 값을 echo하는 곳이 없다. 존재 검사는 `-z`로 이름만, 광고 ID 검사는
 #        값 출력 없이 패턴 매칭만, 카카오 키 검사는 길이(`-c`)만 찍는다.
 
@@ -497,6 +499,17 @@ jobs:
             echo "::error title=가짜 IdP 키가 릴리스에 있음::번들 Info.plist에 FAKE_IDP 키가 있습니다. Release 구성은 Info-Release.plist(키 없음)를 써야 합니다 (KAN-224)." >&2
             exit 1
           fi
+          # LOGIN_ENABLED (KAN-270, KAN-274). 첫 스토어 심사는 로그인을 끈 익명 모드 빌드로 받는다.
+          # Base.xcconfig의 기본값이 NO라 지금도 꺼진 채 나가지만, 값을 보는 자리가 없으면 기본값이나
+          # 명령줄 빌드 설정(`LOGIN_ENABLED=YES`)이 바뀌었을 때 로그인 관문이 든 빌드가 조용히 만들어진다.
+          # 앱은 이 값이 정확히 `YES`일 때만 로그인을 켠다(AppConfig.loginEnabled). 여기서는 `NO`가 아닌
+          # 모든 값을 막는다 - 키가 빠져 빈 값인 경우도 Info-Release.plist의 배치가 바뀌었다는 뜻이다.
+          # 로그인을 켜는 업데이트는 이 검사를 같은 PR에서 뒤집는다.
+          login_enabled=$(read_key LOGIN_ENABLED)
+          if [ "$login_enabled" != "NO" ]; then
+            echo "::error title=로그인이 릴리스에 켜짐::번들 Info.plist의 LOGIN_ENABLED가 '${login_enabled}'입니다. 첫 스토어 심사 빌드는 로그인을 끈 익명 모드(NO)여야 합니다 (Config/Base.xcconfig, KAN-274). 로그인을 켜는 업데이트라면 이 검사를 같은 PR에서 뒤집으세요." >&2
+            exit 1
+          fi
           # Sign in with Apple entitlement. 자동 서명이 Accentury.entitlements의 키를 보고 프로파일에 싣는데,
           # App ID에 capability가 꺼져 있으면 export가 조용히 빼거나 실패한다. 빠진 채 나가면 애플 버튼이
           # 늘 실패하고, 다른 소셜 로그인만 남아 심사 4.8에 걸린다. 서명된 앱에서 직접 확인한다.
@@ -508,7 +521,7 @@ jobs:
               exit 1
               ;;
           esac
-          echo "로그인 IdP 주입 확인 (plist 5개 + URL 스킴 2개, FAKE_IDP 없음, Sign in with Apple entitlement)"
+          echo "로그인 IdP 주입 확인 (plist 5개 + URL 스킴 2개, FAKE_IDP 없음, LOGIN_ENABLED=NO, Sign in with Apple entitlement)"
 
           # AC3 (AdMob). project.yml의 preBuild 빗장은 **빌드 입력**을 본다 - 그 조건문이 잘못되면
           # 조용히 통과한다. 여기서는 산출물의 plist를 직접 보는 두 번째 잠금이다.
