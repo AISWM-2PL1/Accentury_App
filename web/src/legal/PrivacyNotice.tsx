@@ -28,7 +28,13 @@ export interface PrivacyNoticeProps {
 export function PrivacyNotice({ onAdConsentSettings }: PrivacyNoticeProps = {}) {
   return (
     <p className="type-caption privacy-notice">
-      녹음한 음성은 분석이 끝나면 바로 지워요.
+      {/*
+        조건부 문장이다 (KAN-270). 음성 저장에 따로 동의한 세션의 음성은 AI 학습용으로 보관되므로
+        (서버 KAN-269) "바로 지워요"만 남기면 동의한 사람에게 사실이 아니다. 이 줄은 앱 WebView에도
+        그대로 보이는데, 조건을 단 문장은 동의를 어디서 받든 맞으므로 실행별로 가르지 않는다.
+        동의 화면의 캡션(`voiceConsent.ts`의 VOICE_CONSENT_FOOTNOTE)과 같은 사실이다.
+      */}
+      따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요.
       {/*
         줄을 여기서 끊는다. 문장과 링크를 한 줄에 흘려 담으면 폭이 모자라 문장이 먼저 두 줄로
         갈리고(캡션 13px · 콘텐츠 폭 312dp에 문장만 약 256dp), 링크가 앞 줄 꼬리에 붙어 어디까지가

@@ -154,6 +154,23 @@ describe('createWebSession — 요청 형태 (§3.1)', () => {
 
     expect(bodyOf(fetchImpl)).not.toHaveProperty('region')
   })
+
+  it('동의한 음성 저장 문안 버전을 그대로 싣는다 (KAN-270)', async () => {
+    const fetchImpl = createdFetch()
+
+    await createWebSession(API_BASE, { voiceConsentVersion: '2026-10-04' }, fetchImpl)
+
+    expect(bodyOf(fetchImpl).voiceConsentVersion).toBe('2026-10-04')
+  })
+
+  // 미동의 세션은 동의 화면 전과 같은 본문이어야 한다 - null이나 빈 문자열을 보내지 않고 키 자체를 뺀다
+  it('동의 버전이 없거나 null·빈 문자열이면 voiceConsentVersion 키 자체가 없다', async () => {
+    for (const options of [{}, { voiceConsentVersion: null }, { voiceConsentVersion: '' }]) {
+      const fetchImpl = createdFetch()
+      await createWebSession(API_BASE, options, fetchImpl)
+      expect('voiceConsentVersion' in bodyOf(fetchImpl)).toBe(false)
+    }
+  })
 })
 
 describe('createWebSession — 응답 해석', () => {

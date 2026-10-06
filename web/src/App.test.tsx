@@ -4,6 +4,7 @@ import App from './App'
 import { clearTestId } from './analytics/testId'
 import { createFakeCapture, sineChunk, type FakeCapture } from './audio/testing/fakeCapture'
 import { REQUIRED_BRIDGE_VERSION } from './bridge/bridge'
+import { VOICE_CONSENT_TITLE, VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { snapshotKey } from './progress/progressSnapshot'
 import { START_COUNTDOWN_SECONDS } from './progress/TestFlowScreen'
 import { clearWebSession, getWebSessionToken, loadWebSession, saveWebSession } from './session/webSession'
@@ -144,6 +145,21 @@ async function passVoiceCheck(capture: FakeCapture) {
   })
   fireEvent.click(screen.getByRole('button', { name: '다음' }))
   // 세션 생성이 비동기다 — 저장과 화면 전환까지 microtask를 비운다
+  await act(async () => {})
+  await act(async () => {})
+}
+
+/**
+ * 음성 저장 선택 동의 화면을 지난다 (KAN-270). 권한 뒤 첫 칸이라 웹 단독 실행의 시작 흐름을
+ * 보는 테스트는 전부 이 문을 지난다. 기본은 체크하지 않은 [다음] — 선택 동의라 건너뛰기가 곧
+ * 미동의이고, 그러면 세션 생성 본문이 동의 화면 전과 같다.
+ *
+ * 다음 칸(점검 화면)은 마운트 즉시 듣기 시작한다(비동기) — `tapStart`와 같은 이유로 microtask를 비운다.
+ */
+async function passVoiceConsent(consented = false) {
+  expect(screen.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeInTheDocument()
+  if (consented) fireEvent.click(screen.getByRole('checkbox'))
+  fireEvent.click(screen.getByRole('button', { name: '다음' }))
   await act(async () => {})
   await act(async () => {})
 }
@@ -338,11 +354,11 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
   /*
    * 시작 게이트의 순서 (KAN-31 4단계, 앱 KAN-105 2단계와 같다):
-   * [시작하기] → 마이크 권한 → **목소리 점검** → 세션 생성 → 문항 화면.
+   * [시작하기] → 마이크 권한 → 음성 저장 동의(KAN-270) → **목소리 점검** → 세션 생성 → 문항 화면.
    * 점검이 세션 앞에 있는 이유는 점검이 네트워크를 안 쓰기 때문이다 — 뒤에 두면 이미 발급된
-   * 세션을 든 채 점검에 붙들리는 구간이 생긴다.
+   * 세션을 든 채 점검에 붙들리는 구간이 생긴다. 동의 화면도 같은 근거로 세션 앞이다.
    */
-  it('마이크 권한을 받으면 목소리 점검이 먼저 뜬다 — 아직 세션을 만들지 않는다', async () => {
+  it('마이크 권한을 받으면 동의 화면, 그다음 목소리 점검이 뜬다 — 아직 세션을 만들지 않는다', async () => {
     setSearch('?c=kko_share')
     stubMicrophone()
     const fetchStub = stubSessionFetch()
@@ -351,6 +367,12 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
     render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
     await tapStart()
+
+    expect(screen.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeInTheDocument()
+    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(fetchStub).not.toHaveBeenCalled()
+
+    await passVoiceConsent()
 
     expect(screen.getByText('목소리를 확인할게요')).toBeInTheDocument()
     expect(fetchStub).not.toHaveBeenCalled()
@@ -367,6 +389,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
     render(<App navigate={vi.fn()} voiceCheckCapture={capture.factory} />)
     await tapStart()
+    await passVoiceConsent()
     await passVoiceCheck(capture)
 
     const stored = loadWebSession()
@@ -386,6 +409,8 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
     // 네이티브 권한 게이트가 받았으므로 웹은 여기서 손을 뗀다 — 화면 전체를 앱이 갈아치운다
     expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    // 동의도 웹 화면이 묻지 않는다 — 앱은 네이티브가 받는다 (KAN-270 2·3단계)
+    expect(screen.queryByText(VOICE_CONSENT_TITLE)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
   })
 
@@ -398,6 +423,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
     render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
     await tapStart()
+    await passVoiceConsent()
     await passVoiceCheck(capture)
 
     const [url, init] = fetchStub.mock.calls[0] as unknown as [string, RequestInit]
@@ -442,6 +468,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
     render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
     await tapStart()
+    await passVoiceConsent()
     await passVoiceCheck(capture)
 
     expect(screen.getByRole('alert')).toHaveTextContent('30초 후 다시 시도할 수 있어요')
@@ -529,6 +556,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
     try {
       render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
       await tapStart()
+      await passVoiceConsent()
       await passVoiceCheck(capture)
 
       expect(screen.getByRole('alert')).toHaveTextContent(
@@ -540,6 +568,135 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
     } finally {
       setItem.mockRestore()
     }
+  })
+
+  /*
+   * 음성 저장 선택 동의 (KAN-270, 서버 KAN-269). 모든 빌드에서 권한 뒤 첫 칸이다: [시작하기] →
+   * 권한 → **동의** → 지역(staging) → 점검 → 세션 생성. 체크한 세션만 본문에 게시 버전이 실리고,
+   * 서버가 그 버전을 400으로 거절하면(낡은 문안) 동의 없이 한 번 더 만들어 응시를 이어 간다.
+   */
+  describe('음성 저장 선택 동의 (KAN-270)', () => {
+    /** n번째 세션 생성 요청의 본문 */
+    function sessionBodyAt(fetchStub: ReturnType<typeof vi.fn>, n: number): Record<string, unknown> {
+      const [, init] = fetchStub.mock.calls[n] as unknown as [string, RequestInit]
+      return JSON.parse(init.body as string) as Record<string, unknown>
+    }
+
+    async function runToSession(consented: boolean) {
+      setSearch('')
+      stubMicrophone()
+      const fetchStub = stubSessionFetch()
+      const navigate = vi.fn()
+      const capture = createFakeCapture()
+
+      render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
+      await tapStart()
+      await passVoiceConsent(consented)
+      await passVoiceCheck(capture)
+      return { fetchStub, navigate }
+    }
+
+    it('체크하고 진행하면 세션 생성 본문에 게시 버전이 실린다', async () => {
+      const { fetchStub, navigate } = await runToSession(true)
+
+      expect(fetchStub).toHaveBeenCalledTimes(1)
+      expect(sessionBodyAt(fetchStub, 0)).toMatchObject({
+        voiceConsentVersion: VOICE_CONSENT_VERSION,
+        client: { platform: 'WEB' },
+      })
+      // 서버 `AccenturyProperties.VOICE_CONSENT_VERSION`과 같은 값이다 — 다르면 400이다
+      expect(VOICE_CONSENT_VERSION).toBe('2026-10-04')
+      expect(navigate).toHaveBeenCalledTimes(1)
+    })
+
+    it('체크하지 않고 진행하면 voiceConsentVersion 키 자체가 없다 — 응시는 그대로 이어진다', async () => {
+      const { fetchStub, navigate } = await runToSession(false)
+
+      expect(fetchStub).toHaveBeenCalledTimes(1)
+      expect('voiceConsentVersion' in sessionBodyAt(fetchStub, 0)).toBe(false)
+      expect(navigate).toHaveBeenCalledTimes(1)
+    })
+
+    it('동의 버전이 400 VALIDATION_FAILED로 거절되면 동의 없이 한 번 더 만들고 응시를 이어 간다', async () => {
+      setSearch('')
+      stubMicrophone()
+      // 이전 응시의 토큰 — 두 번째 요청도 같은 토큰으로 폐기를 맡아야 한다
+      saveWebSession({
+        sessionId: 's_old',
+        sessionToken: 'st_old',
+        testVersion: 'gn-2026.08.1',
+        voiceSet: 1,
+        expiresAt: '2026-08-26T03:00:00Z',
+      })
+      const created = {
+        ok: true,
+        status: 201,
+        headers: { get: () => null },
+        json: async () => ({
+          sessionId: 's_web',
+          sessionToken: 'st_web',
+          testVersion: 'gn-2026.08.1',
+          voiceSet: 3,
+          scoreVersion: 'sv-0.3',
+          expiresAt: '2026-08-26T03:30:00Z',
+        }),
+      }
+      const fetchStub = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          headers: { get: () => null },
+          json: async () => ({
+            code: 'VALIDATION_FAILED',
+            message: 'voiceConsentVersion이 게시 중인 음성 저장 동의 버전과 다릅니다.',
+            retryable: false,
+          }),
+        })
+        .mockResolvedValueOnce(created)
+      vi.stubGlobal('fetch', fetchStub)
+      const navigate = vi.fn()
+      const capture = createFakeCapture()
+
+      render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
+      await tapStart()
+      await passVoiceConsent(true)
+      await passVoiceCheck(capture)
+
+      expect(fetchStub).toHaveBeenCalledTimes(2)
+      expect(sessionBodyAt(fetchStub, 0).voiceConsentVersion).toBe(VOICE_CONSENT_VERSION)
+      expect('voiceConsentVersion' in sessionBodyAt(fetchStub, 1)).toBe(false)
+      const [, retryInit] = fetchStub.mock.calls[1] as unknown as [string, RequestInit]
+      expect(retryInit.headers).toMatchObject({ Authorization: 'Bearer st_old' })
+      // 선택 동의 하나 때문에 응시가 막히지 않는다 — 문구 없이 문항 화면으로 넘어간다
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(navigate).toHaveBeenCalledTimes(1)
+      expect(loadWebSession()?.sessionToken).toBe('st_web')
+    })
+
+    it('미동의 세션의 400은 다시 만들지 않고 평소의 시작 실패로 남는다', async () => {
+      setSearch('')
+      stubMicrophone()
+      const fetchStub = vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        headers: { get: () => null },
+        json: async () => ({ code: 'VALIDATION_FAILED', message: '요청을 확인해 주세요.', retryable: false }),
+      }))
+      vi.stubGlobal('fetch', fetchStub)
+      const navigate = vi.fn()
+      const capture = createFakeCapture()
+
+      render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
+      await tapStart()
+      await passVoiceConsent(false)
+      await passVoiceCheck(capture)
+
+      // 동의를 싣지 않았으니 동의 탓이 아니다 — 같은 본문을 또 보내 봐야 같은 400이다
+      expect(fetchStub).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('alert')).toHaveTextContent('요청을 확인해 주세요.')
+      expect(navigate).not.toHaveBeenCalled()
+    })
   })
 
   /*
@@ -570,6 +727,8 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
       render(<App navigate={navigate} voiceCheckCapture={capture.factory} />)
       await tapStart()
+      // 동의 화면이 지역보다 앞이다 (KAN-270) — 둘 다 네트워크를 안 쓰는 칸이다
+      await passVoiceConsent()
 
       // 지역이 점검 앞이다 — 네트워크를 안 쓰는 화면을 세션 앞에 모아 고아 세션을 안 만든다
       expect(screen.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeInTheDocument()
@@ -606,6 +765,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
       render(<App navigate={vi.fn()} voiceCheckCapture={capture.factory} />)
       await tapStart()
+      await passVoiceConsent()
 
       expect(screen.getByText('목소리를 확인할게요')).toBeInTheDocument()
       expect(screen.queryByText(REGION_TITLE)).not.toBeInTheDocument()
@@ -1369,6 +1529,7 @@ describe('App — 유입 퍼널 계측 (KAN-31 3단계)', () => {
     await act(async () => {})
     expect(queue).toEqual([{ event: 'referral_opened', campaign: 'kko_share' }])
 
+    await passVoiceConsent()
     await passVoiceCheck(capture)
 
     /*

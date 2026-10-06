@@ -12,6 +12,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { AD_CONSENT_DENY, AD_CONSENT_TITLE } from '../../src/ads/adConsentText'
 import { STORE_PENDING_CAPTION } from '../../src/audio/storeText'
+import { VOICE_CONSENT_CHECKBOX_LABEL, VOICE_CONSENT_TITLE, VOICE_CONSENT_VERSION } from '../../src/legal/voiceConsent'
 import { VOCABULARY_ITEM_COUNT, VOICE_ITEM_COUNT } from '../../src/intro/introText'
 import { itemCaption } from '../../src/progress/itemBadge'
 
@@ -116,8 +117,20 @@ export async function passAdConsentIfShown(page: Page): Promise<void> {
  * 한다(AC "변수 없는 빌드는 본문에 region 없음", `createWebSession`이 null이면 필드째 뺀다).
  * 201 응답만 보면 서버가 받아 줬다는 것뿐이고 무엇을 보냈는지는 모른다 — 요청은
  * `waitForRequest`로 따로 잡아야 본문이 보인다.
+ *
+ * ## 음성 저장 동의 화면은 늘 있다 (KAN-270)
+ *
+ * 지역과 달리 빌드 스위치가 없어 웹 단독 실행이면 권한 뒤에 반드시 뜬다. 그래서 유무를 보지 않고
+ * 제목을 기다린다 — 안 뜨면 그 자체가 결함이다. 기본은 체크하지 않은 [다음](선택 동의라 건너뛰기가
+ * 곧 미동의)이고, `voiceConsent: true`면 체크하고 지나간다. 본문 단언은 지역과 같은 방식이다 —
+ * 체크했으면 게시 버전이, 아니면 키 자체가 없어야 한다.
+ *
+ * 체크했다면 서버가 그 버전을 알아야 201이다. 버전을 모르는 서버(KAN-269 전)는 400을 주고 웹이
+ * 동의 없이 한 번 더 만드는데, 그 경우 첫 요청 본문에는 버전이 실리고 응답은 400이라 아래 201
+ * 단언에서 걸린다 — 동의 스펙이 서버 버전 어긋남을 드러내는 자리다.
  */
-export async function startTest(page: Page): Promise<void> {
+export async function startTest(page: Page, options: { voiceConsent?: boolean } = {}): Promise<void> {
+  const voiceConsent = options.voiceConsent === true
   await page.goto('/')
 
   /*
@@ -128,14 +141,21 @@ export async function startTest(page: Page): Promise<void> {
 
   /*
    * [시작하기]가 곧 마이크 권한 요청이다. `--use-fake-ui-for-media-stream`이 대화상자를
-   * 자동 승인하므로 여기서 멈추지 않고, 승인되면 App이 지역 화면(켜진 빌드) 또는 목소리
-   * 점검 화면으로 갈아 끼운다.
+   * 자동 승인하므로 여기서 멈추지 않고, 승인되면 App이 음성 저장 동의 화면으로 갈아 끼운다.
    */
   await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
 
+  await expect(page.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeVisible()
+  if (voiceConsent) {
+    // 체크박스는 숨기지 않은 실물 표식이라 지역 라디오와 달리 `force`가 필요 없다
+    await page.getByRole('checkbox', { name: VOICE_CONSENT_CHECKBOX_LABEL }).check()
+  }
+  // [다음]은 체크와 무관하게 열려 있다 — 체크하지 않은 [다음]이 곧 미동의다
+  await page.getByRole('button', { name: '다음', exact: true }).click()
+
   /*
    * 둘 중 하나가 뜨기를 먼저 기다린 뒤에 어느 쪽인지 본다. 기다리지 않고 `isVisible()`부터
-   * 부르면 권한 승인이 끝나기 전의 빈 순간을 "지역 화면 없음"으로 읽는다 — `isVisible()`은
+   * 부르면 동의 화면이 걷히기 전의 빈 순간을 "지역 화면 없음"으로 읽는다 — `isVisible()`은
    * 기다리지 않는 즉답이다.
    */
   const regionHeading = page.getByRole('heading', {
@@ -184,6 +204,11 @@ export async function startTest(page: Page): Promise<void> {
     expect(body.region).toBe(E2E_REGION.code)
   } else {
     expect('region' in body).toBe(false)
+  }
+  if (voiceConsent) {
+    expect(body.voiceConsentVersion).toBe(VOICE_CONSENT_VERSION)
+  } else {
+    expect('voiceConsentVersion' in body).toBe(false)
   }
 
   await expect(page).toHaveURL(/screen=test/)

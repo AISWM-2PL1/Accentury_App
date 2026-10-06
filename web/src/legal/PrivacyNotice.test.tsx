@@ -34,6 +34,8 @@ describe('PrivacyNotice — 인트로 고지 한 줄 (KAN-177)', () => {
 
     // 문구가 아니라 사실을 붙든다 — 권한 요청 직전에 "지운다"는 말이 있어야 고지가 된다
     expect(screen.getByText(/분석이 끝나면 바로 지워요/)).toBeInTheDocument()
+    // 조건부다 (KAN-270) — 음성 저장에 동의한 세션은 보관되므로 무조건 지운다고 하면 거짓이다
+    expect(screen.getByText(/따로 동의하지 않으면 녹음한 음성은/)).toBeInTheDocument()
   })
 
   it('브라우저 단독 실행에서는 새 탭으로 연다 — 응시하려던 화면을 정책 문서로 덮지 않는다', () => {

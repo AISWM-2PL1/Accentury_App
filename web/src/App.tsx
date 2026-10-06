@@ -5,6 +5,8 @@ import { track } from './analytics/track'
 import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
+import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
+import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
 import { START_FAILED_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE } from './intro/introText'
 import { getSessionToken, isBridgeCompatible, isStandaloneWeb } from './bridge/bridge'
 import { buildIntroUrl, buildResultUrl, buildTestUrl } from './navigation/entryUrl'
@@ -248,6 +250,13 @@ function IntroRoute({
    * (`RegionSelectScreen` 헤더).
    */
   const [region, setRegion] = useState<RegionCode | null>(null)
+  /*
+   * 음성 저장 선택 동의 (KAN-270). null은 아직 화면을 지나지 않았다는 뜻이고, 지나면 체크 여부가
+   * 잡힌다. 지역과 같은 이유로 문서 상태다 — 세션을 만들 때 한 번 쓰고, 재응시는 문서를 다시
+   * 로드하므로(`goToIntro`) 앞 세션의 체크가 남지 않고 매번 미동의로 다시 묻는다 (웹은 익명이라
+   * 세션마다 받는다, 팀 결정 2026-10-06).
+   */
+  const [voiceConsent, setVoiceConsent] = useState<boolean | null>(null)
   /** 점검은 통과했는데 세션 생성이 막혔다. 값이 곧 사용자에게 보일 문구다 */
   const [startFailure, setStartFailure] = useState<string | null>(null)
   /*
@@ -268,7 +277,7 @@ function IntroRoute({
       if (startingRef.current) return
       startingRef.current = true
       setStartFailure(null)
-      startStandaloneTest(navigate, centerHz, region)
+      startStandaloneTest(navigate, centerHz, region, voiceConsent === true)
         .catch((error: unknown) => {
           setStartFailure(error instanceof Error ? error.message : START_FAILED_MESSAGE)
         })
@@ -276,7 +285,7 @@ function IntroRoute({
           startingRef.current = false
         })
     },
-    [navigate, region],
+    [navigate, region, voiceConsent],
   )
 
   /*
@@ -288,7 +297,14 @@ function IntroRoute({
    * staging 빌드는 권한과 점검 사이에 출신 지역 선택이 하나 더 선다 (KAN-202): 권한 → **지역** →
    * 점검 → 세션 생성. 지역도 네트워크를 쓰지 않으므로 같은 근거로 세션 앞에 둔다. 스위치가
    * 꺼진 빌드(prod)는 이 분기를 타지 않아 이 티켓 전과 흐름이 같다.
+   *
+   * 그 앞에 음성 저장 선택 동의가 선다 (KAN-270): 권한 → **동의** → 지역(staging) → 점검 → 세션
+   * 생성. 모든 빌드에 있는 칸이고, 이것도 네트워크를 쓰지 않으므로 같은 근거로 세션 앞에 둔다.
    */
+  if (standalone && micGranted && voiceConsent === null) {
+    return <VoiceConsentScreen onDone={setVoiceConsent} />
+  }
+
   if (standalone && micGranted && isRegionSelectEnabled() && region === null) {
     return <RegionSelectScreen onDone={setRegion} />
   }
@@ -357,12 +373,14 @@ function startedTest(sessionId: string, campaign: string | null): void {
  *
  * @param userCurveCenterHz 목소리 점검이 잰 이 화자의 중심 음높이 (Hz)
  * @param region 출신 지역 코드 (KAN-202). 스위치가 꺼진 빌드에서는 늘 null이라 본문이 그대로다
+ * @param voiceConsented 음성 저장 선택 동의 화면에서 체크했는가 (KAN-270)
  * @throws Error 사용자에게 보일 문구를 담은 오류 ([startFailureMessage] 참고)
  */
 async function startStandaloneTest(
   navigate: Navigate,
   userCurveCenterHz: number,
   region: RegionCode | null,
+  voiceConsented: boolean,
 ): Promise<void> {
   const search = window.location.search
 
@@ -379,19 +397,39 @@ async function startStandaloneTest(
    */
   if (!isWebSessionStorageAvailable()) throw new Error(STORAGE_UNAVAILABLE_MESSAGE)
 
+  const options = {
+    campaignToken: readCampaignToken(search),
+    // 세션 전체가 아니라 토큰만 본다 (KAN-205) - 세트가 계약에 들어오기 전에 저장된
+    // 세션도 폐기 대상이다. 읽지 못하면 폐기 없이 새 세션만 만들어진다.
+    previousToken: getWebSessionToken(),
+    // staging의 지역 선택이 준 값 (KAN-202). 스위치가 꺼진 빌드에서는 null이고, 그때
+    // `createWebSession`이 필드째 빼므로 prod 본문은 이 티켓 전과 같다.
+    region,
+    // 동의한 세션만 버전을 싣는다 (KAN-270). 미동의면 null이라 필드째 빠진다.
+    voiceConsentVersion: voiceConsented ? VOICE_CONSENT_VERSION : null,
+  }
+
   let session
   try {
-    session = await createWebSession(API_BASE, {
-      campaignToken: readCampaignToken(search),
-      // 세션 전체가 아니라 토큰만 본다 (KAN-205) - 세트가 계약에 들어오기 전에 저장된
-      // 세션도 폐기 대상이다. 읽지 못하면 폐기 없이 새 세션만 만들어진다.
-      previousToken: getWebSessionToken(),
-      // staging의 지역 선택이 준 값 (KAN-202). 스위치가 꺼진 빌드에서는 null이고, 그때
-      // `createWebSession`이 필드째 빼므로 prod 본문은 이 티켓 전과 같다.
-      region,
-    })
+    session = await createWebSession(API_BASE, options)
   } catch (error: unknown) {
-    throw new Error(startFailureMessage(error))
+    /*
+     * 동의를 실었는데 400 `VALIDATION_FAILED`면 이 번들의 문안 버전이 서버 게시 버전보다 낡았다
+     * (서버가 버전을 먼저 올린 배포 사이). 동의 없이 **한 번만** 다시 만든다 — 선택 동의 하나
+     * 때문에 응시가 막히면 안 된다(팀 결정 2026-10-06). 그 세션의 음성은 보관되지 않는데, 낡은
+     * 문안에 받은 동의로 보관하는 것보다 그쪽이 맞다.
+     *
+     * 이전 토큰은 그대로 싣는다. 400은 본문 검증에서 나므로 서버가 옛 세션을 폐기하기 전이고,
+     * 두 번째 요청이 그 폐기를 다시 맡는다. 두 번째도 실패하면 평소의 시작 실패 문구로 간다.
+     */
+    if (!(voiceConsented && error instanceof WebSessionError && error.code === 'VALIDATION_FAILED')) {
+      throw new Error(startFailureMessage(error))
+    }
+    try {
+      session = await createWebSession(API_BASE, { ...options, voiceConsentVersion: null })
+    } catch (retryError: unknown) {
+      throw new Error(startFailureMessage(retryError))
+    }
   }
 
   // 서버가 준 세션에 웹이 잰 중심을 얹어 한 덩어리로 저장한다 (`webSession.ts`).
