@@ -60,10 +60,11 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
-        voiceConsentVersion: String?
+        voiceConsentVersion: String?,
+        region: String?
     ) async -> SessionResult {
         do {
-            let request = try buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion)
+            let request = try buildRequest(appVersion, previousToken, campaignToken, voiceConsentVersion, region)
             let (data, response) = try await send(request)
             let http = response as? HTTPURLResponse
             return Self.toResult(
@@ -80,7 +81,8 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
         _ appVersion: String,
         _ previousToken: String?,
         _ campaignToken: String?,
-        _ voiceConsentVersion: String?
+        _ voiceConsentVersion: String?,
+        _ region: String?
     ) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appendingPathComponent(pathSessions))
         request.httpMethod = "POST"
@@ -100,6 +102,7 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
                 campaignToken: campaignToken,
                 previousSessionToken: previousToken,
                 voiceConsentVersion: voiceConsentVersion,
+                region: region,
                 client: ClientBody(platform: platformIOS, appVersion: appVersion)
             )
         )
@@ -172,10 +175,12 @@ public final class URLSessionSessionClient: SessionClient, Sendable {
 /// 구분되지 않으므로(401도 404도 없다) 여기서 토큰의 생사를 따지지 않는다. nil이면 키째 빠진다.
 ///
 /// `voiceConsentVersion`은 익명 모드의 음성 저장 동의다 (KAN-270 6단계, 웹 webSession.ts와 같은 필드). 역시 nil이면 빠진다.
+/// `region`은 익명 모드의 출신 지역 코드다 (KAN-270 7단계). 서버가 S3 키·학습 라벨에 쓴다. nil이면 빠진다.
 struct CreateSessionBody: Encodable, CustomStringConvertible {
     let campaignToken: String?
     let previousSessionToken: String?
     let voiceConsentVersion: String?
+    let region: String?
     let client: ClientBody
 
     // 이전 세션 토큰이 로그에 찍히지 않게 한다 (KAN-224).

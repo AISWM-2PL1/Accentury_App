@@ -92,6 +92,27 @@ final class TestFlowModelAuthTests: XCTestCase {
         XCTAssertFalse(store.consented())
     }
 
+    /// 익명 모드의 출신 지역 (KAN-270 7단계). 동의했고 지역이 있으면 세션 body의 region으로 가고, 고르기 전에는 지역 단계가 선다.
+    func test익명_동의와_지역을_주입하면_세션_생성에_region을_싣는다() async {
+        let store = AnonymousVoiceConsentStore(defaults: defaults)
+        store.save(consented: true)
+        let model = TestFlowModel(
+            defaults: defaults, sessionClient: RecordingClient(), isMicGranted: { true }, onProfileIncomplete: {},
+            anonymousConsent: store
+        )
+        XCTAssertTrue(model.needsAnonymousRegion)
+
+        model.onAnonymousRegionChosen("JEJU")
+        XCTAssertFalse(model.needsAnonymousRegion)
+
+        let client = RecordingClient()
+        await startAndCreate(TestFlowModel(
+            defaults: defaults, sessionClient: client, isMicGranted: { true }, onProfileIncomplete: {},
+            anonymousConsent: store
+        ))
+        XCTAssertEqual(["JEJU"], client.regions)
+    }
+
     private func startAndCreate(_ model: TestFlowModel) async {
         model.onRequestMicPermission()
         model.onStartGateMicPassed()
@@ -100,17 +121,20 @@ final class TestFlowModelAuthTests: XCTestCase {
     }
 }
 
-/// 받은 동의 버전을 적는 세션 생성. 결과는 재시도 없는 전송 실패라 폴백도 타지 않는다.
+/// 받은 동의 버전·지역을 적는 세션 생성. 결과는 재시도 없는 전송 실패라 폴백도 타지 않는다.
 private final class RecordingClient: SessionClient, @unchecked Sendable {
     private(set) var versions: [String?] = []
+    private(set) var regions: [String?] = []
 
     func create(
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
-        voiceConsentVersion: String?
+        voiceConsentVersion: String?,
+        region: String?
     ) async -> SessionResult {
         versions.append(voiceConsentVersion)
+        regions.append(region)
         return .transportError(reason: "test")
     }
 }
@@ -121,7 +145,8 @@ private struct ProfileIncompleteClient: SessionClient {
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
-        voiceConsentVersion: String?
+        voiceConsentVersion: String?,
+        region: String?
     ) async -> SessionResult {
         .rejected(code: "AUTH_PROFILE_INCOMPLETE", message: "m", retryable: false, retryAfterMs: nil)
     }

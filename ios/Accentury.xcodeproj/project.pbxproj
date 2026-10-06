@@ -47,6 +47,7 @@
 		625890275914FFE13FFDE280 /* CurvePathBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F38F6B8DAF4F82A6A2F4E3B /* CurvePathBuilder.swift */; };
 		6418A5CB8873C161F6F2EA31 /* AppEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF695EE1F55530BE6EBC6BC /* AppEvents.swift */; };
 		66BF29B84C335095A8902902 /* fake_mic.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3EA0782619C8E715500EADB4 /* fake_mic.wav */; };
+		6A8FD6F79743CE6C4370A71D /* AnonymousRegionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BC84D70D094663C2EDB0C76 /* AnonymousRegionScreen.swift */; };
 		6B834B767A2F8D8CA70174CB /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7E14D05D5859B8B47FDD16ED /* FirebaseAnalyticsCore */; };
 		6BD1180E0A367BCFA5E35785 /* TestCrash.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3EDE12F5A897637266581E2 /* TestCrash.swift */; };
 		6D7240DA835E2C68EA660649 /* AccenturyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5E217157A2E9F6D8CCB49A /* AccenturyButton.swift */; };
@@ -181,6 +182,7 @@
 		9058E17A31F284B23B302D03 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		920EDC35F3B069BC5960F487 /* VoiceCheckModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCheckModel.swift; sourceTree = "<group>"; };
 		9732EF804309D56179E479C5 /* StatusBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBlock.swift; sourceTree = "<group>"; };
+		9BC84D70D094663C2EDB0C76 /* AnonymousRegionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnonymousRegionScreen.swift; sourceTree = "<group>"; };
 		A2CE5A25F0FDE137C0C1ACE8 /* AccenturyBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyBridge.swift; sourceTree = "<group>"; };
 		A70A4F9127A4AF354E2D3DB3 /* VoiceCheckScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCheckScreen.swift; sourceTree = "<group>"; };
 		AC5E217157A2E9F6D8CCB49A /* AccenturyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyButton.swift; sourceTree = "<group>"; };
@@ -337,6 +339,7 @@
 		769891008F1CB1431EEC7BEE /* Auth */ = {
 			isa = PBXGroup;
 			children = (
+				9BC84D70D094663C2EDB0C76 /* AnonymousRegionScreen.swift */,
 				52FCA2A8F05E8DD81698AF50 /* AuthGateView.swift */,
 				08EC690E7E6B36DC75A149C1 /* AuthHub.swift */,
 				0C7BE49F383E40F48530BC5D /* IdpSdks.swift */,
@@ -709,6 +712,7 @@
 				14D66E090C06F149AED0351A /* AccenturyTextField.swift in Sources */,
 				0EC5623BCB8B9358B9D2BC44 /* AdRequests.swift in Sources */,
 				B71631291AD36444826DBEE9 /* AdsController.swift in Sources */,
+				6A8FD6F79743CE6C4370A71D /* AnonymousRegionScreen.swift in Sources */,
 				23A926CAEA2B263C22C7533B /* AppConfig.swift in Sources */,
 				6418A5CB8873C161F6F2EA31 /* AppEvents.swift in Sources */,
 				B34211F2D69B414CB38A5784 /* AudioRecorder.swift in Sources */,

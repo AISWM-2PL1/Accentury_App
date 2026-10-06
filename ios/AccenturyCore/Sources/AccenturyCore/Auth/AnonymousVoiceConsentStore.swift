@@ -15,25 +15,35 @@ import Foundation
 ///
 /// 설정 스위치도 ``save(consented:)``를 부른다 — 설정에서 바꾼 것도 "물어봤다"로 친다(PR #22 리뷰의 계정 쪽 규칙과 같다).
 /// 그래서 시작 전에 설정에서 켠 사람에게 동의 화면이 또 뜨지 않는다.
+///
+/// 출신 지역(KAN-270 7단계, 키 `voice_consent_anonymous.region`)도 같이 둔다. 익명 세션은 프로필이 없어 서버 라벨이
+/// `UNKNOWN`으로 남기 때문에, 동의한 사용자에게만 설치당 한 번 묻는다(``needsAnonymousRegion(consented:region:)``).
+/// 동의를 껐다 켜도 지역은 지우지 않는다.
 @MainActor
 public final class AnonymousVoiceConsentStore: ObservableObject {
 
     public static let askedKey = "voice_consent_anonymous.asked"
     public static let consentedKey = "voice_consent_anonymous.consented"
+    public static let regionKey = "voice_consent_anonymous.region"
 
     private let defaults: UserDefaults
     @Published private var isAsked: Bool
     @Published private var isConsented: Bool
+    @Published private var storedRegion: String?
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         isAsked = defaults.bool(forKey: Self.askedKey)
         isConsented = defaults.bool(forKey: Self.consentedKey)
+        storedRegion = defaults.string(forKey: Self.regionKey)
     }
 
     public func asked() -> Bool { isAsked }
 
     public func consented() -> Bool { isConsented }
+
+    /// 저장된 출신 지역 코드(``Region`` rawValue). 아직 안 골랐으면 nil
+    public func region() -> String? { storedRegion }
 
     /// 동의 화면의 선택과 설정 스위치.
     public func save(consented: Bool) {
@@ -42,9 +52,25 @@ public final class AnonymousVoiceConsentStore: ObservableObject {
         isAsked = true
         isConsented = consented
     }
+
+    /// 지역 선택 화면의 [다음].
+    public func saveRegion(_ code: String) {
+        defaults.set(code, forKey: Self.regionKey)
+        storedRegion = code
+    }
 }
 
 /// 익명 세션 생성 body에 실을 동의 버전. 미동의면 nil(키째 빠진다)
 public func anonymousVoiceConsentVersion(consented: Bool) -> String? {
     consented ? voiceConsentVersion : nil
+}
+
+/// 시작 게이트에 지역 단계를 세울지 (KAN-270 7단계). 동의했는데 아직 안 골랐을 때만 — 미동의면 라벨 받을 음성이 없다
+public func needsAnonymousRegion(consented: Bool, region: String?) -> Bool {
+    consented && region == nil
+}
+
+/// 익명 세션 생성 body에 실을 `region`. 동의했을 때만 저장값을 싣고, 미동의면 nil(키째 빠진다)
+public func anonymousSessionRegion(consented: Bool, region: String?) -> String? {
+    consented ? region : nil
 }

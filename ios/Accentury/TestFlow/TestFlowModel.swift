@@ -164,7 +164,7 @@ final class TestFlowModel: ObservableObject {
     private let isMicGranted: () -> Bool
     private let onProfileIncomplete: @MainActor () -> Void
 
-    /// 익명 모드의 로컬 동의 (KAN-270 6단계). nil이면 계정 모드 — 동의 단계가 없고 body에 버전을 싣지 않는다.
+    /// 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). nil이면 계정 모드 — 동의·지역 단계가 없고 body에 버전·지역을 싣지 않는다.
     let anonymousConsent: AnonymousVoiceConsentStore?
     /// 저장소가 바뀌면 이 모델도 바뀐 것으로 알린다 — 시작 게이트의 동의 단계가 ``TestFlowView``에서 이 모델만 보고 걷힌다.
     private var anonymousConsentChange: AnyCancellable?
@@ -177,8 +177,9 @@ final class TestFlowModel: ObservableObject {
     ///     한 번 허용받았어도 설정에서 회수될 수 있다.
     ///   - onProfileIncomplete: 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224).
     ///     기본값이 로그인 관문(``AuthHub/gate``)이다.
-    ///   - anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계). 주면 시작 게이트가 권한 → 동의(설치당 1회) → 점검 →
-    ///     세션이 되고, 세션 생성 body에 동의 버전을 싣는다. nil이 계정 모드다.
+    ///   - anonymousConsent: 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). 주면 시작 게이트가 권한 → 동의(설치당 1회) →
+    ///     지역(동의했고 아직 없을 때, 설치당 1회) → 점검 → 세션이 되고, 세션 생성 body에 동의 버전·지역을 싣는다.
+    ///     nil이 계정 모드다.
     init(
         defaults: UserDefaults = .standard,
         sessionClient: SessionClient? = TestFlowModel.defaultSessionClient(),
@@ -334,6 +335,23 @@ final class TestFlowModel: ObservableObject {
         anonymousConsent.flatMap { anonymousVoiceConsentVersion(consented: $0.consented()) }
     }
 
+    // MARK: 익명 모드의 출신 지역 (KAN-270 7단계)
+
+    /// 동의 다음에 지역 단계를 세울까. 동의했고 아직 안 골랐을 때만 — 설정에서 뒤늦게 동의를 켠 사람도 다음 시작 때 걸린다.
+    var needsAnonymousRegion: Bool {
+        anonymousConsent.map { AccenturyCore.needsAnonymousRegion(consented: $0.consented(), region: $0.region()) } ?? false
+    }
+
+    /// 지역 화면의 [다음]. 저장소에 region이 생겨 단계가 걷힌다.
+    func onAnonymousRegionChosen(_ code: String) {
+        anonymousConsent?.saveRegion(code)
+    }
+
+    /// 세션 body의 `region`. 동의했고 지역이 있을 때만 — 계정 모드·미동의는 nil.
+    private var sessionRegion: String? {
+        anonymousConsent.flatMap { anonymousSessionRegion(consented: $0.consented(), region: $0.region()) }
+    }
+
     /// 저장해 둔 흐름·세션·시작 게이트를 전부 지운다 (KAN-224).
     ///
     /// 안드로이드는 TestFlow 컴포저블이 로그인 상태(SignedIn)일 때만 살아 있어, 로그아웃·추가 정보로 넘어가면
@@ -362,7 +380,8 @@ final class TestFlowModel: ObservableObject {
              * URL과 세션 양쪽에 같은 값으로 실려야 공유 유입이 끝까지 이어진다.
              */
             campaignToken: campaignToken,
-            voiceConsentVersion: sessionVoiceConsentVersion
+            voiceConsentVersion: sessionVoiceConsentVersion,
+            region: sessionRegion
         )
         sessionGate.onResult(result)
         syncGate()
@@ -408,7 +427,8 @@ final class TestFlowModel: ObservableObject {
             // 재응시도 같은 유입이다 (KAN-32) — 공유 링크로 들어온 사람이 한 번 더 보는 것까지가
             // 그 링크가 만든 응시라, 코드를 그대로 물려준다.
             campaignToken: campaignToken,
-            voiceConsentVersion: sessionVoiceConsentVersion
+            voiceConsentVersion: sessionVoiceConsentVersion,
+            region: sessionRegion
         )
         let outcome = sessionGate.onRetestResult(result)
         syncGate()
@@ -628,7 +648,8 @@ struct DebugStubSessionClient: SessionClient {
         appVersion: String,
         previousToken: String?,
         campaignToken: String?,
-        voiceConsentVersion: String?
+        voiceConsentVersion: String?,
+        region: String?
     ) async -> SessionResult {
         .created(
             Session(
