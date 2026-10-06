@@ -318,7 +318,16 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야
                         // 다음 로그인에서 계정을 다시 고를 수 있다.
                         onLogout = { gate.logout { IdpLogout.all(context) } },
-                        onVoiceConsentChange = gate::setVoiceConsent,
+                        // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의
+                        // 화면이 뜨던 문제(PR #22 리뷰).
+                        onVoiceConsentChange = { consented ->
+                            gate.setVoiceConsent(consented).also {
+                                if (it is AuthResult.Success) {
+                                    promptStore.markPrompted(state.user.id)
+                                    consentPromptDone = true
+                                }
+                            }
+                        },
                         onReloadVoiceConsent = gate::reloadVoiceConsent,
                         onOpenPrivacy = onOpenPrivacy,
                     )
