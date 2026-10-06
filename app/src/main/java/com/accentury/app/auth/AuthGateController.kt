@@ -49,8 +49,13 @@ sealed interface AuthGateState {
     /** 로그인은 됐지만 추가 정보(§3.10)가 없다. [error]는 방금 실패한 제출의 안내다. */
     data class NeedsProfile(val user: AuthUser, val error: AuthFailure? = null) : AuthGateState
 
-    /** 테스트에 들어갈 수 있다. */
-    data class SignedIn(val user: AuthUser) : AuthGateState
+    /**
+     * 테스트에 들어갈 수 있다.
+     *
+     * @property voiceConsent 계정의 음성 저장 선택 동의 (KAN-270). null = 모른다 — 로그인 직후 `me()`가 실패했거나
+     *   옛 서버다. 모르는 상태에는 동의 화면을 띄우지 않고([shouldPromptVoiceConsent]), 설정 화면이 다시 읽게 한다
+     */
+    data class SignedIn(val user: AuthUser, val voiceConsent: VoiceConsent? = null) : AuthGateState
 
     /**
      * 시작 확인이 판정 없이 끝났다 (전송 실패·429·5xx). **토큰은 그대로다** — 여기서 로그인 화면으로 보내면
@@ -169,7 +174,7 @@ class AuthGateController(
             // 화면은 로그인에 남는다.
             is AuthResult.Success -> withContext(NonCancellable) {
                 if (store.save(result.value.tokens)) {
-                    _state.value = stateOf(result.value.account)
+                    _state.value = withVoiceConsent(stateOf(result.value.account))
                 } else {
                     // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
                     // 메모리에 남은 쌍까지 비우고 실패로 알려 사용자가 다시 시도하게 한다.
@@ -179,6 +184,54 @@ class AuthGateController(
             }
             else -> _state.value = AuthGateState.SignedOut(failureOf(result))
         }
+    }
+
+    /**
+     * 로그인 응답(LoginResponse)에는 `voiceConsent`가 없어서, 로그인으로 곧장 SignedIn이 된 계정은 `me()`를 한 번 더
+     * 불러 동의 상태를 채운다 (KAN-270). 동의 화면은 SignedIn에 닿을 때 판정하므로 여기서 모르면 묻지 못한다.
+     *
+     * `me()`가 실패하면 동의를 모르는 채(null) 들어간다 — 동의는 선택 항목이라 로그인을 막을 이유가 없고, 설정
+     * 화면에서 다시 읽을 수 있다. 갱신 거절로 저장소가 비었으면 onSignedOut이 이미 로그인 화면으로 돌렸다 — 그
+     * 판정을 따른다. `me()`가 프로필 미완료를 말하면(다른 기기에서 지워진 경우) 그쪽이 더 새 정보다.
+     */
+    private suspend fun withVoiceConsent(state: AuthGateState): AuthGateState {
+        if (state !is AuthGateState.SignedIn) return state
+        return when (val me = api.me()) {
+            is AuthResult.Success -> stateOf(me.value)
+            else -> if (store.read() == null) AuthGateState.SignedOut() else state
+        }
+    }
+
+    /**
+     * 음성 저장 동의를 켜거나 끈다 (KAN-270). [AuthGateState.SignedIn]이 아니면 아무것도 보내지 않는다.
+     * 결과를 그대로 돌려줘 화면(동의 화면·설정 토글)이 실패 안내를 그리게 한다 — 상태는 성공일 때만 바꾼다.
+     *
+     * 켤 때 싣는 버전은 서버가 준 [VoiceConsent.currentVersion]이다. 앱 상수를 두지 않는 이유: 서버가 문안 버전을
+     * 올려도 앱 배포 없이 동의가 계속 맞는 버전으로 나간다(다르면 400). 동의 상태를 모르면(null) `me()`로 먼저 읽는다.
+     */
+    suspend fun setVoiceConsent(consented: Boolean): AuthResult<Account> {
+        val current = _state.value as? AuthGateState.SignedIn
+            ?: return AuthResult.Rejected(0, null, "로그인 상태가 아님", false, null)
+        val result = if (consented) {
+            val version = current.voiceConsent?.currentVersion
+                ?: when (val me = api.me()) {
+                    is AuthResult.Success -> me.value.voiceConsent?.currentVersion
+                        ?: return AuthResult.Rejected(0, null, "서버가 동의 버전을 주지 않음", false, null)
+                    else -> return me
+                }
+            api.consentToVoice(version)
+        } else {
+            api.withdrawVoiceConsent()
+        }
+        if (result is AuthResult.Success && _state.value is AuthGateState.SignedIn) _state.value = stateOf(result.value)
+        return result
+    }
+
+    /** 설정 화면의 [다시 시도] — 동의 상태를 `me()`로 다시 읽는다 (KAN-270). SignedIn이 아니거나 실패하면 그대로 둔다. */
+    suspend fun reloadVoiceConsent() {
+        if (_state.value !is AuthGateState.SignedIn) return
+        val me = api.me()
+        if (me is AuthResult.Success && _state.value is AuthGateState.SignedIn) _state.value = stateOf(me.value)
     }
 
     /** 추가 정보를 제출한다. [AuthGateState.NeedsProfile]이 아니면 무시한다. */
@@ -236,7 +289,7 @@ class AuthGateController(
     }
 
     private fun stateOf(account: Account): AuthGateState = when (account.profileStatus) {
-        ProfileStatus.COMPLETE -> AuthGateState.SignedIn(account.user)
+        ProfileStatus.COMPLETE -> AuthGateState.SignedIn(account.user, account.voiceConsent)
         ProfileStatus.INCOMPLETE -> AuthGateState.NeedsProfile(account.user)
     }
 

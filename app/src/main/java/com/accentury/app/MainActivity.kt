@@ -88,6 +88,7 @@ import com.accentury.app.analytics.channelParam
 import com.accentury.app.auth.AuthCheckScreen
 import com.accentury.app.auth.AuthGateController
 import com.accentury.app.auth.AuthGateState
+import com.accentury.app.auth.AuthResult
 import com.accentury.app.auth.IdpLogout
 import com.accentury.app.auth.LoginScreen
 import com.accentury.app.auth.PRIVACY_POLICY_URL
@@ -95,8 +96,11 @@ import com.accentury.app.auth.PRIVACY_POLICY_VERSION
 import com.accentury.app.auth.ProfileScreen
 import com.accentury.app.auth.SettingsGearButton
 import com.accentury.app.auth.SettingsScreen
+import com.accentury.app.auth.VoiceConsentPromptStore
+import com.accentury.app.auth.VoiceConsentScreen
 import com.accentury.app.auth.configuredProviders
 import com.accentury.app.auth.idpSignInFor
+import com.accentury.app.auth.shouldPromptVoiceConsent
 import com.accentury.app.auth.visibleProviders
 import com.accentury.app.share.ResultSharer
 import com.accentury.app.session.OkHttpSessionClient
@@ -279,6 +283,15 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
              * 다음 로그인이 설정 화면부터 열리지 않는다. 회전에는 남는다.
              */
             var settingsOpen by rememberSaveable { mutableStateOf(false) }
+            /*
+             * 음성 저장 선택 동의 (KAN-270). 설정 화면과 같은 이유로 TestFlow 위에 덮는다. 로그인·추가 정보를 마친
+             * 미동의 계정에 한 번만 — 건너뛰어도 다시 띄우지 않는다(팀 결정 2026-10-06). 표시 기록은 계정 id별
+             * 로컬 플래그이고, [consentPromptDone]은 기록을 남긴 그 순간 화면을 걷으려는 것이다(prefs 읽기는
+             * 상태가 아니라 리컴포지션을 부르지 않는다).
+             */
+            val promptStore = remember(context) { VoiceConsentPromptStore(context) }
+            var consentPromptDone by rememberSaveable { mutableStateOf(false) }
+            val onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) }
             Box(modifier = modifier) {
                 TestFlow(
                     appLink = appLink,
@@ -286,13 +299,28 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                     onProfileIncomplete = gate::onProfileIncomplete,
                     onOpenSettings = { settingsOpen = true },
                 )
+                if (!consentPromptDone && shouldPromptVoiceConsent(state, promptStore.wasPrompted(state.user.id))) {
+                    val finish = {
+                        promptStore.markPrompted(state.user.id)
+                        consentPromptDone = true
+                    }
+                    VoiceConsentScreen(
+                        onConsent = { gate.setVoiceConsent(true).also { if (it is AuthResult.Success) finish() } },
+                        onSkip = finish,
+                        onOpenPrivacy = onOpenPrivacy,
+                    )
+                }
                 if (settingsOpen) {
                     SettingsScreen(
                         user = state.user,
+                        voiceConsent = state.voiceConsent,
                         onClose = { settingsOpen = false },
                         // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야
                         // 다음 로그인에서 계정을 다시 고를 수 있다.
                         onLogout = { gate.logout { IdpLogout.all(context) } },
+                        onVoiceConsentChange = gate::setVoiceConsent,
+                        onReloadVoiceConsent = gate::reloadVoiceConsent,
+                        onOpenPrivacy = onOpenPrivacy,
                     )
                 }
             }
@@ -1044,7 +1072,8 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 
         MicPermissionState.Rationale -> GateScreen(
             headline = "발음 분석에 마이크가 필요해요",
-            supporting = "음성은 분석 즉시 삭제돼요",
+            // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+            supporting = "따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요",
             buttonLabel = "마이크 허용",
             onButtonClick = { launcher.launch(Manifest.permission.RECORD_AUDIO) },
             modifier = modifier,
@@ -1052,7 +1081,8 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 
         MicPermissionState.Denied -> GateScreen(
             headline = "마이크를 허용해야 시작할 수 있어요",
-            supporting = "발음을 들어야 분석할 수 있어요 · 음성은 분석 즉시 삭제돼요",
+            // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+            supporting = "발음을 들어야 분석할 수 있어요 · 음성은 따로 동의한 경우에만 보관돼요",
             buttonLabel = "다시 허용하기",
             onButtonClick = { launcher.launch(Manifest.permission.RECORD_AUDIO) },
             modifier = modifier,
@@ -1175,7 +1205,8 @@ private fun AssuranceCard() {
 private val ASSURANCES = listOf(
     "실시간 억양 곡선 분석",
     "발음 정확도 점수 측정",
-    "음성은 분석 즉시 삭제",
+    // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
+    "음성은 따로 동의한 경우에만 보관",
 )
 
 /** 안심 문구 줄머리 점 */
