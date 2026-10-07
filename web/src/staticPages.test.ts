@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { isStandaloneWeb, type AccenturyBridge } from './bridge/bridge'
 
 /*
  * 크롤러가 읽는 정적 파일의 계약을 지킨다 (KAN-275).
@@ -108,6 +109,36 @@ describe('첫 화면의 정적 footer (KAN-275 2단계)', () => {
        footer를 잇는 선택자가 끊기지 않았는지만 본다 — 이름을 바꾸면 앱 하단에 웹 footer가 뜬다. */
     const css = [...indexDoc.head.querySelectorAll('style')].map((style) => style.textContent).join('\n')
     expect(css).toMatch(/:root\[data-runtime='app'\]\s+#site-footer\s*\{\s*display:\s*none/)
+  })
+
+  /* 리뷰 P1: markRuntime은 모듈(deferred)에서 돌아 첫 페인트보다 늦다. head 인라인 스크립트가 같은
+     판정을 먼저 하는데, 사본이라 정본(isStandaloneWeb)과 어긋나면 앱에 footer가 뜨거나 웹에서 사라진다. */
+  const inline = indexDoc.head.querySelector('script')
+
+  it('런타임 인라인 스크립트가 style·footer보다 앞에 있고 동기로 돈다', () => {
+    expect(inline, 'head에 인라인 스크립트가 없다').not.toBeNull()
+    expect(inline?.hasAttribute('src')).toBe(false)
+    expect(inline?.getAttribute('type')).toBeNull()
+    const follows = (el: Element | null) =>
+      !!el && !!(inline!.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(follows(indexDoc.head.querySelector('style'))).toBe(true)
+    expect(follows(indexDoc.getElementById('site-footer'))).toBe(true)
+  })
+
+  it.each([
+    [undefined, '', 'browser'],
+    [{}, '', 'app'],
+    [undefined, '?bridge=1', 'app'],
+    [{}, '?bridge=1', 'app'],
+  ])('인라인 판정이 isStandaloneWeb과 같다 (브리지 %o, 쿼리 %j → %s)', (bridge, search, expected) => {
+    const root = document.createElement('html')
+    new Function('window', 'location', 'document', inline!.textContent!)(
+      { AccenturyBridge: bridge },
+      { search },
+      { documentElement: root },
+    )
+    expect(root.dataset.runtime).toBe(expected)
+    expect(root.dataset.runtime).toBe(isStandaloneWeb(search, bridge as AccenturyBridge | undefined) ? 'browser' : 'app')
   })
 })
 

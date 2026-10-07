@@ -673,6 +673,9 @@ Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.Acce
 - `team-story.html`: 비즈니스 모델·매출·멘토 실명·일정은 쓰지 않는다(KAN-275 3단계 지시).
 - `recording-environment.html`: 일반 음향학 조언은 쓰지 않고, 권하는 말은 우리 검사 문구와 잡음 실험에서 나온 것만 쓴다.
 - `choosing-pitch-model.html`: 표현 규칙은 `benchmark-plan.md` 3.2를 따른다 — "RMVPE보다 정확"이 아니라 "RMVPE와 일치".
+- `index.html` head 인라인 스크립트(리뷰 P1): 앱 WebView에서 번들 전 첫 페인트에 footer가 비치지 않게 `data-runtime`을
+  먼저 심는다. 서버 레포 edge CSP가 Report-Only(`default-src 'self'`)라 지금은 보고만 되고, enforce로 바꾸면 이 스크립트가
+  막혀 첫 프레임 깜빡임이 돌아온다(기능은 `markRuntime`이 뒤에서 심어 그대로). 그때는 해시(`'sha256-…'`)를 CSP에 넣는다.
 
 **글별 근거.** `~/accentury/docs/wiki/`는 로컬 code wiki, `Accentury_Server`는 서버 레포다.
 
