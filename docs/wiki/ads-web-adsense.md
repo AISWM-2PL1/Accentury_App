@@ -605,3 +605,25 @@ curl -s https://accentury.app/sitemap.xml
 ```
 
 403이면 업로드 단계(`정적 페이지 교체 (no-cache)`)를 건너뛴 것이고, 내용이 옛것이면 무효화를 본다.
+
+### 11.1 페이지 목록 (2단계, 2026-10-07)
+
+| 경로 | 역할 | 출처 |
+|---|---|---|
+| `/` (`web/index.html`) | 앱 첫 화면. `#root` 뒤 정적 `<footer id="site-footer">`에 소개·방침·문의 링크 | 이 레포 |
+| `/about.html` | 서비스 소개(10문항·5등급·데이터 처리 한 줄·팀) | 이 레포 `web/public/` |
+| `/contact.html` | 문의(`team2pl1@gmail.com`, 오류·제휴·개인정보 요청) | 이 레포 `web/public/` |
+| `/privacy.html` | 개인정보처리방침 | 서버 레포 `infra/privacy/` |
+| `/guide/index.html`·`/guide/*.html` | 사투리 이야기 글 (3단계) | 이 레포 `web/public/guide/` |
+
+새 페이지는 `about.html`을 복사해 head·main만 바꾼다(인라인 스타일, 외부 CSS·글꼴·스크립트 0, 배경은 앱 종이색
+`#f3ecd9`). 하단 `<nav>`는 모든 페이지가 같고, `index.html` footer와 각 페이지 nav에 3단계 링크 자리가
+주석으로 있다. 새 `.html`은 sitemap에 올리지 않으면 `staticPages.test.ts`가 깨진다(역방향 검사).
+
+**앱 WebView에서 footer를 숨기는 이유.** 앱은 방침 링크를 네이티브 UI와 `PrivacyNotice`로 이미 주고,
+화면 배치는 네이티브가 나눠 맡는다. 웹 footer가 앱 하단에 또 나오면 중복이고 그 계약과 어긋난다. 숨김은
+`main.tsx`가 렌더 전에 심는 `<html data-runtime>`(KAN-199, `ui/runtime.ts`)을 그대로 쓴다 —
+`:root[data-runtime='app'] #site-footer { display: none }`. 판정은 `bridge.ts`의 `isStandaloneWeb` 하나라
+Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.AccenturyBridge`)가 같이 처리된다.
+크롤러와 브라우저는 같은 HTML을 받고 같은 footer를 보므로 cloaking이 아니다. footer는 `noscript` 밖, 화면
+컨테이너(`min-height: 100dvh`) 아래라 스크롤해야 보이고 `position: fixed`가 아니어서 [시작하기]를 가리지 않는다.

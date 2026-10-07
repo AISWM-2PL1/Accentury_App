@@ -60,10 +60,49 @@
       html {
         background: #f3ecd9;
       }
+
+      /*
+        정적 footer (KAN-275 2단계). 글자 크기·색만 정하고 글꼴은 tokens.css의 body 규칙을 물려받는다.
+        색은 --color-muted-foreground와 같은 값을 직접 적는다 — 번들이 늦거나 안 뜨는 크롤러에서는
+        토큰이 정의되지 않아 var()가 통째로 무효가 된다. position: fixed를 쓰지 않는 이유는 인트로의
+        [시작하기] 버튼·모달을 가리지 않기 위해서다. 화면 컨테이너가 min-height: 100dvh라 footer는
+        첫 화면 아래, 스크롤해야 보이는 자리에 놓인다.
+      */
+      #site-footer {
+        padding: 1.5rem 1rem 2rem;
+        text-align: center;
+        font-size: 0.8125rem;
+      }
+      #site-footer a {
+        color: #6b6459;
+        margin: 0 0.5rem;
+      }
+      /*
+        앱 WebView에서는 숨긴다. 앱은 방침 링크를 네이티브 UI와 PrivacyNotice로 이미 주고, 웹
+        footer가 또 있으면 중복인 데다 화면 배치를 네이티브가 나눠 맡는 WebView 계약과 어긋난다.
+        data-runtime은 main.tsx가 렌더 전에 심는 표식이다(ui/runtime.ts — Android·iOS 브리지 판정을
+        bridge.ts의 isStandaloneWeb 하나로 한다). 크롤러와 브라우저는 같은 footer를 받으므로 cloaking이
+        아니다.
+      */
+      :root[data-runtime='app'] #site-footer {
+        display: none;
+      }
     </style>
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      크롤러가 JS 없이 따라갈 링크 (KAN-275). SPA라 이 문서의 본문은 빈 #root뿐이었고 AdSense가
+      「가치가 별로 없는 콘텐츠」로 미승인했다. noscript에 넣지 않는 이유: 브라우저 사용자에게도 같은
+      것이 보여야 크롤러에게만 다른 것을 보여 주는 cloaking이 되지 않는다. 주소는 .html 확장자 필수
+      (staticPages.test.ts 머리 주석의 확장자 함정).
+    -->
+    <footer id="site-footer">
+      <a href="/about.html">소개</a>
+      <!-- KAN-275 3단계: <a href="/guide/index.html">사투리 이야기</a> 가 여기 들어간다 -->
+      <a href="/privacy.html">개인정보처리방침</a>
+      <a href="/contact.html">문의</a>
+    </footer>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

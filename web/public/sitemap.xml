@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- KAN-275: 2·3단계의 about·contact·guide 글은 여기에 <url>을 더한다 (prod 절대 주소, .html 확장자) -->
+  <!-- KAN-275: public/의 .html은 전부 여기 올린다 (prod 절대 주소, .html 확장자). 빠지면 staticPages.test.ts가 깨진다 -->
   <url>
     <loc>https://accentury.app/</loc>
   </url>
   <url>
     <loc>https://accentury.app/privacy.html</loc>
+  </url>
+  <url>
+    <loc>https://accentury.app/about.html</loc>
+  </url>
+  <url>
+    <loc>https://accentury.app/contact.html</loc>
   </url>
 </urlset>
