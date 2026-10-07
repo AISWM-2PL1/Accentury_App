@@ -8,18 +8,7 @@
       name="description"
       content="Accentury 사투리 억양 테스트의 점수와 등급. 억양 점수와 단어 점수를 합산한 종합 점수로 다섯 등급을 나눕니다."
     />
-    <!--
-      KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
-      1차 사실만 쓴다(팀 결정 2026-10-07). 계산식은 서버 코드가 정본이다.
-      공개 수준: 내부 수치·공식 제외(KAN-275, 2026-10-07 팀장 결정). 가중치·계수·등급 경계값은 쓰지 않는다.
-      근거:
-      - Accentury_Server backend scoring/ScoreAggregator.java (억양·단어·종합 점수, 정수 반올림, 등급은 정수 종합 점수로)
-      - Accentury_Server scoring/ScorePolicy.java (억양 평균 보정), score-versions/*.json (가중치, 등급 경계, 등급명)
-      - web/src/result/ResultScreen.tsx 머리 주석 (화면은 계산하지 않음, 학습 레벨·Lv 표기 없음, 사투리 유사도)
-      - ~/accentury/docs/wiki/mvp-spec.md §4 「채점 프레이밍」
-      - ~/accentury/docs/wiki/prosody-scoring.md 「채점 민감도 바닥값」(같은 화자 반복에도 차이가 남)
-      - 개인정보처리방침 1항(결과 24시간)
-    -->
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
     <style>
       :root {
         color-scheme: light;

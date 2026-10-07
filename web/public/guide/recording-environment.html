@@ -8,21 +8,7 @@
       name="description"
       content="Accentury가 녹음을 받는 형식과 녹음 직후 검사하는 항목. 16kHz 모노 녹음, 너무 짧거나 작거나 찢어진 녹음을 거르는 기준, 잡음 실험에서 확인한 점을 정리했습니다."
     />
-    <!--
-      KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
-      1차 사실만 쓴다(팀 결정 2026-10-07). 일반 음향학 조언은 쓰지 않고, 권하는 말은 우리 검사 문구와
-      잡음 실험에서 나온 것만 쓴다.
-      공개 수준: 내부 수치·공식 제외(KAN-275, 2026-10-07 팀장 결정). 샘플링 숫자·검사 임계값·실험 배율은 쓰지 않는다.
-      근거:
-      - ~/accentury/docs/wiki/audio-capture.md 「확정 오디오 스펙」(16kHz mono), mvp-spec.md NFR-CP-03
-      - web/src/audio/resample.ts 머리 주석 (기기 샘플링 → 16kHz, 줄이기 전 고역 제거)
-      - web/src/audio/capture.ts openStream 주석 (echoCancellation·noiseSuppression·autoGainControl 끔, 브라우저가 무시할 수 있음)
-      - web/src/audio/quality.ts (길이·크기·찢어짐 검사, 앱 AudioQuality와 같은 값), WebVoiceRecorder.tsx 품질 문구
-        및 머리 주석(서버에서도 확인)
-      - web/src/voicecheck/voiceCheckController.ts, docs/wiki/pitch-curve.md §5 (점검 볼륨 문턱 = 곡선 문턱)
-      - ~/accentury/docs/wiki/benchmark-plan.md 「실행 결과」(구내식당 잡음이 기차역보다 어려움, 카페 사용 전제)
-      - web/src/intro/MicBlockedScreen.tsx (다른 앱이 마이크를 쓰는 경우 문구)
-    -->
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
     <style>
       :root {
         color-scheme: light;

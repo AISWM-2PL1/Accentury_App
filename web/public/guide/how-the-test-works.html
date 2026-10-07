@@ -8,23 +8,7 @@
       name="description"
       content="Accentury 사투리 억양 테스트의 진행 순서. 마이크 권한과 목소리 점검, 음성 문항과 단어 문항, 분석 대기, 결과 화면까지 실제 화면 순서대로 정리했습니다."
     />
-    <!--
-      KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
-      1차 사실만 쓴다(팀 결정 2026-10-07). 문항 수는 적지 않는다 — 구성은 정의(setLayout)가 정하고
-      정의 버전마다 다르다(testDefinition.ts items 주석, 서버 V5 마이그레이션).
-      공개 수준: 내부 수치·공식 제외(KAN-275, 2026-10-07 팀장 결정).
-      근거:
-      - web/src/progress/testDefinition.ts (문항 두 유형, 4지선다 choices, maxDurationMs는 서버 상수)
-      - web/src/progress/VoiceItemScreen.tsx, WebVoiceRecorder.tsx (녹음 → 정지 → 재녹음/다음, 재생 없음, 품질 문구)
-      - web/src/progress/VocabularyItemScreen.tsx (라디오 객관식, 정오 미노출)
-      - web/src/progress/TestStartScreen.tsx (3초 카운트다운)
-      - web/src/voicecheck/voiceCheckController.ts ("안녕하세요" 한 마디로 중심 음높이와 볼륨 확인)
-      - web/src/intro/MicBlockedScreen.tsx (권한 거부 문구)
-      - docs/wiki/voice-consent.md 「웹 흐름」(마이크 권한 → 동의 → 출신 지역 → 목소리 점검)
-      - docs/wiki/ux-ui.md §4 C-2·D·F, docs/wiki/pitch-curve.md (녹음 상한 현재 10초)
-      - Accentury_Server SessionService.resolveVoiceSet (세트 균등 난수), V5 마이그레이션 문항 예시('정구지')
-      - ~/accentury/docs/wiki/analysis-polling.md (자동 확인 예산, 실패 문항 [다시 녹음]), KAN-271 커밋
-    -->
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
     <style>
       :root {
         color-scheme: light;

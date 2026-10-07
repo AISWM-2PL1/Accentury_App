@@ -8,21 +8,7 @@
       name="description"
       content="Accentury 사투리 억양 테스트 자주 묻는 질문. 마이크 권한, 다시 녹음, 분석 대기, 결과 공유와 보관 기간을 답합니다."
     />
-    <!--
-      KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
-      1차 사실만 쓴다(팀 결정 2026-10-07). 답은 화면 문구와 코드 동작 그대로다.
-      공개 수준: 내부 수치·공식 제외(KAN-275, 2026-10-07 팀장 결정).
-      근거:
-      - web/src/intro/MicBlockedScreen.tsx (denied·unsupported·unavailable 문구), ~/accentury/docs/wiki/audio-capture.md 「마이크 권한 (두 겹)」,
-        ~/accentury/docs/wiki/ux-ui.md §4 C(앱 거부 시 설정으로 진행)
-      - web/src/progress/WebVoiceRecorder.tsx 머리 주석 (로컬 재녹음 무제한, 업로드는 [다음]에서만)
-      - ~/accentury/docs/wiki/analysis-polling.md §4·§5·§6 (자동 확인 예산, [다시 시도], 실패 문항 [다시 녹음]),
-        KAN-271 커밋 b09e43e(실패 문항만 이어서 녹음, 문항 시도 상한 429는 [다시 테스트하기])
-      - web/src/share/shareResult.ts (앱 브리지 → 브라우저 navigator.share → 링크 복사), docs/wiki/app-links.md §1
-        (링크는 계측 코드 하나만), privacy.html 9항(카카오톡 전달 항목, 받은 사람은 새 테스트 시작)
-      - privacy.html 1항·「테스트 세션」·「계정」(결과 24시간, 지난 결과가 쌓이지 않음), web/src/result/fetchResult.ts(만료 410 → [다시 테스트하기])
-      - Accentury_Server SessionService.resolveVoiceSet (세트 무작위)
-    -->
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
     <style>
       :root {
         color-scheme: light;
