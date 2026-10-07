@@ -194,6 +194,9 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
 - 캐시: `index.html`만 `no-cache`, 나머지 전부 `public, max-age=31536000, immutable`. 그래서
   `public/`에 해시 없는 파일을 두지 않는다. 폰트는 `src/assets/fonts/`에서 상대 경로로 import해
   Vite가 해시를 붙인다. 이름이 고정인 파일이 꼭 필요하면 워크플로의 캐시 규칙부터 고친다.
+- 예외: 크롤러용 정적 페이지(`public/*.html`, `public/guide/`)·`robots.txt`·`sitemap.xml`은 no-cache로
+  따로 올라간다 (KAN-275). 페이지는 `public/about.html`을 복사해 만들고 `.html` 확장자로 sitemap에
+  올린다. 계약은 `src/staticPages.test.ts`, 목록은 `docs/wiki/ads-web-adsense.md` §11.1.
 - 업로드 순서: 해시 자산을 먼저, `index.html`을 마지막에. 중간에 실패하면 이전 `index.html`이
   이전 자산을 그대로 가리킨다. 이전 자산은 지우지 않는다 (`sync --delete` 없음).
 - 환경을 새로 지은 뒤 첫 배포나 웹 변경 없는 재배포는 Actions의 "Web Deploy"를

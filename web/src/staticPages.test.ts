@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /*
@@ -30,7 +30,7 @@ const PUBLISHED_ELSEWHERE = new Set(['/', '/privacy.html'])
 const sitemap = new DOMParser().parseFromString(readFileSync(join(PUBLIC_DIR, 'sitemap.xml'), 'utf8'), 'application/xml')
 const locs = [...sitemap.getElementsByTagName('loc')].map((loc) => loc.textContent?.trim() ?? '')
 
-/** public/ 아래 .html 전부 (하위 디렉터리 포함). 지금은 0개다 */
+/** public/ 아래 .html 전부 (하위 디렉터리 포함) */
 function htmlFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
@@ -78,6 +78,77 @@ describe('크롤러용 정적 파일', () => {
        원자성 밖에서 옛 번들 이름이 남고, 크롤러가 볼 것은 스크립트가 아니라 글이다. */
     for (const file of htmlFiles(PUBLIC_DIR)) {
       expect(readFileSync(file, 'utf8'), `${file} 에 <script src=가 있다`).not.toMatch(/<script[^>]*\ssrc=/i)
+    }
+  })
+})
+
+const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html')
+const indexDoc = parse(readFileSync(join(process.cwd(), 'index.html'), 'utf8'))
+
+/** 페이지 사이를 잇는 링크 — 소개·방침·문의. 3단계가 /guide/index.html을 더한다 */
+const SITE_LINKS = ['/about.html', '/privacy.html', '/contact.html']
+
+describe('첫 화면의 정적 footer (KAN-275 2단계)', () => {
+  it('index.html body에 소개·방침·문의 링크가 있다', () => {
+    // 크롤러가 JS 없이 따라갈 수 있는 링크가 0개였다 — 이게 미승인 사유의 절반이다
+    const hrefs = [...indexDoc.body.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))
+    for (const link of SITE_LINKS) expect(hrefs, `index.html에 ${link} 링크가 없다`).toContain(link)
+  })
+
+  it('footer가 noscript 밖에 있다', () => {
+    /* noscript 안이면 JS를 켠 브라우저 사용자에게는 안 보이고 크롤러에게만 보이는 링크가 된다.
+       그게 cloaking으로 읽힐 수 있고, JS를 돌리는 크롤러는 아예 못 본다. */
+    const footer = indexDoc.getElementById('site-footer')
+    expect(footer, '#site-footer가 없다').not.toBeNull()
+    expect(footer?.closest('noscript')).toBeNull()
+  })
+
+  it('앱 WebView에서는 footer를 숨기는 규칙이 head에 있다', () => {
+    /* 표식은 main.tsx의 markRuntime이 심는다(판정 테스트는 ui/runtime.test.ts). 여기서는 그 표식과
+       footer를 잇는 선택자가 끊기지 않았는지만 본다 — 이름을 바꾸면 앱 하단에 웹 footer가 뜬다. */
+    const css = [...indexDoc.head.querySelectorAll('style')].map((style) => style.textContent).join('\n')
+    expect(css).toMatch(/:root\[data-runtime='app'\]\s+#site-footer\s*\{\s*display:\s*none/)
+  })
+})
+
+/** 홀로 서는 페이지와 크롤러가 읽을 본문 글자 수 하한 */
+const PAGES: Record<string, number> = { 'about.html': 400, 'contact.html': 200 }
+
+describe('소개·문의 페이지 (KAN-275 2단계)', () => {
+  for (const [name, minText] of Object.entries(PAGES)) {
+    const doc = parse(readFileSync(join(PUBLIC_DIR, name), 'utf8'))
+
+    it(`${name}에 title·description·h1이 있고 본문이 ${minText}자 이상이다`, () => {
+      expect(doc.title.trim()).not.toBe('')
+      expect(doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() ?? '').not.toBe('')
+      expect(doc.querySelector('h1')?.textContent?.trim() ?? '').not.toBe('')
+      // 공백을 빼고 센다 — 들여쓰기가 글자 수를 부풀리지 않게
+      const text = (doc.querySelector('main')?.textContent ?? '').replace(/\s+/g, '')
+      expect(text.length, `${name} 본문이 ${text.length}자다`).toBeGreaterThanOrEqual(minText)
+    })
+
+    it(`${name}의 내부 링크가 / 또는 .html이다`, () => {
+      const internal = [...doc.querySelectorAll('a[href]')]
+        .map((a) => a.getAttribute('href') ?? '')
+        .filter((href) => href.startsWith('/'))
+      expect(internal.length).toBeGreaterThan(0)
+      for (const href of internal) {
+        expect(href === '/' || href.endsWith('.html'), `${href} 는 SPA 재작성에 걸려 빈 껍데기로 간다`).toBe(true)
+      }
+    })
+  }
+
+  it('contact.html에 문의 메일 링크가 있다', () => {
+    const doc = parse(readFileSync(join(PUBLIC_DIR, 'contact.html'), 'utf8'))
+    // privacy.html 13항과 같은 주소다 (팀 결정 2026-10-07)
+    expect(doc.querySelector('a[href="mailto:team2pl1@gmail.com"]')).not.toBeNull()
+  })
+
+  it('public/의 .html이 전부 sitemap에 있다', () => {
+    // "sitemap이 가리키는 글이 public/에 있다"의 역방향 — 글을 올리고 sitemap을 잊으면 크롤러가 늦게 찾는다
+    for (const file of htmlFiles(PUBLIC_DIR)) {
+      const loc = `${ORIGIN}/${relative(PUBLIC_DIR, file).split(sep).join('/')}`
+      expect(locs, `${loc} 가 sitemap.xml에 없다`).toContain(loc)
     }
   })
 })
