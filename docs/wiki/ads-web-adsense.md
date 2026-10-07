@@ -551,7 +551,7 @@ skip 1건은 `retake.spec.ts`다 — `E2E_FAIL_ITEM`이 없는 스택의 정상 
 | 4 | `gh variable set` 두 개 (prod) | `gh variable list -e prod`에 둘 다 보인다 | §6.1. staging에는 두지 않는다 |
 | 5 | Release 배포 | 워크플로 로그의 `ads.txt 생성` 스텝에 한 줄이 찍힌다 | 값이 `ca-pub-`으로 시작하지 않으면 여기서 실패한다 (§6.2) |
 | 6 | `ads.txt` 게시 확인 | `curl https://accentury.app/ads.txt`가 `google.com, pub-…` 한 줄을 준다 | 404면 5번 스텝을 건너뛴 것이고, 내용이 옛것이면 무효화를 보라 |
-| 7 | 심사 통과 | 콘솔 사이트 상태가 「준비됨」 | **거절될 수 있다.** SPA라 크롤러가 보는 초기 HTML에 콘텐츠가 거의 없고, 심사는 「콘텐츠가 충분하지 않은 사이트」를 자주 든다. 그때는 광고 배선이 아니라 사이트에 읽을 것을 늘리는 문제다 — 방침·소개 같은 정적 페이지가 후보다 |
+| 7 | 심사 통과 | 콘솔 사이트 상태가 「준비됨」 | **거절될 수 있다.** SPA라 크롤러가 보는 초기 HTML에 콘텐츠가 거의 없고, 심사는 「콘텐츠가 충분하지 않은 사이트」를 자주 든다. 그때는 광고 배선이 아니라 사이트에 읽을 것을 늘리는 문제다 — 방침·소개 같은 정적 페이지가 후보다 — 실제로 두 번 거절됐고 대응은 §11 |
 | 8 | 실제 요청 확인 | 대기 화면에서 개발자 도구 Network에 `googleads`/`pagead` 요청, 거부한 방문이면 `npa=1` | §7의 절차 그대로. 응답 200인데 슬롯이 비면 아직 승인 전이다 (§1) |
 
 7번이 이 표에서 가장 불확실한 칸이다. 승인은 우리가 통제하지 못하고 기간도 정해져 있지 않으므로,
@@ -575,3 +575,33 @@ skip 1건은 `retake.spec.ts`다 — `E2E_FAIL_ITEM`이 없는 스택의 정상 
 
 확인은 켤 때와 같은 한 줄인데 기대가 뒤집힌다 — `curl https://accentury.app/ads.txt`가 404여야
 한다.
+
+## 11. 사이트 심사와 정적 콘텐츠 (KAN-275)
+
+§10의 7번 칸이 현실이 됐다. AdSense가 **「가치가 별로 없는 콘텐츠」**로 두 번 미승인했다
+(팀 결정 2026-10-07, KAN-275 코멘트).
+
+**원인은 빈 SPA 껍데기다.** 크롤러가 받는 첫 HTML은 `<div id="root">`와 번들 스크립트뿐이라 읽을
+글도 따라갈 링크도 없었다. `robots.txt`·`sitemap.xml`도 버킷에 객체가 없어 403이었다.
+
+**해결 구조**는 `web/public/`에 정적 HTML 글·소개·문의 페이지를 두고 웹 배포와 함께 내보내는
+것이다. 1단계(2026-10-07)는 배관만 깔았다 — 글은 2·3단계.
+
+| 규칙 | 이유 |
+|---|---|
+| `web/public/*.html`(하위 디렉터리 포함)·`robots.txt`·`sitemap.xml`은 `no-cache`로 따로 올리고 올린 키를 무효화한다 | `ads.txt`(§6.2)와 같은 부류다. 이름이 고정이라 1년 immutable sync에 섞이면 고친 글이 1년 동안 안 나간다 |
+| 글은 **`.html` 확장자 필수** | SPA 재작성 Function(KAN-126)이 점 없는 경로를 `/index.html`로 돌린다. `/about`은 빈 껍데기를 준다 |
+| sitemap의 `<loc>`는 `https://accentury.app/…` prod 절대 주소 | 빌드가 환경을 모른다(og:url과 같은 원칙). `<lastmod>`는 안 쓴다 — 갱신을 잊으면 거짓이 된다 |
+| `privacy.html`은 이 레포에 없다 | 서버 레포 `infra/privacy/`가 같은 버킷에 따로 올린다. sitemap에는 주소만 적는다 |
+
+계약은 `web/src/staticPages.test.ts`가 지킨다 — robots의 `Sitemap:` 줄, sitemap의 절대 주소와
+확장자, sitemap이 가리키는 글의 실재(`/`·`/privacy.html` 제외), 글에 `<script src=` 없음.
+
+확인은 배포 뒤 두 줄이다.
+
+```
+curl -s https://accentury.app/robots.txt
+curl -s https://accentury.app/sitemap.xml
+```
+
+403이면 업로드 단계(`정적 페이지 교체 (no-cache)`)를 건너뛴 것이고, 내용이 옛것이면 무효화를 본다.

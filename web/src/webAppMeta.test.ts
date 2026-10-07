@@ -150,7 +150,12 @@ describe('head 메타와 public 자산', () => {
         ...manifest.icons.map((icon: { src: string }) => icon.src),
       ].map((reference) => publicPath(reference)),
     )
-    const orphans = readdirSync(PUBLIC_DIR).filter((file) => !referenced.has(join(PUBLIC_DIR, file)))
+    /* 크롤러용 파일(KAN-275)은 index.html이 아니라 정해진 주소로 찾아오는 것이라 뺀다. 이름이
+       고정이라 1년 캐시에 두 벌이 남을 일도 없다(no-cache 배포). 계약은 staticPages.test.ts. */
+    const crawlerFile = (file: string) => file === 'robots.txt' || file === 'sitemap.xml' || file.endsWith('.html')
+    const orphans = readdirSync(PUBLIC_DIR).filter(
+      (file) => !crawlerFile(file) && !referenced.has(join(PUBLIC_DIR, file)),
+    )
     expect(orphans, 'index.html·manifest 어느 쪽도 가리키지 않는다 — 버전을 올리고 지우지 않았는지 본다').toEqual([])
   })
 })
