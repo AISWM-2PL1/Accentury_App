@@ -11,11 +11,12 @@
     <!--
       KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
       1차 사실만 쓴다(팀 결정 2026-10-07). 답은 화면 문구와 코드 동작 그대로다.
+      공개 수준: 내부 수치·공식 제외(KAN-275, 2026-10-07 팀장 결정).
       근거:
       - web/src/intro/MicBlockedScreen.tsx (denied·unsupported·unavailable 문구), ~/accentury/docs/wiki/audio-capture.md 「마이크 권한 (두 겹)」,
         ~/accentury/docs/wiki/ux-ui.md §4 C(앱 거부 시 설정으로 진행)
       - web/src/progress/WebVoiceRecorder.tsx 머리 주석 (로컬 재녹음 무제한, 업로드는 [다음]에서만)
-      - ~/accentury/docs/wiki/analysis-polling.md §4·§5·§6 (60초 예산, [다시 시도], 실패 문항 [다시 녹음]),
+      - ~/accentury/docs/wiki/analysis-polling.md §4·§5·§6 (자동 확인 예산, [다시 시도], 실패 문항 [다시 녹음]),
         KAN-271 커밋 b09e43e(실패 문항만 이어서 녹음, 문항 시도 상한 429는 [다시 테스트하기])
       - web/src/share/shareResult.ts (앱 브리지 → 브라우저 navigator.share → 링크 복사), docs/wiki/app-links.md §1
         (링크는 계측 코드 하나만), privacy.html 9항(카카오톡 전달 항목, 받은 사람은 새 테스트 시작)
@@ -104,7 +105,7 @@
 
       <h2>결과가 오래 안 나와요</h2>
       <p>
-        분석 대기 화면은 최대 60초 동안 자동으로 상태를 확인하고, 그 안에 끝나지 않으면 [다시 시도] 버튼을
+        분석 대기 화면은 일정 시간 동안 자동으로 상태를 확인하고, 그 안에 끝나지 않으면 [다시 시도] 버튼을
         보여 줍니다. 서버에서는 분석이 아직 이어지고 있을 수 있으니 잠시 뒤 눌러 보세요.
       </p>
 
