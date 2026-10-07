@@ -8,17 +8,7 @@
       name="description"
       content="Accentury 녹음 화면의 '내 억양' 곡선이 만들어지는 과정. 16kHz 녹음을 짧은 간격으로 나눠 음높이를 찾고, 반음 단위로 바꿔 곡선으로 그립니다."
     />
-    <!--
-      KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
-      1차 사실만 쓴다(팀 결정 2026-10-07).
-      공개 수준: 내부 수치·공식 제외(KAN-275, 2026-10-07 팀장 결정). 창·간격·범위·지연 같은 코드 상수는 쓰지 않는다.
-      근거:
-      - docs/wiki/pitch-curve.md §1 파이프라인, §2 파라미터 표(세로 폭, EMA, 짧은 빈틈 유지, 확인 화면 보간),
-        §4 인과성, 「가이드 레인은 별도 시간축이다」
-      - docs/wiki/ondevice-f0.md (자체 YIN 구현, 정밀 채점은 서버 몫, 무성 판별, 에너지 게이트)
-      - ~/accentury/docs/wiki/audio-capture.md (16kHz mono, 억양 = F0 곡선의 오르내림)
-      - web/src/audio/yin.ts·recording/userCurve.ts (웹도 같은 규칙)
-    -->
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
     <style>
       :root {
         color-scheme: light;

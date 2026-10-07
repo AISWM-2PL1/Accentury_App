@@ -625,22 +625,24 @@ curl -s https://accentury.app/sitemap.xml
 | `/guide/team-story.html` | 만든 이유와 팀(소속·역할·핵심 차별점) | 〃 |
 
 새 페이지는 `about.html`을 복사해 head·main만 바꾼다(인라인 스타일, 외부 CSS·글꼴·스크립트 0, 배경은 앱 종이색
-`#f3ecd9`). 하단 `<nav>`는 모든 페이지가 같다(홈·소개·사투리 이야기·개인정보처리방침·문의, 테스트가 검사). 새 `.html`은
+`#f3ecd9`). 페이지 HTML 주석은 `<!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->`
+한 줄만 둔다. 하단 `<nav>`는 모든 페이지가 같다(홈·소개·사투리 이야기·개인정보처리방침·문의, 테스트가 검사). 새 `.html`은
 sitemap에 올리지 않으면 `staticPages.test.ts`가 깨지고(역방향 검사), `PAGES`에 넣으면 본문 하한과 내부 링크의
 파일 실재까지 검사한다.
 
 **글 작성 원칙 (팀 결정 2026-10-07).** 전문가 검수가 없으므로 언어학·방언학 일반론(지역 억양 특징, 사투리 역사)과
 효능 주장, 타 서비스 비교를 쓰지 않는다. 우리가 직접 만들고 잰 것에 관한 1차 사실만 쓰고, 근거를 못 찾은 문장은
-분량이 모자라도 넣지 않는다. 근거 파일은 본문의 "근거 문서" 절이 아니라 각 글의 머리 HTML 주석에 남긴다 —
-외부 독자에게 내부 경로는 의미가 없다. 문항 수처럼 정의 버전마다 바뀌는 값은 적지 않는다.
+분량이 모자라도 넣지 않는다. 근거 파일은 본문에도 HTML 주석에도 두지 않고 §11.2에 모은다 — 외부 독자에게
+내부 경로는 의미가 없고, **공개 HTML에는 근거 주석을 두지 않는다 — 소스 보기로 노출되므로** 내부 경로·서버 레포
+클래스명·팀 소속과 구성원 표기가 그대로 공개된다(팀장 결정 2026-10-07). 문항 수처럼 정의 버전마다 바뀌는 값은 적지 않는다.
 
 **공개 수준 (팀장 결정 2026-10-07).** 내부 측정 수치(FFE·배율·조건 수·처리 시간 등), 채점 공식·계수·가중치·등급
 경계값, 데이터셋 구성 상세(규모·코호트·화자 정보), 코드 상수·임계값, 벤치마크 보고서 파일명과 실행 날짜는 글에 쓰지
 않는다. 결론과 서사만 남긴다. 이유는 둘이다. ① 11월 학회 논문과 겹치는 실험 수치를 먼저 공개하게 된다. ② 채점
 공식을 적으면 사용자가 역산해 공략할 수 있고, 공식이 바뀌면 글이 거짓이 된다. AdSense 심사는 읽을거리를 보지 수치를
 보지 않으므로 승인에는 영향이 없다. 남겨도 되는 것은 사용자가 화면에서 그대로 보는 값(녹음 상한 10초, 카운트다운),
-방침 문구의 기간(결과 24시간), 공통 오디오 형식(16kHz), 공개 오픈소스 모델 이름이다. 글 머리 주석에도 측정값을
-옮기지 않는다 — 정적 파일이라 소스 보기로 누구나 읽는다. `voice-data.html`은 방침의 풀어쓰기라 방침이 바뀌면
+방침 문구의 기간(결과 24시간), 공통 오디오 형식(16kHz), 공개 오픈소스 모델 이름이다. HTML 주석에도 같은 기준이
+적용된다 — 정적 파일이라 소스 보기로 누구나 읽는다. `voice-data.html`은 방침의 풀어쓰기라 방침이 바뀌면
 같이 고친다.
 
 **앱 WebView에서 footer를 숨기는 이유.** 앱은 방침 링크를 네이티브 UI와 `PrivacyNotice`로 이미 주고,
@@ -650,3 +652,77 @@ sitemap에 올리지 않으면 `staticPages.test.ts`가 깨지고(역방향 검�
 Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.AccenturyBridge`)가 같이 처리된다.
 크롤러와 브라우저는 같은 HTML을 받고 같은 footer를 보므로 cloaking이 아니다. footer는 `noscript` 밖, 화면
 컨테이너(`min-height: 100dvh`) 아래라 스크롤해야 보이고 `position: fixed`가 아니어서 [시작하기]를 가리지 않는다.
+
+### 11.2 설계 메모와 글별 근거 (공개 HTML 주석에서 이동, 2026-10-07)
+
+**설계 메모.**
+
+- 페이지는 앱 번들(React)과 무관하게 파일 하나로 홀로 선다. 외부 CSS·글꼴·스크립트를 쓰지 않는 원칙은 서버 레포
+  `infra/privacy/privacy.html`과 같고, 외부 스크립트 금지는 `staticPages.test.ts`가 지킨다.
+- 공통 CSS 파일을 두지 않는다 — 페이지마다 no-cache로 따로 올라가므로 공유 파일이 생기면 그 파일의 캐시 규칙이 또 생긴다.
+- 스타일 값은 `privacy.html`에서 가져왔다(글자 `#2b2723`, 줄 간격, 42rem 폭, 시스템 글꼴 스택).
+- 배경만 앱 종이색(`#f3ecd9`, `tokens.css --color-background`)이다. 첫 화면 아래 footer 링크로 들어오므로 크림 화면에서
+  넘어왔을 때 바탕이 바뀌지 않게 하려는 것이다. `privacy.html`은 서버 레포 소관이라 그쪽 색(`#faf7f2`)은 건드리지 않는다.
+- `contact.html` 연락처는 `privacy.html` 13항과 같은 주소다(팀 결정 2026-10-07). 답변 기간은 정해진 것이 없어 적지
+  않는다 — 지키지 못할 약속을 심사용 페이지에 쓰지 않는다.
+- `about.html` 3단계 사실 수정: "10문항(음성 5 + 단어 5), 모두 목소리로 답한다"가 틀렸다. 단어 문항은 라디오
+  객관식이고(`VocabularyItemScreen.tsx`), 문항 수·구성은 정의가 정해 버전마다 다르다(`testDefinition.ts` items
+  주석 — gn-2026.10.1은 7문항). 그래서 수치 없이 적는다.
+- `voice-data.html`: 방침과 어긋나는 문장 금지. 방침 문장을 풀어 쓰기만 하고 새 약속을 더하지 않는다. 정본은
+  `/privacy.html`(서버 레포 `infra/privacy/privacy.html`).
+- `team-story.html`: 비즈니스 모델·매출·멘토 실명·일정은 쓰지 않는다(KAN-275 3단계 지시).
+- `recording-environment.html`: 일반 음향학 조언은 쓰지 않고, 권하는 말은 우리 검사 문구와 잡음 실험에서 나온 것만 쓴다.
+- `choosing-pitch-model.html`: 표현 규칙은 `benchmark-plan.md` 3.2를 따른다 — "RMVPE보다 정확"이 아니라 "RMVPE와 일치".
+
+**글별 근거.** `~/accentury/docs/wiki/`는 로컬 code wiki, `Accentury_Server`는 서버 레포다.
+
+- `how-the-test-works.html`
+  - `web/src/progress/testDefinition.ts` (문항 두 유형, 4지선다 choices, maxDurationMs는 서버 상수)
+  - `web/src/progress/VoiceItemScreen.tsx`, `WebVoiceRecorder.tsx` (녹음 → 정지 → 재녹음/다음, 재생 없음, 품질 문구)
+  - `web/src/progress/VocabularyItemScreen.tsx` (라디오 객관식, 정오 미노출)
+  - `web/src/progress/TestStartScreen.tsx` (3초 카운트다운)
+  - `web/src/voicecheck/voiceCheckController.ts` ("안녕하세요" 한 마디로 중심 음높이와 볼륨 확인)
+  - `web/src/intro/MicBlockedScreen.tsx` (권한 거부 문구)
+  - `docs/wiki/voice-consent.md` 「웹 흐름」(마이크 권한 → 동의 → 출신 지역 → 목소리 점검)
+  - `docs/wiki/ux-ui.md` §4 C-2·D·F, `docs/wiki/pitch-curve.md` (녹음 상한 현재 10초)
+  - `Accentury_Server` `SessionService.resolveVoiceSet` (세트 균등 난수), V5 마이그레이션 문항 예시('정구지') — 문항 수는 정의(setLayout)가 정하고 버전마다 다름
+  - `~/accentury/docs/wiki/analysis-polling.md` (자동 확인 예산, 실패 문항 [다시 녹음]), KAN-271 커밋
+- `five-tiers.html` — 계산식은 서버 코드가 정본. 가중치·계수·등급 경계값은 쓰지 않는다
+  - `Accentury_Server` backend `scoring/ScoreAggregator.java` (억양·단어·종합 점수, 정수 반올림, 등급은 정수 종합 점수로)
+  - `Accentury_Server` `scoring/ScorePolicy.java` (억양 평균 보정), `score-versions/*.json` (가중치, 등급 경계, 등급명)
+  - `web/src/result/ResultScreen.tsx` 머리 주석 (화면은 계산하지 않음, 학습 레벨·Lv 표기 없음, 사투리 유사도)
+  - `~/accentury/docs/wiki/mvp-spec.md` §4 「채점 프레이밍」
+  - `~/accentury/docs/wiki/prosody-scoring.md` 「채점 민감도 바닥값」(같은 화자 반복에도 차이가 남)
+  - 개인정보처리방침 1항(결과 24시간)
+- `pitch-curve.html` — 창·간격·범위·지연 같은 코드 상수는 쓰지 않는다
+  - `docs/wiki/pitch-curve.md` §1 파이프라인, §2 파라미터 표(세로 폭, EMA, 짧은 빈틈 유지, 확인 화면 보간), §4 인과성, 「가이드 레인은 별도 시간축이다」
+  - `docs/wiki/ondevice-f0.md` (자체 YIN 구현, 정밀 채점은 서버 몫, 무성 판별, 에너지 게이트)
+  - `~/accentury/docs/wiki/audio-capture.md` (16kHz mono, 억양 = F0 곡선의 오르내림)
+  - `web/src/audio/yin.ts`·`recording/userCurve.ts` (웹도 같은 규칙)
+- `choosing-pitch-model.html` — 측정값·데이터 구성 수치는 근거 문서에만 둔다
+  - `~/accentury/docs/wiki/benchmark-plan.md` 「실행 결과」 두 회차(기준선·육안 검수, 잡음 조건 비교, 카페 사용 전제, FFE는 절대 정확도 아님), 「3.2」 후보 목록, 같은 레포 벤치마크 묶음의 측정 보고서(매칭 기준, 한계)
+  - `~/accentury/docs/wiki/ai-pipeline.md` (서버 F0 추출기 RMVPE)
+- `recording-environment.html` — 샘플링 숫자·검사 임계값·실험 배율은 쓰지 않는다
+  - `~/accentury/docs/wiki/audio-capture.md` 「확정 오디오 스펙」(16kHz mono), `mvp-spec.md` NFR-CP-03
+  - `web/src/audio/resample.ts` 머리 주석 (기기 샘플링 → 16kHz, 줄이기 전 고역 제거)
+  - `web/src/audio/capture.ts` openStream 주석 (echoCancellation·noiseSuppression·autoGainControl 끔, 브라우저가 무시할 수 있음)
+  - `web/src/audio/quality.ts` (길이·크기·찢어짐 검사, 앱 AudioQuality와 같은 값), `WebVoiceRecorder.tsx` 품질 문구 및 머리 주석(서버에서도 확인)
+  - `web/src/voicecheck/voiceCheckController.ts`, `docs/wiki/pitch-curve.md` §5 (점검 볼륨 문턱 = 곡선 문턱)
+  - `~/accentury/docs/wiki/benchmark-plan.md` 「실행 결과」(구내식당 잡음이 기차역보다 어려움, 카페 사용 전제)
+  - `web/src/intro/MicBlockedScreen.tsx` (다른 앱이 마이크를 쓰는 경우 문구)
+- `voice-data.html`
+  - `Accentury_Server` origin/Release `infra/privacy/privacy.html` (방침 버전 2026-10-04) 1항 표·「음성 녹음」·「음성 저장과 AI 모델 학습 활용 (선택 동의)」·「선택 동의하지 않으신 경우에 남기는 분석 정보」·「테스트 세션」, 3항(서울 리전), 5항, 6항, 9항(공유)
+  - `docs/wiki/voice-consent.md` 「웹 흐름」(웹은 세션마다 묻고 기본 미체크, 거부해도 제한 없음)
+- `faq.html` — 답은 화면 문구와 코드 동작 그대로
+  - `web/src/intro/MicBlockedScreen.tsx` (denied·unsupported·unavailable 문구), `~/accentury/docs/wiki/audio-capture.md` 「마이크 권한 (두 겹)」, `~/accentury/docs/wiki/ux-ui.md` §4 C(앱 거부 시 설정으로 진행)
+  - `web/src/progress/WebVoiceRecorder.tsx` 머리 주석 (로컬 재녹음 무제한, 업로드는 [다음]에서만)
+  - `~/accentury/docs/wiki/analysis-polling.md` §4·§5·§6 (자동 확인 예산, [다시 시도], 실패 문항 [다시 녹음]), KAN-271 커밋 b09e43e(실패 문항만 이어서 녹음, 문항 시도 상한 429는 [다시 테스트하기])
+  - `web/src/share/shareResult.ts` (앱 브리지 → 브라우저 navigator.share → 링크 복사), `docs/wiki/app-links.md` §1 (링크는 계측 코드 하나만), `privacy.html` 9항(카카오톡 전달 항목, 받은 사람은 새 테스트 시작)
+  - `privacy.html` 1항·「테스트 세션」·「계정」(결과 24시간, 지난 결과가 쌓이지 않음), `web/src/result/fetchResult.ts`(만료 410 → [다시 테스트하기])
+  - `Accentury_Server` `SessionService.resolveVoiceSet` (세트 무작위)
+- `team-story.html`
+  - vault `wiki/projects/accentury.md` 「개요」(소속·역할·핵심 차별점)
+  - `web/public/about.html` 「만든 사람들」(역할 표기를 그대로 맞춤)
+  - `~/accentury/docs/wiki/mvp-spec.md` 머리(범위 "발화 → 억양 레벨 판정 → 결과 공유", 경남·부산 한정), NFR-CP-02(실시간 오디오·F0·시각화는 네이티브, 나머지 WebView)
+  - `docs/wiki/ondevice-f0.md` 머리(온디바이스는 저지연 우선, 정밀 채점은 서버 몫)
+  - `privacy.html` 머리(웹은 회원가입·로그인 없음)
