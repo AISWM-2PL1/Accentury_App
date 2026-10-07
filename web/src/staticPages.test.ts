@@ -85,11 +85,11 @@ describe('크롤러용 정적 파일', () => {
 const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html')
 const indexDoc = parse(readFileSync(join(process.cwd(), 'index.html'), 'utf8'))
 
-/** 페이지 사이를 잇는 링크 — 소개·방침·문의. 3단계가 /guide/index.html을 더한다 */
-const SITE_LINKS = ['/about.html', '/privacy.html', '/contact.html']
+/** 페이지 사이를 잇는 링크 — 소개·사투리 이야기(3단계)·방침·문의 */
+const SITE_LINKS = ['/about.html', '/guide/index.html', '/privacy.html', '/contact.html']
 
 describe('첫 화면의 정적 footer (KAN-275 2단계)', () => {
-  it('index.html body에 소개·방침·문의 링크가 있다', () => {
+  it('index.html body에 소개·사투리 이야기·방침·문의 링크가 있다', () => {
     // 크롤러가 JS 없이 따라갈 수 있는 링크가 0개였다 — 이게 미승인 사유의 절반이다
     const hrefs = [...indexDoc.body.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))
     for (const link of SITE_LINKS) expect(hrefs, `index.html에 ${link} 링크가 없다`).toContain(link)
@@ -111,10 +111,22 @@ describe('첫 화면의 정적 footer (KAN-275 2단계)', () => {
   })
 })
 
-/** 홀로 서는 페이지와 크롤러가 읽을 본문 글자 수 하한 */
-const PAGES: Record<string, number> = { 'about.html': 400, 'contact.html': 200 }
+/** 홀로 서는 페이지와 크롤러가 읽을 본문 글자 수 하한. guide/ 글은 3단계, 목차만 200자 */
+const PAGES: Record<string, number> = {
+  'about.html': 400,
+  'contact.html': 200,
+  'guide/index.html': 200,
+  'guide/how-the-test-works.html': 400,
+  'guide/five-tiers.html': 400,
+  'guide/pitch-curve.html': 400,
+  'guide/choosing-pitch-model.html': 400,
+  'guide/recording-environment.html': 400,
+  'guide/voice-data.html': 400,
+  'guide/faq.html': 400,
+  'guide/team-story.html': 400,
+}
 
-describe('소개·문의 페이지 (KAN-275 2단계)', () => {
+describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', () => {
   for (const [name, minText] of Object.entries(PAGES)) {
     const doc = parse(readFileSync(join(PUBLIC_DIR, name), 'utf8'))
 
@@ -125,6 +137,11 @@ describe('소개·문의 페이지 (KAN-275 2단계)', () => {
       // 공백을 빼고 센다 — 들여쓰기가 글자 수를 부풀리지 않게
       const text = (doc.querySelector('main')?.textContent ?? '').replace(/\s+/g, '')
       expect(text.length, `${name} 본문이 ${text.length}자다`).toBeGreaterThanOrEqual(minText)
+    })
+
+    it(`${name}의 하단 nav가 사이트 링크를 모두 싣는다`, () => {
+      const hrefs = [...doc.querySelectorAll('nav a[href]')].map((a) => a.getAttribute('href'))
+      for (const link of ['/', ...SITE_LINKS]) expect(hrefs, `${name} nav에 ${link}가 없다`).toContain(link)
     })
 
     it(`${name}의 내부 링크가 / 또는 .html이다`, () => {
@@ -142,6 +159,20 @@ describe('소개·문의 페이지 (KAN-275 2단계)', () => {
     const doc = parse(readFileSync(join(PUBLIC_DIR, 'contact.html'), 'utf8'))
     // privacy.html 13항과 같은 주소다 (팀 결정 2026-10-07)
     expect(doc.querySelector('a[href="mailto:team2pl1@gmail.com"]')).not.toBeNull()
+  })
+
+  it('글의 내부 링크가 실제 파일을 가리킨다', () => {
+    // 확장자 검사만으로는 오타(/guide/faqs.html)를 못 잡는다 — 404를 심사에 내미는 꼴이다
+    for (const name of Object.keys(PAGES)) {
+      const doc = parse(readFileSync(join(PUBLIC_DIR, name), 'utf8'))
+      const internal = [...doc.querySelectorAll('a[href]')]
+        .map((a) => a.getAttribute('href') ?? '')
+        .filter((href) => href.startsWith('/') && !PUBLISHED_ELSEWHERE.has(href))
+      for (const href of internal) {
+        const file = join(PUBLIC_DIR, href.slice(1))
+        expect(existsSync(file) && statSync(file).isFile(), `${name}의 ${href} 에 해당하는 파일이 public/에 없다`).toBe(true)
+      }
+    }
   })
 
   it('public/의 .html이 전부 sitemap에 있다', () => {

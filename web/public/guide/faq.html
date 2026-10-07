@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>자주 묻는 질문 - Accentury</title>
+    <meta
+      name="description"
+      content="Accentury 사투리 억양 테스트 자주 묻는 질문. 마이크 권한, 다시 녹음, 분석 대기, 결과 공유와 보관 기간을 답합니다."
+    />
+    <!--
+      KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
+      1차 사실만 쓴다(팀 결정 2026-10-07). 답은 화면 문구와 코드 동작 그대로다.
+      근거:
+      - web/src/intro/MicBlockedScreen.tsx (denied·unsupported·unavailable 문구), ~/accentury/docs/wiki/audio-capture.md 「마이크 권한 (두 겹)」,
+        ~/accentury/docs/wiki/ux-ui.md §4 C(앱 거부 시 설정으로 진행)
+      - web/src/progress/WebVoiceRecorder.tsx 머리 주석 (로컬 재녹음 무제한, 업로드는 [다음]에서만)
+      - ~/accentury/docs/wiki/analysis-polling.md §4·§5·§6 (60초 예산, [다시 시도], 실패 문항 [다시 녹음]),
+        KAN-271 커밋 b09e43e(실패 문항만 이어서 녹음, 문항 시도 상한 429는 [다시 테스트하기])
+      - web/src/share/shareResult.ts (앱 브리지 → 브라우저 navigator.share → 링크 복사), docs/wiki/app-links.md §1
+        (링크는 계측 코드 하나만), privacy.html 9항(카카오톡 전달 항목, 받은 사람은 새 테스트 시작)
+      - privacy.html 1항·「테스트 세션」·「계정」(결과 24시간, 지난 결과가 쌓이지 않음), web/src/result/fetchResult.ts(만료 410 → [다시 테스트하기])
+      - Accentury_Server SessionService.resolveVoiceSet (세트 무작위)
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem 4rem;
+        background: #f3ecd9;
+        color: #2b2723;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
+          "Malgun Gothic", sans-serif;
+        line-height: 1.7;
+      }
+      main,
+      nav {
+        max-width: 42rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 1rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 2.5rem 0 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #d9cdb0;
+      }
+      p,
+      ol,
+      ul {
+        margin: 0 0 1rem;
+      }
+      ol,
+      ul {
+        padding-left: 1.2rem;
+      }
+      a {
+        color: #2b2723;
+      }
+      nav {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid #d9cdb0;
+        font-size: 0.92rem;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>자주 묻는 질문</h1>
+
+      <h2>마이크 권한을 거부했어요</h2>
+      <p>
+        테스트가 목소리로 진행되므로 마이크 권한이 없으면 시작할 수 없습니다. 브라우저 설정에서 이 사이트의
+        마이크를 허용한 뒤 다시 시작해 주세요. 앱에서는 기기 설정에서 앱의 마이크 권한을 켜면 됩니다.
+      </p>
+
+      <h2>"이 브라우저에서는 녹음을 지원하지 않아요"라고 나와요</h2>
+      <p>
+        지금 브라우저가 마이크 녹음 기능을 제공하지 않는 경우입니다. 다른 브라우저로 다시 열어 주세요.
+        "마이크를 사용할 수 없어요"가 나온다면 다른 앱이 마이크를 쓰고 있지 않은지 확인해 주세요.
+      </p>
+
+      <h2>방금 녹음이 마음에 들지 않아요</h2>
+      <p>
+        녹음을 마친 뒤 확인 화면에서 [재녹음]을 누르면 됩니다. [다음]을 누르기 전에는 횟수 제한 없이 다시
+        읽을 수 있고, 서버로 올라가는 것은 [다음]을 누른 녹음뿐입니다.
+      </p>
+
+      <h2>분석 대기 화면에 [다시 녹음] 버튼이 나왔어요</h2>
+      <p>
+        그 음성 문항의 분석이 실패했다는 뜻입니다. 버튼을 누르면 실패한 문항만 다시 녹음하고 나머지 문항은
+        그대로 둡니다. 같은 문항을 너무 여러 번 다시 올리면 서버가 더 받지 않는데, 그때는 [다시
+        테스트하기]로 처음부터 다시 하면 됩니다.
+      </p>
+
+      <h2>결과가 오래 안 나와요</h2>
+      <p>
+        분석 대기 화면은 최대 60초 동안 자동으로 상태를 확인하고, 그 안에 끝나지 않으면 [다시 시도] 버튼을
+        보여 줍니다. 서버에서는 분석이 아직 이어지고 있을 수 있으니 잠시 뒤 눌러 보세요.
+      </p>
+
+      <h2>결과를 친구에게 보내고 싶어요</h2>
+      <p>
+        결과 화면의 [친구에게 공유하기]를 누르세요. 앱에서는 카카오톡으로, 브라우저에서는 기기의 공유 화면으로
+        보내고, 공유 화면을 쓸 수 없으면 링크를 복사해 줍니다. 공유 링크에는 개인 결과나 세션 정보가 들어 있지
+        않아서, 링크를 받은 친구는 내 결과가 아니라 자기 테스트를 새로 시작합니다.
+      </p>
+
+      <h2>결과를 나중에 다시 볼 수 있나요?</h2>
+      <p>
+        결과는 테스트를 끝낸 때부터 24시간만 보관합니다. 그 뒤에 열면 만료 안내와 함께 [다시 테스트하기]가
+        나옵니다. 앱에 로그인했더라도 계정에 지난 결과가 쌓이지는 않습니다.
+      </p>
+
+      <h2>할 때마다 문장과 점수가 달라요</h2>
+      <p>
+        테스트를 시작할 때 서버가 여러 문항 세트 가운데 하나를 무작위로 고르기 때문에 문장이 바뀔 수 있습니다.
+        같은 문장이라도 읽을 때마다 억양은 조금씩 달라집니다. 점수 계산 방법은
+        <a href="/guide/five-tiers.html">다섯 등급은 어떻게 나뉘나</a>에 적었습니다.
+      </p>
+    </main>
+
+    <nav aria-label="사이트">
+      <a href="/">홈</a>
+      <a href="/about.html">소개</a>
+      <a href="/guide/index.html">사투리 이야기</a>
+      <a href="/privacy.html">개인정보처리방침</a>
+      <a href="/contact.html">문의</a>
+    </nav>
+  </body>
+</html>

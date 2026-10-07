@@ -606,19 +606,35 @@ curl -s https://accentury.app/sitemap.xml
 
 403이면 업로드 단계(`정적 페이지 교체 (no-cache)`)를 건너뛴 것이고, 내용이 옛것이면 무효화를 본다.
 
-### 11.1 페이지 목록 (2단계, 2026-10-07)
+### 11.1 페이지 목록 (2·3단계, 2026-10-07)
 
 | 경로 | 역할 | 출처 |
 |---|---|---|
-| `/` (`web/index.html`) | 앱 첫 화면. `#root` 뒤 정적 `<footer id="site-footer">`에 소개·방침·문의 링크 | 이 레포 |
-| `/about.html` | 서비스 소개(10문항·5등급·데이터 처리 한 줄·팀) | 이 레포 `web/public/` |
+| `/` (`web/index.html`) | 앱 첫 화면. `#root` 뒤 정적 `<footer id="site-footer">`에 소개·사투리 이야기·방침·문의 링크 | 이 레포 |
+| `/about.html` | 서비스 소개(음성·단어 문항, 5등급, 데이터 처리 한 줄, 팀). 3단계에서 "10문항, 모두 목소리로 답한다"를 바로잡음 — 단어 문항은 객관식이고 문항 수는 정의마다 다르다 | 이 레포 `web/public/` |
 | `/contact.html` | 문의(`team2pl1@gmail.com`, 오류·제휴·개인정보 요청) | 이 레포 `web/public/` |
 | `/privacy.html` | 개인정보처리방침 | 서버 레포 `infra/privacy/` |
-| `/guide/index.html`·`/guide/*.html` | 사투리 이야기 글 (3단계) | 이 레포 `web/public/guide/` |
+| `/guide/index.html` | 사투리 이야기 목차(8편 링크와 한 줄 요약) | 이 레포 `web/public/guide/` |
+| `/guide/how-the-test-works.html` | 테스트 진행 순서(권한·점검·카운트다운·두 문항 유형·분석 대기·결과) | 〃 |
+| `/guide/five-tiers.html` | 점수 계산식(억양 계수, 2:1 가중, 정수 반올림)과 등급 경계 | 〃 |
+| `/guide/pitch-curve.html` | 실시간 '내 억양' 곡선의 파이프라인과 상수 | 〃 |
+| `/guide/choosing-pitch-model.html` | RMVPE 벤치마크 기록(데이터 규모, 잡음 28조건 결과) — 본문 끝에 출처 파일명 | 〃 |
+| `/guide/recording-environment.html` | 녹음 형식, 브라우저 통화 처리 끄기, 녹음 직후 품질 검사 | 〃 |
+| `/guide/voice-data.html` | 음성·결과 처리(방침 2026-10-04 풀어쓰기, 정본은 `/privacy.html`) | 〃 |
+| `/guide/faq.html` | 자주 묻는 질문(권한, 재녹음, 분석 대기, 공유, 보관) | 〃 |
+| `/guide/team-story.html` | 만든 이유와 팀(소속·역할·핵심 차별점) | 〃 |
 
 새 페이지는 `about.html`을 복사해 head·main만 바꾼다(인라인 스타일, 외부 CSS·글꼴·스크립트 0, 배경은 앱 종이색
-`#f3ecd9`). 하단 `<nav>`는 모든 페이지가 같고, `index.html` footer와 각 페이지 nav에 3단계 링크 자리가
-주석으로 있다. 새 `.html`은 sitemap에 올리지 않으면 `staticPages.test.ts`가 깨진다(역방향 검사).
+`#f3ecd9`). 하단 `<nav>`는 모든 페이지가 같다(홈·소개·사투리 이야기·개인정보처리방침·문의, 테스트가 검사). 새 `.html`은
+sitemap에 올리지 않으면 `staticPages.test.ts`가 깨지고(역방향 검사), `PAGES`에 넣으면 본문 하한과 내부 링크의
+파일 실재까지 검사한다.
+
+**글 작성 원칙 (팀 결정 2026-10-07).** 전문가 검수가 없으므로 언어학·방언학 일반론(지역 억양 특징, 사투리 역사)과
+효능 주장, 타 서비스 비교를 쓰지 않는다. 우리가 직접 만들고 잰 것에 관한 1차 사실만 쓰고, 근거를 못 찾은 문장은
+분량이 모자라도 넣지 않는다. 근거 파일은 본문의 "근거 문서" 절이 아니라 각 글의 머리 HTML 주석에 남긴다 —
+외부 독자에게 내부 경로는 의미가 없다. 수치는 근거 파일 값을 그대로 옮기고(벤치마크 글만 본문 끝에 출처 성격을
+밝힌다), 문항 수처럼 정의 버전마다 바뀌는 값은 적지 않는다. `voice-data.html`은 방침의 풀어쓰기라 방침이 바뀌면
+같이 고친다.
 
 **앱 WebView에서 footer를 숨기는 이유.** 앱은 방침 링크를 네이티브 UI와 `PrivacyNotice`로 이미 주고,
 화면 배치는 네이티브가 나눠 맡는다. 웹 footer가 앱 하단에 또 나오면 중복이고 그 계약과 어긋난다. 숨김은
