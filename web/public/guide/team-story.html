@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Accentury를 만든 이유와 팀 - Accentury</title>
+    <meta
+      name="description"
+      content="Accentury 사투리 억양 테스트를 만든 팀 이박이일 소개. AI·SW 마에스트로 17기 부산 기반 3인 팀이 실시간 피치 곡선을 중심에 두고 만들고 있습니다."
+    />
+    <!--
+      KAN-275 3단계 글. about.html을 복사해 head·main만 바꿨다(스타일 원칙은 about.html 머리 주석).
+      1차 사실만 쓴다(팀 결정 2026-10-07). 비즈니스 모델·매출·멘토 실명·일정은 쓰지 않는다(KAN-275 3단계 지시).
+      근거:
+      - ~/second-brain/wiki/projects/accentury.md 「개요」(소속 17기, 팀 이박이일 부산 기반, 3인 역할, 핵심 차별점)
+      - web/public/about.html 「만든 사람들」(역할 표기를 그대로 맞춤)
+      - ~/accentury/docs/wiki/mvp-spec.md 머리(범위 "발화 → 억양 레벨 판정 → 결과 공유", 경남·부산 한정),
+        §2.8(Android 선행 완성 → iOS 이식), NFR-CP-02(실시간 오디오·F0·시각화는 네이티브, 나머지 WebView)
+      - docs/wiki/ondevice-f0.md 머리(온디바이스는 저지연 우선, 정밀 채점은 서버 몫)
+      - privacy.html 머리(웹은 회원가입·로그인 없음)
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem 4rem;
+        background: #f3ecd9;
+        color: #2b2723;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
+          "Malgun Gothic", sans-serif;
+        line-height: 1.7;
+      }
+      main,
+      nav {
+        max-width: 42rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 1rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 2.5rem 0 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #d9cdb0;
+      }
+      p,
+      ol,
+      ul {
+        margin: 0 0 1rem;
+      }
+      ol,
+      ul {
+        padding-left: 1.2rem;
+      }
+      a {
+        color: #2b2723;
+      }
+      nav {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid #d9cdb0;
+        font-size: 0.92rem;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Accentury를 만든 이유와 팀</h1>
+
+      <p>
+        Accentury(악센투리)는 내 말투가 경남 사투리 억양에 얼마나 가까운지를 목소리로 재 보는 테스트입니다.
+        AI·SW 마에스트로 17기에서 만난 부산 기반 팀 이박이일이 만들고 있습니다.
+      </p>
+
+      <h2>팀</h2>
+      <ul>
+        <li>이성주: 팀장, Android 앱과 웹</li>
+        <li>박유현: 백엔드</li>
+        <li>박재영: AI</li>
+      </ul>
+
+      <h2>무엇을 만들고 싶었나</h2>
+      <p>
+        기획 단계에서 우리가 핵심 차별점으로 정한 것은 억양을 눈으로 보여 주는 일이었습니다. 말하는 동안 내
+        목소리의 높낮이가 곡선으로 바로 그려지는 화면입니다. 그래서 역할을 둘로 나눴습니다. 곡선은 기기
+        안에서 지연 없이 계산해 보여 주고, 점수는 녹음을 서버로 보낸 뒤 따로 분석해 매깁니다. 기기 쪽
+        계산은 지연이 짧은 것을 우선하고 정확도는 조금 거칠어도 되며, 정밀한 채점은 서버가 맡는다는
+        원칙입니다.
+      </p>
+      <p>
+        첫 버전의 범위는 "말하기, 억양 등급 판정, 결과 공유" 한 줄로 좁혔습니다. 대상 사투리도 부산을 포함한
+        경남 한 곳으로 정했습니다. 웹에서는 회원가입이나 로그인 없이 바로 테스트를 시작할 수 있습니다.
+      </p>
+
+      <h2>어떻게 만들고 있나</h2>
+      <p>
+        Android 앱을 먼저 완성하고, 그것을 기준으로 iOS 앱을 옮겨 만들었습니다. 웹(accentury.app)에서도 같은
+        테스트를 할 수 있습니다. 앱에서는 마이크와 실시간 곡선처럼 소리를 직접 다루는 부분을 각 앱이 맡고,
+        나머지 테스트 화면은 웹 화면을 함께 씁니다.
+      </p>
+      <p>
+        이 사이트의 글에는 우리가 직접 만들고 측정한 것만 적습니다. 음높이 추출 모델을 어떻게 골랐는지,
+        곡선을 어떻게 그리는지 같은 기록은 <a href="/guide/index.html">사투리 이야기</a>에 모아 두었습니다.
+        서비스에 관한 의견은 <a href="/contact.html">문의</a> 페이지의 이메일로 보내 주세요.
+      </p>
+    </main>
+
+    <nav aria-label="사이트">
+      <a href="/">홈</a>
+      <a href="/about.html">소개</a>
+      <a href="/guide/index.html">사투리 이야기</a>
+      <a href="/privacy.html">개인정보처리방침</a>
+      <a href="/contact.html">문의</a>
+    </nav>
+  </body>
+</html>
