@@ -213,4 +213,32 @@ describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', (
       expect(locs, `${loc} 가 sitemap.xml에 없다`).toContain(loc)
     }
   })
+
+  it('PAGES가 public/의 .html을 전부 갖는다', () => {
+    // 새 글을 올리고 PAGES를 잊으면 본문 하한·내부 링크 검사에서 조용히 빠진다
+    const rel = htmlFiles(PUBLIC_DIR).map((file) => relative(PUBLIC_DIR, file).split(sep).join('/'))
+    expect(Object.keys(PAGES).sort()).toEqual(rel.sort())
+  })
+
+  it('하위 디렉터리의 html 아닌 파일을 어떤 글이 가리킨다', () => {
+    /* webAppMeta.test.ts의 고아 검사는 public/ 루트만 보고 guide/ 같은 디렉터리는 통째로 뺀다. 여기서
+       그 안의 그림 등이 public/의 글 어디서도 src·href로 안 불리면 실패시킨다(no-cache로 계속 올라간다). */
+    const referenced = new Set(
+      htmlFiles(PUBLIC_DIR).flatMap((file) => {
+        const base = `${ORIGIN}/${relative(PUBLIC_DIR, file).split(sep).join('/')}`
+        return [...parse(readFileSync(file, 'utf8')).querySelectorAll('[src], [href]')].map(
+          (el) => new URL(el.getAttribute('src') ?? el.getAttribute('href')!, base).pathname,
+        )
+      }),
+    )
+    const nested = (dir: string): string[] =>
+      readdirSync(dir).flatMap((name) => (statSync(join(dir, name)).isDirectory() ? nested(join(dir, name)) : [join(dir, name)]))
+    const orphans = readdirSync(PUBLIC_DIR)
+      .filter((name) => statSync(join(PUBLIC_DIR, name)).isDirectory())
+      .flatMap((name) => nested(join(PUBLIC_DIR, name)))
+      .filter((file) => !file.endsWith('.html'))
+      .map((file) => `/${relative(PUBLIC_DIR, file).split(sep).join('/')}`)
+      .filter((path) => !referenced.has(path))
+    expect(orphans, '어느 글도 가리키지 않는 파일').toEqual([])
+  })
 })
