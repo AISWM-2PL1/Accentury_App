@@ -42,7 +42,7 @@ struct SettingsScreen: View {
     /// ``AccenturyCore/AuthGateController/logout(idpLogout:)``. 끝나면 게이트가 `signedOut`이 되어 이 화면째 로그인
     /// 화면으로 바뀐다.
     let onLogout: () async -> Void
-    /// ``AccenturyCore/withdrawAccount(provider:appleReauth:withdraw:)`` — 애플 계정이면 재인증 뒤
+    /// ``AccenturyCore/withdrawAccount(provider:reauthDelay:appleReauth:withdraw:)`` — 애플 계정이면 재인증 뒤
     /// ``AccenturyCore/AuthGateController/withdraw(appleAuthorizationCode:idpLogout:)``. 탈퇴되면 로그아웃과 같이 로그인 화면으로
     /// 바뀌고, 실패하면 로그인 상태 그대로 안내를 남긴다. nil = 사용자가 애플 창에서 취소했다(서버 호출 없음)
     let onWithdraw: () async -> WithdrawOutcome?
@@ -57,6 +57,8 @@ struct SettingsScreen: View {
     @State private var leaving = false
     @State private var confirmingWithdraw = false
     @State private var withdrawing = false
+    /// 확인 창 [탈퇴]를 눌렀고 창이 닫히길 기다리는 중 (KAN-251) — 실제 시작은 ``startWithdraw()``.
+    @State private var withdrawPending = false
     @State private var withdrawFailed = false
 
     private var busy: Bool { leaving || withdrawing }
@@ -125,9 +127,19 @@ struct SettingsScreen: View {
              */
             .alert("회원 탈퇴할까요?", isPresented: $confirmingWithdraw) {
                 Button("취소", role: .cancel) {}
-                Button("탈퇴", action: withdraw)
+                Button("탈퇴", action: requestWithdraw)
             } message: {
                 Text("계정 정보(이메일·이름 등)는 탈퇴하면 지체 없이 파기해요\n테스트 결과는 계정과 분리돼 익명으로 남아요\n탈퇴하면 되돌릴 수 없어요")
+            }
+            /*
+             * 탈퇴는 확인 창이 닫힌 뒤에 시작한다 (KAN-251). 알림 버튼의 액션은 창이 닫히기 전에 돈다("All actions in an
+             * alert dismiss the alert after the action runs") — 거기서 곧바로 애플 재인증 시트를 띄우면 닫힘과 겹쳐 실패할 수
+             * 있고, 그러면 코드 없이 탈퇴해 애플 revoke가 빠진다. 표시 값이 false로 바뀌는 것을 보고 시작하고, 그래도 남는
+             * 애니메이션 겹침은 Core의 ``AccenturyCore/appleReauthDelay``가 맡는다.
+             * https://developer.apple.com/documentation/swiftui/view/alert(_:ispresented:actions:message:)-8dvt8
+             */
+            .onChange(of: confirmingWithdraw) { presented in
+                if !presented, withdrawPending { startWithdraw() }
             }
             .padding(.horizontal, Papercut.space6)
             .padding(.vertical, Papercut.space4)
@@ -149,10 +161,15 @@ struct SettingsScreen: View {
         }
     }
 
-    private func withdraw() {
-        // 알림이 닫히자마자 세워 [회원 탈퇴]를 막는다 — 애플 재인증 창이 떠 있는 동안도 진행 중이다.
+    private func requestWithdraw() {
+        // 지금 세워 [회원 탈퇴]를 막는다 — 창이 닫히길 기다리는 동안과 애플 재인증 창이 떠 있는 동안도 진행 중이다.
+        withdrawPending = true
         withdrawing = true
         withdrawFailed = false
+    }
+
+    private func startWithdraw() {
+        withdrawPending = false
         Task {
             let outcome = await onWithdraw()
             withdrawing = false

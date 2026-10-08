@@ -788,38 +788,69 @@ final class AuthGateControllerTests: XCTestCase {
 
     // 애플 재인증 갈래 (KAN-251, iOS만). 안드로이드에는 애플 로그인이 없다.
 
-    func test애플_재인증을_취소하면_탈퇴를_멈추고_서버에_보내지_않는다() async {
+    /// 재인증 결과를 차례로 돌려주고 부른 횟수를 센다. 지연은 0이다.
+    private func withdrawApple(
+        _ answers: [AppleReauth],
+        result: WithdrawOutcome = .withdrawn
+    ) async -> (outcome: WithdrawOutcome?, reauthCalls: Int, sent: [String?]) {
+        var remaining = answers
+        var reauthCalls = 0
         var sent: [String?] = []
+        let outcome = await withdrawAccount(
+            provider: .APPLE,
+            reauthDelay: .zero,
+            appleReauth: { reauthCalls += 1; return remaining.removeFirst() }
+        ) { sent.append($0); return result }
+        return (outcome, reauthCalls, sent)
+    }
 
-        let outcome = await withdrawAccount(provider: .APPLE, appleReauth: { .cancelled }) { sent.append($0); return .withdrawn }
+    func test애플_재인증을_취소하면_탈퇴를_멈추고_서버에_보내지_않는다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.cancelled])
 
         XCTAssertNil(outcome)
+        XCTAssertEqual(1, reauthCalls)
         XCTAssertTrue(sent.isEmpty)
     }
 
-    func test애플_재인증이_실패하면_코드_없이_탈퇴한다() async {
-        var sent: [String?] = []
+    func test애플_재인증이_성공하면_코드를_실어_탈퇴한다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.code("c_apple")], result: .failed(AuthFailure(.retry)))
 
-        let outcome = await withdrawAccount(provider: .APPLE, appleReauth: { .failed }) { sent.append($0); return .withdrawn }
+        XCTAssertEqual(.failed(AuthFailure(.retry)), outcome)
+        XCTAssertEqual(1, reauthCalls)
+        XCTAssertEqual(["c_apple"], sent)
+    }
+
+    // 첫 재인증 실패는 한 번 더 시도한다 — 확인 창이 닫히는 중에 시트가 실패했을 수 있다 (KAN-251).
+
+    func test애플_재인증이_실패한_뒤_다시_받은_코드로_탈퇴한다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.failed, .code("c_apple")])
 
         XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(2, reauthCalls)
+        XCTAssertEqual(["c_apple"], sent)
+    }
+
+    func test애플_재인증이_두_번_실패하면_코드_없이_탈퇴한다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.failed, .failed])
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(2, reauthCalls)
         XCTAssertEqual([nil], sent)
     }
 
-    func test애플_재인증이_성공하면_코드를_실어_탈퇴한다() async {
-        var sent: [String?] = []
+    func test애플_재인증_재시도에서_취소하면_탈퇴를_멈춘다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.failed, .cancelled])
 
-        let outcome = await withdrawAccount(provider: .APPLE, appleReauth: { .code("c_apple") }) { sent.append($0); return .failed(AuthFailure(.retry)) }
-
-        XCTAssertEqual(.failed(AuthFailure(.retry)), outcome)
-        XCTAssertEqual(["c_apple"], sent)
+        XCTAssertNil(outcome)
+        XCTAssertEqual(2, reauthCalls)
+        XCTAssertTrue(sent.isEmpty)
     }
 
     func test애플이_아닌_계정은_재인증_없이_코드_없이_탈퇴한다() async {
         var reauthCalls = 0
         var sent: [String?] = []
 
-        let outcome = await withdrawAccount(provider: .KAKAO, appleReauth: { reauthCalls += 1; return .code("x") }) {
+        let outcome = await withdrawAccount(provider: .KAKAO, reauthDelay: .zero, appleReauth: { reauthCalls += 1; return .code("x") }) {
             sent.append($0)
             return .withdrawn
         }

@@ -39,7 +39,7 @@ func idpSignIn(_ provider: Provider) async -> IdpOutcome {
 }
 
 /// 탈퇴 직전 애플 재인증 (KAN-251). 받은 `authorizationCode`를 탈퇴 요청에 실어 서버가 애플 토큰을 revoke한다
-/// (``AccenturyCore/withdrawAccount(provider:appleReauth:withdraw:)``). 이것은 Sign in with Apple의 'Apple ID 사용 중단'이
+/// (``AccenturyCore/withdrawAccount(provider:reauthDelay:appleReauth:withdraw:)``). 이것은 Sign in with Apple의 'Apple ID 사용 중단'이
 /// 아니라 우리 탈퇴 API에 실을 코드를 받는 단계다. 가짜 IdP 빌드는 애플 창을 띄우지 않고 코드 없이 보낸다 — 서버가 코드
 /// 없이도 탈퇴시킨다.
 @MainActor

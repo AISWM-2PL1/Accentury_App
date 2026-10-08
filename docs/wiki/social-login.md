@@ -106,8 +106,11 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
   애플 토큰으로 바꿔 revoke한다(애플 계정 삭제 요구, [Offering account deletion](https://developer.apple.com/support/offering-account-deletion-in-your-app)).
   Sign in with Apple의 'Apple ID 사용 중단'을 부르는 것이 아니라 **우리 탈퇴 API를 부른다** — 재인증은 그 요청에 실을 코드를
   받는 단계일 뿐이다(`IdpSdks.swift` `appleReauthorization`, 갈래는 Core `withdrawAccount`).
+  - **재인증은 확인 창이 닫힌 뒤 시작한다.** 알림 버튼 액션은 창이 닫히기 전에 돌아서, 거기서 곧바로 애플 시트를 띄우면 닫힘과
+    겹쳐 실패하고 코드 없이 탈퇴해 revoke가 빠질 수 있었다. [탈퇴]는 대기 표시만 세우고(버튼은 이때부터 `탈퇴하는 중`),
+    `.onChange`로 확인 창 표시 값이 false가 된 것을 보고 시작한다. 시트 직전에 0.35초 쉰다(Core `appleReauthDelay`).
   - 재인증 창에서 **취소 → 탈퇴 중단.** 서버 호출 없이 안내 없이 확인 창으로 돌아간다.
-  - 그 밖의 실패 → 코드 없이 탈퇴한다. 서버는 코드 없음·교환 실패여도 탈퇴를 성공시키고 WARN만 남긴다(사용자가 iOS
+  - 그 밖의 실패 → 같은 지연 뒤 **한 번 더** 재인증한다(코드면 코드로, 취소면 중단). 또 실패하면 코드 없이 탈퇴한다. 서버는 코드 없음·교환 실패여도 탈퇴를 성공시키고 WARN만 남긴다(사용자가 iOS
     설정에서 연결을 끊을 수 있음, 2026-09-29 확정). 가짜 IdP 빌드도 코드 없이 보낸다.
 - **서버 단계 상한 30초**(`withdrawServerTimeout`). 애플 계정이면 서버가 애플 호출 둘(각 연결 5초 + 읽기 5초)로 최대 약
   20초 늦어진다(서버 주석 "앱은 이 요청의 타임아웃을 20초보다 길게 잡는다"). Android는 애플 로그인이 없어 10초 그대로다.
