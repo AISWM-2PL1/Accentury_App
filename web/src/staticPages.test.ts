@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { isStandaloneWeb, type AccenturyBridge } from './bridge/bridge'
+import { stripSourceComments } from './build/stripSourceComments'
 
 /*
  * 크롤러가 읽는 정적 파일의 계약을 지킨다 (KAN-275).
@@ -240,5 +241,26 @@ describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', (
       .map((file) => `/${relative(PUBLIC_DIR, file).split(sep).join('/')}`)
       .filter((path) => !referenced.has(path))
     expect(orphans, '어느 글도 가리키지 않는 파일').toEqual([])
+  })
+})
+
+describe('배포되는 index.html의 주석 제거 (KAN-275 리뷰)', () => {
+  /* 소스 주석에는 내부 파일 경로·행 번호가 있다. 산출물에서는 지우되, 주석 밖의 것(인라인 스크립트,
+     footer, 앱 숨김 규칙)은 하나도 잃으면 안 된다 — 이 셋이 빠지면 크롤러 링크나 앱 화면이 깨진다. */
+  const source = readFileSync(join(process.cwd(), 'index.html'), 'utf8')
+  const built = stripSourceComments(source)
+
+  it('HTML 주석과 style 안의 CSS 주석이 남지 않는다', () => {
+    expect(source).toContain('<!--')
+    expect(built).not.toContain('<!--')
+    const css = [...built.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
+    expect(css).not.toContain('/*')
+  })
+
+  it('주석 밖의 인라인 스크립트·footer·앱 숨김 규칙은 그대로다', () => {
+    const doc = parse(built)
+    expect(doc.head.querySelector('script:not([src])')?.textContent).toContain('dataset.runtime')
+    expect(doc.getElementById('site-footer')?.querySelectorAll('a[href]').length).toBe(SITE_LINKS.length)
+    expect(built).toMatch(/:root\[data-runtime='app'\]\s+#site-footer\s*\{\s*display:\s*none/)
   })
 })
