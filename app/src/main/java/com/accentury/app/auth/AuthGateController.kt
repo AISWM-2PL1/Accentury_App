@@ -1,10 +1,12 @@
 package com.accentury.app.auth
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.completeWith
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +35,16 @@ private val LOGOUT_IDP_TIMEOUT = 5.seconds
 
 /** 서버가 준 밀리초를 사용자에게 읽어 줄 초로 올림한다 — SessionGateController와 같은 규칙. */
 private fun ceilSeconds(millis: Long): Long = (millis + 999) / 1_000
+
+/** 회원 탈퇴 한 번의 결말 (KAN-251). */
+sealed interface WithdrawOutcome {
+
+    /** 서버가 계정을 파기했다. 토큰·IdP 세션도 정리됐고 게이트는 [AuthGateState.SignedOut]이다. */
+    data object Withdrawn : WithdrawOutcome
+
+    /** 탈퇴되지 않았다(전송 실패·시간 초과·5xx·429 등). 토큰과 상태는 그대로다 — 로그인 상태가 유지된다. */
+    data class Failed(val failure: AuthFailure) : WithdrawOutcome
+}
 
 /** 앱 진입 게이트의 로그인 관문 상태 (KAN-224). 세션 게이트(KAN-34)보다 앞에 선다. */
 sealed interface AuthGateState {
@@ -93,7 +105,7 @@ data class AuthFailure(val reason: AuthFailureReason, val retryAfterSeconds: Lon
  * 상태는 [StateFlow]라 화면은 `collectAsState()`로 따라온다.
  *
  * 저장소의 주인은 여전히 [TokenRefresher]·[AuthApi]의 호출 흐름이고, 이 클래스는 저장소를 **보는** 쪽이다.
- * 예외는 로그인 성공(쌍을 처음 저장)과 로그아웃(무조건 비움) 둘뿐이다.
+ * 예외는 로그인 성공(쌍을 처음 저장)과 로그아웃(무조건 비움), 탈퇴(서버가 파기했을 때만 비움) 셋뿐이다.
  *
  * @param scope 앱 수명 스코프 (Application이 하나 들고 넘긴다). 시작 확인·[다시 시도]는 여기서 돈다 —
  *   화면 스코프(rememberCoroutineScope)에서 돌리면 회전이 확인을 도중에 취소해 [AuthGateState.Checking]에 남는다.
@@ -108,6 +120,9 @@ class AuthGateController(
 ) {
 
     private var checkJob: Job? = null
+
+    /** 진행 중인 탈퇴. 겹친 호출은 이 결과를 함께 기다린다 — [withdraw] 참고. [synchronized]로만 읽고 쓴다. */
+    private var withdrawal: CompletableDeferred<WithdrawOutcome>? = null
 
     private val _state = MutableStateFlow<AuthGateState>(AuthGateState.Checking)
     val state: StateFlow<AuthGateState> = _state.asStateFlow()
@@ -288,6 +303,55 @@ class AuthGateController(
             withContext(Dispatchers.IO) {
                 withTimeoutOrNull(logoutServerTimeout) { store.read()?.let { api.logout(it.refreshToken) } }
             }
+        } finally {
+            signOutLocally(idpLogout)
+        }
+    }
+
+    /**
+     * 회원 탈퇴 (KAN-251, 서버 KAN-241). 애플 5.1.1(v)·Play 계정 삭제 정책이 앱 안 탈퇴를 요구한다.
+     *
+     * **판정이 로그아웃과 반대다.** 로그아웃은 서버가 실패해도 로컬을 지우지만, 탈퇴는 서버가 파기했다고 말할 때만
+     * 정리한다 — 실패를 성공으로 넘기면 사용자는 탈퇴한 줄 아는데 서버에 계정이 남는다.
+     * - 204 → 탈퇴됨.
+     * - 401 → **탈퇴됨으로 친다.** 서버는 파기 커밋 뒤 Refresh를 전부 폐기하므로, 응답 유실 뒤 재시도나 중복 탭으로
+     *   이미 탈퇴한 계정이 다시 보내면 401이 온다. 401이면 토큰도 이미 무효라 남겨 둘 이유가 없다. 이 401에서
+     *   Authenticator의 갱신이 거절되면 [TokenRefresher]가 저장소를 비우고 onSignedOut으로 먼저 로그인 화면으로
+     *   돌리지만, IdP 정리는 거기서 하지 않으므로 여기서 끝까지 정리한다.
+     * - 그 밖(전송 실패·서버 단계 시간 초과·5xx·429 등) → 탈퇴 안 됨. 토큰·상태를 그대로 두고 [WithdrawOutcome.Failed].
+     *
+     * 탈퇴됐으면 서버 로그아웃은 부르지 않는다(이미 폐기됐다). IdP 정리 → 로컬 정리 순서와 상한, 시작하면 취소되지
+     * 않는 이유는 [logout]과 같다(회전으로 화면 스코프가 끊겨도 반쪽 정리가 되지 않게 — KAN-247 리뷰 P1).
+     *
+     * 진행 중에 또 불리면 서버 요청을 새로 만들지 않고 진행 중인 결과를 같이 돌려준다. 화면도 진행 중 버튼을 막지만,
+     * 두 번째 요청은 401이라 결과가 같아도 서버에 쓸데없는 탈퇴 요청을 남긴다.
+     */
+    suspend fun withdraw(idpLogout: suspend () -> Unit = {}): WithdrawOutcome {
+        val mine = CompletableDeferred<WithdrawOutcome>()
+        val running = synchronized(this) { withdrawal.also { if (it == null) withdrawal = mine } }
+        if (running != null) return running.await()
+        val outcome = runCatching {
+            withContext(NonCancellable) {
+                val result = withContext(Dispatchers.IO) { withTimeoutOrNull(logoutServerTimeout) { api.withdraw() } }
+                val withdrawn = result is AuthResult.Success ||
+                    (result is AuthResult.Rejected && result.status == STATUS_UNAUTHORIZED)
+                if (withdrawn) {
+                    signOutLocally(idpLogout)
+                    WithdrawOutcome.Withdrawn
+                } else {
+                    // null = 서버 단계 상한 초과. 응답을 못 받았으니 전송 실패와 같이 [다시 시도]다.
+                    WithdrawOutcome.Failed(result?.let(::failureOf) ?: AuthFailure(AuthFailureReason.Retry))
+                }
+            }
+        }
+        synchronized(this) { withdrawal = null }
+        mine.completeWith(outcome)
+        return outcome.getOrThrow()
+    }
+
+    /** 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리(상한 [logoutIdpTimeout])가 던져도 저장소는 비우고 로그인 화면으로 돌린다. */
+    private suspend fun signOutLocally(idpLogout: suspend () -> Unit) {
+        try {
             withTimeoutOrNull(logoutIdpTimeout) { idpLogout() }
         } finally {
             store.clear()
