@@ -559,6 +559,32 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertFalse(idpLoggedOut)
     }
 
+    func test탈퇴_상한_뒤에_늦게_온_401은_갱신하지_않아_실패와_로그인_상태가_유지된다() async throws {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store, withdrawServerTimeout: .milliseconds(100))
+        MockURLProtocol.respondInOrder([(200, tokens(1)), (200, account("COMPLETE"))])
+        await gate.bootstrap()
+        let rejected = Data(envelope("AUTH_TOKEN_INVALID", false).utf8)
+        // 탈퇴 응답은 상한(100ms) 뒤에 401로 온다. 취소가 없으면 이 401이 갱신 → 갱신 401로 저장소를 비운다(KAN-251 리뷰 P0).
+        MockURLProtocol.setHandler { request in
+            if request.url?.path == "/v0/users/me/withdrawal" { Thread.sleep(forTimeInterval: 0.3) }
+            return (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: "HTTP/1.1", headerFields: nil)!, rejected)
+        }
+        var idpLoggedOut = false
+
+        let outcome = await gate.withdraw { idpLoggedOut = true }
+        try await Task.sleep(for: .milliseconds(600))
+
+        XCTAssertEqual(.failed(AuthFailure(.retry)), outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+        XCTAssertFalse(idpLoggedOut)
+        XCTAssertEqual(
+            ["/v0/auth/refresh", "/v0/users/me", "/v0/users/me/withdrawal"],
+            MockURLProtocol.requests().map { $0.url?.path }
+        )
+    }
+
     func test진행_중에_다시_탈퇴를_불러도_서버_요청은_한_번이고_같은_결과를_받는다() async throws {
         let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         let (gate, _) = controller(store)

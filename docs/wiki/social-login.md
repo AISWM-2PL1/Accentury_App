@@ -83,6 +83,14 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
 `TokenRefresher`가 먼저 저장소를 비우고 로그인 화면으로 돌리는데, IdP 정리는 거기서 하지 않으므로 게이트가 끝까지
 정리한다. 진행 중에 다시 불리면 서버 요청을 새로 만들지 않고 진행 중인 결과를 함께 받는다(화면도 버튼을 막는다).
 
+리뷰에서 더한 규칙(KAN-251 리뷰 P0·P1).
+
+- **상한에 지면 요청을 취소한다.** 뒤에서 계속 돌게 두면, 실패(로그인 유지)를 보인 뒤 늦게 온 401이 자동 갱신 → 갱신
+  거절로 저장소를 비워 판정이 뒤집히고 IdP 정리도 빠진다. Android는 `withTimeoutOrNull`의 취소가 OkHttp 호출을 끊고
+  (`net/HttpAwait.kt` `invokeOnCancellation { call.cancel() }`), iOS는 `withCancellingDeadline`이 요청 Task를 취소한다(로그아웃의
+  `withDeadline`은 그대로). `AuthorizedSession`은 취소된 요청의 401로 갱신을 시작하지 않는다. 남는 한계: 401이 상한 직전에
+  와서 갱신이 이미 나간 뒤라면 그 갱신은 끝까지 간다(양 플랫폼). 늦은 204는 버려지고 다음 요청의 401로 수습된다.
+
 **iOS의 차이 (2단계).** 판정·정리 순서는 같다(`AuthGateController.withdraw`, 취소 불가는 비구조 `Task`가 일을 하고 화면은
 결과만 기다리는 방식 — `NonCancellable` 자리). 다른 점은 셋이다.
 

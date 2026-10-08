@@ -37,7 +37,9 @@ public struct AuthorizedSession: Sendable {
             sentAccess = access
         }
         let first = try await transport(request)
-        guard (first.1 as? HTTPURLResponse)?.statusCode == statusUnauthorized, let sentAccess else { return first }
+        // 취소된 요청(탈퇴 상한 초과 — KAN-251 리뷰 P0)은 늦은 401로 갱신을 시작하지 않는다. 갱신 거절이면 저장소를
+        // 비우고 로그인 화면으로 돌려, 호출자가 이미 내린 판정(실패·로그인 유지)을 뒤집는다.
+        guard (first.1 as? HTTPURLResponse)?.statusCode == statusUnauthorized, let sentAccess, !Task.isCancelled else { return first }
         guard case .refreshed(let tokens) = await refresher.refresh(staleAccess: sentAccess) else { return first }
         request.setValue(bearerPrefix + tokens.accessToken, forHTTPHeaderField: headerAuthorization)
         return try await transport(request)

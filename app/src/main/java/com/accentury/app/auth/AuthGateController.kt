@@ -319,6 +319,9 @@ class AuthGateController(
      *   Authenticator의 갱신이 거절되면 [TokenRefresher]가 저장소를 비우고 onSignedOut으로 먼저 로그인 화면으로
      *   돌리지만, IdP 정리는 거기서 하지 않으므로 여기서 끝까지 정리한다.
      * - 그 밖(전송 실패·서버 단계 시간 초과·5xx·429 등) → 탈퇴 안 됨. 토큰·상태를 그대로 두고 [WithdrawOutcome.Failed].
+     *   상한 초과면 [withTimeoutOrNull]이 코루틴을 취소하고, 취소는 OkHttp 호출을 끊는다(`net/HttpAwait.kt`의
+     *   `invokeOnCancellation { call.cancel() }`) — 늦은 401이 Authenticator 갱신을 시작해 로그인 유지 판정을 뒤집지
+     *   않는다(KAN-251 리뷰 P0, iOS는 같은 자리에 요청 취소를 넣었다).
      *
      * 탈퇴됐으면 서버 로그아웃은 부르지 않는다(이미 폐기됐다). IdP 정리 → 로컬 정리 순서와 상한, 시작하면 취소되지
      * 않는 이유는 [logout]과 같다(회전으로 화면 스코프가 끊겨도 반쪽 정리가 되지 않게 — KAN-247 리뷰 P1).
