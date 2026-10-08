@@ -332,6 +332,24 @@ v3를 실패시켰을 때 브라우저가 보여주던 화면(KAN-191 이전):
 호스트에서 띄울 때 같은 값을 넘기지 않으면 BE→AI가 401로 막혀 회로가 열리고, `full-run`이
 분석 대기에서 멈춘다. 스모크는 세션 생성까지라 이 누락을 못 본다.
 
+## 단어 학습 스펙 (KAN-255 6단계, 2026-10-08)
+
+`word-learning.spec.ts`는 레벨테스트 스펙과 달리 **계정** 토큰이 필요하다. 단어 학습 API는 계정
+Bearer만 받기 때문이다. 브라우저에는 IdP SDK가 없으므로 서버의 가짜 IdP로 로그인한다.
+
+- 백엔드 기동 인자: `--accentury.auth.fake-idp=true`, 허용 출처에 `http://localhost:5174,http://127.0.0.1:5174`.
+  Redis(`backend/docker-compose.yml`의 `redis`)도 떠 있어야 한다. AI 서버는 필요 없다.
+- 로그인: `helpers/accountLogin.ts`가 Playwright `request`로 `POST /v0/auth/login`
+  (`idToken: "fake:e2e-word-<시각>-<난수>"`, 방침 버전은 앱 상수와 같은 `2026-10-04`)을 보낸다.
+  신규 계정이 `INCOMPLETE`이면 `PUT /v0/users/me/profile`로 추가 정보까지 채운다. 테스트마다 새 sub를
+  쓰고 계정은 지우지 않는다(로컬 DB).
+- 브리지 흉내: `addInitScript`로 문서보다 먼저 `window.AccenturyBridge`에
+  `getContractVersion`·`getAccessToken`·`refreshAccessToken`만 심고 `/?bridge=2&app=1.0&screen=words`로
+  연다. `bridge=2`라 스큐 게이트를 지난다. `refreshAccessToken` 흉내는 토큰을 바꾼 뒤 다음 틱에
+  `window.AccenturyWeb.onAccessTokenRefreshed('ok')`를 부른다. 401 케이스는 가짜 토큰으로 시작해 이 갈래를 탄다.
+- 개발 빌드는 StrictMode라 진입 목록 조회가 두 번 나간다. 그래서 목록 실패 케이스는 「첫 요청만 500」이
+  아니라 [다시 시도] 전까지 전부 500으로 막는다. 401 케이스도 갱신 횟수를 1로 못 박지 않는다.
+
 ## 실측 수치
 
 전부 macOS + 로컬 스택 기준. `--repeat-each=3` 반복에서의 편차를 함께 적는다.
