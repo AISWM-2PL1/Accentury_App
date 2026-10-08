@@ -369,7 +369,7 @@ public final class AuthGateController: ObservableObject {
             }
             switch result {
             case .success?, .rejected(statusUnauthorized, _, _, _, _)?:
-                await signOutLocally(idpLogout)
+                await signOutLocally(idpLogout, keepingNewLogin: true)
                 return WithdrawOutcome.withdrawn
             case let result?:
                 return .failed(Self.failure(of: result))
@@ -382,8 +382,16 @@ public final class AuthGateController: ObservableObject {
     }
 
     /// 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리가 상한 ``logoutIdpTimeout``을 넘겨도 저장소는 비우고 로그인 화면으로 돌린다.
-    private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void) async {
+    ///
+    /// - Parameter keepingNewLogin: 탈퇴만 true다 (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저 저장소를 비우고 로그인
+    ///   화면을 띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때 저장소 값을
+    ///   잡아 두고, 끝날 때 저장소가 비었거나 그 값 그대로일 때만 비운다 — 달라졌으면 새 로그인이라 저장소·상태를 건드리지
+    ///   않는다. 시작 때가 아니라 서버 단계 뒤에 잡는 이유: 탈퇴 요청 중 Access 만료로 갱신이 끼면 쌍이 회전해 탈퇴 시작
+    ///   때 값과 달라진다. 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
+    private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void, keepingNewLogin: Bool = false) async {
+        let before = keepingNewLogin ? await store.read() : nil
         await withDeadline(logoutIdpTimeout, idpLogout)
+        if keepingNewLogin, let now = await store.read(), now != before { return }
         await store.clear()
         state = .signedOut(nil)
     }

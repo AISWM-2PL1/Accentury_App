@@ -90,6 +90,10 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
   (`net/HttpAwait.kt` `invokeOnCancellation { call.cancel() }`), iOS는 `withCancellingDeadline`이 요청 Task를 취소한다(로그아웃의
   `withDeadline`은 그대로). `AuthorizedSession`은 취소된 요청의 401로 갱신을 시작하지 않는다. 남는 한계: 401이 상한 직전에
   와서 갱신이 이미 나간 뒤라면 그 갱신은 끝까지 간다(양 플랫폼). 늦은 204는 버려지고 다음 요청의 401로 수습된다.
+- **로컬 정리는 저장소가 그대로일 때만 비운다.** 401 경로에선 갱신 거절이 먼저 로그인 화면을 띄워, IdP 정리(최대 5초)를
+  기다리는 사이 새로 로그인할 수 있다. 서버 단계 뒤(정리 시작) 저장소 값을 잡아 두고, 끝날 때 비었거나 같을 때만 비우고
+  SignedOut으로 둔다. 다르면 새 로그인이라 건드리지 않는다. 탈퇴 시작 때가 아니라 서버 단계 뒤에 잡는 것은 요청 중 갱신으로
+  쌍이 회전해도 정상 탈퇴를 정리하기 위해서다. 로그아웃은 이 경합이 없어 무조건 비운다.
 
 **iOS의 차이 (2단계).** 판정·정리 순서는 같다(`AuthGateController.withdraw`, 취소 불가는 비구조 `Task`가 일을 하고 화면은
 결과만 기다리는 방식 — `NonCancellable` 자리). 다른 점은 셋이다.
