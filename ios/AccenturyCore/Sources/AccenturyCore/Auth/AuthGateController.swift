@@ -75,26 +75,40 @@ public enum AppleReauth: Equatable, Sendable, CustomStringConvertible {
 /// https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidcredential/authorizationcode
 ///
 /// - 취소 → **탈퇴 중단**, 서버 호출 없음. 화면은 아무 안내 없이 확인 창으로 돌아간다.
-/// - 그 밖의 실패 → 코드 없이 탈퇴한다. 서버는 코드가 없거나 교환이 실패해도 탈퇴를 성공시키고 WARN만 남긴다 —
+/// - 실패 → ``appleReauthDelay`` 뒤 **한 번 더** 재인증한다. 확인 창이 닫히는 중에 애플 시트를 띄우면 실패할 수 있어서다 —
+///   그대로 코드 없이 보내면 그 실패가 매번 재현될 때 애플 계정 탈퇴가 전부 revoke를 건너뛴다. 두 번째 결과가 코드면 코드로,
+///   취소면 중단, 또 실패면 코드 없이 탈퇴한다. 서버는 코드가 없거나 교환이 실패해도 탈퇴를 성공시키고 WARN만 남긴다 —
 ///   사용자가 iOS 설정에서 연결을 끊을 수 있다(2026-09-29 확정). 탈퇴를 막으면 그쪽이 더 큰 문제다.
 ///
+/// - Parameter reauthDelay: 재인증(첫 시도·재시도) 직전의 지연. 테스트는 `.zero`
 /// - Returns: nil이면 사용자가 취소해 탈퇴를 멈췄다
 @MainActor
 public func withdrawAccount(
     provider: Provider,
+    reauthDelay: Duration = appleReauthDelay,
     appleReauth: () async -> AppleReauth,
     withdraw: (_ appleAuthorizationCode: String?) async -> WithdrawOutcome
 ) async -> WithdrawOutcome? {
-    var code: String?
-    if provider == .APPLE {
+    guard provider == .APPLE else { return await withdraw(nil) }
+    for _ in 1...2 {
+        if reauthDelay > .zero { try? await Task.sleep(for: reauthDelay) }
         switch await appleReauth() {
         case .cancelled: return nil
-        case .failed: code = nil
-        case .code(let value): code = value
+        case .code(let code): return await withdraw(code)
+        case .failed: continue
         }
     }
-    return await withdraw(code)
+    return await withdraw(nil)
 }
+
+/// 애플 재인증 시트를 띄우기 전 지연 (KAN-251). 설정 화면(앱 타깃 `SettingsScreen`)은 확인 창(`.alert`)의 표시 값이 false가
+/// 된 뒤에 탈퇴를 시작하지만, 그 값이 바뀌는 시점과 닫힘 애니메이션이 끝나는 시점은
+/// 같지 않다 — 애플 문서는 "All actions in an alert dismiss the alert after the action runs"까지만 말하고 애니메이션 완료
+/// 신호는 주지 않는다. `ASAuthorizationController.performRequests()`가 다른 화면이 닫히는 중일 때 어떻게 되는지도 문서에서
+/// 확인하지 못했다. 그래서 시스템 알림 닫힘 애니메이션(약 0.25~0.3초, 실측 아님)보다 조금 긴 값을 둔다.
+/// https://developer.apple.com/documentation/swiftui/view/alert(_:ispresented:actions:message:)-8dvt8
+/// https://developer.apple.com/documentation/authenticationservices/asauthorizationcontroller/performrequests()
+public let appleReauthDelay: Duration = .milliseconds(350)
 
 /// 실패 안내의 갈래. ``SessionFailureReason``과 같은 이유로 상태 코드 대신 "사용자가 무엇을 할 수 있나"로 접는다.
 public enum AuthFailureReason: Sendable {
@@ -381,7 +395,7 @@ public final class AuthGateController: ObservableObject {
     /// 두 번째 요청은 401이라 결과가 같아도 서버에 쓸데없는 탈퇴 요청을 남긴다.
     ///
     /// - Parameters:
-    ///   - appleAuthorizationCode: 애플 계정의 재인증 코드 (``withdrawAccount(provider:appleReauth:withdraw:)``). 그 외 nil
+    ///   - appleAuthorizationCode: 애플 계정의 재인증 코드 (``withdrawAccount(provider:reauthDelay:appleReauth:withdraw:)``). 그 외 nil
     ///   - idpLogout: IdP SDK 쪽 로그아웃 (앱 타깃 `IdpLogout.all`). 탈퇴됐을 때만 부른다
     public func withdraw(
         appleAuthorizationCode: String? = nil,
