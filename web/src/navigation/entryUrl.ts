@@ -51,6 +51,20 @@ export function buildResultUrl(search: string, sessionId: string): string {
   return toQuery(params)
 }
 
+/**
+ * 단어 학습 (`?screen=words`, KAN-255). 세트·시도 id는 URL에 싣지 않는다 — 학습 화면 안의
+ * 이동은 화면 상태로 한다. 레벨테스트의 `sessionId`·`testVersion`·`voiceSet`은 지운다: 단어
+ * 학습은 계정 API라 그 값을 읽지 않고, 남겨 두면 끝난 세션을 물고 다닌다 ([buildResultUrl]과 같은 이유).
+ */
+export function buildWordsUrl(search: string): string {
+  const params = new URLSearchParams(search)
+  params.set('screen', 'words')
+  params.delete('sessionId')
+  params.delete('testVersion')
+  params.delete('voiceSet')
+  return toQuery(params)
+}
+
 /** 인트로 — 화면 지정만 걷어낸다 */
 export function buildIntroUrl(search: string): string {
   const params = new URLSearchParams(search)

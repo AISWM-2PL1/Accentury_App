@@ -53,6 +53,8 @@
 | `setAdConsent(state)` | KAN-196 | 동의를 네이티브 저장소에 쓴다. 인자는 `'granted' \| 'denied'` — `'unknown'`으로 되돌리는 길은 없다 | 래퍼 false. `readAdConsent()`가 null인 실행에서는 애초에 부르지 않는다 |
 | `showInterstitialAd()` | KAN-196 | 분석 대기 화면의 전면 광고. **인자도 회신도 없다** (`shareResult`와 같은 규칙) | 래퍼 false — 광고 없이 대기 화면만 |
 | `haptic(type)` | KAN-258 | 가벼운 탭·성공·실패 햅틱. 인자는 `'tap' \| 'success' \| 'error'`, 그 밖은 네이티브가 무시. 회신 없음. OS 「터치 진동」 설정을 따른다 (§9) | 래퍼 false — 무동작 (브라우저 단독·구버전 앱) |
+| `getAccessToken(): string` | KAN-255 | 계정 Access 토큰. 단어 학습 API(`/v0/learning/word-*`)의 `Authorization`에 싣는다. 동기 반환. 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열 (§11) | 빈 값은 `null`로 정규화 → 네트워크 전에 `CLIENT_NOT_SIGNED_IN` |
+| `refreshAccessToken()` | KAN-255 | 계정 토큰 갱신 요청. **fire-and-forget** — 결과는 `onAccessTokenRefreshed`로 온다 (§11) | 래퍼 `refreshAccessToken()`이 즉시 false → `UNAUTHENTICATED` |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
@@ -64,6 +66,7 @@
 |---|---|---|
 | `onItemResult(payloadJson)` | KAN-100 | 네이티브 녹음이 끝난 문항 결과 |
 | `onRetestFailed(payloadJson)` | KAN-34 | 재응시 실패 (`startRetest`·`startRetestAfterFailure` 공통). **성공은 오지 않는다** — 성공하면 페이지가 리로드된다. KAN-196부터 보상형 광고를 중간에 닫은 경우도 이 슬롯이다: `{code:'AD_DISMISSED', message:'광고를 끝까지 보시면 다시 테스트할 수 있어요', retryable:true, retryAfterMs:null}` (§8) |
+| `onAccessTokenRefreshed(result)` | KAN-255 | `refreshAccessToken()`의 결과. 인자는 JSON이 아니라 문자열 `'ok' \| 'failed'` 그대로다 (§11) |
 
 슬롯 단위로 갈아끼운다. 객체를 통째로 교체하면 나중에 설치한 수신자가 먼저 설치된 것을 지운다.
 
@@ -218,6 +221,8 @@ https://accentury.app/privacy.html
 | 5 | `ios/Accentury/Web/AccenturyBridge.swift` — 디스패처 `case` + 필드 |
 | 6 | `ios/Accentury/Web/WebViewHost.swift`(3계층) · `TestFlow/TestFlowView.swift` — 콜백 배선 |
 | 7 | 이 문서 §2 표 |
+
+KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, 2~6은 4단계(Android)·5단계(iOS)가 지나간다 (§11).
 
 테스트도 같은 수만큼 늘어난다: `bridge.test.ts`, `AccenturyBridgeTest.kt`,
 `AccenturyBridgeTests.swift`, `BridgeUserScriptTests.swift`(메서드 목록).
@@ -475,3 +480,47 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
   서버가 다시 알려 준다.
 - 네이티브가 앞 문항을 다시 열려면 그 세션에서 웹이 해당 `startVoiceItem`을 한 번 보냈어야 한다. 기억이
   없는 문항(구버전 저장값에서 복원 등)은 걸러지고, 서버가 다음 거절에서 다시 알려 준다.
+
+## 11. 계정 토큰 (KAN-255)
+
+계약 버전은 2 그대로다 — 메서드 둘(`getAccessToken`·`refreshAccessToken`)과 수신 슬롯 하나
+(`onAccessTokenRefreshed`)를 **추가**만 했다(§1). 이 셋을 모르는 앱에서는 래퍼가 null·false를 주고
+단어 학습 화면이 로그인 안내로 내려간다. 단어 학습 하나 때문에 응시할 수 있는 앱을 업데이트
+안내로 막을 이유가 없다.
+
+### 왜 세션 토큰과 따로인가
+
+`getSessionToken`은 레벨테스트 한 판의 권한이다. 단어 학습 API(서버 KAN-265)는 계정에 기록을
+남기므로 전부 **계정 Access 토큰** Bearer를 요구하고, 세션 토큰을 실으면 401이다. 계정 토큰과
+그 갱신(리프레시 토큰 회전)은 네이티브가 소유한다 — Android `auth/AuthHttp.kt`의 TokenRefresher.
+웹은 토큰을 저장하지 않고 요청마다 브리지에서 읽는다.
+
+### 401 → 갱신 1회 → 재시도 1회
+
+`web/src/learning/wordApi.ts`의 공통 요청 함수가 이 규칙의 유일한 구현이다.
+
+1. `getAccessToken()`이 null이면 네트워크 전에 `CLIENT_NOT_SIGNED_IN`(retryable false). 화면은
+   「로그인하면 단어 학습을 할 수 있어요」 + [학습 종류로]를 보인다(3단계).
+2. 401이면 `refreshAccessToken()`을 **한 번** 부른다. 결과가 true면 `getAccessToken()`을 다시 읽어
+   같은 요청(같은 멱등 키·같은 본문)을 한 번 재시도한다.
+3. 갱신 false·다시 읽은 토큰이 null·재시도도 401이면 `UNAUTHENTICATED`(retryable false).
+   두 번째 401에서 다시 갱신하지 않는다.
+
+### 갱신 회신과 타임아웃
+
+| 항목 | 규칙 |
+|---|---|
+| 회신 | `window.AccenturyWeb.onAccessTokenRefreshed('ok' \| 'failed')`. `'ok'`만 성공이고 그 밖의 문자열은 실패로 본다 |
+| 타임아웃 | 웹 래퍼가 10초 기다린다. 회신이 없으면 실패로 보고 슬롯을 해제한다 — 늦게 온 회신은 버려진다 |
+| 동시 요청 | 진행 중인 갱신이 있으면 웹이 같은 Promise를 공유한다. 네이티브에는 갱신 요청이 겹쳐 가지 않는다 |
+| 슬롯 | 갱신을 기다리는 동안만 설치하고, 끝나면 설치 전 값으로 되돌린다(§3 슬롯 단위 규칙) |
+
+### 네이티브가 지킬 것 (4단계 Android · 5단계 iOS 예정)
+
+- `getAccessToken()`: 현재 메모리의 Access 토큰을 동기로. 로그인 안 됨·로그인 기능을 끈 빌드·origin
+  불허(§5)면 빈 문자열. 만료 여부는 보지 않는다 — 만료는 서버 401로 드러나고 그때 갱신한다.
+- `refreshAccessToken()`: 즉시 반환하고 갱신은 백그라운드에서. 끝나면 **반드시 한 번**
+  `onAccessTokenRefreshed`를 부른다(성공 `'ok'`, 리프레시 토큰 만료·네트워크 실패 등은 `'failed'`).
+  10초 안에 회신하지 못하면 웹은 이미 실패로 처리했다.
+- 갱신이 이미 진행 중이면(앱 자체 요청이 먼저 시작했어도) 새로 시작하지 말고 그 결과로 회신한다.
+- origin 불허 문서에서 온 `refreshAccessToken()`은 조용히 버린다(회신도 없음 — 웹은 타임아웃으로 끝난다).
