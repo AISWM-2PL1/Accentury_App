@@ -115,6 +115,22 @@ export interface AccenturyBridge {
    * 그 판단은 네이티브 몫이라 웹은 설정을 묻지 않는다. [getSessionToken]과 같은 이유로 optional이다.
    */
   haptic?(type: string): void
+  /**
+   * 계정 Access 토큰 — 단어 학습 API(KAN-255, 서버 KAN-265)의 Authorization 헤더에 쓴다.
+   * 동기 반환. 로그인 안 됨·로그인 기능을 끈 빌드·origin 불허면 빈 문자열이다.
+   *
+   * [getSessionToken]과 따로 두는 이유: 세션 토큰은 레벨테스트 한 판의 권한이라 계정 API가
+   * 받지 않는다. 계정 토큰과 그 갱신은 네이티브(Android `auth/AuthHttp.kt`의 TokenRefresher)가
+   * 소유하므로 웹은 읽기만 한다. [getSessionToken]과 같은 이유로 optional이다
+   */
+  getAccessToken?(): string
+  /**
+   * 계정 토큰 갱신을 네이티브에 요청한다 (KAN-255). fire-and-forget — 결과는
+   * [AccenturyWeb.onAccessTokenRefreshed]로 온다. 동기로 돌려받지 않는 이유는 갱신이 네트워크를
+   * 타서다: Android `@JavascriptInterface`는 JS 스레드를 막고, iOS 메시지 핸들러는 값을 되돌릴 수
+   * 없다(§6). [getSessionToken]과 같은 이유로 optional이다
+   */
+  refreshAccessToken?(): void
 }
 
 /**
@@ -212,6 +228,8 @@ export interface AccenturyWeb {
   onItemResult?(payloadJson: string): void
   /** 재응시 실패 (KAN-34). 인자는 [RetestFailure]의 JSON. 성공은 오지 않는다 — 페이지가 리로드된다 */
   onRetestFailed?(payloadJson: string): void
+  /** 계정 토큰 갱신 결과 (KAN-255). 인자는 `'ok' | 'failed'` — JSON이 아니라 문자열 그대로다 */
+  onAccessTokenRefreshed?(result: string): void
 }
 
 declare global {
@@ -247,6 +265,9 @@ declare global {
  *
  * KAN-258의 `haptic`도 추가라 2를 유지한다. 이 메서드가 없는 앱에서는 래퍼가 false를 주고
  * 버튼은 진동 없이 그대로 눌린다 — 햅틱 하나 때문에 업데이트 안내로 막을 이유가 없다.
+ *
+ * KAN-255의 `getAccessToken`·`refreshAccessToken`·`onAccessTokenRefreshed`도 추가라 2를 유지한다.
+ * 모르는 앱에서는 토큰이 null이라 단어 학습 화면이 로그인 안내로 내려간다.
  */
 export const REQUIRED_BRIDGE_VERSION = 2
 
@@ -328,6 +349,63 @@ export function getSessionToken(): string | null {
   if (typeof bridge?.getSessionToken !== 'function') return null
   const token = bridge.getSessionToken()
   return typeof token === 'string' && token.trim() !== '' ? token : null
+}
+
+/**
+ * 계정 Access 토큰을 브리지에서 읽는다 (KAN-255). 정규화는 [getSessionToken]과 같다 — 브리지가
+ * 없거나, 메서드를 모르는 앱이거나, 네이티브가 빈 문자열을 줬으면(로그인 안 됨·origin 불허)
+ * 전부 null이다. 어느 쪽이든 "실을 토큰이 없다"는 같은 사실이라 호출자는 로그인 안내 하나로 간다.
+ */
+export function getAccessToken(): string | null {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.getAccessToken !== 'function') return null
+  const token = bridge.getAccessToken()
+  return typeof token === 'string' && token.trim() !== '' ? token : null
+}
+
+/** 진행 중인 갱신. 동시에 들어온 요청은 이것을 함께 기다린다 */
+let accessTokenRefresh: Promise<boolean> | null = null
+
+/**
+ * 계정 토큰 갱신을 네이티브에 요청하고 결과를 기다린다 (KAN-255). 갱신됐으면 true다.
+ *
+ * - 메서드를 모르는 앱·브라우저 단독이면 즉시 false — 갱신할 주체가 없다.
+ * - 회신 `'ok'`만 true다. `'failed'`·계약 밖 문자열·`timeoutMs` 안에 회신 없음은 전부 false다.
+ *   회신이 영영 안 오는 앱(구현이 빠진 빌드)에서 화면이 갇히지 않게 타임아웃을 둔다.
+ * - **동시에 불리면 진행 중인 Promise를 그대로 돌려준다.** 401 두 개가 겹쳐 갱신을 두 번 보내면
+ *   리프레시 토큰 회전 때문에 먼저 끝난 쪽이 뒤쪽 토큰을 무효로 만들 수 있다. 회신 슬롯도 하나뿐이다.
+ * - 끝나면(어느 갈래든) 수신 슬롯을 설치 전 값으로 되돌린다.
+ */
+export function refreshAccessToken(timeoutMs = 10_000): Promise<boolean> {
+  if (accessTokenRefresh !== null) return accessTokenRefresh
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.refreshAccessToken !== 'function') return Promise.resolve(false)
+
+  const pending = new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (refreshed: boolean) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      uninstall()
+      resolve(refreshed)
+    }
+    const uninstall = installReceiver('onAccessTokenRefreshed', (result) => finish(result === 'ok'))
+    const timer = setTimeout(() => finish(false), timeoutMs)
+    try {
+      bridge.refreshAccessToken!()
+    } catch {
+      // 네이티브 쪽 예외가 거슬러 올라와도 호출자는 "갱신 실패"로 받으면 된다
+      finish(false)
+    }
+  })
+  accessTokenRefresh = pending
+  // 정리를 finish 안에서 하지 않는 이유: 브리지 호출이 동기로 던지면 finish가 이 대입보다 먼저
+  // 돌아, 끝난 Promise가 슬롯에 남아 이후 요청이 전부 false를 받는다.
+  void pending.then(() => {
+    if (accessTokenRefresh === pending) accessTokenRefresh = null
+  })
+  return pending
 }
 
 /**

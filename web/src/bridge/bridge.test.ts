@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   appBridgeVersion,
+  getAccessToken,
   getSessionToken,
   haptic,
   installItemResultReceiver,
@@ -10,6 +11,7 @@ import {
   logAnalyticsEvent,
   openExternalUrl,
   readAdConsent,
+  refreshAccessToken,
   REQUIRED_BRIDGE_VERSION,
   requestMicPermission,
   shareResult,
@@ -386,6 +388,128 @@ describe('getSessionToken — 토큰 읽기 (KAN-13)', () => {
     window.AccenturyBridge = fakeBridge({ getSessionToken: () => '' })
 
     expect(getSessionToken()).toBeNull()
+  })
+})
+
+describe('getAccessToken — 계정 토큰 읽기 (KAN-255)', () => {
+  it('브리지가 토큰을 주면 그대로 돌려준다', () => {
+    window.AccenturyBridge = fakeBridge({ getAccessToken: () => 'acc-1' })
+
+    expect(getAccessToken()).toBe('acc-1')
+  })
+
+  it('브리지가 없거나 메서드를 모르는 앱이면 null이다', () => {
+    expect(getAccessToken()).toBeNull()
+    window.AccenturyBridge = fakeBridge() // getAccessToken 없음
+    expect(getAccessToken()).toBeNull()
+  })
+
+  it('로그인 안 됨·origin 거부(빈 문자열·공백)는 null로 정규화한다', () => {
+    window.AccenturyBridge = fakeBridge({ getAccessToken: () => '' })
+    expect(getAccessToken()).toBeNull()
+    window.AccenturyBridge = fakeBridge({ getAccessToken: () => '  ' })
+    expect(getAccessToken()).toBeNull()
+  })
+})
+
+describe('refreshAccessToken — 계정 토큰 갱신 요청 (KAN-255)', () => {
+  it('메서드가 없으면 즉시 false, 슬롯도 설치하지 않는다', async () => {
+    window.AccenturyBridge = fakeBridge()
+
+    await expect(refreshAccessToken()).resolves.toBe(false)
+    expect(window.AccenturyWeb).toBeUndefined()
+  })
+
+  it("회신 'ok'면 true, 끝난 뒤 슬롯을 해제한다", async () => {
+    const refresh = vi.fn()
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    const pending = refreshAccessToken()
+    expect(refresh).toHaveBeenCalledTimes(1)
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+
+    await expect(pending).resolves.toBe(true)
+    expect(window.AccenturyWeb).toBeUndefined()
+  })
+
+  it("회신 'failed'나 계약 밖 문자열이면 false", async () => {
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: vi.fn() })
+
+    const failed = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+    await expect(failed).resolves.toBe(false)
+
+    const unknown = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('OK')
+    await expect(unknown).resolves.toBe(false)
+  })
+
+  it('회신이 timeoutMs 안에 안 오면 false, 슬롯도 해제한다', async () => {
+    vi.useFakeTimers()
+    try {
+      window.AccenturyBridge = fakeBridge({ refreshAccessToken: vi.fn() })
+
+      const pending = refreshAccessToken(10_000)
+      vi.advanceTimersByTime(9_999)
+      expect(window.AccenturyWeb?.onAccessTokenRefreshed).toBeTypeOf('function')
+      vi.advanceTimersByTime(1)
+
+      await expect(pending).resolves.toBe(false)
+      expect(window.AccenturyWeb).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('동시에 두 번 불리면 갱신 요청은 한 번이고 같은 결과를 공유한다', async () => {
+    const refresh = vi.fn()
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    const first = refreshAccessToken()
+    const second = refreshAccessToken()
+    expect(second).toBe(first)
+    expect(refresh).toHaveBeenCalledTimes(1)
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true])
+  })
+
+  it('끝난 뒤의 요청은 새 갱신을 보낸다', async () => {
+    const refresh = vi.fn()
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    const first = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+    await first
+
+    const second = refreshAccessToken()
+    expect(second).not.toBe(first)
+    expect(refresh).toHaveBeenCalledTimes(2)
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+    await expect(second).resolves.toBe(true)
+  })
+
+  it('다른 수신 슬롯은 건드리지 않는다', async () => {
+    const onItemResult = vi.fn()
+    window.AccenturyWeb = { onItemResult }
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: vi.fn() })
+
+    const pending = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+    await pending
+
+    expect(window.AccenturyWeb).toEqual({ onItemResult })
+  })
+
+  it('브리지 호출이 던지면 false이고 다음 요청은 다시 나간다', async () => {
+    const refresh = vi.fn(() => {
+      throw new Error('native')
+    })
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    await expect(refreshAccessToken()).resolves.toBe(false)
+    await expect(refreshAccessToken()).resolves.toBe(false)
+    expect(refresh).toHaveBeenCalledTimes(2)
   })
 })
 
