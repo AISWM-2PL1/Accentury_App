@@ -5,6 +5,7 @@ import { track } from './analytics/track'
 import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
+import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
 import { START_FAILED_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE } from './intro/introText'
@@ -166,6 +167,17 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
     return (
       <ResultRoute sessionId={params.get('sessionId') ?? ''} standalone={standalone} navigate={navigate} />
     )
+  }
+
+  /*
+   * `?screen=words` — 단어 학습(KAN-255). 진입 쿼리는 이것 하나이고 W-1~W-5는 문서를 다시 로드하지
+   * 않고 라우트 안의 상태로 넘긴다 (세트·시도 id가 메모리에 있어야 하고, 학습은 이탈 허용이라 URL
+   * 복원이 필요 없다 — `learning/useWordLearning` 머리 주석).
+   *
+   * ponytail: [학습 종류로]는 L-1(학습 종류 선택)이 아직 없어 인트로로 보낸다 — L-1 생기면 교체
+   */
+  if (params.get('screen') === 'words') {
+    return <WordLearningRoute apiBase={API_BASE} onLeave={() => goToIntro(navigate)} />
   }
 
   return <IntroRoute standalone={standalone} navigate={navigate} voiceCheckCapture={voiceCheckCapture} />

@@ -1,0 +1,153 @@
+/*
+ * 단어 학습 화면 (KAN-255 3단계). 값은 전부 tokens.css 토큰을 참조한다 — components.css 머리
+ * 주석과 같은 규칙. 카드·선택지·버튼은 components.css의 것을 그대로 쓰고 여기엔 학습에만 있는
+ * 조각(세트 행·정오 표시·오답 목록)만 둔다.
+ */
+
+/* ── W-1 세트 목록 ── */
+
+.word-level {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.word-level__title {
+  color: var(--color-muted-foreground);
+}
+
+/* 선택지(.choice)와 같은 종이 행. 누르면 바닥에 닿는 것도 같은 규칙이다 */
+.word-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-lg);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    box-shadow var(--duration-press) var(--ease-out),
+    transform var(--duration-press) var(--ease-out);
+}
+
+.word-set-row:active {
+  transform: translate(var(--paper-shadow-x), var(--paper-shadow-y));
+  box-shadow: none;
+}
+
+.word-set-row:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* 추천 1개만 강조 — 두께·그림자·「추천」 글자로 말한다 (색 하나에 기대지 않는다) */
+.word-set-row--recommended {
+  border-width: 2px;
+  box-shadow: var(--shadow-card);
+}
+
+.word-set-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  color: var(--color-muted-foreground);
+}
+
+.word-set-row__badge {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-point);
+  color: var(--color-point-foreground);
+}
+
+/* ── W-4 정오 ── */
+
+/* 정오가 붙은 보기는 잠겨도 흐리게 하지 않는다 — 읽어야 할 표시가 그 안에 있다 */
+.choice--locked.choice--correct,
+.choice--locked.choice--wrong {
+  opacity: 1;
+}
+
+.choice--correct {
+  border-width: 2px;
+}
+
+.choice--wrong {
+  border-style: dashed;
+  border-color: var(--color-point);
+}
+
+.choice__mark {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-size: var(--text-label);
+}
+
+.choice__mark--wrong,
+.word-verdict--wrong .word-verdict__label {
+  color: var(--color-point);
+}
+
+.word-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.word-verdict__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.word-verdict__explanation,
+.word-wrong__explanation {
+  color: var(--color-muted-foreground);
+  word-break: keep-all;
+}
+
+.word-inline-error {
+  margin-bottom: var(--space-3);
+  text-align: center;
+  color: var(--color-destructive-on-surface);
+}
+
+/* ── W-5 세트 완료 ── */
+
+.word-complete__count {
+  text-align: center;
+}
+
+.word-wrong {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.word-wrong__notice {
+  color: var(--color-muted-foreground);
+}
+
+.word-wrong__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.word-wrong__item {
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+}

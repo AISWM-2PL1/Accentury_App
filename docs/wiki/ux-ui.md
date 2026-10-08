@@ -221,4 +221,25 @@ Jetpack Compose(상태관리·테마·Navigation-Compose·Canvas·애니메이�
 >
 > ✅ **2026-08-10 — 재구현 완료 (KAN-97, 티켓 분리 없이 단일 티켓 진행)**: `web/`(Vite+React) 신설 + WebView 호스트 + 브리지 최소 표면(`requestMicPermission`·`getContractVersion`) + 로드 실패 UX(8초 타임아웃, 네이티브 오류 화면) + 스큐 협상(`?bridge=`, 판정 주체는 웹). 상세·잔여 열린 질문(CloudFront 배포 주체, 브리지 계약 정본 위치)은 [webview-layer.md](webview-layer.md). 비율(65~70/30~35) 재계산은 CloudFront 확정 시.
 
+## 단어 학습 화면 (KAN-255)
+
+> KAN-236 §8(학습 IxD 초안)이 병합되면 이 절은 그쪽 §8.2~8.4와 합친다.
+
+- **진입**: `?screen=words` 하나 (`buildWordsUrl`). W-1 세트 목록 → W-2 카드 → W-3 문항 → W-4 정오·해설 → W-5 세트 완료 → W-1.
+- **상태 전환**: W-1~W-5는 문서를 다시 로드하지 않고 `web/src/learning/useWordLearning.ts`의 `view` 상태로 넘긴다. 세트·시도 id가 메모리에 있어야 다음 요청을 보낼 수 있고, 학습은 레벨테스트와 달리 이탈 허용(IxD §8.3 초안)이라 중간 상태를 URL로 복원할 이유가 없다. 이탈은 시스템 뒤로가기만(상단 이탈 버튼은 범위 밖).
+- **W-4 정오 표시 (NFR-US-03)**: 색만으로 가르지 않는다. 결과 영역에 정답이면 ✓ 아이콘 + 「정답」, 오답이면 ✕ 아이콘 + 「오답」 + "정답은 …". 보기 목록(`ChoiceList` `marks`)에서도 정답 보기는 ✓ + 「정답」, 내가 고른 오답은 ✕ + 「내 답」(점선 테두리 + 포인트 색). 해설은 서버 `explanation` 그대로. 결과가 나온 순간 `haptic('success'|'error')` 한 번(KAN-258).
+- **추천 (임시)**: 서버 추천 필드가 없어 목록의 첫 세트(seq 최소)를 추천으로 강조(두께·그림자·「추천」 배지). KAN-268 추천 필드가 오면 교체.
+- **[학습 종류로] (임시)**: L-1(학습 종류 선택)이 없어 인트로로 보낸다(`goToIntro`). L-1이 생기면 교체.
+
+| 상태 | 화면 | 출구 |
+|---|---|---|
+| 목록 로딩 | 「불러오는 중이에요」 | 없음 |
+| 목록 실패 (code 무관) | 오류 문구 | [다시 시도] |
+| 빈 목록 | 「아직 준비 중인 세트예요」 | [학습 종류로] |
+| 카드 로드·시도 시작·완료 실패 (retryable) | 오류 문구 | [다시 시도] |
+| 재시도로 안 풀리는 code (`LEARNING_SET_NOT_FOUND`·`LEARNING_ATTEMPT_*` 등) | 오류 문구 | [세트 목록으로] |
+| `CLIENT_NOT_SIGNED_IN` (어느 단계든) | 「로그인하면 단어 학습을 할 수 있어요」 | [학습 종류로] |
+| `UNAUTHENTICATED` (어느 단계든) | 오류 문구 그대로 | [학습 종류로] |
+| 제출 실패 (위 두 줄 외) | W-3에 남음, 답·멱등 키 유지, 문구 | 버튼이 [다시 시도]로 바뀜. 답을 바꿔 다시 낼 수도 있음 |
+
 관련: [architecture.md](architecture.md), [audio-capture.md](audio-capture.md), [mvp-spec.md](mvp-spec.md)

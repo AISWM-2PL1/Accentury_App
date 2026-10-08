@@ -6,6 +6,7 @@ import { isStandaloneWeb } from './bridge/bridge'
 import { markRuntime } from './ui/runtime'
 import './tokens.css'
 import './ui/components.css'
+import './learning/learning.css'
 
 /*
  * 런타임 표식을 렌더보다 먼저 심는다 (KAN-199 #3). 브라우저에서는 화면 위쪽 여백이 앱보다

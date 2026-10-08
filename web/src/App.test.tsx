@@ -310,6 +310,42 @@ describe('App — 문항 진행 화면 진입 쿼리 (KAN-100: 네이티브가 �
   })
 })
 
+describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
+  it('?screen=words면 단어 학습 라우트가 세트 목록을 그린다', async () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      getAccessToken: () => 'acc',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          contentVersion: 'v1',
+          sets: [{ setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 2, itemCount: 2 }],
+        }),
+      })),
+    )
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('heading', { name: '단어 학습' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
+  })
+
+  it('로그인 안 됐으면 안내 뒤 [학습 종류로]가 인트로로 보낸다 (L-1 전 임시 목적지)', async () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
+    const navigate = vi.fn()
+    render(<App navigate={navigate} />)
+    expect(await screen.findByText('로그인하면 단어 학습을 할 수 있어요')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '학습 종류로' }))
+    expect(navigate).toHaveBeenCalledTimes(1)
+    expect(new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '').get('screen')).toBeNull()
+  })
+})
+
 describe('App — 웹 단독 실행 (KAN-31)', () => {
   /** §3.1 201 응답을 돌려주는 fetch 스텁 */
   function stubSessionFetch(body: Record<string, unknown> = {}) {
