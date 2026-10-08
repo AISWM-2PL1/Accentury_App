@@ -34,6 +34,68 @@ public enum AuthGateState: Equatable, Sendable {
     case checkFailed(AuthFailure)
 }
 
+/// 회원 탈퇴 한 번의 결말 (KAN-251). 안드로이드 `WithdrawOutcome`과 같다.
+public enum WithdrawOutcome: Equatable, Sendable {
+
+    /// 서버가 계정을 파기했다. 토큰·IdP 세션도 정리됐고 게이트는 ``AuthGateState/signedOut(_:)``이다.
+    case withdrawn
+
+    /// 탈퇴되지 않았다(전송 실패·시간 초과·5xx·429 등). 토큰과 상태는 그대로다 — 로그인 상태가 유지된다.
+    case failed(AuthFailure)
+}
+
+/// 탈퇴 직전 애플 재인증의 결말 (KAN-251). 앱 타깃 `AppleIdp.reauthorize()`가 만든다.
+public enum AppleReauth: Equatable, Sendable, CustomStringConvertible {
+
+    /// 재인증이 돌려준 `authorizationCode`(UTF-8). 서버가 애플 토큰으로 바꿔 revoke한다 — 로그에 남기지 않는다.
+    case code(String)
+
+    /// 사용자가 애플 창에서 취소했다 — 탈퇴하지 않겠다는 뜻이다.
+    case cancelled
+
+    /// 그 밖의 실패(코드 없음 포함).
+    case failed
+
+    public var description: String {
+        switch self {
+        case .code: return "AppleReauth.code[]"
+        case .cancelled: return "AppleReauth.cancelled"
+        case .failed: return "AppleReauth.failed"
+        }
+    }
+}
+
+/// 설정 화면 [탈퇴] 확인 뒤의 흐름 (KAN-251). 화면에서 떼어 둔 이유는 ``LoginScreenState``와 같다 — 애플 재인증 갈래를
+/// 시뮬레이터 없이 검증하려는 것이다. 안드로이드에는 애플 로그인이 없어 이 단계가 없다.
+///
+/// 애플 계정이면 탈퇴 직전에 Sign in with Apple을 한 번 더 해 `authorizationCode`를 받아 싣는다. 서버는 애플 토큰을
+/// 보관하지 않으므로 이 코드가 있어야 애플 토큰을 revoke할 수 있다(애플 계정 삭제 요구 — "Apps that support Sign in
+/// with Apple should use the Sign in with Apple REST API to revoke user tokens").
+/// https://developer.apple.com/support/offering-account-deletion-in-your-app
+/// https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidcredential/authorizationcode
+///
+/// - 취소 → **탈퇴 중단**, 서버 호출 없음. 화면은 아무 안내 없이 확인 창으로 돌아간다.
+/// - 그 밖의 실패 → 코드 없이 탈퇴한다. 서버는 코드가 없거나 교환이 실패해도 탈퇴를 성공시키고 WARN만 남긴다 —
+///   사용자가 iOS 설정에서 연결을 끊을 수 있다(2026-09-29 확정). 탈퇴를 막으면 그쪽이 더 큰 문제다.
+///
+/// - Returns: nil이면 사용자가 취소해 탈퇴를 멈췄다
+@MainActor
+public func withdrawAccount(
+    provider: Provider,
+    appleReauth: () async -> AppleReauth,
+    withdraw: (_ appleAuthorizationCode: String?) async -> WithdrawOutcome
+) async -> WithdrawOutcome? {
+    var code: String?
+    if provider == .APPLE {
+        switch await appleReauth() {
+        case .cancelled: return nil
+        case .failed: code = nil
+        case .code(let value): code = value
+        }
+    }
+    return await withdraw(code)
+}
+
 /// 실패 안내의 갈래. ``SessionFailureReason``과 같은 이유로 상태 코드 대신 "사용자가 무엇을 할 수 있나"로 접는다.
 public enum AuthFailureReason: Sendable {
     /// 곧바로 다시 해 보면 된다 — 전송 실패, IdP 토큰 거절(401 `AUTH_IDP_TOKEN_INVALID`: SDK 토큰이 막 만료된 경우 등).
@@ -70,7 +132,7 @@ public struct AuthFailure: Equatable, Sendable {
 /// (안드로이드 `StateFlow` 자리). 화면이 메인에서만 읽고 쓰므로 `@MainActor`다.
 ///
 /// 저장소의 주인은 여전히 ``TokenRefresher``·``AuthApi``의 호출 흐름이고, 이 클래스는 저장소를 **보는** 쪽이다.
-/// 예외는 로그인 성공(쌍을 처음 저장)과 로그아웃(무조건 비움) 둘뿐이다.
+/// 예외는 로그인 성공(쌍을 처음 저장)과 로그아웃(무조건 비움), 탈퇴(서버가 파기했을 때만 비움) 셋뿐이다.
 @MainActor
 public final class AuthGateController: ObservableObject {
 
@@ -81,23 +143,33 @@ public final class AuthGateController: ObservableObject {
     private let refresher: TokenRefresher
     private let logoutServerTimeout: Duration
     private let logoutIdpTimeout: Duration
+    private let withdrawServerTimeout: Duration
+
+    /// 진행 중인 탈퇴. 겹친 호출은 이 결과를 함께 기다린다 — ``withdraw(appleAuthorizationCode:idpLogout:)`` 참고.
+    private var withdrawal: Task<WithdrawOutcome, Never>?
 
     /// - Parameters:
     ///   - logoutServerTimeout: 로그아웃의 서버 폐기 단계 상한. 안드로이드 `LOGOUT_SERVER_TIMEOUT`(10초)과 같다
     ///   - logoutIdpTimeout: 로그아웃의 IdP SDK 정리 단계 상한. 안드로이드 `LOGOUT_IDP_TIMEOUT`(5초)과 같다.
-    ///     둘 다 테스트가 짧게 줄이려고 주입한다
+    ///   - withdrawServerTimeout: 탈퇴의 서버 단계 상한 (KAN-251). **안드로이드(10초)보다 길게 30초다.** 애플 계정이면
+    ///     서버가 애플 호출 둘(코드 교환·revoke, 각 연결 5초 + 읽기 5초)로 최대 약 20초 늦어진다 — 서버 주석 "앱은 이 요청의
+    ///     타임아웃을 20초보다 길게 잡는다". 안드로이드에는 애플 로그인이 없어 10초 그대로다. 전송(`URLSession.shared`)의
+    ///     요청 상한은 기본 60초라 이보다 먼저 끊지 않는다.
+    ///     셋 다 테스트가 짧게 줄이려고 주입한다
     public init(
         api: AuthApi,
         store: TokenStore,
         refresher: TokenRefresher,
         logoutServerTimeout: Duration = .seconds(10),
-        logoutIdpTimeout: Duration = .seconds(5)
+        logoutIdpTimeout: Duration = .seconds(5),
+        withdrawServerTimeout: Duration = .seconds(30)
     ) {
         self.api = api
         self.store = store
         self.refresher = refresher
         self.logoutServerTimeout = logoutServerTimeout
         self.logoutIdpTimeout = logoutIdpTimeout
+        self.withdrawServerTimeout = withdrawServerTimeout
     }
 
     /// 어떤 요청에서든 Refresh가 거절되면 저장소는 이미 비었다 — 화면도 로그인으로 돌린다.
@@ -254,6 +326,59 @@ public final class AuthGateController: ObservableObject {
                 _ = await api.logout(tokens.refreshToken)
             }
         }
+        await signOutLocally(idpLogout)
+    }
+
+    /// 회원 탈퇴 (KAN-251, 서버 KAN-241). 애플 5.1.1(v)가 앱 안 탈퇴를 요구한다. 안드로이드 `AuthGateController.withdraw`와
+    /// 같은 판정이다.
+    ///
+    /// **판정이 로그아웃과 반대다.** 로그아웃은 서버가 실패해도 로컬을 지우지만, 탈퇴는 서버가 파기했다고 말할 때만
+    /// 정리한다 — 실패를 성공으로 넘기면 사용자는 탈퇴한 줄 아는데 서버에 계정이 남는다.
+    /// - 204 → 탈퇴됨.
+    /// - 401 → **탈퇴됨으로 친다.** 서버는 파기 커밋 뒤 Refresh를 전부 폐기하므로, 응답 유실 뒤 재시도나 중복 탭으로
+    ///   이미 탈퇴한 계정이 다시 보내면 401이 온다. 401이면 토큰도 이미 무효라 남겨 둘 이유가 없다. 이 401에서
+    ///   ``AuthorizedSession``의 갱신이 거절되면 ``TokenRefresher``가 저장소를 비우고 먼저 로그인 화면으로 돌리지만,
+    ///   IdP 정리는 거기서 하지 않으므로 여기서 끝까지 정리한다.
+    /// - 그 밖(전송 실패·서버 단계 상한 ``withdrawServerTimeout`` 초과·5xx·429 등) → 탈퇴 안 됨. 토큰·상태를 그대로 두고
+    ///   ``WithdrawOutcome/failed(_:)``. 상한 초과는 응답을 못 받은 것이라 전송 실패와 같이 [다시 시도]다.
+    ///
+    /// 탈퇴됐으면 서버 로그아웃은 부르지 않는다(이미 폐기됐다). IdP 정리 → 로컬 정리 순서와 상한은 ``logout(idpLogout:)``과 같다.
+    ///
+    /// **시작하면 취소되지 않는다.** 일은 비구조 `Task`가 하고 이 함수는 그 결과를 기다리기만 한다 — 화면의 `Task`가
+    /// 취소돼도 `URLSession`에 취소가 번지지 않아 반쪽 정리가 생기지 않는다(안드로이드 `NonCancellable` 자리, KAN-247 리뷰 P1).
+    /// 진행 중에 또 불리면 서버 요청을 새로 만들지 않고 진행 중인 결과를 같이 돌려준다. 화면도 진행 중 버튼을 막지만,
+    /// 두 번째 요청은 401이라 결과가 같아도 서버에 쓸데없는 탈퇴 요청을 남긴다.
+    ///
+    /// - Parameters:
+    ///   - appleAuthorizationCode: 애플 계정의 재인증 코드 (``withdrawAccount(provider:appleReauth:withdraw:)``). 그 외 nil
+    ///   - idpLogout: IdP SDK 쪽 로그아웃 (앱 타깃 `IdpLogout.all`). 탈퇴됐을 때만 부른다
+    public func withdraw(
+        appleAuthorizationCode: String? = nil,
+        idpLogout: @escaping @MainActor () async -> Void = {}
+    ) async -> WithdrawOutcome {
+        if let running = withdrawal { return await running.value }
+        let api = api
+        let task = Task { @MainActor in
+            defer { withdrawal = nil }
+            let result = await withDeadline(withdrawServerTimeout) {
+                await api.withdraw(appleAuthorizationCode: appleAuthorizationCode)
+            }
+            switch result {
+            case .success?, .rejected(statusUnauthorized, _, _, _, _)?:
+                await signOutLocally(idpLogout)
+                return WithdrawOutcome.withdrawn
+            case let result?:
+                return .failed(Self.failure(of: result))
+            case nil:
+                return .failed(AuthFailure(.retry))
+            }
+        }
+        withdrawal = task
+        return await task.value
+    }
+
+    /// 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리가 상한 ``logoutIdpTimeout``을 넘겨도 저장소는 비우고 로그인 화면으로 돌린다.
+    private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void) async {
         await withDeadline(logoutIdpTimeout, idpLogout)
         await store.clear()
         state = .signedOut(nil)
@@ -286,42 +411,44 @@ public final class AuthGateController: ObservableObject {
     }
 }
 
-/// `operation`과 `limit` 중 먼저 끝나는 쪽에서 돌아온다 (KAN-247, 안드로이드 `withTimeoutOrNull` 자리).
+/// `operation`과 `limit` 중 먼저 끝나는 쪽에서 돌아온다 (KAN-247, 안드로이드 `withTimeoutOrNull` 자리). 상한에
+/// 지면 nil이다 — 탈퇴(KAN-251)는 서버 결과가 필요해 값을 돌려받는다.
 ///
 /// 태스크 그룹 경주로는 안 된다 — 그룹은 자식이 전부 끝나야 빠져나오고, 콜백을 기다리는 `withCheckedContinuation`은
 /// 취소를 무시하므로 상한이 지나도 그룹이 함께 매달린다. 그래서 둘을 따로 띄우고 continuation 하나를 먼저 도착한 쪽이
 /// 한 번만 재개한다. 상한에 진 `operation`은 멈추지 않고 뒤에서 계속 돈다 — 취소에 응하지 않는 작업을 멈출 방법이
 /// 없고, 로그아웃에서는 늦게 끝나도 해가 없다(서버 폐기·SDK 세션 정리일 뿐이다).
 @MainActor
-func withDeadline(_ limit: Duration, _ operation: @escaping @MainActor () async -> Void) async {
-    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+@discardableResult
+func withDeadline<T: Sendable>(_ limit: Duration, _ operation: @escaping @MainActor () async -> T) async -> T? {
+    await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
         let once = ResumeOnce(continuation)
         let timer = Task {
             try? await Task.sleep(for: limit)
-            once.resume()
+            once.resume(nil)
         }
         Task { @MainActor in
-            await operation()
+            let value = await operation()
             timer.cancel()
-            once.resume()
+            once.resume(value)
         }
     }
 }
 
 /// continuation을 두 번 재개하면 크래시다 — 어느 쪽이 먼저 와도 한 번만 넘긴다. 타이머는 메인 밖에서 오므로 잠근다.
-private final class ResumeOnce: @unchecked Sendable {
+private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var continuation: CheckedContinuation<T?, Never>?
 
-    init(_ continuation: CheckedContinuation<Void, Never>) {
+    init(_ continuation: CheckedContinuation<T?, Never>) {
         self.continuation = continuation
     }
 
-    func resume() {
+    func resume(_ value: T?) {
         lock.lock()
         let pending = continuation
         continuation = nil
         lock.unlock()
-        pending?.resume()
+        pending?.resume(returning: value)
     }
 }

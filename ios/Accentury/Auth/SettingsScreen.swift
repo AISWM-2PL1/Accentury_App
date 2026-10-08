@@ -26,7 +26,7 @@ struct SettingsGearButton: View {
     }
 }
 
-/// 설정 화면 (KAN-247). 계정 정보, 음성 저장 동의(KAN-270), 로그아웃. 안드로이드 `auth/SettingsScreen.kt`의 이식본이다.
+/// 설정 화면 (KAN-247). 계정 정보, 회원 탈퇴(KAN-251), 음성 저장 동의(KAN-270), 로그아웃. 안드로이드 `auth/SettingsScreen.kt`의 이식본이다.
 ///
 /// ``TestFlowView``를 내리지 않고 **그 위를 덮는다**(``AuthGateView``) — WebView는 인트로부터 테스트 끝까지 한
 /// 인스턴스로 살아야 하므로 닫으면 보던 웹 화면 그대로다.
@@ -42,6 +42,10 @@ struct SettingsScreen: View {
     /// ``AccenturyCore/AuthGateController/logout(idpLogout:)``. 끝나면 게이트가 `signedOut`이 되어 이 화면째 로그인
     /// 화면으로 바뀐다.
     let onLogout: () async -> Void
+    /// ``AccenturyCore/withdrawAccount(provider:appleReauth:withdraw:)`` — 애플 계정이면 재인증 뒤
+    /// ``AccenturyCore/AuthGateController/withdraw(appleAuthorizationCode:idpLogout:)``. 탈퇴되면 로그아웃과 같이 로그인 화면으로
+    /// 바뀌고, 실패하면 로그인 상태 그대로 안내를 남긴다. nil = 사용자가 애플 창에서 취소했다(서버 호출 없음)
+    let onWithdraw: () async -> WithdrawOutcome?
     /// ``AccenturyCore/AuthGateController/setVoiceConsent(_:)``
     let onVoiceConsentChange: (Bool) async -> AuthResult<Account>
     /// ``AccenturyCore/AuthGateController/reloadVoiceConsent()``
@@ -51,6 +55,11 @@ struct SettingsScreen: View {
 
     @State private var confirming = false
     @State private var leaving = false
+    @State private var confirmingWithdraw = false
+    @State private var withdrawing = false
+    @State private var withdrawFailed = false
+
+    private var busy: Bool { leaving || withdrawing }
 
     var body: some View {
         ScrollView {
@@ -61,7 +70,7 @@ struct SettingsScreen: View {
                         .foregroundColor(Papercut.ink)
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
-                    AccenturyButton(text: "닫기", variant: .text, enabled: !leaving, action: onClose)
+                    AccenturyButton(text: "닫기", variant: .text, enabled: !busy, action: onClose)
                 }
 
                 VStack(alignment: .leading, spacing: Papercut.space3) {
@@ -82,7 +91,17 @@ struct SettingsScreen: View {
                             }
                         }
                     }
-                    // [회원 탈퇴]는 KAN-251이 이 자리(계정 섹션 맨 아래)에 붙인다.
+                    // 계정 섹션 맨 아래 (KAN-251, 팀 결정: 버튼 두 번 — 여기서 한 번, 확인 창의 [탈퇴]에서 한 번 더).
+                    // 시스템 알림은 누르면 곧바로 닫혀 진행 중 라벨·실패 안내를 창 안에 둘 수 없다 — 둘 다 이 버튼 자리가
+                    // 맡는다(안드로이드는 확인 창 안의 [탈퇴하는 중]·StatusBlock).
+                    AccenturyButton(text: withdrawing ? "탈퇴하는 중" : "회원 탈퇴", variant: .text, enabled: !busy) {
+                        withdrawFailed = false
+                        confirmingWithdraw = true
+                    }
+                    // 실패는 로그인 상태 그대로다 — 같은 자리에서 다시 누르게 한다.
+                    if withdrawFailed {
+                        StatusBlock(tone: .error, message: "탈퇴되지 않았어요 · 네트워크를 확인하고 다시 시도해 주세요")
+                    }
                 }
 
                 VoiceConsentSection(
@@ -95,16 +114,27 @@ struct SettingsScreen: View {
                     onOpenPrivacy: onOpenPrivacy
                 )
 
-                AccenturyButton(text: "로그아웃", variant: .secondary, enabled: !leaving, fillsWidth: true) {
+                AccenturyButton(text: "로그아웃", variant: .secondary, enabled: !busy, fillsWidth: true) {
                     confirming = true
                 }
+            }
+            /*
+             * 탈퇴 확인 창 (KAN-251). 문구는 개인정보처리방침의 말("탈퇴하시면 지체 없이 파기합니다")과 맞춘다. [탈퇴]에
+             * destructive 역할을 주지 않는 것은 로그아웃 확인 창과 같다 — 팔레트의 destructive도 잉크다(design-tokens.md).
+             * 로그아웃 알림과 다른 뷰에 단다 — 한 뷰에 `.alert`를 둘 걸면 iOS 버전에 따라 하나만 뜬다.
+             */
+            .alert("회원 탈퇴할까요?", isPresented: $confirmingWithdraw) {
+                Button("취소", role: .cancel) {}
+                Button("탈퇴", action: withdraw)
+            } message: {
+                Text("계정 정보(이메일·이름 등)는 탈퇴하면 지체 없이 파기해요\n테스트 결과는 계정과 분리돼 익명으로 남아요\n탈퇴하면 되돌릴 수 없어요")
             }
             .padding(.horizontal, Papercut.space6)
             .padding(.vertical, Papercut.space4)
         }
         // 아래 WebView를 완전히 가린다 — 크림 면이 비치는 곳 없이 안전 영역 밖까지 간다 (TestFlowView `body` 주석).
         .background(Papercut.cream.ignoresSafeArea())
-        // 시스템 알림이라 버튼을 누르면 곧바로 닫힌다 — 진행 중 막기는 화면의 버튼들이 `leaving`으로 맡는다.
+        // 시스템 알림이라 버튼을 누르면 곧바로 닫힌다 — 진행 중 막기는 화면의 버튼들이 `busy`로 맡는다.
         .alert("로그아웃할까요?", isPresented: $confirming) {
             Button("취소", role: .cancel) {}
             Button("로그아웃") {
@@ -116,6 +146,25 @@ struct SettingsScreen: View {
             }
         } message: {
             Text("다시 쓰려면 로그인해야 해요")
+        }
+    }
+
+    private func withdraw() {
+        // 알림이 닫히자마자 세워 [회원 탈퇴]를 막는다 — 애플 재인증 창이 떠 있는 동안도 진행 중이다.
+        withdrawing = true
+        withdrawFailed = false
+        Task {
+            let outcome = await onWithdraw()
+            withdrawing = false
+            switch outcome {
+            case nil:
+                // 애플 창에서 취소 — 실패가 아니라 안내 없이 확인 창으로 돌아간다.
+                confirmingWithdraw = true
+            case .failed?:
+                withdrawFailed = true
+            case .withdrawn?:
+                break // 게이트가 signedOut이 되어 이 화면째 로그인 화면으로 바뀐다.
+            }
         }
     }
 }

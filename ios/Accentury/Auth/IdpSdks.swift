@@ -38,6 +38,16 @@ func idpSignIn(_ provider: Provider) async -> IdpOutcome {
     }
 }
 
+/// 탈퇴 직전 애플 재인증 (KAN-251). 받은 `authorizationCode`를 탈퇴 요청에 실어 서버가 애플 토큰을 revoke한다
+/// (``AccenturyCore/withdrawAccount(provider:appleReauth:withdraw:)``). 이것은 Sign in with Apple의 'Apple ID 사용 중단'이
+/// 아니라 우리 탈퇴 API에 실을 코드를 받는 단계다. 가짜 IdP 빌드는 애플 창을 띄우지 않고 코드 없이 보낸다 — 서버가 코드
+/// 없이도 탈퇴시킨다.
+@MainActor
+func appleReauthorization() async -> AppleReauth {
+    if AppConfig.fakeIdp { return .failed }
+    return await AppleIdp().reauthorize()
+}
+
 /// 네이버 SDK 초기화 (KAN-224). 카카오 SDK와 같은 스위치다 — 설정이 없으면 초기화하지 않고, 로그인 화면은 그 버튼을
 /// 숨긴다. `appName`은 네이버 동의 화면에 뜨는 앱 이름이다. 앱 시작에 한 번 부른다(``AccenturyApp``).
 func initializeIdpSdks() {
@@ -151,13 +161,46 @@ private enum NaverIdp {
 @MainActor
 private final class AppleIdp: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
 
+    /// 애플 창 한 번의 결말. 델리게이트가 자격에서 필요한 값만 꺼내 두고, 로그인·재인증이 각자의 결말로 접는다.
+    private enum Answer {
+        case credential(ASAuthorizationAppleIDCredential)
+        case cancelled
+        case failed
+    }
+
     private let nonce = AppleNonce.make()
-    private var continuation: CheckedContinuation<IdpOutcome, Never>?
+    private var continuation: CheckedContinuation<Answer, Never>?
 
     func signIn() async -> IdpOutcome {
         let request = ASAuthorizationAppleIDProvider().createRequest()
         request.requestedScopes = [.fullName, .email]
         request.nonce = AppleNonce.sha256(nonce)
+        switch await perform(request) {
+        case .credential(let credential):
+            guard let tokenData = credential.identityToken, let idToken = String(data: tokenData, encoding: .utf8) else { return .failed }
+            return .credential(
+                loginCredential(of: .APPLE, token: idToken, nonce: nonce, name: AppleNonce.displayName(credential.fullName))
+            )
+        case .cancelled: return .cancelled
+        case .failed: return .failed
+        }
+    }
+
+    /// 탈퇴 직전 재인증 (KAN-251). 쓰는 것은 `authorizationCode`뿐이라 범위·nonce를 싣지 않는다 — 서버가 이 코드를 애플
+    /// 토큰으로 바꿔 revoke한다. 코드는 5분 동안 한 번만 쓸 수 있어 탈퇴 직전에 받는다.
+    /// https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidcredential/authorizationcode
+    /// https://developer.apple.com/documentation/sign_in_with_apple/revoke_tokens
+    func reauthorize() async -> AppleReauth {
+        switch await perform(ASAuthorizationAppleIDProvider().createRequest()) {
+        case .credential(let credential):
+            guard let data = credential.authorizationCode, let code = String(data: data, encoding: .utf8) else { return .failed }
+            return .code(code)
+        case .cancelled: return .cancelled
+        case .failed: return .failed
+        }
+    }
+
+    private func perform(_ request: ASAuthorizationAppleIDRequest) async -> Answer {
         let controller = ASAuthorizationController(authorizationRequests: [request])
         controller.delegate = self
         controller.presentationContextProvider = self
@@ -169,13 +212,8 @@ private final class AppleIdp: NSObject, ASAuthorizationControllerDelegate, ASAut
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let tokenData = credential.identityToken,
-              let idToken = String(data: tokenData, encoding: .utf8)
-        else { return finish(.failed) }
-        finish(.credential(
-            loginCredential(of: .APPLE, token: idToken, nonce: nonce, name: AppleNonce.displayName(credential.fullName))
-        ))
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else { return finish(.failed) }
+        finish(.credential(credential))
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
@@ -186,7 +224,7 @@ private final class AppleIdp: NSObject, ASAuthorizationControllerDelegate, ASAut
         TopViewController.current()?.view.window ?? ASPresentationAnchor()
     }
 
-    private func finish(_ outcome: IdpOutcome) {
+    private func finish(_ outcome: Answer) {
         continuation?.resume(returning: outcome)
         continuation = nil
     }
@@ -194,7 +232,7 @@ private final class AppleIdp: NSObject, ASAuthorizationControllerDelegate, ASAut
 
 /// IdP SDK 쪽 세션 정리 (KAN-224). ``AccenturyCore/AuthGateController/logout(idpLogout:)``에 넘길 몫이다 —
 /// `await gate.logout { await IdpLogout.all() }`. 추가 정보 화면의 [다른 계정으로 로그인]과 설정 화면의
-/// [로그아웃](KAN-247)이 부른다.
+/// [로그아웃](KAN-247), 회원 탈퇴(KAN-251, ``AccenturyCore/AuthGateController/withdraw(appleAuthorizationCode:idpLogout:)``)가 부른다.
 ///
 /// 셋 다 최선 노력이다: 우리 토큰은 이미 서버에서 폐기됐고, SDK 세션이 남으면 다음 로그인에서 계정 선택이
 /// 생략될 뿐이다. 하나가 실패해도 나머지는 정리한다. 애플은 앱이 부를 로그아웃 API가 없다(사용자가 설정에서 끊는다).
