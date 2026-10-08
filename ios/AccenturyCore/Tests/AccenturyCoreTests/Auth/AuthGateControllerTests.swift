@@ -551,6 +551,40 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
     }
 
+    func test탈퇴_서버_단계가_끝나기_전에_완료된_새_로그인을_정리가_지우지_않는다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, clients) = controller(store)
+        MockURLProtocol.respondInOrder([
+            (200, tokens(2)),
+            (200, account("COMPLETE")),
+            (401, envelope("AUTH_TOKEN_INVALID", false)),
+            (401, envelope("AUTH_REFRESH_INVALID", false)),
+            (200, loginComplete),
+            (200, account("COMPLETE")),
+        ])
+        await gate.bootstrap()
+        // URLSession은 본문까지 받은 뒤 갱신하므로 본문을 늦출 수 없다. 대신 갱신 거절 훅을 붙잡아 탈퇴 서버 단계가 끝나기
+        // 전에 새 로그인을 끝낸다(KAN-251 리뷰 P1 재검증 3). 정리 시작 때 세대를 잡으면 새 로그인의 세대라 새 토큰을 지운다.
+        let (entered, enteredSignal) = AsyncStream<Void>.makeStream()
+        let (release, releaseSignal) = AsyncStream<Void>.makeStream()
+        await clients.refresher.setOnSignedOut {
+            enteredSignal.yield()
+            for await _ in release { break }
+        }
+
+        let withdrawal = Task { await gate.withdraw() }
+        for await _ in entered { break }
+        XCTAssertNil(store.tokens)
+        await gate.login(google, privacyPolicyVersion: "v1")
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+        releaseSignal.yield()
+        let outcome = await withdrawal.value
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+    }
+
     func test탈퇴_정리가_저장_중인_새_로그인_토큰을_지우지_않는다() async throws {
         let store = HeldSaveTokenStore(AuthTokens("jwt_0", "rt_0"))
         let (gate, _) = controller(store)

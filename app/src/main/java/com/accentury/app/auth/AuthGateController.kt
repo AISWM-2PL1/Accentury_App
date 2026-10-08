@@ -353,13 +353,16 @@ class AuthGateController(
         val mine = CompletableDeferred<WithdrawOutcome>()
         val running = synchronized(this) { withdrawal.also { if (it == null) withdrawal = mine } }
         if (running != null) return running.await()
+        // 서버 요청 전에 잡는다(KAN-251 리뷰 P1 재검증 3) — 401 갱신 거절로 로그인 화면이 먼저 뜬 뒤 응답 본문을 다 읽기 전에
+        // 새 로그인이 끝나면, 정리 시작 때 잡은 세대는 이미 새 로그인의 것이라 새 토큰을 지운다. 갱신은 세대를 바꾸지 않는다.
+        val generation = loginGeneration.get()
         val outcome = runCatching {
             withContext(NonCancellable) {
                 val result = withContext(Dispatchers.IO) { withTimeoutOrNull(logoutServerTimeout) { api.withdraw() } }
                 val withdrawn = result is AuthResult.Success ||
                     (result is AuthResult.Rejected && result.status == STATUS_UNAUTHORIZED)
                 if (withdrawn) {
-                    signOutLocally(idpLogout, keepNewLogin = true)
+                    signOutLocally(idpLogout, withdrawGeneration = generation)
                     WithdrawOutcome.Withdrawn
                 } else {
                     // null = 서버 단계 상한 초과. 응답을 못 받았으니 전송 실패와 같이 [다시 시도]다.
@@ -375,19 +378,19 @@ class AuthGateController(
     /**
      * 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리(상한 [logoutIdpTimeout])가 던져도 저장소는 비우고 로그인 화면으로 돌린다.
      *
-     * @param keepNewLogin 탈퇴만 true다 (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저 저장소를 비우고 로그인 화면을
-     *   띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때 [loginGeneration]을
-     *   잡아 두고, 끝날 때 그대로일 때만 비운다(판정과 비우기는 [sessionLock] 안에서 한 번에) — 달라졌으면 새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로
-     *   비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이
-     *   남는다(리뷰 재검증). 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
+     * @param withdrawGeneration 탈퇴만 넘긴다 — 탈퇴 시작 때 잡은 [loginGeneration] (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신
+     *   거절이 먼저 저장소를 비우고 로그인 화면을 띄우므로, 응답을 마저 받거나 IdP 정리(최대 5초)를 기다리는 사이 사용자가
+     *   새로 로그인할 수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 [sessionLock] 안에서 한 번에) — 달라졌으면
+     *   새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나
+     *   쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). null(로그아웃)은 로그인 상태를 유지한 채
+     *   정리해 이 경합이 없어 무조건 비운다.
      */
-    private suspend fun signOutLocally(idpLogout: suspend () -> Unit, keepNewLogin: Boolean = false) {
-        val generation = loginGeneration.get()
+    private suspend fun signOutLocally(idpLogout: suspend () -> Unit, withdrawGeneration: Long? = null) {
         try {
             withTimeoutOrNull(logoutIdpTimeout) { idpLogout() }
         } finally {
             sessionLock.withLock {
-                if (!keepNewLogin || loginGeneration.get() == generation) {
+                if (withdrawGeneration == null || loginGeneration.get() == withdrawGeneration) {
                     store.clear()
                     _state.value = AuthGateState.SignedOut()
                 }
