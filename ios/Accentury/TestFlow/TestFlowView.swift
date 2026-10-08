@@ -107,6 +107,25 @@ struct TestFlowView: View {
                      */
                     onSetAdConsent: { ads.setConsent($0) },
                     onShowInterstitialAd: { ads.showInterstitial() },
+                    /*
+                     * 계정 토큰 (KAN-255, webview-bridge.md §11). 단어 학습 웹이 Access를 읽고, 401이면 갱신을 청한다.
+                     *
+                     * 로그인을 끈 빌드(익명 모드)는 늘 빈 토큰·'failed'다. `AuthHub`를 아예 깨우지 않는다 — 예전 로그인
+                     * 빌드가 Keychain에 남긴 토큰이 웹으로 새면 익명 빌드에서 계정 API가 열린다 (안드로이드 TestFlow와 같은 이유).
+                     *
+                     * 갱신의 staleAccess로 **지금 저장된 값**을 넘긴다(안드로이드와 같다). 웹이 401을 받은 토큰을 이 자리는
+                     * 모르므로 저장값과 같다고 보고 서버에 묻게 한다. 앱 자체 갱신이 먼저 돌고 있으면 TokenRefresher 줄에서
+                     * 기다리고, 차례가 오면 저장소가 이미 새 값이라 서버에 묻지 않고 그 결과로 회신한다.
+                     */
+                    readAccessToken: {
+                        guard AppConfig.loginEnabled else { return "" }
+                        return await AuthHub.clients.store.read()?.accessToken ?? ""
+                    },
+                    refreshAccessToken: {
+                        guard AppConfig.loginEnabled else { return nil }
+                        let clients = AuthHub.clients
+                        return await clients.refresher.refresh(staleAccess: await clients.store.read()?.accessToken)
+                    },
                     onWebViewCreated: { created in
                         webView = created
                         #if DEBUG

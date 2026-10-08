@@ -53,8 +53,8 @@
 | `setAdConsent(state)` | KAN-196 | 동의를 네이티브 저장소에 쓴다. 인자는 `'granted' \| 'denied'` — `'unknown'`으로 되돌리는 길은 없다 | 래퍼 false. `readAdConsent()`가 null인 실행에서는 애초에 부르지 않는다 |
 | `showInterstitialAd()` | KAN-196 | 분석 대기 화면의 전면 광고. **인자도 회신도 없다** (`shareResult`와 같은 규칙) | 래퍼 false — 광고 없이 대기 화면만 |
 | `haptic(type)` | KAN-258 | 가벼운 탭·성공·실패 햅틱. 인자는 `'tap' \| 'success' \| 'error'`, 그 밖은 네이티브가 무시. 회신 없음. OS 「터치 진동」 설정을 따른다 (§9) | 래퍼 false — 무동작 (브라우저 단독·구버전 앱) |
-| `getAccessToken(): string` | KAN-255 | 계정 Access 토큰. 단어 학습 API(`/v0/learning/word-*`)의 `Authorization`에 싣는다. 동기 반환. 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열 (§11). Android: `AccenturyBridge.getAccessToken` ← `MainActivity` TestFlow의 `currentAccessToken()` | 빈 값은 `null`로 정규화 → 네트워크 전에 `CLIENT_NOT_SIGNED_IN` |
-| `refreshAccessToken()` | KAN-255 | 계정 토큰 갱신 요청. **fire-and-forget** — 결과는 `onAccessTokenRefreshed`로 온다 (§11). Android: `AccenturyBridge.refreshAccessToken` → `MainActivity` TestFlow의 `refreshAccessToken()` | 래퍼 `refreshAccessToken()`이 즉시 false → `UNAUTHENTICATED` |
+| `getAccessToken(): string` | KAN-255 | 계정 Access 토큰. 단어 학습 API(`/v0/learning/word-*`)의 `Authorization`에 싣는다. 동기 반환. 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열 (§11). Android: `AccenturyBridge.getAccessToken` ← `MainActivity` TestFlow의 `currentAccessToken()`. iOS: `BridgeUserScript`의 문서 변수 `accessToken` ← `WebViewCoordinator.pushAccessToken` ← `TestFlowView`의 `readAccessToken` | 빈 값은 `null`로 정규화 → 네트워크 전에 `CLIENT_NOT_SIGNED_IN` |
+| `refreshAccessToken()` | KAN-255 | 계정 토큰 갱신 요청. **fire-and-forget** — 결과는 `onAccessTokenRefreshed`로 온다 (§11). Android: `AccenturyBridge.refreshAccessToken` → `MainActivity` TestFlow의 `refreshAccessToken()`. iOS: `BridgeDispatcher` `case "refreshAccessToken"` → `WebViewCoordinator.refreshAccessTokenForWeb` → `TestFlowView`의 `refreshAccessToken` | 래퍼 `refreshAccessToken()`이 즉시 false → `UNAUTHENTICATED` |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
@@ -204,6 +204,9 @@ https://accentury.app/privacy.html
 | 스레드 | `@JavascriptInterface`는 **JS 전용 스레드** → `View.post`로 메인에 넘긴 뒤 검증 | WebKit이 메인 스레드에서 부른다 → 넘기는 단계가 없다 |
 | 파일 | `web/AccenturyBridge.kt` | `Web/AccenturyBridge.swift` + `Web/BridgeUserScript.swift` |
 
+iOS의 계정 Access 토큰(`getAccessToken`, KAN-255)도 세션 토큰·광고 동의와 같은 구조로 심는다 — 문서 변수 +
+`__accenturySetAccessToken` setter + 대기 자리. 네이티브가 문서 커밋 때(Keychain을 새로 읽어)와 갱신 성공 직후에 민다 (§11).
+
 **계약 메서드를 더할 때 iOS는 파일이 둘이다** — 디스패처의 `case`와 주입 JS의 객체 리터럴을 함께
 고쳐야 한다. 웹 쪽 `bridge.ts`는 이 차이를 모른다.
 
@@ -222,7 +225,7 @@ https://accentury.app/privacy.html
 | 6 | `ios/Accentury/Web/WebViewHost.swift`(3계층) · `TestFlow/TestFlowView.swift` — 콜백 배선 |
 | 7 | 이 문서 §2 표 |
 
-KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android 2·3은 4단계에서 완료, iOS 4~6은 5단계가 지나간다 (§11).
+KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android(2·3, 4단계)·iOS(4~6, 5단계) 완료 (§11).
 
 테스트도 같은 수만큼 늘어난다: `bridge.test.ts`, `AccenturyBridgeTest.kt`,
 `AccenturyBridgeTests.swift`, `BridgeUserScriptTests.swift`(메서드 목록).
@@ -515,7 +518,7 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 | 동시 요청 | 진행 중인 갱신이 있으면 웹이 같은 Promise를 공유한다. 네이티브에는 갱신 요청이 겹쳐 가지 않는다 |
 | 슬롯 | 갱신을 기다리는 동안만 설치하고, 끝나면 설치 전 값으로 되돌린다(§3 슬롯 단위 규칙) |
 
-### 네이티브가 지킬 것 (4단계 Android 완료 · 5단계 iOS 예정)
+### 네이티브가 지킬 것 (4단계 Android 완료 · 5단계 iOS 완료)
 
 - `getAccessToken()`: 현재 메모리의 Access 토큰을 동기로. 로그인 안 됨·로그인 기능을 끈 빌드·origin
   불허(§5)면 빈 문자열. 만료 여부는 보지 않는다 — 만료는 서버 401로 드러나고 그때 갱신한다.
@@ -536,3 +539,15 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 | 회신 | `Refreshed`만 `'ok'`, `SignedOut`·`Failed`·예외는 `'failed'`. 메인 스레드에서 `webDeliveryJs("onAccessTokenRefreshed", …)` 한 번. WebView가 없으면 웹 타임아웃 |
 | SignedOut | TokenRefresher의 `onSignedOut`이 이미 게이트를 로그인 화면으로 돌린다 — 브리지 쪽 추가 처리 없음 |
 | `LOGIN_ENABLED=false` | `authClients`를 깨우지 않는다. `getAccessToken`은 늘 `""`, `refreshAccessToken`은 즉시 `'failed'`. 예전 로그인 빌드가 Keystore에 남긴 토큰이 익명 빌드 웹으로 새지 않게 |
+
+#### iOS 구현 (KAN-255 5단계)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `Web/BridgeUserScript.swift`(주입 JS 두 메서드 · 문서 변수 `accessToken` · `__accenturySetAccessToken` · `__accenturyPendingAccessToken` · `accessTokenPushJs`) · `Web/AccenturyBridge.swift`(디스패처 `case "refreshAccessToken"`) · `Web/WebViewHost.swift`(`pushAccessToken`·`refreshAccessTokenForWeb`·순서 함수 `accessTokenRefreshReplyScripts`) · `TestFlow/TestFlowView.swift`(`readAccessToken`·`refreshAccessToken` 클로저) · Core `Bridge/AccessTokenRefreshedDelivery.swift`(결말 → `'ok'\|'failed'`, 주입 JS) |
+| origin | `getAccessToken`은 동기 반환이 없어 문서 변수를 읽는다. 미는 판정은 세션 토큰과 같은 `shouldPushToken`(커밋된 origin이 allowlist 안) — 불허 문서는 영영 `""`. `refreshAccessToken`은 디스패처의 처리 시점 URL 검사 — 불허면 콜백도 회신도 없다 |
+| 토큰 읽기 | `AuthHub.clients.store.read()`가 `async`라 값이 아니라 읽기 클로저를 넘긴다. `didCommit`에서 든 값을 바로 밀고 저장소를 새로 읽어 다시 밀며, `didFinish`에서 강제 재주입(세션 토큰과 같은 이유) |
+| 갱신 | 코디네이터에 매이지 않은 `Task`에서 `refresher.refresh(staleAccess: 지금 저장된 Access)`. 안드로이드 `NonCancellable`과 같은 이유 — 화면이 사라져도 회전된 Refresh 저장까지 끝까지 돈다 |
+| 회신 | 메인 액터에서 한 번. **성공이면 새 토큰을 먼저 밀고(`accessTokenPushJs`) 그 뒤 `onAccessTokenRefreshed('ok')`** — 웹이 'ok'를 받자마자 `getAccessToken()`을 다시 읽기 때문(안드로이드엔 없는 단계). 순서는 `accessTokenRefreshReplyScripts`가 정하고 JSContext 테스트가 고정. `.refreshed`만 `'ok'`. WebView가 없으면 웹 타임아웃 |
+| SignedOut | TokenRefresher의 로그아웃 신호가 게이트를 로그인 화면으로 돌린다 — 브리지 쪽 추가 처리 없음 |
+| `loginEnabled=false` | `AuthHub`를 깨우지 않는다. 읽기는 늘 `""`, 갱신은 nil → 즉시 `'failed'`. 예전 로그인 빌드가 Keychain에 남긴 토큰이 익명 빌드 웹으로 새지 않게 |

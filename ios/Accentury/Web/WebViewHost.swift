@@ -109,6 +109,27 @@ func shouldPushToken(
     return pushedToken != sessionToken
 }
 
+/// 웹의 계정 토큰 갱신 요청에 대한 회신 — 문서에 넣을 JS 조각들을 **실행 순서대로** (KAN-255, §11).
+///
+/// 순서가 계약이다: 갱신에 성공했으면 **새 Access를 먼저 밀고 그 뒤에** `onAccessTokenRefreshed('ok')`를 보낸다.
+/// 웹(`wordApi.ts`)은 'ok'를 받자마자 `getAccessToken()`을 다시 읽어 재시도하므로, 회신이 앞서면 옛 토큰으로
+/// 재시도해 두 번째 401 → `UNAUTHENTICATED`로 끝난다. `evaluateJavaScript`는 건 순서대로 돈다.
+/// 안드로이드는 `getAccessToken`이 저장소를 바로 읽어 이 단계가 없다 — 문서 변수로 심는 iOS만의 자리다.
+///
+/// 회신은 `canPush`와 무관하게 늘 정확히 한 번이다(웹 래퍼가 그 한 번을 기다린다). 실패면 토큰을 밀지 않는다 —
+/// `signedOut`이면 저장소가 비었는데, 그 사실은 로그인 화면 전환(TokenRefresher의 로그아웃 신호)이 맡는다.
+///
+/// - Parameter canPush: 지금 문서에 토큰을 밀어도 되는가 — ``shouldPushToken(hasCommitted:forced:pushedToken:sessionToken:urlAllowed:)``의
+///   판정(origin이 allowlist 안). 불허 문서에는 성공이어도 토큰이 가지 않는다.
+func accessTokenRefreshReplyScripts(outcome: RefreshOutcome?, canPush: Bool) -> [String] {
+    var scripts: [String] = []
+    if canPush, case .refreshed(let tokens) = outcome {
+        scripts.append(BridgeUserScript.accessTokenPushJs(tokens.accessToken))
+    }
+    scripts.append(accessTokenRefreshedDeliveryJs(outcome))
+    return scripts
+}
+
 // MARK: - 상태 보유자
 
 /// ``AccenturyCore/WebLoadController``(순수 상태 머신)를 SwiftUI가 볼 수 있는 `@Published`로 감싼다.
@@ -181,6 +202,16 @@ struct WebViewHost: View {
     /// 분석 대기 화면의 전면 광고 (KAN-196). 인자도 회신도 없다.
     let onShowInterstitialAd: () -> Void
 
+    /// 브리지 `getAccessToken`이 웹에 건넬 계정 Access 토큰을 지금 읽는다 (KAN-255). 로그인을 끈 빌드·로그인 안 됨이면 `""`.
+    ///
+    /// 세션 토큰과 달리 값이 아니라 읽기 함수인 이유: 저장소(Keychain) 읽기가 `async`이고, 값이 바뀌는 자리(앱 자체
+    /// 갱신·로그인)를 이 화면이 관측하지 못한다. 그래서 문서가 커밋될 때마다 새로 읽어 민다 (``WebViewCoordinator``).
+    let readAccessToken: () async -> String
+
+    /// 웹이 401 뒤 청한 계정 토큰 갱신 (KAN-255). 결말을 돌려주면 회신(`onAccessTokenRefreshed`)은 호스트가 한다.
+    /// nil은 "갱신하지 않았다"(로그인을 끈 빌드) — 'failed'로 회신한다.
+    let refreshAccessToken: () async -> RefreshOutcome?
+
     /// 결과를 웹으로 주입하려면(`evaluateJavaScript`) 상위가 인스턴스를 알아야 한다.
     var onWebViewCreated: (WKWebView) -> Void = { _ in }
     /// 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다.
@@ -212,6 +243,8 @@ struct WebViewHost: View {
                     onOpenExternalUrl: onOpenExternalUrl,
                     onSetAdConsent: onSetAdConsent,
                     onShowInterstitialAd: onShowInterstitialAd,
+                    readAccessToken: readAccessToken,
+                    refreshAccessToken: refreshAccessToken,
                     onWebViewCreated: onWebViewCreated,
                     onWebViewReleased: onWebViewReleased
                 )
@@ -264,6 +297,8 @@ private struct WebViewRepresentable: UIViewRepresentable {
     let onOpenExternalUrl: (String) -> Void
     let onSetAdConsent: (AdConsent) -> Void
     let onShowInterstitialAd: () -> Void
+    let readAccessToken: () async -> String
+    let refreshAccessToken: () async -> RefreshOutcome?
     let onWebViewCreated: (WKWebView) -> Void
     let onWebViewReleased: (WKWebView) -> Void
 
@@ -279,7 +314,9 @@ private struct WebViewRepresentable: UIViewRepresentable {
             onLogEvent: onLogEvent,
             onOpenExternalUrl: onOpenExternalUrl,
             onSetAdConsent: onSetAdConsent,
-            onShowInterstitialAd: onShowInterstitialAd
+            onShowInterstitialAd: onShowInterstitialAd,
+            readAccessToken: readAccessToken,
+            refreshAccessToken: refreshAccessToken
         )
         // 해제 콜백은 `dismantleUIView`가 static이라 Coordinator를 거쳐야 한다.
         coordinator.onReleased = onWebViewReleased
@@ -434,6 +471,12 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
     /// 이 문서에 마지막으로 밀어 넣은 광고 동의 (KAN-196). ``pushedToken``과 같은 수명·같은 규칙.
     private var pushedAdConsent: String?
 
+    /// 마지막으로 읽은 계정 Access 토큰 (KAN-255). 문서 커밋 때 ``readAccessToken``으로, 갱신 성공 때 새 값으로 바뀐다.
+    private var accessToken: String = ""
+
+    /// 이 문서에 마지막으로 밀어 넣은 계정 Access 토큰 (KAN-255). ``pushedToken``과 같은 수명·같은 규칙.
+    private var pushedAccessToken: String?
+
     /// 지금 화면에 **커밋된** 문서가 있는가. 시작값 false는 첫 문서가 커밋되기 전(아직 아무
     /// 페이지도 없는 순간)을 뜻한다.
     ///
@@ -466,6 +509,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
     private let onOpenExternalUrl: (String) -> Void
     private let onSetAdConsent: (AdConsent) -> Void
     private let onShowInterstitialAd: () -> Void
+    private let readAccessToken: () async -> String
+    private let refreshAccessToken: () async -> RefreshOutcome?
 
     /// 브리지 메시지 수신기. `lazy`인 이유는 dispatcher의 origin 판정 클로저가 `self`(현재 URL과
     /// 최신 allowlist)를 읽어야 하기 때문이다 — 초기화 중에는 잡을 수 없다.
@@ -486,7 +531,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
             onSetAdConsent: { [weak self] consent in self?.onSetAdConsent(consent) },
             onShowInterstitialAd: { [weak self] in self?.onShowInterstitialAd() },
             // 화면·모델과 무관한 출력이라 위 콜백들처럼 호출자에서 내려받지 않는다 (KAN-258).
-            onHaptic: { HapticPlayer.play($0) }
+            onHaptic: { HapticPlayer.play($0) },
+            onRefreshAccessToken: { [weak self] in self?.refreshAccessTokenForWeb() }
         )
     )
 
@@ -501,7 +547,9 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         onLogEvent: @escaping (String, [String: EventParam]) -> Void,
         onOpenExternalUrl: @escaping (String) -> Void,
         onSetAdConsent: @escaping (AdConsent) -> Void,
-        onShowInterstitialAd: @escaping () -> Void
+        onShowInterstitialAd: @escaping () -> Void,
+        readAccessToken: @escaping () async -> String,
+        refreshAccessToken: @escaping () async -> RefreshOutcome?
     ) {
         self.allowedOrigins = allowedOrigins
         self.model = model
@@ -514,6 +562,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         self.onOpenExternalUrl = onOpenExternalUrl
         self.onSetAdConsent = onSetAdConsent
         self.onShowInterstitialAd = onShowInterstitialAd
+        self.readAccessToken = readAccessToken
+        self.refreshAccessToken = refreshAccessToken
         super.init()
     }
 
@@ -570,6 +620,77 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         #endif
     }
 
+    /// 계정 Access 토큰을 지금 문서에 민다 (KAN-255). 판정·`force`의 뜻이 ``pushSessionToken(force:)``와 같다 —
+    /// 같은 순수 함수를 같은 인자 자리로 부른다. allowlist 밖 문서에는 가지 않고 그 문서의 `getAccessToken()`은
+    /// 영영 `""`다 — 안드로이드 `getAccessToken`이 `isOriginAllowedNow`가 아니면 빈 문자열을 주는 규칙의 iOS 판이다.
+    func pushAccessToken(force: Bool = false) {
+        guard let webView else { return }
+        let current = webView.url?.absoluteString
+        guard shouldPushToken(
+            hasCommitted: hasCommittedDocument,
+            forced: force,
+            pushedToken: pushedAccessToken,
+            sessionToken: accessToken,
+            urlAllowed: isAllowedWebUrl(current, allowedOrigins: allowedOrigins)
+        ) else { return }
+        pushedAccessToken = accessToken
+        webView.evaluateJavaScript(BridgeUserScript.accessTokenPushJs(accessToken), completionHandler: nil)
+        #if DEBUG
+        // 토큰 값은 찍지 않는다 (세션 토큰과 같다).
+        smokeLog("ACCESS: pushed origin=\(webOrigin(current ?? "") ?? "?") empty=\(accessToken.isEmpty) forced=\(force)")
+        #endif
+    }
+
+    /// 저장소에서 Access를 새로 읽어 민다 (KAN-255). 읽기가 `async`라 결과가 돌아올 때의 문서에 민다 — 그 사이 문서가
+    /// 바뀌었어도 ``pushAccessToken(force:)``의 판정이 지금 문서의 origin을 다시 본다.
+    private func reloadAndPushAccessToken() {
+        let read = readAccessToken
+        Task { [weak self] in
+            let token = await read()
+            guard let self else { return }
+            self.accessToken = token
+            self.pushAccessToken()
+        }
+    }
+
+    /// 웹의 `refreshAccessToken()` → TokenRefresher → 새 토큰 푸시 → `onAccessTokenRefreshed` 회신 한 번 (KAN-255, §11).
+    /// 브리지가 origin을 이미 걸렀다 — 불허 문서의 요청은 여기 오지 않는다(회신도 없다).
+    ///
+    /// 갱신 본체를 이 객체에 매이지 않은 Task에 싣는다. 안드로이드가 `NonCancellable`로 감싼 이유와 같다: 화면이
+    /// 사라져 갱신이 중간에 끊기면 서버는 Refresh를 회전시켰는데 새 쌍을 저장하지 못해, 다음 갱신이 재사용 거절로
+    /// 로그아웃된다. 구조화되지 않은 Task는 누가 취소하지 않는 한 끝까지 돈다. 회신만 `self`가 살아 있을 때 간다 —
+    /// WebView가 사라졌으면 받을 문서도 없고, 웹은 10초 타임아웃으로 끝낸다.
+    ///
+    /// SignedOut이면 TokenRefresher가 이미 로그아웃 신호로 게이트를 로그인 화면으로 돌린다 — 여기서 더 할 일은 없다.
+    private func refreshAccessTokenForWeb() {
+        let refresh = refreshAccessToken
+        Task { [weak self] in
+            let outcome = await refresh()
+            self?.replyAccessTokenRefreshed(outcome)
+        }
+    }
+
+    /// 메인 액터에서 회신 한 번. 순서(새 토큰 푸시 → 'ok')는 ``accessTokenRefreshReplyScripts(outcome:canPush:)``가 정한다.
+    private func replyAccessTokenRefreshed(_ outcome: RefreshOutcome?) {
+        guard let webView else { return }
+        if case .refreshed(let tokens) = outcome { accessToken = tokens.accessToken }
+        // 강제 푸시 판정 — 이미 같은 값을 밀었어도 'ok' 앞에 한 번 더 민다(setter는 멱등). origin은 force가 못 연다.
+        let canPush = shouldPushToken(
+            hasCommitted: hasCommittedDocument,
+            forced: true,
+            pushedToken: pushedAccessToken,
+            sessionToken: accessToken,
+            urlAllowed: isAllowedWebUrl(webView.url?.absoluteString, allowedOrigins: allowedOrigins)
+        )
+        if canPush, case .refreshed = outcome { pushedAccessToken = accessToken }
+        for script in accessTokenRefreshReplyScripts(outcome: outcome, canPush: canPush) {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+        #if DEBUG
+        smokeLog("ACCESS: refresh replied \(accessTokenRefreshResult(outcome)) pushed=\(canPush)")
+        #endif
+    }
+
     // MARK: WKNavigationDelegate
 
     func webView(
@@ -612,6 +733,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         hasCommittedDocument = false
         pushedToken = nil
         pushedAdConsent = nil
+        pushedAccessToken = nil
         // 이 로드가 지금부터 "기다리는 메인 프레임 로드"다. 앞 로드가 밀려났다면 그 신원은
         // 여기서 버려지고, 뒤늦게 도착할 앞 로드의 실패는 아래 판정이 걸러낸다.
         currentMainFrameNavigation = identity(navigation)
@@ -623,8 +745,12 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         hasCommittedDocument = true
         pushedToken = nil
         pushedAdConsent = nil
+        pushedAccessToken = nil
         pushSessionToken()
         pushAdConsent()
+        // 계정 토큰 (KAN-255): 든 값을 바로 밀고(대기 자리에라도 놓인다), 저장소를 새로 읽어 바뀌었으면 다시 민다.
+        pushAccessToken()
+        reloadAndPushAccessToken()
         #if DEBUG
         smokeLog("NAV: committed \(webView.url?.absoluteString ?? "(nil)")")
         #endif
@@ -643,6 +769,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
          */
         pushSessionToken(force: true)
         pushAdConsent(force: true)
+        pushAccessToken(force: true)
         currentMainFrameNavigation = nil
         model.onPageFinished()
         #if DEBUG

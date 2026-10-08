@@ -26,8 +26,8 @@ private let jsParagraphSeparator = "\u{2029}"
 ///    본다 — 즉 우리 주입이 페이지 스크립트보다 **먼저** 끝나 있어야 한다
 ///
 /// 그래서 브리지 객체 자체를 JS로 적어 `WKUserScript`(`.atDocumentStart`)로 심는다.
-/// 값을 돌려주는 세 메서드(`getContractVersion`·`getSessionToken`·`getAdConsent`)는 JS 안의 값을
-/// 읽고, 상태를 바꾸는 여덟 메서드는 `window.webkit.messageHandlers.accentury.postMessage`로
+/// 값을 돌려주는 네 메서드(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`)는 JS 안의 값을
+/// 읽고, 상태를 바꾸는 나머지 메서드는 `window.webkit.messageHandlers.accentury.postMessage`로
 /// 네이티브에 넘긴다. **웹은 이 차이를 모른다** — `bridge.ts`는 한 글자도 바뀌지 않는다.
 ///
 /// 광고 동의(KAN-196)는 토큰과 **같은 구조**로 심는다 — 문서에 매인 변수 `adConsent`, 네이티브가
@@ -92,6 +92,17 @@ enum BridgeUserScript {
     /// 광고 동의가 setter보다 먼저 도착했을 때 놓아 두는 자리. ``pendingSlotName``과 같은 규칙·같은 근거.
     static let pendingAdConsentSlotName = "__accenturyPendingAdConsent"
 
+    /// 네이티브가 계정 Access 토큰을 밀어 넣는 전역 함수 이름 (KAN-255). ``setterName``과 같은 규칙.
+    ///
+    /// 안드로이드 `getAccessToken`은 JS 스레드에서 저장소를 동기로 읽지만 WKWebView에는 동기 반환이 없다
+    /// (위 "왜 안드로이드에는 없는 파일인가"). 그래서 세션 토큰과 같은 구조 — 문서 변수 `accessToken`,
+    /// 이 setter, ``pendingAccessTokenSlotName`` — 로 심고, 네이티브가 문서 커밋 때와 갱신 성공 직후에 민다
+    /// (`WebViewHost`). 미는 조건도 세션 토큰과 같다(커밋된 origin이 allowlist 안).
+    static let accessTokenSetterName = "__accenturySetAccessToken"
+
+    /// 계정 Access 토큰이 setter보다 먼저 도착했을 때 놓아 두는 자리 (KAN-255). ``pendingSlotName``과 같은 규칙·같은 근거.
+    static let pendingAccessTokenSlotName = "__accenturyPendingAccessToken"
+
     /// 페이지 스크립트보다 먼저 도는 주입 소스.
     ///
     /// 계약 버전을 손으로 적지 않고 ``AccenturyCore/bridgeContractVersion``에서 조립한다 —
@@ -105,6 +116,8 @@ enum BridgeUserScript {
           try { delete window.\(pendingSlotName); } catch (e) { window.\(pendingSlotName) = ""; }
           var adConsent = (typeof window.\(pendingAdConsentSlotName) === "string") ? window.\(pendingAdConsentSlotName) : "";
           try { delete window.\(pendingAdConsentSlotName); } catch (e) { window.\(pendingAdConsentSlotName) = ""; }
+          var accessToken = (typeof window.\(pendingAccessTokenSlotName) === "string") ? window.\(pendingAccessTokenSlotName) : "";
+          try { delete window.\(pendingAccessTokenSlotName); } catch (e) { window.\(pendingAccessTokenSlotName) = ""; }
           /* payload는 대개 문자열 하나지만 `logEvent`(KAN-33)만 인자가 둘이라 객체로 싣는다 —
              웹 계약(`bridge.ts`)이 `logEvent(name, paramsJson)`이고, 이름을 JSON 안에 끼워 넣으면
              네이티브가 파라미터와 같은 신뢰 수준으로 읽게 된다. 봉투의 모양을 갈라 두면 이름은
@@ -122,6 +135,10 @@ enum BridgeUserScript {
             value: function(c){ adConsent = (typeof c === "string") ? c : ""; },
             writable: false, configurable: false
           });
+          Object.defineProperty(window, "\(accessTokenSetterName)", {
+            value: function(a){ accessToken = (typeof a === "string") ? a : ""; },
+            writable: false, configurable: false
+          });
           window.AccenturyBridge = Object.freeze({
             getContractVersion: function(){ return \(contractVersion); },
             getSessionToken: function(){ return token; },
@@ -135,7 +152,9 @@ enum BridgeUserScript {
             getAdConsent: function(){ return adConsent; },
             setAdConsent: function(s){ post("setAdConsent", String(s)); },
             showInterstitialAd: function(){ post("showInterstitialAd"); },
-            haptic: function(t){ post("haptic", String(t)); }
+            haptic: function(t){ post("haptic", String(t)); },
+            getAccessToken: function(){ return accessToken; },
+            refreshAccessToken: function(){ post("refreshAccessToken"); }
           });
         })();
         """
@@ -176,6 +195,15 @@ enum BridgeUserScript {
         return "(function(){ var c = \(literal);"
             + " if (typeof window.\(adConsentSetterName) === \"function\") { window.\(adConsentSetterName)(c); }"
             + " else { window.\(pendingAdConsentSlotName) = c; } })();"
+    }
+
+    /// 네이티브 → JS 계정 Access 토큰 주입 한 조각 (KAN-255). ``sessionTokenPushJs(_:)``와 같은 모양·같은
+    /// 근거이고 setter·대기 자리 이름만 다르다.
+    static func accessTokenPushJs(_ token: String) -> String {
+        let literal = jsStringLiteral(token)
+        return "(function(){ var a = \(literal);"
+            + " if (typeof window.\(accessTokenSetterName) === \"function\") { window.\(accessTokenSetterName)(a); }"
+            + " else { window.\(pendingAccessTokenSlotName) = a; } })();"
     }
 
     /// 임의 문자열을 JS 소스에 넣어도 되는 리터럴로 만든다.

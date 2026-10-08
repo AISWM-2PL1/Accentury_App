@@ -6,9 +6,9 @@ import WebKit
 /// 안드로이드 `AccenturyBridge.kt`의 이식본이고, JS 쪽 절반은 ``BridgeUserScript``다.
 ///
 /// 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
-/// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)·햅틱(KAN-258)까지
-/// 필요한 열세 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
-/// 그중 값을 돌려주는 셋(`getContractVersion`·`getSessionToken`·`getAdConsent`)은 여기로 오지
+/// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)·햅틱(KAN-258)·
+/// 계정 토큰(KAN-255)까지 필요한 열다섯 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
+/// 그중 값을 돌려주는 넷(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`)은 여기로 오지
 /// 않는다 — JS 안에서 끝난다 (``BridgeUserScript`` 참고).
 ///
 /// ## `postToMain`이 없는 이유
@@ -60,6 +60,10 @@ struct BridgeDispatcher {
     /// 웹 버튼의 햅틱 (KAN-258). 계약 안 세 값만 온다 — 어떻게 떨지는 창구 너머가 정한다
     /// (``HapticPlayer``).
     let onHaptic: (Haptic) -> Void
+
+    /// 웹이 401을 받아 청한 계정 토큰 갱신 (KAN-255). 인자가 없고 즉시 돌아온다 — 결과는 창구 너머가
+    /// `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (``WebViewCoordinator``, webview-bridge.md §11).
+    let onRefreshAccessToken: () -> Void
 
     /// 메시지 한 건을 처리한다. 조건에 맞지 않으면 **조용히** 아무 일도 하지 않는다.
     ///
@@ -190,6 +194,16 @@ struct BridgeDispatcher {
                 return
             }
             onHaptic(haptic)
+
+        case "refreshAccessToken":
+            /*
+             * 계정 토큰 갱신 요청 (KAN-255, §11). fire-and-forget — 결과는 `onAccessTokenRefreshed('ok'|'failed')`.
+             *
+             * origin 불허 문서에서 온 요청은 위 guard가 조용히 버린다. 회신도 하지 않는다 — 우리 웹이 아닌 페이지에
+             * 갱신 성패를 알려 줄 이유가 없고, 우리 웹이라면 래퍼의 10초 타임아웃이 실패로 끝낸다 (안드로이드와 같다).
+             * 연타를 여기서 세지 않는 이유는 `startRetest`와 같다 — 줄 세우기의 주인은 TokenRefresher 하나다.
+             */
+            onRefreshAccessToken()
 
         default:
             // 모르는 메서드. 신버전 웹이 구버전 앱에 보낸 호출일 수도 있고(메서드 추가는
