@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>음정 추출 모델을 고르기까지 - RMVPE 벤치마크 기록 - Accentury</title>
+    <meta
+      name="description"
+      content="Accentury 팀이 서버용 음높이(F0) 추출 모델을 고른 벤치마크 기록. 생활 잡음을 섞은 조건에서 RMVPE, FCPE, CREPE 등을 비교했습니다."
+    />
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem 4rem;
+        background: #f3ecd9;
+        color: #2b2723;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
+          "Malgun Gothic", sans-serif;
+        line-height: 1.7;
+      }
+      main,
+      nav {
+        max-width: 42rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 1rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 2.5rem 0 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #d9cdb0;
+      }
+      p,
+      ol,
+      ul {
+        margin: 0 0 1rem;
+      }
+      ol,
+      ul {
+        padding-left: 1.2rem;
+      }
+      a {
+        color: #2b2723;
+      }
+      nav {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid #d9cdb0;
+        font-size: 0.92rem;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>음정 추출 모델을 고르기까지 — RMVPE 벤치마크 기록</h1>
+      <p>
+        녹음 화면의 실시간 곡선은 기기 안에서 가볍게 계산하지만, 서버에서 억양을 분석하려면 더 믿을 만한
+        음높이(F0) 추출기가 필요했습니다.
+      </p>
+      <h2>비교에 쓴 데이터</h2>
+      <p>
+        벤치마크 묶음에는 경남 방언 발화와 표준어 발화를 같은 조건으로 담았습니다. 모든 파일은 16kHz
+        모노입니다. 이 가운데 성별과 주제, 실제 길이를 맞춰 묶음마다 같은 수만큼 고른 통제 비교용 발화가
+        따로 있고, 서로 짝지은 발화끼리는 길이 차이가 거의 없게 골랐습니다.
+      </p>
+      <p>
+        한계도 기록에 적어 두었습니다. 방언 묶음과 표준어 묶음은 화자 구성이 같지 않아 나이 차이 같은 다른
+        요인이 섞여 있습니다. 그래서 묶음 사이의 차이를 순수한 방언 효과로 단정하지 않았습니다.
+      </p>
+      <h2>기준선 만들기</h2>
+      <p>
+        먼저 RMVPE로 전체 발화의 F0를 뽑아 비교 기준으로 삼았습니다. 실패한 파일은 없었고, 처리 시간도
+        음성 길이에 비해 매우 짧았습니다. 묶음마다 일부 문장은 사람이 곡선을 직접 보며 옥타브 오류와 목소리
+        유무 판정을 확인했습니다. RMVPE를 기준으로 삼았으므로 다른 후보는 RMVPE와 얼마나 일치하는지로 쟀고,
+        어느 모델이 절대적으로 더 정확하다고는 말하지 않습니다.
+      </p>
+      <h2>잡음을 섞었더니</h2>
+      <p>
+        후보는 FCPE, CREPE, PENN, pYIN이었습니다. 잡음 없는 음성에서는 FCPE가 가장 좋았지만 생활 잡음을
+        섞자 순위가 뒤집혔습니다. DEMAND 생활 잡음 여러 환경을 신호 대 잡음비(음성이 잡음보다 얼마나 큰지를
+        나타내는 값)를 단계별로 바꿔 섞은 조건에서 비교했습니다. 방언 발화의 프레임 오류율(FFE, 음높이를
+        크게 틀렸거나 목소리 유무를 잘못 판단한 구간의 비율)은 대부분의 조건에서 RMVPE가 가장 낮았습니다.
+        잡음이 약한 조건에서부터 FCPE의 오류가 RMVPE보다 눈에 띄게 늘었습니다.
+      </p>
+      <p>
+        잡음은 크기보다 성격이 중요했습니다. 사람들이 웅성거리는 구내식당 잡음이 기차역 소음보다 훨씬
+        어려운 조건이었습니다. 카페처럼 사람 소리가 있는 곳에서 쓰는 상황을 전제로 했기 때문에 이 결과를
+        무겁게 보고, 서버 쪽 F0 추출기로 RMVPE를 쓰기로 했습니다. 다만 FFE는 각 모델이 잡음 없는 자기
+        출력을 얼마나 지키는지를 본 값이지 절대 정확도가 아닙니다.
+      </p>
+      <p>출처: 팀 내부 측정 기록 기준.</p>
+    </main>
+
+    <nav aria-label="사이트">
+      <a href="/">홈</a>
+      <a href="/about.html">소개</a>
+      <a href="/guide/index.html">사투리 이야기</a>
+      <a href="/privacy.html">개인정보처리방침</a>
+      <a href="/contact.html">문의</a>
+    </nav>
+  </body>
+</html>

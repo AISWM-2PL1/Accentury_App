@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>사투리 이야기 - Accentury</title>
+    <meta
+      name="description"
+      content="Accentury 사투리 억양 테스트를 만들며 직접 정하고 측정한 내용을 모은 글 목록입니다. 테스트 진행 방식, 점수와 등급, 피치 곡선, 모델 벤치마크, 녹음 환경, 음성 데이터 처리를 다룹니다."
+    />
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem 4rem;
+        background: #f3ecd9;
+        color: #2b2723;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
+          "Malgun Gothic", sans-serif;
+        line-height: 1.7;
+      }
+      main,
+      nav {
+        max-width: 42rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 1rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 2.5rem 0 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #d9cdb0;
+      }
+      p,
+      ol,
+      ul {
+        margin: 0 0 1rem;
+      }
+      ol,
+      ul {
+        padding-left: 1.2rem;
+      }
+      a {
+        color: #2b2723;
+      }
+      nav {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid #d9cdb0;
+        font-size: 0.92rem;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>사투리 이야기</h1>
+
+      <p>
+        Accentury를 만들면서 우리가 직접 정하고 측정한 것들을 글로 정리했습니다. 테스트가 어떤 순서로
+        진행되는지, 점수와 등급은 어떻게 정해지는지, 녹음한 목소리는 어떻게 다루는지를 실제 서비스에
+        적용된 기준 그대로 적었습니다.
+      </p>
+
+      <ul>
+        <li>
+          <a href="/guide/how-the-test-works.html">사투리 억양 테스트는 어떻게 진행되나</a> — 마이크
+          점검부터 결과 화면까지 화면 순서대로
+        </li>
+        <li>
+          <a href="/guide/five-tiers.html">다섯 등급은 어떻게 나뉘나</a> — 억양·단어·종합 점수와 다섯
+          등급
+        </li>
+        <li>
+          <a href="/guide/pitch-curve.html">목소리에서 억양을 꺼내는 법 — 피치 곡선</a> — 녹음 화면의 실시간
+          곡선이 만들어지는 과정
+        </li>
+        <li>
+          <a href="/guide/choosing-pitch-model.html">음정 추출 모델을 고르기까지 — RMVPE 벤치마크 기록</a> —
+          잡음을 섞어 후보 모델을 비교한 측정 기록
+        </li>
+        <li>
+          <a href="/guide/recording-environment.html">녹음 환경이 결과에 미치는 영향</a> — 녹음 형식과
+          녹음 직후 검사하는 항목
+        </li>
+        <li>
+          <a href="/guide/voice-data.html">내 목소리는 저장되나 — 음성 데이터 처리</a> — 음성이 지워지는
+          시점과 선택 동의
+        </li>
+        <li><a href="/guide/faq.html">자주 묻는 질문</a> — 마이크 권한, 다시 녹음, 결과 공유와 보관</li>
+        <li>
+          <a href="/guide/team-story.html">Accentury를 만든 이유</a> — 무엇을 만들고 싶었나
+        </li>
+      </ul>
+    </main>
+
+    <nav aria-label="사이트">
+      <a href="/">홈</a>
+      <a href="/about.html">소개</a>
+      <a href="/guide/index.html">사투리 이야기</a>
+      <a href="/privacy.html">개인정보처리방침</a>
+      <a href="/contact.html">문의</a>
+    </nav>
+  </body>
+</html>

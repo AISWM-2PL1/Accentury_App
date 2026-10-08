@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>목소리에서 억양을 꺼내는 법 - 피치 곡선 - Accentury</title>
+    <meta
+      name="description"
+      content="Accentury 녹음 화면의 '내 억양' 곡선이 만들어지는 과정. 16kHz 녹음을 짧은 간격으로 나눠 음높이를 찾고, 반음 단위로 바꿔 곡선으로 그립니다."
+    />
+    <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem 4rem;
+        background: #f3ecd9;
+        color: #2b2723;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
+          "Malgun Gothic", sans-serif;
+        line-height: 1.7;
+      }
+      main,
+      nav {
+        max-width: 42rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 1rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 2.5rem 0 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #d9cdb0;
+      }
+      p,
+      ol,
+      ul {
+        margin: 0 0 1rem;
+      }
+      ol,
+      ul {
+        padding-left: 1.2rem;
+      }
+      a {
+        color: #2b2723;
+      }
+      nav {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid #d9cdb0;
+        font-size: 0.92rem;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>목소리에서 억양을 꺼내는 법 — 피치 곡선</h1>
+      <p>
+        음성 문항을 녹음하는 동안 화면 아래쪽에 '내 억양' 곡선이 그려집니다.
+      </p>
+      <h2>피치와 F0</h2>
+      <p>
+        목소리가 1초에 몇 번 떨리는지를 기본 주파수, 줄여서 F0라고 합니다. 귀에는 음의 높낮이(피치)로
+        들립니다. 시간에 따라 F0가 오르내리는 모양을 이은 선이 피치 곡선이고, Accentury는 이 곡선의 모양을
+        억양으로 봅니다.
+      </p>
+      <h2>곡선이 만들어지는 순서</h2>
+      <p>
+        마이크 소리는 16kHz 모노 형식으로 받습니다. 이것을 짧은 길이의 창으로 잘라 보는데, 창을 조금씩
+        밀며 겹쳐 봅니다. 그래서 곡선에는 짧은 간격마다 점이 하나씩 늘어납니다.
+      </p>
+      <p>
+        창마다 YIN이라는 음높이 추정 알고리즘이 F0를 찾습니다. 소리의 반복 주기를 찾는 방식입니다. 주기가
+        뚜렷하지 않거나 소리가 너무 작은 창은 목소리가 없는 구간으로 처리합니다. 라이선스 문제로 기성
+        라이브러리를 쓰지 않고 논문을 보고 직접 구현했으며, Android·iOS·웹이 같은 값을 씁니다.
+      </p>
+      <p>
+        찾은 값은 반음(semitone) 단위로 바꿉니다. 반음은 피아노 건반 한 칸만큼의 높이 차이입니다. 곡선의
+        세로축은 목소리 점검 때 잡은 내 중심 높이를 가운데에 둡니다. 정해진 폭을 벗어난 높이는 곡선의
+        위아래 끝에 붙여 그립니다.
+      </p>
+      <p>
+        점마다 생기는 작은 떨림은 지수이동평균(새 값과 직전 값을 일정 비율로 섞는 계산)으로 다듬고, 점과 점
+        사이는 부드러운 곡선으로 잇습니다. 자음처럼 짧게 끊기는 빈틈은 직전 값으로 잇고, 그보다 긴 쉼에서는
+        선을 끊습니다.
+      </p>
+      <h2>왜 이렇게 만들었나</h2>
+      <p>
+        녹음 중에는 이미 들어온 값만 써서 곡선을 그립니다. 뒤에 올 값을 참고하면 새 점이 들어올 때마다
+        이미 그린 부분이 다시 그려져, 곡선이 혼자 꿈틀대는 것처럼 보이기 때문입니다. 녹음이 끝난 확인
+        화면에서는 앞뒤를 다 볼 수 있으므로 짧은 빈틈을 이어 줍니다.
+      </p>
+      <p>
+        소리를 낸 순간부터 곡선에 나타나기까지는 약간의 지연이 있습니다. 창을 채우는 시간, 다듬는 계산,
+        화면 갱신과 기기 버퍼가 모두 조금씩 시간을 씁니다.
+      </p>
+      <p>
+        이 곡선은 말하는 동안 모양을 보여 주는 용도이고, 점수는 녹음을 서버로 보낸 뒤 따로 분석해서
+        매깁니다. 위의 가이드 곡선과 아래의 내 곡선은 시각을 맞춘 것이 아니라 각자 칸의 폭을 채우므로, 같은
+        가로 위치끼리가 아니라 오르내림의 모양을 견주어 보면 됩니다.
+      </p>
+    </main>
+
+    <nav aria-label="사이트">
+      <a href="/">홈</a>
+      <a href="/about.html">소개</a>
+      <a href="/guide/index.html">사투리 이야기</a>
+      <a href="/privacy.html">개인정보처리방침</a>
+      <a href="/contact.html">문의</a>
+    </nav>
+  </body>
+</html>

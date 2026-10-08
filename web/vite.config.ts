@@ -2,9 +2,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { configDefaults } from 'vitest/config'
+// 배포 index.html 주석 제거 (KAN-275 리뷰) - 테스트가 vite를 끌어오지 않게 함수는 따로 둔다
+import { stripSourceComments } from './src/build/stripSourceComments'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    { name: 'strip-source-comments', apply: 'build', transformIndexHtml: stripSourceComments },
+  ],
   /*
    * 개발 서버는 배포와 같은 단일 출처로 만든다 (API 명세서 §1.1·§2.5 - 화면과 /v0/*가 같은
    * 도메인, CORS 없음). `/v0`를 로컬 백엔드로 프록시하면 `VITE_API_BASE=`(빈 값, 상대 경로)로
