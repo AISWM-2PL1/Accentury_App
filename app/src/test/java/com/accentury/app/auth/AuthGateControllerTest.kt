@@ -702,6 +702,31 @@ class AuthGateControllerTest {
     }
 
     @Test
+    fun `탈퇴 정리 중에 앞서 시작된 갱신이 끝나도 새 로그인이 아니라 정리를 마친다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setResponseCode(204))
+        // 탈퇴 전에 시작된 기존 세션 갱신. 응답을 붙잡아 두었다가 IdP 정리 중에 풀어 쌍을 jwt_2로 바꾼다(KAN-251 리뷰 P1 재검증).
+        val held = CompletableDeferred<Unit>()
+        val refresher = TokenRefresher(store) { held.await(); AuthResult.Success(AuthTokens("jwt_2", "rt_2")) }
+        val refreshing = async { refresher.refresh(staleAccess = null) }
+        runCurrent()
+
+        val outcome = gate.withdraw {
+            held.complete(Unit)
+            refreshing.await()
+        }
+
+        assertEquals(WithdrawOutcome.Withdrawn, outcome)
+        assertEquals(RefreshOutcome.Refreshed(AuthTokens("jwt_2", "rt_2")), refreshing.await())
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
     fun `탈퇴 429면 탈퇴 안 됨으로 토큰을 두고 대기 시간을 알린다`() = runTest {
         val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         val gate = controller(store)

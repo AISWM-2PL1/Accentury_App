@@ -551,6 +551,31 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
     }
 
+    func test탈퇴_정리_중에_앞서_시작된_갱신이_끝나도_새_로그인이_아니라_정리를_마친다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([(200, tokens(1)), (200, account("COMPLETE")), (204, "")])
+        await gate.bootstrap()
+        // 탈퇴 전에 시작된 기존 세션 갱신. 응답을 붙잡아 두었다가 IdP 정리 중에 풀어 쌍을 jwt_2로 바꾼다(KAN-251 리뷰 P1 재검증).
+        let (held, releaseRefresh) = AsyncStream<Void>.makeStream()
+        let refresher = TokenRefresher(store: store) { _ in
+            for await _ in held { break }
+            return .success(AuthTokens("jwt_2", "rt_2"))
+        }
+        let refreshing = Task { await refresher.refresh(staleAccess: nil) }
+
+        let outcome = await gate.withdraw {
+            releaseRefresh.yield()
+            _ = await refreshing.value
+        }
+
+        XCTAssertEqual(.withdrawn, outcome)
+        let refreshed = await refreshing.value
+        XCTAssertEqual(.refreshed(AuthTokens("jwt_2", "rt_2")), refreshed)
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+    }
+
     func test탈퇴_429면_탈퇴_안_됨으로_토큰을_두고_대기_시간을_알린다() async {
         let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         let (gate, _) = controller(store)
