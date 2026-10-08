@@ -23,7 +23,7 @@ final class BridgeUserScriptTests: XCTestCase {
         XCTAssertTrue(bumped.contains("return \(bridgeContractVersion + 1);"))
     }
 
-    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 열세 이름. 하나라도 빠지면
+    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 열다섯 이름. 하나라도 빠지면
     /// 웹 래퍼가 false로 내려가 그 경로가 조용히 죽는다 — 광고 셋(KAN-196)은 `readAdConsent()`가
     /// null이 되어 시트도 링크도 광고도 없는 "웹 단독" 모양으로 떨어진다.
     func testAllContractMethodsAreDefined() {
@@ -41,6 +41,8 @@ final class BridgeUserScriptTests: XCTestCase {
             "setAdConsent",
             "showInterstitialAd",
             "haptic",
+            "getAccessToken",
+            "refreshAccessToken",
         ] {
             XCTAssertTrue(source.contains("\(method):"), "브리지 객체에 \(method)이(가) 없다")
         }
@@ -151,6 +153,68 @@ final class BridgeUserScriptTests: XCTestCase {
         )
         // 토큰 자리는 건드리지 않는다.
         XCTAssertEqual("", token(in: second))
+    }
+
+    // MARK: 계정 Access 토큰 심기 (KAN-255)
+
+    /// 세션 토큰과 같은 구조다 — 시작값 `""`, 심보다 먼저 온 값은 대기 자리에서, setter는 가로챌 수 없다.
+    /// 갱신 요청은 인자 없이 네이티브로 넘어간다.
+    func testAccessTokenIsShimmedLikeTheSessionToken() {
+        XCTAssertTrue(source.contains(#"typeof window.\#(BridgeUserScript.pendingAccessTokenSlotName) === "string""#))
+        XCTAssertTrue(source.contains("delete window.\(BridgeUserScript.pendingAccessTokenSlotName);"))
+        XCTAssertTrue(source.contains(#"Object.defineProperty(window, "\#(BridgeUserScript.accessTokenSetterName)""#))
+        XCTAssertTrue(source.contains(#"accessToken = (typeof a === "string") ? a : "";"#))
+        XCTAssertTrue(source.contains("getAccessToken: function(){ return accessToken; }"))
+        XCTAssertTrue(source.contains(#"post("refreshAccessToken")"#))
+    }
+
+    /// 실행까지 본다: 심이 먼저든 push가 먼저든 `getAccessToken()`이 민 값을 돌려주고, 밀기 전에는 `""`다.
+    /// 세션 토큰 자리와 섞이지 않는다.
+    func testAccessTokenReachesTheDocumentInEitherOrder() {
+        let first = makeContext()
+        first.evaluateScript(BridgeUserScript.source)
+        XCTAssertEqual("", first.evaluateScript("window.AccenturyBridge.getAccessToken()")?.toString())
+        first.evaluateScript(BridgeUserScript.accessTokenPushJs("acc_1"))
+        XCTAssertEqual("acc_1", first.evaluateScript("window.AccenturyBridge.getAccessToken()")?.toString())
+        XCTAssertEqual("", token(in: first))
+
+        let second = makeContext()
+        second.evaluateScript(BridgeUserScript.accessTokenPushJs("acc_\"2"))
+        second.evaluateScript(BridgeUserScript.source)
+        XCTAssertEqual("acc_\"2", second.evaluateScript("window.AccenturyBridge.getAccessToken()")?.toString())
+        XCTAssertTrue(
+            second.evaluateScript("typeof window.__accenturyPendingAccessToken === 'undefined'").toBool()
+        )
+    }
+
+    /// 갱신 성공 회신의 순서 (KAN-255, §11): 새 토큰을 먼저 밀고 그 뒤에 'ok'를 보낸다. 웹은 'ok'를 받는 그 자리에서
+    /// `getAccessToken()`을 다시 읽으므로, 회신 슬롯 안에서 읽은 값이 새 토큰이어야 한다 — 실제로 돌려 본다.
+    func testRefreshReplyPushesTheNewTokenBeforeOk() {
+        let context = makeContext()
+        context.evaluateScript(BridgeUserScript.source)
+        context.evaluateScript(BridgeUserScript.accessTokenPushJs("old"))
+        context.evaluateScript(
+            "window.AccenturyWeb = { onAccessTokenRefreshed: function(r){"
+                + " window.seen = r + ':' + window.AccenturyBridge.getAccessToken(); } };"
+        )
+        let scripts = accessTokenRefreshReplyScripts(
+            outcome: .refreshed(AuthTokens(accessToken: "new", refreshToken: "r")),
+            canPush: true
+        )
+        XCTAssertEqual(2, scripts.count)
+        for script in scripts { context.evaluateScript(script) }
+        XCTAssertEqual("ok:new", context.evaluateScript("window.seen")?.toString())
+    }
+
+    /// 실패·불허 문서는 토큰을 밀지 않고 회신만 한 번 한다.
+    func testRefreshReplyWithoutPushIsJustTheReply() {
+        let tokens = AuthTokens(accessToken: "new", refreshToken: "r")
+        XCTAssertEqual([accessTokenRefreshedDeliveryJs(.signedOut)], accessTokenRefreshReplyScripts(outcome: .signedOut, canPush: true))
+        XCTAssertEqual([accessTokenRefreshedDeliveryJs(nil)], accessTokenRefreshReplyScripts(outcome: nil, canPush: true))
+        XCTAssertEqual(
+            [accessTokenRefreshedDeliveryJs(.refreshed(tokens))],
+            accessTokenRefreshReplyScripts(outcome: .refreshed(tokens), canPush: false)
+        )
     }
 
     // MARK: 토큰 주입 JS

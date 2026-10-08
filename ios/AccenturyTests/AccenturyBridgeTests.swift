@@ -28,6 +28,7 @@ final class AccenturyBridgeTests: XCTestCase {
         var consents: [AdConsent] = []
         var interstitialCalls = 0
         var haptics: [Haptic] = []
+        var refreshAccessTokenCalls = 0
     }
 
     private func makeDispatcher(
@@ -45,7 +46,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onOpenExternalUrl: { sink.externalUrls.append($0) },
             onSetAdConsent: { sink.consents.append($0) },
             onShowInterstitialAd: { sink.interstitialCalls += 1 },
-            onHaptic: { sink.haptics.append($0) }
+            onHaptic: { sink.haptics.append($0) },
+            onRefreshAccessToken: { sink.refreshAccessTokenCalls += 1 }
         )
     }
 
@@ -533,5 +535,23 @@ final class AccenturyBridgeTests: XCTestCase {
         dispatcher.handle(method: "haptic", payload: 1)
         dispatcher.handle(method: "haptic", payload: ["type": "tap"])
         XCTAssertTrue(sink.haptics.isEmpty)
+    }
+
+    // MARK: refreshAccessToken (KAN-255)
+
+    /// 우리 웹의 요청은 갱신 창구로 정확히 한 번 간다. payload는 없다 — 무엇이 와도 같은 요청이다.
+    func testRefreshAccessTokenReachesItsCallbackOnceFromAnAllowedOrigin() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+        dispatcher.handle(method: "refreshAccessToken", payload: nil)
+        XCTAssertEqual(1, sink.refreshAccessTokenCalls)
+    }
+
+    /// 불허 문서의 요청은 조용히 버린다 — 갱신도 회신도 없다(웹은 10초 타임아웃으로 끝낸다, §11).
+    func testRefreshAccessTokenIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
+        dispatcher.handle(method: "refreshAccessToken", payload: nil)
+        XCTAssertEqual(0, sink.refreshAccessTokenCalls)
     }
 }
