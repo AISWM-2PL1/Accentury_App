@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import {
   completeWordAttempt,
@@ -202,6 +202,63 @@ describe('인증 — 계정 토큰과 401 갱신 (KAN-255)', () => {
 
     expect(error.code).toBe('UNAUTHENTICATED')
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('첫 토큰 대기 — iOS 첫 문서 지연 (KAN-255 리뷰 P0)', () => {
+  // getToken을 주입하지 않아야 기본 공급(waitForAccessToken)을 탄다
+  const bridgeDeps = (fetchImpl: FetchLike): WordApiDeps => ({ fetchImpl, refreshToken: async () => false })
+  const appBridge = (getAccessToken: () => string) => {
+    window.AccenturyBridge = { requestMicPermission: vi.fn(), startVoiceItem: vi.fn(), getContractVersion: () => 2, getAccessToken }
+  }
+
+  afterEach(() => {
+    delete window.AccenturyBridge
+    vi.useRealTimers()
+  })
+
+  it('처음엔 빈 토큰이어도 300ms 뒤 주입되면 그 토큰으로 목록을 부른다', async () => {
+    vi.useFakeTimers()
+    let token = ''
+    appBridge(() => token)
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, SET_LIST))
+
+    const pending = fetchWordSets(API, bridgeDeps(fetchImpl))
+    await vi.advanceTimersByTimeAsync(300)
+    token = 'acc-late'
+    await vi.advanceTimersByTimeAsync(100)
+
+    await expect(pending).resolves.toEqual(SET_LIST)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect((fetchImpl.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBe('Bearer acc-late')
+  })
+
+  it('앱 실행인데 2초 내내 빈 토큰이면 CLIENT_NOT_SIGNED_IN, 네트워크 없음', async () => {
+    vi.useFakeTimers()
+    appBridge(() => '')
+    const fetchImpl = vi.fn<FetchLike>()
+
+    const pending = caught(fetchWordSets(API, bridgeDeps(fetchImpl)))
+    await vi.advanceTimersByTimeAsync(1_900)
+    let settled = false
+    void pending.then(() => (settled = true))
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect((await pending).code).toBe('CLIENT_NOT_SIGNED_IN')
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('브리지가 없으면(브라우저 단독) 기다리지 않고 즉시 CLIENT_NOT_SIGNED_IN', async () => {
+    vi.useFakeTimers()
+    const fetchImpl = vi.fn<FetchLike>()
+
+    // 타이머를 한 번도 진행하지 않아도 끝나야 한다
+    const error = await caught(fetchWordSets(API, bridgeDeps(fetchImpl)))
+
+    expect(error.code).toBe('CLIENT_NOT_SIGNED_IN')
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })
 
