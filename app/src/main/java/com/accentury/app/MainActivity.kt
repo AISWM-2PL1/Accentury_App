@@ -65,6 +65,7 @@ import com.accentury.app.audio.QualityStatus
 import com.accentury.app.audio.WavWriter
 import com.accentury.app.ads.AdsController
 import com.accentury.app.bridge.VoiceItemStart
+import com.accentury.app.bridge.accessTokenRefreshedDeliveryJs
 import com.accentury.app.bridge.adDismissedRetestFailure
 import com.accentury.app.bridge.itemResultDeliveryJs
 import com.accentury.app.bridge.retestFailedDeliveryJs
@@ -136,10 +137,13 @@ import com.accentury.app.web.buildWebUrl
 import com.accentury.app.web.parseAppLink
 import com.accentury.app.web.webOrigin
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 
 
@@ -815,6 +819,52 @@ private fun TestFlow(
      */
     fun startRetestAfterFailure() = proceedRetest()
 
+    /*
+     * 계정 토큰 (KAN-255, webview-bridge.md §11). 단어 학습 웹이 Access를 읽고, 401이면 갱신을 청한다.
+     *
+     * 로그인을 끈 빌드(익명 모드)는 늘 빈 토큰·'failed'다. authClients를 아예 깨우지 않는다 — 예전 로그인 빌드가
+     * Keystore에 남긴 토큰이 웹으로 새면 익명 빌드에서 계정 API가 열린다(AnonymousFlow KDoc과 같은 이유).
+     */
+    val authClients = if (BuildConfig.LOGIN_ENABLED) remember(appContext) { (appContext as AccenturyApplication).authClients } else null
+
+    /*
+     * 브리지 getAccessToken이 JS 스레드(바인더 스레드)에서 동기로 부른다. 저장소 읽기가 suspend라 runBlocking으로
+     * 잇는다 — AccessTokenInterceptor(AuthHttp.kt)와 같은 선례다. 메인 스레드가 아니므로 막혀도 UI는 멈추지 않고,
+     * 저장소는 메모리 캐시라 실제로 기다리는 일은 첫 읽기(복호화) 정도다.
+     */
+    fun currentAccessToken(): String =
+        authClients?.let { clients -> runBlocking { clients.store.read() }?.accessToken }.orEmpty()
+
+    /**
+     * 웹의 갱신 요청 → TokenRefresher → `onAccessTokenRefreshed` 회신 한 번 (KAN-255, §11). 메인 스레드에서 불린다.
+     *
+     * staleAccess로 **지금 저장된 값**을 넘긴다. 웹이 401을 받은 토큰을 네이티브는 모르므로, 저장된 값과 같다고
+     * 보고 서버에 묻게 하는 것이다. 앱 자체 OkHttp 갱신이 먼저 돌고 있으면 TokenRefresher 뮤텍스에서 줄을 서고,
+     * 차례가 오면 저장소가 이미 새 값이라 서버에 묻지 않고 그 결과로 회신한다 — Refresh 회전 재사용 사고가 없다.
+     * 웹은 갱신 요청을 하나로 합쳐 보내므로(§11 동시 요청) 실제로 겹치는 상대는 앱 자체 갱신뿐이다.
+     *
+     * 갱신 본체는 NonCancellable이다. 화면 회전 등으로 이 스코프가 취소돼 서버는 회전했는데 저장 전에 끊기면
+     * 옛 Refresh만 남아 다음 갱신이 재사용 거절로 로그아웃된다. 회신은 WebView가 있을 때만 닿고, 없으면 웹이
+     * 10초 타임아웃으로 끝낸다.
+     *
+     * SignedOut이면 TokenRefresher가 이미 onSignedOut으로 게이트를 로그인 화면으로 돌린다 — 여기서 더 할 일은 없다.
+     */
+    fun refreshAccessToken() {
+        val clients = authClients ?: run {
+            webView?.evaluateJavascript(accessTokenRefreshedDeliveryJs(null), null)
+            return
+        }
+        scope.launch {
+            val outcome = withContext(NonCancellable) {
+                runCatching {
+                    clients.refresher.refresh(staleAccess = clients.store.read()?.accessToken)
+                }.getOrNull()
+            }
+            // evaluateJavascript는 메인 스레드에서만 — 이 스코프(rememberCoroutineScope)의 기본 디스패처가 메인이다.
+            webView?.evaluateJavascript(accessTokenRefreshedDeliveryJs(outcome), null)
+        }
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             WebViewHost(
@@ -886,6 +936,8 @@ private fun TestFlow(
                 readAdConsent = { ads.consentStore.read() },
                 onSetAdConsent = { ads.setConsent(it) },
                 onShowInterstitialAd = { ads.interstitial.show(activity) },
+                accessToken = { currentAccessToken() },
+                onRefreshAccessToken = { refreshAccessToken() },
                 onWebViewCreated = { webView = it },
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.

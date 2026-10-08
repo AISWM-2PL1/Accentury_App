@@ -66,6 +66,8 @@ sealed interface WebLoadState {
  * @param readAdConsent 광고 동의 정본 (KAN-196). 브리지가 JS 스레드에서 동기로 읽는다
  * @param onSetAdConsent 시트에서 고른 동의 (KAN-196). `granted`·`denied`만 온다. 메인 스레드로 온다
  * @param onShowInterstitialAd 대기 화면의 전면 광고 (KAN-196). 메인 스레드로 온다
+ * @param accessToken 계정 Access 토큰 (KAN-255). 브리지가 JS 스레드에서 동기로 읽는다
+ * @param onRefreshAccessToken 웹이 401 뒤 청한 계정 토큰 갱신 (KAN-255). 메인 스레드로 온다
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
  */
@@ -85,6 +87,8 @@ fun WebViewHost(
     readAdConsent: () -> AdConsent,
     onSetAdConsent: (AdConsent) -> Unit,
     onShowInterstitialAd: () -> Unit,
+    accessToken: () -> String,
+    onRefreshAccessToken: () -> Unit,
     modifier: Modifier = Modifier,
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
@@ -192,6 +196,8 @@ fun WebViewHost(
                                 onShowInterstitialAd = onShowInterstitialAd,
                                 // 웹 버튼의 햅틱 (KAN-258) — 이 WebView에서 낸다. 브리지가 메인으로 넘긴 뒤 부른다.
                                 onHaptic = { performHaptic(it) },
+                                accessToken = accessToken,
+                                onRefreshAccessToken = onRefreshAccessToken,
                             ),
                             "AccenturyBridge",
                         )
