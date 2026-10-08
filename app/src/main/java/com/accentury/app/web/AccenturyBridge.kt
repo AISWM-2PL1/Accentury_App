@@ -17,7 +17,7 @@ import com.accentury.app.ui.components.Haptic
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
  * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
- * 햅틱(KAN-258)까지 필요한 열세 메서드만 둔다.
+ * 햅틱(KAN-258)·계정 토큰(KAN-255)까지 필요한 열다섯 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -52,6 +52,10 @@ import com.accentury.app.ui.components.Haptic
  *   (InterstitialGate)
  * @param onHaptic 웹 버튼의 햅틱 (KAN-258). 계약 안 세 값만 온다 — 어떻게 떨지는 창구 너머가 정한다
  *   (WebViewHost의 [com.accentury.app.ui.components.performHaptic])
+ * @param accessToken 계정 Access 토큰 공급자 (KAN-255). [getAccessToken]이 **JS 스레드에서 동기로** 부르므로
+ *   임의 스레드에서 안전해야 한다. 로그인 안 됨·로그인 끈 빌드면 빈 문자열
+ * @param onRefreshAccessToken 웹이 401을 받아 청한 계정 토큰 갱신 (KAN-255). 즉시 돌아오고, 결과는 창구 너머가
+ *   `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (webview-bridge.md §11)
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -69,6 +73,8 @@ class AccenturyBridge(
     private val onSetAdConsent: (AdConsent) -> Unit,
     private val onShowInterstitialAd: () -> Unit,
     private val onHaptic: (Haptic) -> Unit,
+    private val accessToken: () -> String,
+    private val onRefreshAccessToken: () -> Unit,
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -307,6 +313,32 @@ class AccenturyBridge(
                 return@postToMain
             }
             onHaptic(haptic)
+        }
+    }
+
+    /**
+     * 계정 Access 토큰 — 단어 학습 API(`/v0/learning/word-*`)의 Authorization에 싣는다 (KAN-255, §11).
+     *
+     * [getSessionToken]과 같은 꼴이다: 비밀값을 동기로 돌려주므로 postToMain으로 미룰 수 없어 메인 스레드가
+     * 유지하는 [isOriginAllowedNow] 플래그를 본다. allowlist(§7)와 이 검사를 이중으로 거는 이유도 같다 — 로드
+     * 이후 리다이렉트로 allowlist 밖 문서가 남아 있을 수 있고, 계정 토큰은 세션 토큰보다 수명·권한이 넓다.
+     * 허용이 아니면 빈 문자열이다(웹 래퍼가 null로 정규화 → `CLIENT_NOT_SIGNED_IN`).
+     *
+     * 만료 여부는 보지 않는다 — 만료는 서버 401로 드러나고 그때 [refreshAccessToken]이 갱신한다.
+     */
+    @JavascriptInterface
+    fun getAccessToken(): String = if (isOriginAllowedNow()) accessToken() else ""
+
+    /**
+     * 계정 토큰 갱신 요청 (KAN-255, §11). fire-and-forget — 결과는 `onAccessTokenRefreshed('ok'|'failed')`로 간다.
+     *
+     * origin 불허 문서에서 온 요청은 조용히 버린다. 회신도 하지 않는다 — 우리 웹이 아닌 페이지에 갱신 성패를
+     * 알려 줄 이유가 없고, 우리 웹이라면 래퍼의 10초 타임아웃이 실패로 끝낸다 (§11).
+     */
+    @JavascriptInterface
+    fun refreshAccessToken() {
+        postToMain {
+            if (isCurrentUrlAllowed()) onRefreshAccessToken()
         }
     }
 }
