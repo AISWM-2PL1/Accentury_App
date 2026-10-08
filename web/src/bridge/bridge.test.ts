@@ -444,7 +444,9 @@ describe('refreshAccessToken — 계정 토큰 갱신 요청 (KAN-255)', () => {
     await expect(unknown).resolves.toBe(false)
   })
 
-  it('회신이 timeoutMs 안에 안 오면 false, 슬롯도 해제한다', async () => {
+  // KAN-255 리뷰 P1: 타임아웃은 호출자만 포기시킨다. 슬롯은 네이티브 회신이 올 때까지 남아야
+  // 늦은 회신이 뒤 요청의 슬롯에 떨어지지 않는다 (예전 「타임아웃이면 슬롯 해제」를 바꿨다)
+  it('회신이 timeoutMs 안에 안 오면 false지만 슬롯은 남고, 늦은 회신이 와야 해제된다', async () => {
     vi.useFakeTimers()
     try {
       window.AccenturyBridge = fakeBridge({ refreshAccessToken: vi.fn() })
@@ -455,7 +457,35 @@ describe('refreshAccessToken — 계정 토큰 갱신 요청 (KAN-255)', () => {
       vi.advanceTimersByTime(1)
 
       await expect(pending).resolves.toBe(false)
+      expect(window.AccenturyWeb?.onAccessTokenRefreshed).toBeTypeOf('function')
+      window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+      await Promise.resolve()
       expect(window.AccenturyWeb).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('타임아웃 뒤 요청은 네이티브를 다시 부르지 않고 같은 작업을 기다려, 늦은 ok로 true다', async () => {
+    vi.useFakeTimers()
+    try {
+      const refresh = vi.fn()
+      window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+      const a = refreshAccessToken(1_000)
+      vi.advanceTimersByTime(1_000)
+      await expect(a).resolves.toBe(false)
+
+      const b = refreshAccessToken(10_000)
+      expect(refresh).toHaveBeenCalledTimes(1)
+      window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+      await expect(b).resolves.toBe(true)
+
+      // 회신으로 작업이 끝났으니 다음 요청은 네이티브를 새로 부른다
+      const c = refreshAccessToken(10_000)
+      expect(refresh).toHaveBeenCalledTimes(2)
+      window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+      await expect(c).resolves.toBe(false)
     } finally {
       vi.useRealTimers()
     }
@@ -465,9 +495,9 @@ describe('refreshAccessToken — 계정 토큰 갱신 요청 (KAN-255)', () => {
     const refresh = vi.fn()
     window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
 
+    // 호출자마다 타임아웃이 따로라 Promise 객체는 다르다 — 공유하는 것은 네이티브 작업이다
     const first = refreshAccessToken()
     const second = refreshAccessToken()
-    expect(second).toBe(first)
     expect(refresh).toHaveBeenCalledTimes(1)
     window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
 

@@ -209,6 +209,19 @@ describe('WordLearningRoute', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('iOS 첫 문서처럼 빈 토큰으로 시작해 300ms 뒤 주입되면 로그인 안내 없이 W-1이 뜬다 (KAN-255 리뷰 P0)', async () => {
+    let token = ''
+    window.AccenturyBridge = { requestMicPermission: vi.fn(), startVoiceItem: vi.fn(), getContractVersion: () => 2, getAccessToken: () => token }
+    setTimeout(() => (token = 'acc-late'), 300)
+    const server = fakeServer(happyRoutes())
+    // getToken을 주입하지 않는다 — 기본 공급(브리지 대기)을 타야 한다
+    render(<WordLearningRoute apiBase="http://api" onLeave={vi.fn()} deps={{ fetchImpl: server.fetchImpl, refreshToken: async () => false }} />)
+
+    expect(await screen.findByRole('button', { name: /먹을 것/ }, { timeout: 2_000 })).toBeInTheDocument()
+    expect(screen.queryByText('로그인하면 단어 학습을 할 수 있어요')).toBeNull()
+    expect(server.calls[0].headers.Authorization).toBe('Bearer acc-late')
+  })
+
   it('UNAUTHENTICATED면 오류 문구 그대로와 [학습 종류로]다', async () => {
     renderRoute({ '/word-sets': { status: 401, body: {} } })
     expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 만료됐어요. 다시 로그인해 주세요')

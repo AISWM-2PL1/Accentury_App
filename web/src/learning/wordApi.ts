@@ -23,7 +23,7 @@
  * 응답 유실 뒤 재시도는 **같은 멱등 키로** 보내면 서버가 같은 결과를 돌려준다.
  */
 
-import { getAccessToken, refreshAccessToken } from '../bridge/bridge'
+import { getAccessToken, refreshAccessToken, waitForAccessToken } from '../bridge/bridge'
 import { readErrorEnvelope } from '../net/errorEnvelope'
 import { isRetryableStatus } from '../net/retryableStatus'
 import type { FetchLike } from '../progress/fetchTestDefinition'
@@ -151,8 +151,11 @@ export class WordLearningError extends Error {
 /** 주입 지점. 기본값은 실물 fetch와 브리지 래퍼다 */
 export interface WordApiDeps {
   fetchImpl?: FetchLike
-  /** 계정 Access 토큰. 없으면 null */
-  getToken?: () => string | null
+  /**
+   * 계정 Access 토큰. 없으면 null. Promise도 받는다 — 기본값의 첫 확보가 [waitForAccessToken]이라서다.
+   * 주입하면 첫 확보와 갱신 뒤 재읽기 둘 다 이것을 쓴다
+   */
+  getToken?: () => string | null | Promise<string | null>
   /** 토큰 갱신. 갱신됐으면 true */
   refreshToken?: () => Promise<boolean>
 }
@@ -236,10 +239,14 @@ async function request(
   deps: WordApiDeps,
 ): Promise<unknown> {
   const fetchImpl = deps.fetchImpl ?? browserFetch
-  const getToken = deps.getToken ?? getAccessToken
+  // 첫 확보만 기다린다 (KAN-255 리뷰 P0): iOS는 첫 문서에서 `""`를 먼저 밀고 Keychain을 읽은 뒤
+  // 실제 토큰을 민다(webview-bridge §6·§11). 갱신 뒤 재읽기는 기다리지 않는다 — iOS가 'ok'보다
+  // 새 토큰을 먼저 밀므로 그때 null이면 정말 없는 것이다.
+  const firstToken = deps.getToken ?? (() => waitForAccessToken())
+  const readToken = deps.getToken ?? getAccessToken
   const refreshToken = deps.refreshToken ?? (() => refreshAccessToken())
 
-  const token = getToken()
+  const token = await firstToken()
   if (token === null) {
     throw new WordLearningError('로그인하면 단어 학습을 할 수 있어요', CLIENT_NOT_SIGNED_IN, false)
   }
@@ -266,7 +273,7 @@ async function request(
   if (response.status === 401) {
     // 갱신은 한 번만 — 재시도도 401이면 토큰 문제가 아니라 계정 쪽 사정이라 반복해도 같다.
     const refreshed = await refreshToken()
-    const renewed = refreshed ? getToken() : null
+    const renewed = refreshed ? await readToken() : null
     if (renewed === null) throw unauthenticated()
     response = await send(renewed)
     if (response.status === 401) throw unauthenticated()

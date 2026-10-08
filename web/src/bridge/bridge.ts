@@ -363,8 +363,30 @@ export function getAccessToken(): string | null {
   return typeof token === 'string' && token.trim() !== '' ? token : null
 }
 
-/** 진행 중인 갱신. 동시에 들어온 요청은 이것을 함께 기다린다 */
-let accessTokenRefresh: Promise<boolean> | null = null
+/**
+ * 첫 토큰을 잠깐 기다려 읽는다 (KAN-255 리뷰 P0). 바로 읽히면 그대로, 아니면 **앱 실행일 때만**
+ * (`getAccessToken` 메서드가 있을 때만) 100ms 간격으로 다시 읽어 `timeoutMs` 안에 나오면 돌려준다.
+ *
+ * 왜: iOS는 문서 커밋 때 든 값(첫 문서면 `""`)을 먼저 밀고, Keychain 비동기 읽기가 끝난 뒤에야
+ * 실제 토큰을 다시 민다(webview-bridge §6·§11 iOS 구현 「토큰 읽기」). 그 사이 진입 조회가 나가면
+ * null로 읽혀 로그인 안내에 고착됐다. 브리지·메서드가 없으면(브라우저 단독·구버전 앱) 기다려도
+ * 토큰이 생길 길이 없으니 즉시 null이다. 정말 로그인 안 된 앱은 최대 2초 늦게 안내를 본다.
+ */
+export async function waitForAccessToken(timeoutMs = 2000): Promise<string | null> {
+  for (let waited = 0; ; waited += 100) {
+    const token = getAccessToken()
+    if (token !== null || waited >= timeoutMs) return token
+    if (typeof window.AccenturyBridge?.getAccessToken !== 'function') return null
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
+/**
+ * 네이티브에 실제로 보낸 갱신 작업. 회신이 올 때만 끝나고(슬롯 해제·null), 호출자의 타임아웃으로는
+ * 끝나지 않는다 (KAN-255 리뷰 P1). 예전처럼 타임아웃에서 슬롯을 내리면, 뒤 요청이 다시 설치한 슬롯에
+ * 앞 요청의 늦은 회신이 떨어져 뒤 요청을 자기 회신 없이 완료시켰다(네이티브 호출도 2회).
+ */
+let nativeRefresh: Promise<boolean> | null = null
 
 /**
  * 계정 토큰 갱신을 네이티브에 요청하고 결과를 기다린다 (KAN-255). 갱신됐으면 true다.
@@ -372,40 +394,44 @@ let accessTokenRefresh: Promise<boolean> | null = null
  * - 메서드를 모르는 앱·브라우저 단독이면 즉시 false — 갱신할 주체가 없다.
  * - 회신 `'ok'`만 true다. `'failed'`·계약 밖 문자열·`timeoutMs` 안에 회신 없음은 전부 false다.
  *   회신이 영영 안 오는 앱(구현이 빠진 빌드)에서 화면이 갇히지 않게 타임아웃을 둔다.
- * - **동시에 불리면 진행 중인 Promise를 그대로 돌려준다.** 401 두 개가 겹쳐 갱신을 두 번 보내면
- *   리프레시 토큰 회전 때문에 먼저 끝난 쪽이 뒤쪽 토큰을 무효로 만들 수 있다. 회신 슬롯도 하나뿐이다.
- * - 끝나면(어느 갈래든) 수신 슬롯을 설치 전 값으로 되돌린다.
+ * - **네이티브 작업이 진행 중이면 다시 부르지 않고 그것을 기다린다.** 갱신을 두 번 보내면 리프레시
+ *   토큰 회전 때문에 먼저 끝난 쪽이 뒤쪽 토큰을 무효로 만들 수 있다. 회신 슬롯도 하나뿐이다.
+ *   앞 호출자가 타임아웃으로 포기한 뒤에 들어온 요청도 같은 작업을 기다린다 — 그 작업의 늦은
+ *   `'ok'`는 실제로 갱신이 끝났다는 뜻이라 뒤 요청이 true를 받는 것이 맞다(KAN-255 리뷰 P1).
+ * - 대가: 회신이 끝내 안 오면(origin 불허 문서 등) 그 문서의 이후 갱신은 전부 타임아웃 false다.
  */
 export function refreshAccessToken(timeoutMs = 10_000): Promise<boolean> {
-  if (accessTokenRefresh !== null) return accessTokenRefresh
-  const bridge = window.AccenturyBridge
-  if (typeof bridge?.refreshAccessToken !== 'function') return Promise.resolve(false)
-
-  const pending = new Promise<boolean>((resolve) => {
-    let settled = false
-    const finish = (refreshed: boolean) => {
-      if (settled) return
-      settled = true
+  if (nativeRefresh === null) {
+    const bridge = window.AccenturyBridge
+    if (typeof bridge?.refreshAccessToken !== 'function') return Promise.resolve(false)
+    const native = new Promise<boolean>((resolve) => {
+      const uninstall = installReceiver('onAccessTokenRefreshed', (result) => {
+        uninstall()
+        resolve(result === 'ok')
+      })
+      try {
+        bridge.refreshAccessToken!()
+      } catch {
+        // 네이티브 쪽 예외면 회신이 오지 않는다 — 작업을 여기서 끝내고 호출자는 "갱신 실패"로 받는다
+        uninstall()
+        resolve(false)
+      }
+    })
+    nativeRefresh = native
+    // 정리를 resolve 옆에서 하지 않는 이유: 브리지 호출이 동기로 던지면 resolve가 이 대입보다 먼저
+    // 돌아, 끝난 작업이 남아 이후 요청이 전부 false를 받는다.
+    void native.then(() => {
+      if (nativeRefresh === native) nativeRefresh = null
+    })
+  }
+  const native = nativeRefresh
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs)
+    void native.then((refreshed) => {
       clearTimeout(timer)
-      uninstall()
       resolve(refreshed)
-    }
-    const uninstall = installReceiver('onAccessTokenRefreshed', (result) => finish(result === 'ok'))
-    const timer = setTimeout(() => finish(false), timeoutMs)
-    try {
-      bridge.refreshAccessToken!()
-    } catch {
-      // 네이티브 쪽 예외가 거슬러 올라와도 호출자는 "갱신 실패"로 받으면 된다
-      finish(false)
-    }
+    })
   })
-  accessTokenRefresh = pending
-  // 정리를 finish 안에서 하지 않는 이유: 브리지 호출이 동기로 던지면 finish가 이 대입보다 먼저
-  // 돌아, 끝난 Promise가 슬롯에 남아 이후 요청이 전부 false를 받는다.
-  void pending.then(() => {
-    if (accessTokenRefresh === pending) accessTokenRefresh = null
-  })
-  return pending
 }
 
 /**
