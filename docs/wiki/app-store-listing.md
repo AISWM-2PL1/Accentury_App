@@ -773,7 +773,11 @@ information, or biometric data」(6.1 출처)이고 성별·생년월일·출신
 부르는 곳도 없다 (`docs/wiki/analytics.md` §3). 계정 id는 서버 안에만 있다.
 
 **보유 기간은 탈퇴까지다.** 세션·결과의 24시간 규칙과 다른 유일한 항목이고, 계정에 지난 결과가
-쌓이지는 않는다 (방침 1항). 삭제 경로는 §8·§10의 탈퇴 항목에서 다룬다.
+쌓이지는 않는다 (방침 1항). 삭제 경로는 앱 안 탈퇴다 — 오른쪽 위 톱니 [설정] → 계정 → [회원 탈퇴] → 확인 창
+[탈퇴] (KAN-251, Android `auth/SettingsScreen.kt`·iOS `Auth/SettingsScreen.swift`). 서버는 개인 정보 열을 지우고
+세션의 계정 연결을 끊으므로(`docs/wiki/social-login.md` 「회원 탈퇴 (KAN-251)」), 결과는 24시간 규칙대로
+익명 세션으로 남았다가 지워진다. 앱 없이 요청하는 경로는 `https://accentury.app/account-deletion.html`(이메일)이다.
+심사 노트는 §8, 제출 조건은 §10.
 
 ### 6.4 수집하지 않는다고 신고하는 것
 
@@ -927,7 +931,10 @@ Google AdMob 전면 광고(분석 대기 화면)와 보상형 광고(재응시 �
 
 [계정 정보와 탈퇴]
 계정에 두는 정보는 로그인 제공자가 준 식별값과 이메일, 이름, 생년월일, 성별, 출신 지역이며
-탈퇴하실 때까지 보관합니다. 앱의 설정 화면에서 탈퇴하실 수 있습니다.
+탈퇴하실 때까지 보관합니다. 앱 화면 오른쪽 위 톱니(설정) → 계정 → [회원 탈퇴] → 확인 창의
+[탈퇴]로 탈퇴할 수 있습니다. 애플 로그인 계정은 이어서 Sign in with Apple 재인증 창이 뜨며, 애플
+토큰을 해지(revoke)하는 데 씁니다. 앱 없이도 https://accentury.app/account-deletion.html 의
+안내대로 이메일로 삭제를 요청할 수 있습니다.
 ```
 
 ### 메모 (영어 — 콘솔에 넣는 것은 이쪽)
@@ -977,14 +984,20 @@ consent can be withdrawn. Audio is never shared with third parties.
 
 [Account data and deletion]
 An account holds the provider's user identifier, email, name, date of birth, gender and home
-region, and is kept until the user deletes it. Account deletion is available in the app under
-Settings.
+region, and is kept until the user deletes it. To delete the account in the app:
+Settings (gear icon, top right) > 계정 (Account) > 회원 탈퇴 (Delete account) > confirm 탈퇴 (Delete).
+Accounts created with Sign in with Apple are then asked to re-authenticate with Sign in with Apple
+so that we can revoke the Apple token. Deletion removes the account's personal data and signs the
+user out on all devices. Users without the app can request deletion by email as described at
+https://accentury.app/account-deletion.html
 ```
 
-> **마지막 문단의 「Settings」는 KAN-251이 머지된 뒤 실제 화면에 맞춰 재확인한다.** 탈퇴 UI는
-> KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI) 순서로 들어온다 (§10 「앱 내 계정 삭제」). 화면
-> 이름과 경로가 확정되면 한국어·영어 두 메모의 그 문단을 그 말로 맞추고, 그때까지는 제출하지
-> 않는다 — 가이드라인 5.1.1(v)가 앱 안의 삭제 경로를 요구한다.
+> **해결(2026-10-08, KAN-251).** 마지막 문단을 실제 화면 경로로 맞췄다. 톱니는 웹 화면 위 오른쪽
+> 위에 네이티브가 얹는 버튼이고(Android `MainActivity.kt` `SettingsGearButton`, iOS `TestFlowView.swift`),
+> 화면 라벨이 한국어라 영어 메모는 한국어 라벨과 영어 뜻을 병기했다. 애플 재인증은 Sign in with Apple의
+> 'Apple ID 사용 중단'을 부르는 것이 아니라 **우리 탈퇴 API에 실을 코드를 받는 단계**다
+> ([social-login.md 「회원 탈퇴 (KAN-251)」](social-login.md)). 설정 화면 라벨이 바뀌면 두 메모와
+> `web/public/account-deletion.html`을 같이 고친다(`ads-web-adsense.md` §11.3).
 
 권한 거부 분기는 실제 코드 그대로 적었다 —
 `ios/Accentury/Permission/PermissionGateView.swift:85-87`이 `permanentlyDenied` 상태에서
@@ -1032,14 +1045,14 @@ Settings.
 | 빌드 번호 7 이상 | 개발 · `CURRENT_PROJECT_VERSION` | KAN-175 3단계 | **해결(2026-09-23)** — iOS·Android 둘 다 7. 빌드 6이 C2 아이콘으로 소모돼 D3 빌드는 7부터다. 규칙과 검사는 `ios/Accentury/Config/Base.xcconfig` 주석과 `AccenturyCoreTests/ReleaseVersionParityTests` |
 | `APP_STORE_URL`·`STORE_LISTING_READY` 주입 | 계정 소유자 · GitHub environment 변수 (prod·staging **각각**) | KAN-175 2단계 | **미해결** — 배선은 끝났다 (`.github/workflows/web-deploy.yml`가 둘 다 빌드로 넘기고 `web/src/audio/storeLink.ts`가 받는다). 남은 것은 값 등록뿐 — `APP_STORE_URL=https://apps.apple.com/app/id<숫자>`, 게시 뒤 `STORE_LISTING_READY=true` (§9 마지막 항목) |
 | 제출 빌드가 현재 Dev를 담아야 한다 | 개발 · `CURRENT_PROJECT_VERSION` · `versionCode` → 워크플로 `upload` | KAN-175 | **미해결** — TestFlight의 빌드 7은 2026-09-23 것이고 **KAN-224 소셜 로그인 게이트·KAN-240 가입 동의·KAN-237·KAN-248보다 앞선다** (그 뒤 Dev에 33커밋, iOS를 건드린 것이 11개). 로그인 없는 빌드를 제출하면서 방침과 라벨은 계정 데이터를 말하게 된다. 둘을 8로 올리고 워크플로를 `upload=true`로 돌려 **빌드 8**을 올린다 |
-| **앱 내 계정 삭제** | 개발 · 설정 화면 → `POST /v0/users/me/withdrawal` | **KAN-251** (FR-AC-09) · 선행 KAN-247 · 서버 KAN-241 | **미해결** — 가이드라인 5.1.1(v)가 「If your app supports account creation, you must also offer account deletion within the app」을 요구한다 (2026-10-01 확인). 서버 탈퇴 API는 있다(Accentury_Server `backend/.../auth/UserController.java:56`, KAN-241). **앱에는 그 버튼이 없다** — 레포 전체에 「탈퇴」·`withdraw` 문자열이 없다. 순서는 **KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI)**이고, 2026-10-01에 KAN-251을 따로 떼어 열었다. 계정을 만드는 앱이 삭제 경로 없이 제출하면 거절된다 |
+| **앱 내 계정 삭제** | 개발 · 설정 화면 → `POST /v0/users/me/withdrawal` | **KAN-251** (FR-AC-09) · 선행 KAN-247 · 서버 KAN-241 | **해결(2026-10-08, KAN-251, 머지 대기)** — Android(1단계)·iOS(2단계) 설정 화면에 [회원 탈퇴]가 들어갔다(경로는 §8 메모, 판정은 [social-login.md 「회원 탈퇴 (KAN-251)」](social-login.md)). 앱 밖 경로는 `https://accentury.app/account-deletion.html`(3단계). Dev 머지와 제출 빌드(빌드 8)에 실려야 닫힌다. 이하 옛 기록: 가이드라인 5.1.1(v)가 「If your app supports account creation, you must also offer account deletion within the app」을 요구한다 (2026-10-01 확인). 서버 탈퇴 API는 있다(Accentury_Server `backend/.../auth/UserController.java:56`, KAN-241). **앱에는 그 버튼이 없다** — 레포 전체에 「탈퇴」·`withdraw` 문자열이 없다. 순서는 **KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI)**이고, 2026-10-01에 KAN-251을 따로 떼어 열었다. 계정을 만드는 앱이 삭제 경로 없이 제출하면 거절된다 |
 | 구글 로그인 시크릿 3개 | 계정 소유자 · GitHub 시크릿 `GOOGLE_IOS_CLIENT_ID`·`GOOGLE_REVERSED_CLIENT_ID`·`GOOGLE_SERVER_CLIENT_ID` | KAN-224 | **미해결(2026-10-01 `gh secret list` 기준)** — 셋 다 없다. 네이버 셋·카카오 1·ASC 셋·AdMob iOS 셋은 등록돼 있다. 워크플로가 `REQUIRE_IDP_CONFIG=YES`로 빈 값을 막으므로 ③ 입력·시크릿 검사에서 멈추고 **빌드 8을 만들 수 없다** (§2 「러너 실행 기록」) |
 | 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **해결(2026-09-23)** — 시크릿 7개 등록 뒤 러너에서 5회 돌아 빌드 6·7이 TestFlight에 올라갔다(§2 「러너 실행 기록」). 업로드 수정과 빌드 7은 PR #3으로 Dev에 반영됐다(2026-09-28). 그 뒤 KAN-224가 구글 시크릿 셋 빗장을 붙였으니 다음 실행 전에 그 셋을 등록한다 |
 
 심사를 **직접** 막는 것은 넷이다.
 
-1. **앱 내 계정 삭제** (5.1.1(v)) — **KAN-251**이 맡는다. KAN-247이 설정 화면을 먼저 세우고
-   그 안에 탈퇴를 넣는 순서다. 코드가 필요한 유일한 차단 항목이다
+1. **앱 내 계정 삭제** (5.1.1(v)) — **KAN-251로 코드 완료(2026-10-08, 머지 대기).** 코드가 필요한
+   차단 항목은 이제 없다. 남은 것은 머지 뒤 빌드 8에 싣는 것(3번)이다
 2. **방침 본문의 prod 게시** (`publish-privacy.sh prod`) — 앱 상수와 같은 `2026-10-04`가 떠 있어야
    서버가 가입 동의를 받는다. 로그인 자체가 prod에서 돌지 않는다는 뜻이라 사실상 1순위다
 3. **빌드 8 업로드** — 그 전에 구글 로그인 시크릿 3개 등록
