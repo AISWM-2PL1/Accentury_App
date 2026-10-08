@@ -729,3 +729,15 @@ Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.Acce
   - `~/accentury/docs/wiki/mvp-spec.md` 머리(범위 "발화 → 억양 레벨 판정 → 결과 공유", 경남·부산 한정), NFR-CP-02(실시간 오디오·F0·시각화는 네이티브, 나머지 WebView)
   - `docs/wiki/ondevice-f0.md` 머리(온디바이스는 저지연 우선, 정밀 채점은 서버 몫)
   - `privacy.html` 머리(웹은 회원가입·로그인 없음)
+
+### 11.3 다른 작업이 함께 고쳐야 할 글 (KAN-275 리뷰, 2026-10-08)
+
+정적 글은 코드·방침과 테스트로 묶이지 않는다. 아래 작업을 할 때는 해당 글을 같은 PR에서 고친다.
+
+| 이런 작업을 하면 | 같이 고칠 글 | 이유 |
+| --- | --- | --- |
+| 개인정보처리방침 개정(서버 레포 `infra/privacy/privacy.html`) | `web/public/guide/voice-data.html` 전체, `web/public/about.html` 데이터 처리 한 줄, `guide/faq.html` 「결과를 나중에 다시 볼 수 있나요?」 | 보관 기간·동의 방식·삭제 시점을 방침과 다른 말로 다시 적었다. 정본은 방침이고 글이 어긋나면 글이 거짓이 된다 |
+| KAN-262 음성 합본 추론(문항별 분석 → 합본) | `guide/how-the-test-works.html` 「분석을 기다리는 동안」, `guide/faq.html` 「분석 대기 화면에 [다시 녹음] 버튼이 나왔어요」 | 둘 다 "실패한 음성 문항만 다시 녹음" 흐름을 전제로 쓰였다. 합본이면 실패 단위가 바뀔 수 있다 |
+| 문항 구성·녹음 상한·카운트다운 변경 | `guide/how-the-test-works.html` | 화면에 보이는 값(녹음 상한 10초, 3초 카운트다운)을 적었다 |
+
+배포되는 `index.html`의 주석은 빌드가 지운다(`web/src/build/stripSourceComments.ts`, `vite.config.ts` 플러그인). 소스 주석에는 내부 파일 경로·행 번호가 있어도 되지만, `web/public/`의 정적 페이지는 Vite가 그대로 복사하므로 §11.1의 주석 한 줄 규칙을 따로 지킨다.
