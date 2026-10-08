@@ -9,12 +9,13 @@
  * 이유 — 단일 선택 보장·화살표 키 이동·radiogroup 의미론을 브라우저가 전부 주므로,
  * 버튼 배열에 aria를 손으로 채워 같은 것을 재현할 이유가 없다 (KAN-13 AC: 접근성 라벨).
  *
- * 정오 표시는 없다 — 레벨테스트는 정답을 보이지 않는다(KAN-13). 단어 학습이 정오를 그려야
- * 할 때 그 자리에서 prop을 더한다.
+ * 정오 표시는 [ChoiceListProps.marks]가 있을 때만 그린다 (KAN-255 W-4). 레벨테스트는 정답을
+ * 보이지 않으므로(KAN-13) marks를 넘기지 않고, 그때 DOM은 marks 도입 전과 같다 — 정오 클래스
+ * 이름조차 나오지 않는다(`VocabularyItemScreen.test`가 그 클래스를 금지한다).
  */
 
 import { haptic } from '../bridge/bridge'
-import { CheckIcon } from './icons'
+import { CheckIcon, CrossIcon } from './icons'
 
 export interface ChoiceListProps {
   /** 라디오 name. 한 화면 안의 그룹을 가르는 값이다 */
@@ -26,16 +27,27 @@ export interface ChoiceListProps {
   /** 제출 중 잠금 — 요청이 나간 답과 화면의 답이 달라지는 순간을 만들지 않는다 */
   locked: boolean
   onSelect: (choiceId: string) => void
+  /**
+   * 제출 뒤 정오 표시 (KAN-255 W-4). 정답 보기는 'correct', 내가 고른 오답은 'wrong'.
+   * 색만으로 가르지 않는다(NFR-US-03) — 서로 다른 아이콘(✓·✕)과 글자 라벨(「정답」·「내 답」)을 함께 단다.
+   */
+  marks?: Readonly<Record<string, 'correct' | 'wrong'>>
 }
 
-export function ChoiceList({ name, labelledBy, choices, selected, locked, onSelect }: ChoiceListProps) {
+export function ChoiceList({ name, labelledBy, choices, selected, locked, onSelect, marks }: ChoiceListProps) {
   return (
     // 문제 문구가 곧 이 라디오 그룹의 이름이다 — 스크린 리더가 "그룹 진입"에서 문제를 읽는다
     <div className="choice-list" role="radiogroup" aria-labelledby={labelledBy}>
       {/* 정의의 choices 배열 순서 = 화면 순서. 정렬·섞기를 하지 않는 것이 요구사항이다 */}
       {choices.map((choice) => {
         const checked = selected === choice.choiceId
-        const classes = ['choice', checked ? 'choice--selected' : '', locked ? 'choice--locked' : '']
+        const mark = marks?.[choice.choiceId]
+        const classes = [
+          'choice',
+          checked ? 'choice--selected' : '',
+          locked ? 'choice--locked' : '',
+          mark !== undefined ? `choice--${mark}` : '',
+        ]
           .filter(Boolean)
           .join(' ')
         return (
@@ -60,10 +72,18 @@ export function ChoiceList({ name, labelledBy, choices, selected, locked, onSele
               어렵다 (WCAG 1.4.1). 시안이 오른쪽에 아이콘을 두던 자리를 그대로 쓴다.
               정답이 아니라 "내가 고른 것" 표시라 정오 미노출(KAN-13)과는 무관하다.
             */}
-            {checked && (
-              <span className="choice__check">
-                <CheckIcon />
+            {/* 정오 표시가 있으면 그것이 고른 표시를 대신한다 — ✓가 둘이면 "고름"과 "정답"이 섞인다 */}
+            {mark !== undefined ? (
+              <span className={`choice__mark choice__mark--${mark}`}>
+                {mark === 'correct' ? <CheckIcon /> : <CrossIcon />}
+                <span>{mark === 'correct' ? '정답' : '내 답'}</span>
               </span>
+            ) : (
+              checked && (
+                <span className="choice__check">
+                  <CheckIcon />
+                </span>
+              )
             )}
           </label>
         )
