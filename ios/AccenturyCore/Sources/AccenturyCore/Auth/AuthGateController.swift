@@ -150,6 +150,22 @@ public final class AuthGateController: ObservableObject {
     /// 세션의 이어짐이라 올리지 않는다.
     private var loginGeneration = 0
 
+    /// 로그인 저장·세대 증가와 탈퇴 정리의 판정·비우기를 줄 세우는 사슬 (KAN-251 리뷰 P1 재검증 2, 안드로이드 `sessionLock`).
+    /// MainActor만으로는 안 된다 — `await store.save`·`await store.clear()`에서 다른 호출이 끼어든다. 정리가 "세대 그대로"로
+    /// 판정한 뒤 clear를 기다리는 사이 새 로그인이 저장을 끝내면, 이미 결정된 clear가 새 토큰을 지운다. 그래서
+    /// ``TokenRefresher``의 ``tail``처럼 앞 작업이 끝나기를 기다리는 사슬로 묶는다. 안에서는 저장소만 만진다(네트워크·IdP 금지).
+    private var sessionTail: Task<Void, Never>?
+
+    private func withSessionLock<T: Sendable>(_ body: @escaping @MainActor () async -> T) async -> T {
+        let previous = sessionTail
+        let task = Task { @MainActor in
+            _ = await previous?.value
+            return await body()
+        }
+        sessionTail = Task { _ = await task.value }
+        return await task.value
+    }
+
     /// 진행 중인 탈퇴. 겹친 호출은 이 결과를 함께 기다린다 — ``withdraw(appleAuthorizationCode:idpLogout:)`` 참고.
     private var withdrawal: Task<WithdrawOutcome, Never>?
 
@@ -227,14 +243,19 @@ public final class AuthGateController: ObservableObject {
         await registerSignedOutHook()
         let result = await api.login(credential, privacyPolicyVersion: privacyPolicyVersion)
         if case .success(let success) = result {
-            guard await store.save(success.tokens) else {
+            let store = store
+            let saved = await withSessionLock { [self] in
+                let saved = await store.save(success.tokens)
+                if saved { loginGeneration += 1 }
+                return saved
+            }
+            guard saved else {
                 // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
                 // 메모리에 남은 쌍까지 비우고 실패로 알려 사용자가 다시 시도하게 한다.
                 await store.clear()
                 state = .signedOut(AuthFailure(.retry))
                 return
             }
-            loginGeneration += 1
             state = await withVoiceConsent(Self.state(of: success.account))
         } else {
             state = .signedOut(Self.failure(of: result))
@@ -391,15 +412,18 @@ public final class AuthGateController: ObservableObject {
     ///
     /// - Parameter keepingNewLogin: 탈퇴만 true다 (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저 저장소를 비우고 로그인
     ///   화면을 띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때
-    ///   ``loginGeneration``을 잡아 두고, 끝날 때 그대로일 때만 비운다 — 달라졌으면 새 로그인이라 저장소·상태를 건드리지
+    ///   ``loginGeneration``을 잡아 두고, 끝날 때 그대로일 때만 비운다(판정과 비우기는 ``withSessionLock(_:)`` 안에서 한 번에) — 달라졌으면 새 로그인이라 저장소·상태를 건드리지
     ///   않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해
     ///   탈퇴 뒤 로그인이 남는다(리뷰 재검증). 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
     private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void, keepingNewLogin: Bool = false) async {
         let generation = loginGeneration
         await withDeadline(logoutIdpTimeout, idpLogout)
-        if keepingNewLogin, loginGeneration != generation { return }
-        await store.clear()
-        state = .signedOut(nil)
+        let store = store
+        await withSessionLock { [self] in
+            if keepingNewLogin, loginGeneration != generation { return }
+            await store.clear()
+            state = .signedOut(nil)
+        }
     }
 
     private static func state(of account: Account) -> AuthGateState {
