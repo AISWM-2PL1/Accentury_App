@@ -113,6 +113,12 @@ private struct SignedInScreen: View {
                     // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야 다음 로그인에서
                     // 계정을 다시 고를 수 있다.
                     onLogout: { await gate.logout { await IdpLogout.all() } },
+                    // 탈퇴도 IdP SDK 세션까지 정리한다 (KAN-251). 애플 계정만 탈퇴 직전에 재인증해 revoke용 코드를 싣는다.
+                    onWithdraw: {
+                        await withdrawAccount(provider: user.provider, appleReauth: appleReauthorization) { code in
+                            await gate.withdraw(appleAuthorizationCode: code) { await IdpLogout.all() }
+                        }
+                    },
                     // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의 화면이
                     // 뜨던 문제(PR #22 리뷰).
                     onVoiceConsentChange: {
