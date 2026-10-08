@@ -705,6 +705,33 @@ class AuthGateControllerTest {
     }
 
     @Test
+    fun `탈퇴 응답을 받는 중에 끝난 새 로그인을 정리가 지우지 않는다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(2)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        // 탈퇴 401의 헤더만 먼저 보내 Authenticator 갱신 거절로 로그인 화면이 뜨게 하고, 본문은 1초 늦춘다 — 그사이 새 로그인을
+        // 끝낸다(KAN-251 리뷰 P1 재검증 3). 정리 시작 때 세대를 잡으면 새 로그인의 세대라 새 토큰을 지운다.
+        server.enqueue(
+            MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false))
+                .setBodyDelay(1, TimeUnit.SECONDS),
+        )
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+
+        val withdrawal = async(Dispatchers.Default) { gate.withdraw() }
+        gate.state.first { it is AuthGateState.SignedOut }
+        gate.login(google, "v1")
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+
+        assertEquals(WithdrawOutcome.Withdrawn, withdrawal.await())
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+    }
+
+    @Test
     fun `탈퇴 정리가 저장 중인 새 로그인 토큰을 지우지 않는다`() = runTest {
         val store = HeldSaveTokenStore(AuthTokens("jwt_0", "rt_0"))
         val gate = controller(store)

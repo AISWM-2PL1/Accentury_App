@@ -389,6 +389,9 @@ public final class AuthGateController: ObservableObject {
     ) async -> WithdrawOutcome {
         if let running = withdrawal { return await running.value }
         let api = api
+        // 서버 요청 전에 잡는다(KAN-251 리뷰 P1 재검증 3) — 401 갱신 거절로 로그인 화면이 먼저 뜬 뒤 서버 단계가 끝나기 전에
+        // 새 로그인이 끝나면, 정리 시작 때 잡은 세대는 이미 새 로그인의 것이라 새 토큰을 지운다. 갱신은 세대를 바꾸지 않는다.
+        let generation = loginGeneration
         let task = Task { @MainActor in
             defer { withdrawal = nil }
             let result = await withCancellingDeadline(withdrawServerTimeout) {
@@ -396,7 +399,7 @@ public final class AuthGateController: ObservableObject {
             }
             switch result {
             case .success?, .rejected(statusUnauthorized, _, _, _, _)?:
-                await signOutLocally(idpLogout, keepingNewLogin: true)
+                await signOutLocally(idpLogout, withdrawGeneration: generation)
                 return WithdrawOutcome.withdrawn
             case let result?:
                 return .failed(Self.failure(of: result))
@@ -410,17 +413,17 @@ public final class AuthGateController: ObservableObject {
 
     /// 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리가 상한 ``logoutIdpTimeout``을 넘겨도 저장소는 비우고 로그인 화면으로 돌린다.
     ///
-    /// - Parameter keepingNewLogin: 탈퇴만 true다 (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저 저장소를 비우고 로그인
-    ///   화면을 띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때
-    ///   ``loginGeneration``을 잡아 두고, 끝날 때 그대로일 때만 비운다(판정과 비우기는 ``withSessionLock(_:)`` 안에서 한 번에) — 달라졌으면 새 로그인이라 저장소·상태를 건드리지
-    ///   않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해
-    ///   탈퇴 뒤 로그인이 남는다(리뷰 재검증). 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
-    private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void, keepingNewLogin: Bool = false) async {
-        let generation = loginGeneration
+    /// - Parameter withdrawGeneration: 탈퇴만 넘긴다 — 탈퇴 시작 때 잡은 ``loginGeneration`` (KAN-251 리뷰 P1). 탈퇴 401에서는
+    ///   갱신 거절이 먼저 저장소를 비우고 로그인 화면을 띄우므로, 서버 단계가 끝나거나 IdP 정리(최대 5초)를 기다리는 사이
+    ///   사용자가 새로 로그인할 수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 ``withSessionLock(_:)`` 안에서
+    ///   한 번에) — 달라졌으면 새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된
+    ///   갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). nil(로그아웃)은 로그인
+    ///   상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
+    private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void, withdrawGeneration: Int? = nil) async {
         await withDeadline(logoutIdpTimeout, idpLogout)
         let store = store
         await withSessionLock { [self] in
-            if keepingNewLogin, loginGeneration != generation { return }
+            if let withdrawGeneration, loginGeneration != withdrawGeneration { return }
             await store.clear()
             state = .signedOut(nil)
         }
