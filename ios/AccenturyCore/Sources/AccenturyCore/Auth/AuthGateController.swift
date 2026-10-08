@@ -341,6 +341,10 @@ public final class AuthGateController: ObservableObject {
     ///   IdP 정리는 거기서 하지 않으므로 여기서 끝까지 정리한다.
     /// - 그 밖(전송 실패·서버 단계 상한 ``withdrawServerTimeout`` 초과·5xx·429 등) → 탈퇴 안 됨. 토큰·상태를 그대로 두고
     ///   ``WithdrawOutcome/failed(_:)``. 상한 초과는 응답을 못 받은 것이라 전송 실패와 같이 [다시 시도]다.
+    ///   **상한에 지면 요청을 취소한다**(``withCancellingDeadline(_:_:)``, KAN-251 리뷰 P0). 로그아웃처럼 뒤에서 계속 돌게
+    ///   두면, 화면에 실패(로그인 유지)를 보인 뒤 늦게 온 401이 자동 갱신 → 갱신 거절로 저장소를 비우고 로그인 화면으로
+    ///   돌려 판정이 뒤집히고 IdP 정리도 빠진다. 늦은 204였다면 서버는 이미 탈퇴시켰는데 앱은 로그인 상태로 남는다 —
+    ///   다음 요청이 401 → 갱신 거절로 로그인 화면이 되는 것으로 수습된다(안드로이드와 같은 한계).
     ///
     /// 탈퇴됐으면 서버 로그아웃은 부르지 않는다(이미 폐기됐다). IdP 정리 → 로컬 정리 순서와 상한은 ``logout(idpLogout:)``과 같다.
     ///
@@ -360,7 +364,7 @@ public final class AuthGateController: ObservableObject {
         let api = api
         let task = Task { @MainActor in
             defer { withdrawal = nil }
-            let result = await withDeadline(withdrawServerTimeout) {
+            let result = await withCancellingDeadline(withdrawServerTimeout) {
                 await api.withdraw(appleAuthorizationCode: appleAuthorizationCode)
             }
             switch result {
@@ -433,6 +437,19 @@ func withDeadline<T: Sendable>(_ limit: Duration, _ operation: @escaping @MainAc
             once.resume(value)
         }
     }
+}
+
+/// ``withDeadline(_:_:)``과 같되 상한에 지면 `operation`을 취소한다 (KAN-251 리뷰 P0, 탈퇴 전용). 안드로이드
+/// `withTimeoutOrNull`이 코루틴을 취소해 OkHttp 호출을 끊는 것(`HttpAwait.kt`의 `invokeOnCancellation { call.cancel() }`)과
+/// 같은 자리다. `URLSession`의 async API는 태스크 취소를 존중해 요청을 끊고 `URLError.cancelled`를 던지므로
+/// ``AuthApi``는 전송 실패로 끝나고, 늦은 응답이 ``AuthorizedSession``의 자동 갱신을 시작하지 않는다.
+/// 로그아웃은 늦게 끝나도 해가 없어 그대로 ``withDeadline(_:_:)``을 쓴다.
+@MainActor
+func withCancellingDeadline<T: Sendable>(_ limit: Duration, _ operation: @escaping @MainActor () async -> T) async -> T? {
+    let work = Task { @MainActor in await operation() }
+    let result = await withDeadline(limit) { await work.value }
+    if result == nil { work.cancel() }
+    return result
 }
 
 /// continuation을 두 번 재개하면 크래시다 — 어느 쪽이 먼저 와도 한 번만 넘긴다. 타이머는 메인 밖에서 오므로 잠근다.
