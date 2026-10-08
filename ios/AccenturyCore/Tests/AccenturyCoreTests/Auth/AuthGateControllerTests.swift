@@ -551,6 +551,43 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
     }
 
+    func test탈퇴_정리가_저장_중인_새_로그인_토큰을_지우지_않는다() async throws {
+        let store = HeldSaveTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([
+            (200, tokens(2)),
+            (200, account("COMPLETE")),
+            (401, envelope("AUTH_TOKEN_INVALID", false)),
+            (401, envelope("AUTH_REFRESH_INVALID", false)),
+            (200, loginComplete),
+            (200, account("COMPLETE")),
+        ])
+        await gate.bootstrap()
+        let (idpEntered, idpEnteredSignal) = AsyncStream<Void>.makeStream()
+        let (idpRelease, idpReleaseSignal) = AsyncStream<Void>.makeStream()
+
+        let withdrawal = Task {
+            await gate.withdraw {
+                idpEnteredSignal.yield()
+                for await _ in idpRelease { break }
+            }
+        }
+        for await _ in idpEntered { break }
+        // 새 로그인의 저장이 저장소 잠금 안에서 붙잡힌 사이 IdP 정리를 끝낸다(KAN-251 리뷰 P1 재검증 2).
+        store.holdNextSave()
+        let login = Task { await gate.login(google, privacyPolicyVersion: "v1") }
+        await store.waitUntilSaveHeld()
+        idpReleaseSignal.yield()
+        try await Task.sleep(for: .milliseconds(200))
+        store.releaseSave()
+        await login.value
+        let outcome = await withdrawal.value
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+    }
+
     func test탈퇴_정리_중에_앞서_시작된_갱신이_끝나도_새_로그인이_아니라_정리를_마친다() async {
         let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         let (gate, _) = controller(store)
@@ -760,5 +797,73 @@ final class AuthGateControllerTests: XCTestCase {
 
     func test애플_재인증_코드는_설명에_남지_않는다() {
         XCTAssertFalse("\(AppleReauth.code("c_apple"))".contains("c_apple"))
+    }
+}
+
+/// 실제 키체인 저장소처럼 save·clear를 한 줄로 세우고, 다음 save 한 번을 풀 때까지 붙잡는 가짜 (KAN-251 리뷰 P1 재검증 2).
+/// 줄을 세우는 이유: 붙잡힌 save 뒤에 온 clear는 save가 끝난 뒤에 돈다 — 고치기 전 코드의 경합이 이 순서에서 난다.
+private final class HeldSaveTokenStore: TokenStore, @unchecked Sendable {
+    private let inner: InMemoryTokenStore
+    private let lock = NSLock()
+    private var tail: Task<Void, Never>?
+    private var hold: (entered: AsyncStream<Void>.Continuation, release: AsyncStream<Void>)?
+    private var enteredStream: AsyncStream<Void>?
+    private var releaseSignal: AsyncStream<Void>.Continuation?
+
+    init(_ initial: AuthTokens?) { inner = InMemoryTokenStore(initial) }
+
+    var tokens: AuthTokens? { inner.tokens }
+
+    func holdNextSave() {
+        let (entered, enteredSignal) = AsyncStream<Void>.makeStream()
+        let (release, releaseSignal) = AsyncStream<Void>.makeStream()
+        lock.lock()
+        hold = (enteredSignal, release)
+        enteredStream = entered
+        self.releaseSignal = releaseSignal
+        lock.unlock()
+    }
+
+    func waitUntilSaveHeld() async {
+        lock.lock()
+        let entered = enteredStream
+        lock.unlock()
+        for await _ in entered ?? AsyncStream { $0.finish() } { break }
+    }
+
+    func releaseSave() {
+        lock.lock()
+        let signal = releaseSignal
+        lock.unlock()
+        signal?.yield()
+    }
+
+    private func serial<T: Sendable>(_ body: @escaping @Sendable () async -> T) async -> T {
+        lock.lock()
+        let previous = tail
+        let task = Task { _ = await previous?.value; return await body() }
+        tail = Task { _ = await task.value }
+        lock.unlock()
+        return await task.value
+    }
+
+    func read() async -> AuthTokens? { await inner.read() }
+
+    func save(_ tokens: AuthTokens) async -> Bool {
+        await serial { [self] in
+            lock.lock()
+            let held = hold
+            hold = nil
+            lock.unlock()
+            if let held {
+                held.entered.yield()
+                for await _ in held.release { break }
+            }
+            return await inner.save(tokens)
+        }
+    }
+
+    func clear() async {
+        await serial { [self] in await inner.clear() }
     }
 }

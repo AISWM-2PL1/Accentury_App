@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
@@ -131,6 +133,14 @@ class AuthGateController(
      */
     private val loginGeneration = AtomicLong()
 
+    /**
+     * 로그인 저장·세대 증가와 탈퇴 정리의 판정·비우기를 한 덩어리로 묶는 잠금 (KAN-251 리뷰 P1 재검증 2). 둘이 따로 돌면
+     * 정리가 "세대 그대로"로 판정한 뒤 저장소 잠금을 기다리는 사이 새 로그인이 저장을 끝내고, 이미 결정된 clear가 새
+     * 토큰을 지운다. 잠금 안에서는 저장소만 만진다 — 네트워크·IdP 호출을 넣으면 상한 없이 서로를 붙잡는다.
+     * 갱신([TokenRefresher])의 저장은 세대와 무관해 넣지 않는다.
+     */
+    private val sessionLock = Mutex()
+
     private val _state = MutableStateFlow<AuthGateState>(AuthGateState.Checking)
     val state: StateFlow<AuthGateState> = _state.asStateFlow()
 
@@ -195,8 +205,10 @@ class AuthGateController(
             // 서버가 쌍을 준 뒤에는 취소(화면 회전)되어도 저장과 상태 반영을 끝낸다 — 도중에 끊기면 쌍은 저장됐는데
             // 화면은 로그인에 남는다.
             is AuthResult.Success -> withContext(NonCancellable) {
-                if (store.save(result.value.tokens)) {
-                    loginGeneration.incrementAndGet()
+                val saved = sessionLock.withLock {
+                    store.save(result.value.tokens).also { if (it) loginGeneration.incrementAndGet() }
+                }
+                if (saved) {
                     _state.value = withVoiceConsent(stateOf(result.value.account))
                 } else {
                     // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
@@ -365,7 +377,7 @@ class AuthGateController(
      *
      * @param keepNewLogin 탈퇴만 true다 (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저 저장소를 비우고 로그인 화면을
      *   띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때 [loginGeneration]을
-     *   잡아 두고, 끝날 때 그대로일 때만 비운다 — 달라졌으면 새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로
+     *   잡아 두고, 끝날 때 그대로일 때만 비운다(판정과 비우기는 [sessionLock] 안에서 한 번에) — 달라졌으면 새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로
      *   비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이
      *   남는다(리뷰 재검증). 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
      */
@@ -374,9 +386,11 @@ class AuthGateController(
         try {
             withTimeoutOrNull(logoutIdpTimeout) { idpLogout() }
         } finally {
-            if (!keepNewLogin || loginGeneration.get() == generation) {
-                store.clear()
-                _state.value = AuthGateState.SignedOut()
+            sessionLock.withLock {
+                if (!keepNewLogin || loginGeneration.get() == generation) {
+                    store.clear()
+                    _state.value = AuthGateState.SignedOut()
+                }
             }
         }
     }

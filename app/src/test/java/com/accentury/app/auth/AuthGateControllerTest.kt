@@ -6,6 +6,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -702,6 +705,42 @@ class AuthGateControllerTest {
     }
 
     @Test
+    fun `탈퇴 정리가 저장 중인 새 로그인 토큰을 지우지 않는다`() = runTest {
+        val store = HeldSaveTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(2)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false)))
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        val idpEntered = CompletableDeferred<Unit>()
+        val idpRelease = CompletableDeferred<Unit>()
+
+        // 실제 시간 디스패처에서 돌린다 — 가상 시간이면 IdP 상한(5초)을 건너뛰어 정리가 로그인보다 먼저 끝난다.
+        val withdrawal = async(Dispatchers.Default) {
+            gate.withdraw {
+                idpEntered.complete(Unit)
+                idpRelease.await()
+            }
+        }
+        idpEntered.await()
+        // 새 로그인의 저장이 저장소 잠금 안에서 붙잡힌 사이 IdP 정리를 끝낸다(KAN-251 리뷰 P1 재검증 2).
+        store.holdNextSave()
+        val login = async(Dispatchers.Default) { gate.login(google, "v1") }
+        store.saveHeld.await()
+        idpRelease.complete(Unit)
+        withContext(Dispatchers.Default) { delay(200) }
+        store.release.complete(Unit)
+        login.await()
+
+        assertEquals(WithdrawOutcome.Withdrawn, withdrawal.await())
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+    }
+
+    @Test
     fun `탈퇴 정리 중에 앞서 시작된 갱신이 끝나도 새 로그인이 아니라 정리를 마친다`() = runTest {
         val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         val gate = controller(store)
@@ -844,4 +883,37 @@ class AuthGateControllerTest {
         assertNull(store.tokens)
         assertEquals(AuthGateState.SignedOut(), gate.state.value)
     }
+}
+
+/**
+ * 실제 KeystoreTokenStore처럼 save·clear를 한 잠금으로 세우고, 다음 save 한 번을 [release]까지 붙잡는 가짜 (KAN-251 리뷰 P1
+ * 재검증 2). 붙잡힌 save 뒤에 온 clear는 save가 끝난 뒤에 돈다 — 고치기 전 코드의 경합이 이 순서에서 난다.
+ */
+private class HeldSaveTokenStore(initial: AuthTokens?) : TokenStore {
+    private val inner = InMemoryTokenStore(initial)
+    private val mutex = Mutex()
+
+    @Volatile
+    private var holding = false
+    val saveHeld = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+
+    val tokens: AuthTokens? get() = inner.tokens
+
+    fun holdNextSave() {
+        holding = true
+    }
+
+    override suspend fun read(): AuthTokens? = inner.read()
+
+    override suspend fun save(tokens: AuthTokens): Boolean = mutex.withLock {
+        if (holding) {
+            holding = false
+            saveHeld.complete(Unit)
+            release.await()
+        }
+        inner.save(tokens)
+    }
+
+    override suspend fun clear() = mutex.withLock { inner.clear() }
 }
