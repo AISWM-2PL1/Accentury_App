@@ -381,7 +381,7 @@ Android WebView는 있지만 VIBRATE 권한이 필요하고 길이(ms)만 정할
 | 자리 | 종류 | 구현 위치 |
 |---|---|---|
 | Primary 버튼 (`Button` `variant="primary"`) | `tap` | 웹 `ui/Button.tsx` |
-| 객관식 선택 (어휘 문항·출신 지역 라디오) | `tap` | 웹 `VocabularyItemScreen.tsx`·`RegionSelectScreen.tsx` |
+| 객관식 선택 (어휘 문항·출신 지역 라디오) | `tap` | 웹 `ui/ChoiceList.tsx`(어휘 문항, KAN-255에서 `VocabularyItemScreen.tsx`로부터 추출)·`RegionSelectScreen.tsx` |
 | 시작 대기 카운트다운 3·2·1 (숫자가 바뀔 때마다, 0 제외) | `tap` | 웹 `TestStartScreen.tsx` — 실기기 확인 중 사용자 요청으로 추가 (2026-10-01) |
 | 녹음 버튼 | `tap` | 네이티브 녹음 화면 (Android `RecordButton.kt`, iOS `RecordButton.swift`) |
 | 녹음 완료·실패 | `success`·`error` | 네이티브 녹음 화면 (`RecordingScreen`) — 앱 안 녹음 실패는 웹에 회신되지 않는다 |

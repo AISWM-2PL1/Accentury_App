@@ -172,6 +172,18 @@ describe('제출 수명주기', () => {
     expect(submitSpy).toHaveBeenCalledTimes(1)
   })
 
+  it('제출 성공 뒤에도 정오가 보이지 않는다 — 정답·오답 문구도, 정답 표시 클래스도 없다 (KAN-13, KAN-255)', async () => {
+    // ChoiceList를 단어 학습(정답 공개)과 나눠 쓰게 된 뒤에도 레벨테스트 쪽은 정답 무표시여야 한다
+    const { onSubmitted } = renderScreen()
+
+    choose('부추')
+    pressNext()
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1))
+
+    expect(document.body.textContent).not.toMatch(/정답|오답/)
+    expect(document.querySelector('[class*="correct"], [class*="wrong"]')).toBeNull()
+  })
+
   it('제출 중에는 보기와 버튼이 잠기고 "제출 중…"이 보인다', async () => {
     // 풀리지 않는 제출 — 진행 중 상태를 고정해 놓고 화면을 검사한다
     renderScreen(() => new Promise<VocabSubmitResult>(() => {}))
