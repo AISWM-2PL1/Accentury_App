@@ -1,5 +1,6 @@
 package com.accentury.app.auth
 
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -124,6 +125,12 @@ class AuthGateController(
     /** 진행 중인 탈퇴. 겹친 호출은 이 결과를 함께 기다린다 — [withdraw] 참고. [synchronized]로만 읽고 쓴다. */
     private var withdrawal: CompletableDeferred<WithdrawOutcome>? = null
 
+    /**
+     * 게이트의 [login] 성공으로 저장소에 새 쌍을 저장한 횟수 (KAN-251 리뷰 P1). 탈퇴 정리가 "그사이 새로 로그인했나"를
+     * 이것으로 가린다 — [signOutLocally] 참고. 갱신·bootstrap은 같은 세션의 이어짐이라 올리지 않는다.
+     */
+    private val loginGeneration = AtomicLong()
+
     private val _state = MutableStateFlow<AuthGateState>(AuthGateState.Checking)
     val state: StateFlow<AuthGateState> = _state.asStateFlow()
 
@@ -189,6 +196,7 @@ class AuthGateController(
             // 화면은 로그인에 남는다.
             is AuthResult.Success -> withContext(NonCancellable) {
                 if (store.save(result.value.tokens)) {
+                    loginGeneration.incrementAndGet()
                     _state.value = withVoiceConsent(stateOf(result.value.account))
                 } else {
                     // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
@@ -356,18 +364,17 @@ class AuthGateController(
      * 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리(상한 [logoutIdpTimeout])가 던져도 저장소는 비우고 로그인 화면으로 돌린다.
      *
      * @param keepNewLogin 탈퇴만 true다 (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저 저장소를 비우고 로그인 화면을
-     *   띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때 저장소 값을 잡아
-     *   두고, 끝날 때 저장소가 비었거나 그 값 그대로일 때만 비운다 — 달라졌으면 새 로그인이라 저장소·상태를 건드리지
-     *   않는다. 탈퇴 시작 때가 아니라 서버 단계 뒤에 잡는 이유: 탈퇴 요청 중 Access 만료로 갱신이 끼면 쌍이 회전해 시작
-     *   때 값과 달라진다. 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
+     *   띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때 [loginGeneration]을
+     *   잡아 두고, 끝날 때 그대로일 때만 비운다 — 달라졌으면 새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로
+     *   비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이
+     *   남는다(리뷰 재검증). 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
      */
     private suspend fun signOutLocally(idpLogout: suspend () -> Unit, keepNewLogin: Boolean = false) {
-        val before = if (keepNewLogin) store.read() else null
+        val generation = loginGeneration.get()
         try {
             withTimeoutOrNull(logoutIdpTimeout) { idpLogout() }
         } finally {
-            val now = if (keepNewLogin) store.read() else null
-            if (now == null || now == before) {
+            if (!keepNewLogin || loginGeneration.get() == generation) {
                 store.clear()
                 _state.value = AuthGateState.SignedOut()
             }

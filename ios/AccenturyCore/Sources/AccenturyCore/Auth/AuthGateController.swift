@@ -145,6 +145,11 @@ public final class AuthGateController: ObservableObject {
     private let logoutIdpTimeout: Duration
     private let withdrawServerTimeout: Duration
 
+    /// 게이트의 ``login(_:privacyPolicyVersion:)`` 성공으로 저장소에 새 쌍을 저장한 횟수 (KAN-251 리뷰 P1). 탈퇴 정리가
+    /// "그사이 새로 로그인했나"를 이것으로 가린다 — ``signOutLocally(_:keepingNewLogin:)`` 참고. 갱신·bootstrap은 같은
+    /// 세션의 이어짐이라 올리지 않는다.
+    private var loginGeneration = 0
+
     /// 진행 중인 탈퇴. 겹친 호출은 이 결과를 함께 기다린다 — ``withdraw(appleAuthorizationCode:idpLogout:)`` 참고.
     private var withdrawal: Task<WithdrawOutcome, Never>?
 
@@ -229,6 +234,7 @@ public final class AuthGateController: ObservableObject {
                 state = .signedOut(AuthFailure(.retry))
                 return
             }
+            loginGeneration += 1
             state = await withVoiceConsent(Self.state(of: success.account))
         } else {
             state = .signedOut(Self.failure(of: result))
@@ -384,14 +390,14 @@ public final class AuthGateController: ObservableObject {
     /// 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리가 상한 ``logoutIdpTimeout``을 넘겨도 저장소는 비우고 로그인 화면으로 돌린다.
     ///
     /// - Parameter keepingNewLogin: 탈퇴만 true다 (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저 저장소를 비우고 로그인
-    ///   화면을 띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때 저장소 값을
-    ///   잡아 두고, 끝날 때 저장소가 비었거나 그 값 그대로일 때만 비운다 — 달라졌으면 새 로그인이라 저장소·상태를 건드리지
-    ///   않는다. 시작 때가 아니라 서버 단계 뒤에 잡는 이유: 탈퇴 요청 중 Access 만료로 갱신이 끼면 쌍이 회전해 탈퇴 시작
-    ///   때 값과 달라진다. 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
+    ///   화면을 띄우므로, IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할 수 있다. 그래서 정리 시작 때
+    ///   ``loginGeneration``을 잡아 두고, 끝날 때 그대로일 때만 비운다 — 달라졌으면 새 로그인이라 저장소·상태를 건드리지
+    ///   않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해
+    ///   탈퇴 뒤 로그인이 남는다(리뷰 재검증). 로그아웃은 로그인 상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
     private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void, keepingNewLogin: Bool = false) async {
-        let before = keepingNewLogin ? await store.read() : nil
+        let generation = loginGeneration
         await withDeadline(logoutIdpTimeout, idpLogout)
-        if keepingNewLogin, let now = await store.read(), now != before { return }
+        if keepingNewLogin, loginGeneration != generation { return }
         await store.clear()
         state = .signedOut(nil)
     }
