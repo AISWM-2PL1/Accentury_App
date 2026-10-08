@@ -229,6 +229,68 @@ describe('WordLearningRoute', () => {
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
   })
 
+  /** W-1 → W-2 마지막 카드 → [문제 풀기]까지 누른다 */
+  async function clickStartQuiz() {
+    fireEvent.click(await screen.findByRole('button', { name: /먹을 것/ }))
+    fireEvent.click(await screen.findByRole('button', { name: '다음 카드' }))
+    fireEvent.click(screen.getByRole('button', { name: '문제 풀기' }))
+  }
+
+  /** W-3 두 문항을 다 풀고 [결과 보기]까지 누른다 */
+  async function answerAllAndShowResult() {
+    fireEvent.click(await screen.findByRole('radio', { name: '정구지' }))
+    fireEvent.click(screen.getByRole('button', { name: '제출' }))
+    fireEvent.click(await screen.findByRole('button', { name: '다음 문항' }))
+    fireEvent.click(await screen.findByRole('radio', { name: '머꼬' }))
+    fireEvent.click(screen.getByRole('button', { name: '제출' }))
+    fireEvent.click(await screen.findByRole('button', { name: '결과 보기' }))
+  }
+
+  it('시도 시작 실패면 오류 문구와 [다시 시도], 성공하면 W-3 첫 문항이다', async () => {
+    const { calls } = renderRoute({
+      ...happyRoutes(),
+      '/word-sets/s1/attempts': [fail(503, 'SERVICE_UNAVAILABLE', '잠시 뒤 다시 시도해 주세요', true), ok(ATTEMPT, 201)],
+    })
+    await clickStartQuiz()
+    expect(await screen.findByRole('alert')).toHaveTextContent('잠시 뒤 다시 시도해 주세요')
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    expect(await screen.findByRole('radiogroup', { name: '부추를 사투리로?' })).toBeInTheDocument()
+    expect(calls.filter((c) => c.path.endsWith('/attempts'))).toHaveLength(2)
+  })
+
+  it('시도 시작이 재시도로 안 풀리는 code(LEARNING_ATTEMPT_FORBIDDEN)면 [세트 목록으로]다', async () => {
+    renderRoute({
+      ...happyRoutes(),
+      '/word-sets/s1/attempts': fail(403, 'LEARNING_ATTEMPT_FORBIDDEN', '이 학습을 시작할 수 없어요', false),
+    })
+    await clickStartQuiz()
+    expect(await screen.findByRole('alert')).toHaveTextContent('이 학습을 시작할 수 없어요')
+    expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '세트 목록으로' }))
+    expect(await screen.findByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
+  })
+
+  it('완료 실패면 오류 문구와 [다시 시도], 성공하면 W-5다', async () => {
+    const { calls } = renderRoute({ ...happyRoutes(), '/complete': ['network', ok(RESULT)] })
+    await clickStartQuiz()
+    await answerAllAndShowResult()
+    expect(await screen.findByRole('alert')).toHaveTextContent('네트워크 오류')
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    expect(await screen.findByRole('heading', { level: 1, name: '세트 완료' })).toBeInTheDocument()
+    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(calls.filter((c) => c.path.endsWith('/complete'))).toHaveLength(2)
+  })
+
+  it('완료가 재시도로 안 풀리는 code(LEARNING_ATTEMPT_FORBIDDEN)면 [세트 목록으로]다', async () => {
+    renderRoute({ ...happyRoutes(), '/complete': fail(403, 'LEARNING_ATTEMPT_FORBIDDEN', '이 학습에 접근할 수 없어요', false) })
+    await clickStartQuiz()
+    await answerAllAndShowResult()
+    expect(await screen.findByRole('alert')).toHaveTextContent('이 학습에 접근할 수 없어요')
+    expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '세트 목록으로' }))
+    expect(await screen.findByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
+  })
+
   it('제출 중 UNAUTHENTICATED도 같은 출구다', async () => {
     renderRoute({ ...happyRoutes(), '/items/i1/answer': { status: 401, body: {} } })
     fireEvent.click(await screen.findByRole('button', { name: /먹을 것/ }))

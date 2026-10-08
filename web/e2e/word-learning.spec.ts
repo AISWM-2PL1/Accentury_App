@@ -97,7 +97,12 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
   const nextItem = page.getByRole('button', { name: '다음 문항', exact: true })
   let items = 0
   let correct = 0
+  /** W-4에서 본 오답 (prompt, 고른 보기, 정답 보기) — W-5 오답 목록 내용과 대조한다 (KAN-255 리뷰 P2) */
+  const wrongSeen: string[][] = []
   for (;;) {
+    const prompt = (await page.locator('#word-prompt').textContent())?.trim() ?? ''
+    // 보기 글자는 label의 첫 span이다 — 제출 뒤엔 「정답」/「내 답」 표시가 뒤에 붙는다 (ChoiceList)
+    const chosenText = (await page.locator('.choice-list label').first().locator(':scope > span').first().textContent())?.trim() ?? ''
     await page.getByRole('radiogroup').getByRole('radio').first().check({ force: true })
     await page.getByRole('button', { name: '제출', exact: true }).click()
 
@@ -109,7 +114,14 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
     await expect(label.locator('svg')).toHaveCount(1)
     await expect(verdict.locator('.word-verdict__explanation')).not.toBeEmpty()
     items += 1
-    if ((await label.textContent()) === '정답') correct += 1
+    const correctText =
+      (await page.locator('.choice-list label.choice--correct').locator(':scope > span').first().textContent())?.trim() ?? ''
+    if ((await label.textContent()) === '정답') {
+      correct += 1
+      expect(correctText).toBe(chosenText)
+    } else {
+      wrongSeen.push([prompt, `내 답: ${chosenText}`, `정답: ${correctText}`])
+    }
 
     // 자동으로 넘어가지 않는다 — 잠깐 기다려도 같은 문항의 W-4가 그대로다
     await page.waitForTimeout(500)
@@ -128,6 +140,13 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
   // 반올림 규칙은 서버 몫이라 내림·반올림 어느 쪽이든 받는다
   expect([Math.floor((correct * 100) / items), Math.round((correct * 100) / items)]).toContain(percent)
   await expect(page.locator('.word-wrong__item')).toHaveCount(items - correct)
+  // 개수만이 아니라 내용도 — 각 항목의 prompt·「내 답」·「정답」이 W-4에서 본 것과 같아야 한다.
+  // 순서는 서버 몫이라 정렬해 비교한다
+  const wrongShown = await page
+    .locator('.word-wrong__item')
+    .evaluateAll((lis) => lis.map((li) => [...li.querySelectorAll('p')].slice(0, 3).map((p) => p.textContent?.trim() ?? '')))
+  const byText = (a: string[], b: string[]) => a.join('|').localeCompare(b.join('|'))
+  expect(wrongShown.sort(byText)).toEqual(wrongSeen.sort(byText))
   console.log(`[e2e] 단어 학습 ${items}문항 중 ${correct}개 정답 (${percent}%)`)
 
   await page.getByRole('button', { name: '세트 목록으로', exact: true }).click()
