@@ -1,5 +1,6 @@
 package com.accentury.app.auth
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -643,20 +644,79 @@ class AuthGateControllerTest {
     fun `탈퇴 401은 이미 탈퇴된 계정이라 탈퇴됨으로 정리한다`() = runTest {
         val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         val gate = controller(store)
+        // 실제 로그인 상태에서 시작해 갱신 거절 훅(onSignedOut)이 IdP 정리 전에 로그인 화면으로 돌리는 경로를 겨눈다(KAN-251 리뷰 P1).
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        assertTrue(gate.state.value is AuthGateState.SignedIn)
         // 탈퇴 401 → Authenticator 갱신 → 서버가 Refresh를 이미 폐기해 401. 갱신 거절이 저장소를 먼저 비워도 IdP 정리는 빠지지 않는다.
         server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false)))
         server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        var stateDuringIdp: AuthGateState? = null
+
+        val outcome = gate.withdraw { stateDuringIdp = gate.state.value }
+
+        assertEquals(WithdrawOutcome.Withdrawn, outcome)
+        assertEquals(AuthGateState.SignedOut(), stateDuringIdp)
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertEquals(
+            listOf("/v0/auth/refresh", "/v0/users/me", "/v0/users/me/withdrawal", "/v0/auth/refresh"),
+            List(4) { server.takeRequest().path },
+        )
+        assertEquals(4, server.requestCount)
+    }
+
+    @Test
+    fun `탈퇴 401 뒤 IdP 정리 대기 중에 새로 로그인하면 새 토큰과 상태를 지우지 않는다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(2)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false)))
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+
+        // 탈퇴는 실제 시간 디스패처에서 돌린다 — runTest 가상 시간이면 로그인 네트워크를 기다리는 사이 IdP 상한(5초)을
+        // 건너뛰어 정리가 로그인보다 먼저 끝나, 고치기 전 코드도 통과한다.
+        val withdrawal = async(Dispatchers.Default) {
+            gate.withdraw {
+                entered.complete(Unit)
+                release.await()
+            }
+        }
+        entered.await()
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertNull(store.tokens)
+        gate.login(google, "v1")
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+        release.complete(Unit)
+
+        assertEquals(WithdrawOutcome.Withdrawn, withdrawal.await())
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+    }
+
+    @Test
+    fun `탈퇴 429면 탈퇴 안 됨으로 토큰을 두고 대기 시간을 알린다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(
+            MockResponse().setResponseCode(429)
+                .setBody("""{"code":"RATE_LIMITED","message":"m","retryable":true,"retryAfterMs":2100,"correlationId":"c"}"""),
+        )
         var idpLoggedOut = false
 
         val outcome = gate.withdraw { idpLoggedOut = true }
 
-        assertEquals(WithdrawOutcome.Withdrawn, outcome)
-        assertNull(store.tokens)
-        assertTrue(idpLoggedOut)
-        assertEquals(AuthGateState.SignedOut(), gate.state.value)
-        assertEquals("/v0/users/me/withdrawal", server.takeRequest().path)
-        assertEquals("/v0/auth/refresh", server.takeRequest().path)
-        assertEquals(2, server.requestCount)
+        assertEquals(WithdrawOutcome.Failed(AuthFailure(AuthFailureReason.RateLimited, 3)), outcome)
+        assertEquals(AuthTokens("jwt_0", "rt_0"), store.tokens)
+        assertFalse(idpLoggedOut)
+        assertEquals(1, server.requestCount)
     }
 
     @Test
