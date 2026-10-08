@@ -268,6 +268,20 @@ class AuthApiTest {
     }
 
     @Test
+    fun `회원 탈퇴는 Bearer를 싣고 빈 본문으로 POST하며 204를 성공으로 본다`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val result = api.withdraw()
+
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertEquals("/v0/users/me/withdrawal", recorded.path)
+        assertEquals("Bearer jwt_a", recorded.getHeader("Authorization"))
+        assertEquals(0L, recorded.bodySize)
+        assertEquals(AuthResult.Success(Unit), result)
+    }
+
+    @Test
     fun `서버가 없으면 전송 실패다`() = runTest {
         server.shutdown()
 

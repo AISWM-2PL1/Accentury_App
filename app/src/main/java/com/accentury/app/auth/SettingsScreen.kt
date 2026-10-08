@@ -82,7 +82,7 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * 설정 화면 (KAN-247). 계정 정보, 음성 저장 동의(KAN-270), 로그아웃.
+ * 설정 화면 (KAN-247). 계정 정보, 회원 탈퇴(KAN-251), 음성 저장 동의(KAN-270), 로그아웃.
  *
  * TestFlow를 컴포지션에서 내리지 않고 **그 위를 덮는다** — WebView는 인트로부터 테스트 끝까지 한 인스턴스로
  * 살아야 하므로(TestFlow KDoc) 닫으면 보던 웹 화면 그대로다. 시스템 뒤로 가기도 닫기와 같다.
@@ -91,6 +91,8 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
  * `/v0/users/me`를 또 부를 이유가 없다.
  *
  * @param onLogout [AuthGateController.logout]. 끝나면 게이트가 SignedOut이 되어 이 화면째 로그인 화면으로 바뀐다
+ * @param onWithdraw [AuthGateController.withdraw]. 탈퇴되면 로그아웃과 같이 로그인 화면으로 바뀌고, 실패하면 로그인 상태
+ *   그대로 확인 창에 안내를 남긴다
  * @param voiceConsent [AuthGateState.SignedIn.voiceConsent] (KAN-270). null이면 스위치 대신 [다시 시도]를 보인다
  * @param onVoiceConsentChange [AuthGateController.setVoiceConsent]
  * @param onReloadVoiceConsent [AuthGateController.reloadVoiceConsent]
@@ -102,6 +104,7 @@ fun SettingsScreen(
     voiceConsent: VoiceConsent?,
     onClose: () -> Unit,
     onLogout: suspend () -> Unit,
+    onWithdraw: suspend () -> WithdrawOutcome,
     onVoiceConsentChange: suspend (Boolean) -> AuthResult<Account>,
     onReloadVoiceConsent: suspend () -> Unit,
     onOpenPrivacy: () -> Unit,
@@ -111,6 +114,10 @@ fun SettingsScreen(
     // 회전해도 확인 창이 남게 저장한다. 진행 중 표시는 회전으로 화면 스코프가 끊기면 의미가 없어 remember다.
     var confirming by rememberSaveable { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
+    var confirmingWithdraw by rememberSaveable { mutableStateOf(false) }
+    var withdrawing by remember { mutableStateOf(false) }
+    var withdrawFailed by remember { mutableStateOf(false) }
+    val busy = leaving || withdrawing
 
     BackHandler(onBack = onClose)
 
@@ -129,7 +136,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                AccenturyButton(text = "닫기", onClick = onClose, variant = ButtonVariant.Text, enabled = !leaving)
+                AccenturyButton(text = "닫기", onClick = onClose, variant = ButtonVariant.Text, enabled = !busy)
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
@@ -143,7 +150,16 @@ fun SettingsScreen(
                 AccountRow("이름", user.name ?: "-")
                 AccountRow("이메일", user.email ?: "-")
                 AccountRow("로그인 방식", providerName(user.provider))
-                // [회원 탈퇴]는 KAN-251이 이 자리(계정 섹션 맨 아래)에 붙인다.
+                // 계정 섹션 맨 아래 (KAN-251, 팀 결정: 버튼 두 번 — 여기서 한 번, 확인 창의 [탈퇴]에서 한 번 더).
+                AccenturyButton(
+                    text = "회원 탈퇴",
+                    onClick = {
+                        withdrawFailed = false
+                        confirmingWithdraw = true
+                    },
+                    variant = ButtonVariant.Text,
+                    enabled = !busy,
+                )
             }
 
             VoiceConsentSection(
@@ -158,7 +174,7 @@ fun SettingsScreen(
                 onClick = { confirming = true },
                 modifier = Modifier.fillMaxWidth(),
                 variant = ButtonVariant.Secondary,
-                enabled = !leaving,
+                enabled = !busy,
             )
         }
     }
@@ -195,6 +211,61 @@ fun SettingsScreen(
                 )
             },
             // 종이 면 그대로 — 기본 surfaceContainerHigh는 Papercut 팔레트 밖의 색이다.
+            containerColor = MaterialTheme.colorScheme.background,
+        )
+    }
+
+    /*
+     * 탈퇴 확인 창 (KAN-251). 문구는 개인정보처리방침의 말("탈퇴하시면 지체 없이 파기합니다")과 맞춘다.
+     * [탈퇴]는 로그아웃 확인 창과 같은 Text 버튼이다 — 팔레트의 destructive도 잉크라 따로 칠할 색이 없다
+     * (design-tokens.md, 오류는 색이 아니라 문구로 가른다).
+     */
+    if (confirmingWithdraw) {
+        AlertDialog(
+            onDismissRequest = { if (!withdrawing) confirmingWithdraw = false },
+            title = { Text("회원 탈퇴할까요?", style = MaterialTheme.typography.titleMedium) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
+                    Text(
+                        "계정 정보(이메일·이름 등)는 탈퇴하면 지체 없이 파기해요\n" +
+                            "테스트 결과는 계정과 분리돼 익명으로 남아요\n" +
+                            "탈퇴하면 되돌릴 수 없어요",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    // 실패는 로그인 상태 그대로다 — 창을 닫지 않고 여기서 알려 같은 자리에서 다시 누르게 한다.
+                    if (withdrawFailed) {
+                        StatusBlock(tone = StatusTone.Error, message = "탈퇴되지 않았어요 · 네트워크를 확인하고 다시 시도해 주세요")
+                    }
+                }
+            },
+            confirmButton = {
+                AccenturyButton(
+                    text = if (withdrawing) "탈퇴하는 중" else "탈퇴",
+                    onClick = {
+                        // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(설정 토글과 같은 이유).
+                        withdrawing = true
+                        withdrawFailed = false
+                        scope.launch {
+                            try {
+                                // 탈퇴되면 게이트가 SignedOut이 되어 이 화면째 내려간다.
+                                withdrawFailed = onWithdraw() is WithdrawOutcome.Failed
+                            } finally {
+                                withdrawing = false
+                            }
+                        }
+                    },
+                    variant = ButtonVariant.Text,
+                    enabled = !withdrawing,
+                )
+            },
+            dismissButton = {
+                AccenturyButton(
+                    text = "취소",
+                    onClick = { confirmingWithdraw = false },
+                    variant = ButtonVariant.Text,
+                    enabled = !withdrawing,
+                )
+            },
             containerColor = MaterialTheme.colorScheme.background,
         )
     }
