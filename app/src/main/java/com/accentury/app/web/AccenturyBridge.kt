@@ -7,7 +7,9 @@ import com.accentury.app.analytics.EventParam
 import com.accentury.app.analytics.isAnalyticsName
 import com.accentury.app.analytics.parseEventParams
 import com.accentury.app.bridge.SharePayload
+import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.bridge.VoiceItemStart
+import com.accentury.app.bridge.parseIntonationRecordingStart
 import com.accentury.app.bridge.parseSharePayload
 import com.accentury.app.bridge.parseVoiceItemStart
 import com.accentury.app.ui.components.Haptic
@@ -17,7 +19,7 @@ import com.accentury.app.ui.components.Haptic
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
  * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
- * 햅틱(KAN-258)·계정 토큰(KAN-255)까지 필요한 열다섯 메서드만 둔다.
+ * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)까지 필요한 열여섯 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -56,6 +58,8 @@ import com.accentury.app.ui.components.Haptic
  *   임의 스레드에서 안전해야 한다. 로그인 안 됨·로그인 끈 빌드면 빈 문자열
  * @param onRefreshAccessToken 웹이 401을 받아 청한 계정 토큰 갱신 (KAN-255). 즉시 돌아오고, 결과는 창구 너머가
  *   `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (webview-bridge.md §11)
+ * @param onStartIntonationRecording 억양 학습 A-2의 [말해 보기] (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·
+ *   `onIntonationRecorded` 회신은 창구 너머가 한다 (webview-bridge.md §12). 기본값은 학습을 모르는 테스트 하네스용이다
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -75,6 +79,7 @@ class AccenturyBridge(
     private val onHaptic: (Haptic) -> Unit,
     private val accessToken: () -> String,
     private val onRefreshAccessToken: () -> Unit,
+    private val onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -339,6 +344,22 @@ class AccenturyBridge(
     fun refreshAccessToken() {
         postToMain {
             if (isCurrentUrlAllowed()) onRefreshAccessToken()
+        }
+    }
+
+    /**
+     * 억양 학습 [말해 보기] → 네이티브 녹음 화면 (KAN-253, §12). [startVoiceItem]과 같은 순서다 — origin 검증을 통과한
+     * payload만 파싱하고, 불량은 조용히 버리되 흔적을 남긴다. 회신(`onIntonationRecorded`)은 업로드 202 때 한 번뿐이다.
+     */
+    @JavascriptInterface
+    fun startIntonationRecording(payloadJson: String) {
+        postToMain {
+            if (!isCurrentUrlAllowed()) return@postToMain
+            val start = parseIntonationRecordingStart(payloadJson) ?: run {
+                CrashReports.recordBridgeParseFailure("startIntonationRecording")
+                return@postToMain
+            }
+            onStartIntonationRecording(start)
         }
     }
 }

@@ -65,8 +65,8 @@ import com.accentury.app.bridge.GuideF0
 @Composable
 fun RecordingScreen(
     questionText: String,
-    questionIndex: Int,
-    totalQuestions: Int,
+    // 레벨테스트 문항인가 억양 학습 카드인가 (KAN-253). 진행 표기와 [내 녹음 듣기]만 이 값으로 갈린다.
+    purpose: RecordingPurpose,
     // quality는 Review 상태에만 있고 뷰모델은 넘어가는 즉시 reset되므로, 호출자가 나중에 되물을 수 없다.
     // 브리지 계약(KAN-89)이 qualityStatus를 요구해서 여기서 함께 넘긴다.
     onNext: (attemptId: String, durationMs: Long, quality: QualityStatus) -> Unit,
@@ -105,6 +105,17 @@ fun RecordingScreen(
      * 녹음 자체가 없고, `recording_retake`가 세는 것은 "다 읽고 나서 다시 읽기로 했다"는 판단이다.
      */
     onRetake: () -> Unit = {},
+    /*
+     * 확인 단계의 [내 녹음 듣기] (KAN-253). [RecordingPurpose.offersPlayback]이 false면 넘겨도 그리지 않는다.
+     * 재생 자체는 호출자가 한다(PcmPlayer) - 이 화면은 버튼과 그 상태만 안다.
+     */
+    onListen: (() -> Unit)? = null,
+    listening: Boolean = false,
+    /*
+     * 하단을 호출자가 통째로 그린다 (KAN-253). 억양 학습의 업로드 실패([재시도]·다시 녹음)가 녹음 화면 안에서
+     * 풀려야 해서 둔 자리다. null이면 아래 상태별 하단 그대로다.
+     */
+    footer: (@Composable () -> Unit)? = null,
     viewModel: RecordingViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -191,22 +202,30 @@ fun RecordingScreen(
              * [note]가 "음성"인 것도 같은 이유다 - 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를
              * 빼면 같은 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
              */
-            ProgressIndicator(
-                current = questionIndex,
-                total = totalQuestions,
-                note = "음성",
-                modifier = Modifier.fillMaxWidth(),
-            )
+            // 억양 학습에는 진행 표기가 없다 (KAN-253, §12) - 웹 A-2가 이미 n/N을 보여 준다.
+            if (purpose is RecordingPurpose.LevelTest) {
+                ProgressIndicator(
+                    current = purpose.itemNumber,
+                    total = purpose.totalItems,
+                    note = "음성",
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
-            Spacer(modifier = Modifier.height(Spacing.x6))
+                Spacer(modifier = Modifier.height(Spacing.x6))
+            }
             /*
              * 대사 카드. 배지·이모지·부연을 걷고 캡션 한 줄 + 대사만 남겼다 (아트보드 ②).
              * "평소 말하듯 자연스럽게 읽어주세요"가 사라진 것은 문구를 줄이려는 게 아니라 자리를
              * 옮긴 것이다 - 카드는 읽을 문장을 내밀고, 어떻게 하라는 말은 버튼 밑 캡션이 한다.
              */
             PromptCard(
-                caption = promptCaption(questionIndex, totalQuestions),
+                caption = when (purpose) {
+                    is RecordingPurpose.LevelTest -> promptCaption(purpose.itemNumber, purpose.totalItems)
+                    is RecordingPurpose.IntonationLearning -> promptCaption(0, 0)
+                },
                 prompt = questionText,
+                // 억양 학습의 표준어 원문 (KAN-253). null이면 그 줄을 그리지 않는다 (§12).
+                supporting = (purpose as? RecordingPurpose.IntonationLearning)?.standard?.let { "표준어 · $it" },
             )
 
             Spacer(modifier = Modifier.height(Spacing.x6))
@@ -218,7 +237,9 @@ fun RecordingScreen(
             modifier = Modifier.fillMaxWidth().padding(top = Spacing.x4),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (submitting) {
+            if (footer != null) {
+                footer()
+            } else if (submitting) {
                 /*
                  * 결과를 기다리는 동안의 하단. 버튼 자리를 문구 하나로 바꿔 "눌린 건 알아들었고 지금
                  * 처리 중"만 알린다 - 진행률이나 취소를 주지 않는 이유는 이 구간이 보통 1초 안쪽이고
@@ -248,6 +269,8 @@ fun RecordingScreen(
                         viewModel.retryRecording()
                     },
                     onNext = { onNext(s.attemptId, s.durationMs, s.quality) },
+                    onListen = onListen?.takeIf { purpose.offersPlayback },
+                    listening = listening,
                 )
 
                 is RecordingUiState.Failed -> StatusBlock(
@@ -393,6 +416,8 @@ private fun ReviewControls(
     state: RecordingUiState.Review,
     onRetry: () -> Unit,
     onNext: () -> Unit,
+    onListen: (() -> Unit)?,
+    listening: Boolean,
 ) {
     if (state.autoStopped) {
         Caption("10초가 지나 자동으로 종료됐어요")
@@ -401,6 +426,16 @@ private fun ReviewControls(
     Caption("녹음 길이 ${"%.1f".format(state.durationMs / 1000.0)}초")
 
     Spacer(modifier = Modifier.height(Spacing.x4))
+    // 억양 학습에만 (KAN-253). 재녹음·다음 줄은 레벨테스트와 같게 두고 그 위에 보조 버튼 한 줄을 더한다.
+    if (onListen != null) {
+        AccenturyButton(
+            text = if (listening) "듣기 멈추기" else "내 녹음 듣기",
+            variant = ButtonVariant.Secondary,
+            onClick = onListen,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(Spacing.x3))
+    }
     /*
      * 둘이 같은 폭을 갖는다 (웹 `.record-actions`와 같은 규칙). 무게는 이미 변형이 가르므로
      * (보조는 그림자 없는 크림, 주는 잉크 면) 폭까지 다르면 보조 동작이 눌리지 않을 만큼 작아진다.

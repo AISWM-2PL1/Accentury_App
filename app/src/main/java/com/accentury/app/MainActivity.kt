@@ -72,6 +72,7 @@ import com.accentury.app.bridge.retestFailedDeliveryJs
 import com.accentury.app.bridge.retestFailurePayload
 import com.accentury.app.permission.MicPermissionController
 import com.accentury.app.permission.MicPermissionState
+import com.accentury.app.recording.RecordingPurpose
 import com.accentury.app.recording.RecordingScreen
 import com.accentury.app.audio.RecordingEngine
 import com.accentury.app.audio.defaultPcmSource
@@ -128,6 +129,12 @@ import com.accentury.app.upload.UploadRequest
 import com.accentury.app.upload.UploadState
 import com.accentury.app.upload.UploadStatusBar
 import com.accentury.app.upload.UploadViewModel
+import com.accentury.app.bridge.intonationRecordedDeliveryJs
+import com.accentury.app.learning.IntonationRecordingOverlay
+import com.accentury.app.learning.IntonationRecordingViewModel
+import com.accentury.app.learning.IntonationUploadClient
+import com.accentury.app.learning.IntonationUploadState
+import androidx.activity.compose.BackHandler
 import com.accentury.app.web.AppLinkEntry
 import com.accentury.app.web.ExternalBrowser
 import com.accentury.app.web.TestEntry
@@ -865,6 +872,46 @@ private fun TestFlow(
         }
     }
 
+    /*
+     * 억양 학습 녹음 (KAN-253, webview-bridge.md §12). 학습은 로그인 필수라 계정 클라이언트가 없는 빌드(익명 모드)에서는
+     * 만들지 않고 [말해 보기] 호출도 버린다 — 그 빌드의 웹은 계정 토큰이 없어 A-2까지 오지 못한다.
+     *
+     * 녹음 뷰모델은 레벨테스트 오버레이와 다른 인스턴스다(키 "intonation"). 같은 것을 쓰면 학습이 레벨테스트의 녹음 상태를
+     * 되감거나 읽게 된다 — §12 「세션 ID·문항 인덱스와 섞지 않는다」.
+     */
+    val intonation: IntonationRecordingViewModel? = authClients?.let { clients ->
+        viewModel(
+            key = "intonation-upload",
+            factory = viewModelFactory {
+                initializer {
+                    IntonationRecordingViewModel(IntonationUploadClient(BuildConfig.API_BASE_URL, clients.authedClient)::upload)
+                }
+            },
+        )
+    }
+    val intonationRecording: RecordingViewModel = viewModel(key = "intonation", factory = recordingFactory)
+    val intonationStart = intonation?.start?.collectAsStateWithLifecycle()?.value
+    val intonationUpload = intonation?.uploadState?.collectAsStateWithLifecycle()?.value
+    // 학습만 하는 사용자는 시작 게이트의 권한 칸을 지나지 않았을 수 있다 — 화면을 열 때마다 다시 본다.
+    var intonationMicOk by rememberSaveable { mutableStateOf(false) }
+
+    // TestFlow가 내려가면 학습 녹음도 놓는다 — 위 KAN-247 정리와 같은 이유·같은 회전 예외. intonation은 빌드 상수로 정해져 바뀌지 않는다.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!activity.isChangingConfigurations) {
+                intonation?.close()
+                intonationRecording.reset()
+            }
+        }
+    }
+
+    // 202 → 웹에 한 번 회신하고 화면을 닫는다. WebView가 없으면 회신 없이 닫는다 — 웹은 A-2 그대로라 다시 말해 볼 수 있다.
+    LaunchedEffect(intonationUpload) {
+        val accepted = intonationUpload as? IntonationUploadState.Accepted ?: return@LaunchedEffect
+        webView?.evaluateJavascript(intonationRecordedDeliveryJs(accepted.recorded), null)
+        intonation?.close()
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             WebViewHost(
@@ -938,6 +985,12 @@ private fun TestFlow(
                 onShowInterstitialAd = { ads.interstitial.show(activity) },
                 accessToken = { currentAccessToken() },
                 onRefreshAccessToken = { refreshAccessToken() },
+                onStartIntonationRecording = { start ->
+                    intonation?.let {
+                        intonationMicOk = isMicGranted()
+                        it.open(start)
+                    }
+                },
                 onWebViewCreated = { webView = it },
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.
@@ -986,6 +1039,22 @@ private fun TestFlow(
             }
 
             when {
+                // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
+                // 시스템 뒤로가기 = 회신 없이 A-2로 (§12). 권한 화면에서의 뒤로가기도 같다.
+                intonationStart != null && intonation != null -> {
+                    BackHandler(onBack = intonation::close)
+                    if (!intonationMicOk) {
+                        PermissionGate(onGranted = { intonationMicOk = true })
+                    } else {
+                        IntonationRecordingOverlay(
+                            start = intonationStart,
+                            uploader = intonation,
+                            recording = intonationRecording,
+                            centerHz = voiceCenterHz,
+                        )
+                    }
+                }
+
                 // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던
                 // 재응시를 이어 간다. 이번에는 지역이 있어 [proceedRetest]가 곧장 세션 요청으로 간다.
                 retestRegionPending && anonymousConsent != null ->
@@ -1139,7 +1208,8 @@ private fun TestFlow(
             // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
             val nativeCovering = (startRequested && session == null) ||
                 phase is TestFlowPhase.NeedsPermission ||
-                retestRegionPending
+                retestRegionPending ||
+                (intonationStart != null && !intonationMicOk)
             if (!nativeCovering) {
                 SettingsGearButton(
                     onClick = onOpenSettings,
@@ -1184,8 +1254,7 @@ private fun RecordingOverlay(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         RecordingScreen(
             questionText = start.prompt,
-            questionIndex = start.itemNumber,
-            totalQuestions = start.totalItems,
+            purpose = RecordingPurpose.LevelTest(start.itemNumber, start.totalItems),
             onNext = onSubmit,
             guideF0 = start.guideF0,
             submitting = submitting,

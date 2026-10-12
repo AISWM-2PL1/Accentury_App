@@ -202,4 +202,17 @@ class RecordingViewModelTest {
         vm.reset()
         assertTrue(vm.uiState.value is RecordingUiState.Idle)
     }
+
+    @Test
+    fun `내 녹음 듣기용 peek은 PCM을 소비하지 않는다 - 제출은 여전히 같은 PCM을 가져간다 (KAN-253)`() = runTest(dispatcher) {
+        val vm = viewModelWith(chunksOf(16))
+
+        vm.startRecording()
+        advanceUntilIdle()
+
+        val peeked = vm.peekRecording()
+        assertTrue(peeked != null && peeked.isNotEmpty())
+        assertTrue(vm.consumeRecording() === peeked)
+        assertEquals(null, vm.peekRecording())
+    }
 }

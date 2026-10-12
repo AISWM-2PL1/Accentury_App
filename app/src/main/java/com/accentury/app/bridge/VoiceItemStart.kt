@@ -1,5 +1,6 @@
 package com.accentury.app.bridge
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -71,7 +72,7 @@ data class GuideF0(
  * 문항 진행 전체를 막게 되기 때문이다.
  */
 fun parseVoiceItemStart(payloadJson: String): VoiceItemStart? {
-    val start = decodeStart(payloadJson) ?: return null
+    val start = decodeTolerantOfGuide(payloadJson, VoiceItemStart.serializer()) ?: return null
 
     if (start.itemId.isBlank()) return null
     if (start.itemNumber < 1 || start.totalItems < 1) return null
@@ -81,16 +82,19 @@ fun parseVoiceItemStart(payloadJson: String): VoiceItemStart? {
     return start
 }
 
-/** 전체 파싱을 먼저 시도하고, 실패하면 guideF0만 떼어낸 뒤 한 번 더 시도한다. */
-private fun decodeStart(payloadJson: String): VoiceItemStart? {
+/**
+ * 전체 파싱을 먼저 시도하고, 실패하면 guideF0만 떼어낸 뒤 한 번 더 시도한다.
+ * 억양 학습 녹음 payload(KAN-253, [parseIntonationRecordingStart])도 같은 곡선 관용 규칙을 쓴다.
+ */
+internal fun <T> decodeTolerantOfGuide(payloadJson: String, serializer: KSerializer<T>): T? {
     try {
-        return json.decodeFromString(VoiceItemStart.serializer(), payloadJson)
+        return json.decodeFromString(serializer, payloadJson)
     } catch (_: Exception) {
         // guideF0만 불량일 수 있다 — 아래에서 곡선을 버리고 구제를 시도한다.
     }
     return try {
         val stripped = JsonObject(json.parseToJsonElement(payloadJson).jsonObject.filterKeys { it != "guideF0" })
-        json.decodeFromJsonElement(VoiceItemStart.serializer(), stripped)
+        json.decodeFromJsonElement(serializer, stripped)
     } catch (_: Exception) {
         null
     }

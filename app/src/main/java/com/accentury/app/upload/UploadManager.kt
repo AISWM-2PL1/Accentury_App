@@ -228,7 +228,7 @@ class UploadManager(
  * 사용자는 자기가 끊긴 건지 서버가 죽은 건지 알 수 없다. 원인을 단정할 수 있는 만큼만 말하고,
  * 어느 쪽이든 복구 수단은 하나([재시도])라 문구는 전부 "다시 시도" 쪽으로 모은다.
  */
-private fun TransportFailure.userMessage(): String = when (this) {
+internal fun TransportFailure.userMessage(): String = when (this) {
     TransportFailure.Offline -> "인터넷 연결을 확인해 주세요"
     TransportFailure.ServerUnreachable -> "서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요"
     TransportFailure.Timeout -> "응답이 늦어요. 다시 시도해 주세요"
