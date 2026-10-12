@@ -179,7 +179,7 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
   await expect(speak(page)).toBeEnabled()
   await expect(page.getByRole('button', { name: '코스 목록으로', exact: true })).toBeVisible()
 
-  // 회신 → A-4 대기(단계 표시) → 피드백 자리 표시 → 출구 하나
+  // 회신 → A-4 대기(단계 표시) → 피드백 → [다음 카드] (마지막이면 [코스 완료] → A-6)
   await replyRecorded(page, card.cardId)
   await expect(page.getByText('곡선 추출', { exact: true })).toBeVisible()
   await expect(page.getByText('77점', { exact: true })).toBeVisible()
@@ -190,6 +190,7 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
     await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
     expect((await intonationCalls(page))[1]).toMatchObject({ cardId: cards[1].cardId, itemNumber: 2, totalItems: cards.length })
   } else {
+    await page.getByRole('button', { name: '코스 완료', exact: true }).click()
     await page.getByRole('button', { name: '코스 목록으로', exact: true }).click()
     await expectCourseList(page)
   }
