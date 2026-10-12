@@ -341,7 +341,12 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
    * 코스 k1을 열고 두 카드 회신(la_1, la_2)을 쏜다. attempts는 /intonation-attempts/{id} 응답(배열이면 차례로,
    * 마지막은 남는다 — 나중에 바꿔 끼우려면 그 배열의 [0]을 갈면 된다). 조회 경로와 목록 조회 횟수를 센다
    */
-  async function toEnd(attempts: Record<string, Reply | Reply[]>, start = vi.fn(), cards = 2) {
+  async function toEnd(
+    attempts: Record<string, Reply | Reply[]>,
+    start = vi.fn(),
+    cards = 2,
+    hold?: (path: string) => Promise<Response> | undefined,
+  ) {
     vi.useFakeTimers()
     withBridge(start)
     const calls: string[] = []
@@ -353,7 +358,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
       const path = new URL(input).pathname
       if (path.includes('/intonation-attempts/')) calls.push(path)
       if (path.endsWith('/intonation-courses')) listCalls()
-      return server(input, init)
+      return hold?.(path) ?? server(input, init)
     }
     const view = render(<IntonationLearningRoute apiBase="http://api" onLeave={vi.fn()} deps={deps(fetchImpl)} />)
     await act(async () => {})
@@ -503,6 +508,74 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(screen.getByText('70점')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
     expect(row('2번 문항')).toHaveTextContent('70점')
+  })
+
+  /** 응답을 붙잡아 두는 조회 — resolve 전까지 끝나지 않는다. 경로마다 첫 호출만 붙잡는다 */
+  function holdFirst(suffix: string) {
+    let release: (reply: Reply) => void = () => {}
+    let held = false
+    const hold = (path: string) => {
+      if (held || !path.endsWith(suffix)) return undefined
+      held = true
+      return new Promise<Response>((resolve) => {
+        release = (r) => resolve({ ok: r.status < 300, status: r.status, json: async () => r.body } as Response)
+      })
+    }
+    return { hold, release: (r: Reply) => release(r) }
+  }
+
+  it('채점 조회가 응답 없이 멈춰도 60초 deadline에 「확인 필요」로 목록 → [다시 시도] 재폴링 (리뷰 P1)', async () => {
+    const { hold } = holdFirst('/la_2')
+    const { calls } = await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 70) }, vi.fn(), 2, hold)
+    await advance(59_000)
+    expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
+    expect(calls.filter((p) => p.endsWith('/la_2'))).toHaveLength(1) // 응답이 없으니 다음 조회도 없다
+    await advance(1_000)
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+    expect(row('2번 문항')).toHaveTextContent('확인 필요')
+
+    fireEvent.click(row('2번 문항'))
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await act(async () => {})
+    expect(screen.getByText('70점')).toBeInTheDocument()
+  })
+
+  it('deadline 뒤 늦게 온 응답은 「확인 필요」를 덮지 않는다', async () => {
+    const { hold, release } = holdFirst('/la_2')
+    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 70) }, vi.fn(), 2, hold)
+    await advance(60_000)
+    expect(row('2번 문항')).toHaveTextContent('확인 필요')
+    release(completed('la_2', 99))
+    await advance(10_000)
+    expect(row('2번 문항')).toHaveTextContent('확인 필요')
+  })
+
+  it('끊긴 앞 폴링의 늦은 응답은 다시 녹음한 시도(la_3)의 결과를 덮지 않는다', async () => {
+    // la_1 첫 조회를 붙잡아 deadline으로 끝낸 뒤, 재폴링 완료 → 다시 녹음 la_3 완료 → 그때 la_1 첫 응답을 푼다
+    const { hold, release } = holdFirst('/la_1')
+    await toEnd(
+      { la_1: completed('la_1', 80), la_2: completed('la_2', 72), la_3: completed('la_3', 86, 80) },
+      vi.fn(),
+      2,
+      hold,
+    )
+    await advance(60_000)
+    fireEvent.click(row('1번 문항'))
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' })) // 같은 la_1 재폴링
+    await act(async () => {})
+    expect(screen.getByText('80점')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' })) // A-5 → 같은 카드 다시 녹음
+    await act(async () => {})
+    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_3' })))
+    await act(async () => {})
+    expect(screen.getByText('86점')).toBeInTheDocument()
+
+    release(completed('la_1', 10))
+    await advance(10_000)
+    expect(screen.getByText('86점')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
+    expect(row('1번 문항')).toHaveTextContent('86점')
   })
 
   it('[코스 목록으로] → 목록을 다시 받는다 (완료 저장 호출 없음)', async () => {
