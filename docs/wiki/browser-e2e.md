@@ -367,12 +367,29 @@ StrictMode 주의가 그대로다. 다른 점만 적는다.
 - 실 Vite는 StrictMode 개발 빌드라, 자동 호출 1회 단언이 StrictMode 이중 effect 회귀도 함께 잡는다.
 - 사용자 Vite(5173)가 이미 떠 있고 백엔드 CORS에 5174가 없으면 `E2E_BASE_URL=http://localhost:5173`으로 돌린다
   (5단계 확인 때 8건 3.5초).
-- **실제 녹음·업로드는 E2E 밖이다.** 네이티브가 화면·업로드까지 하고 웹은 성공 회신만 받으므로,
-  브라우저에서 볼 수 있는 것은 payload 모양과 회신 뒤 화면 전환까지다. 업로드는 에뮬레이터 확인으로 덮는다.
+- **실제 녹음은 E2E 밖이다.** 네이티브가 녹음 화면·업로드까지 하고 웹은 성공 회신만 받는다. 마이크·녹음 화면은
+  에뮬레이터 확인으로 덮는다.
+- **실채점 흐름 (KAN-254 4단계).** 업로드는 스펙이 Playwright `request`로 흉내 낸다(`uploadRecording`). 브리지에 심은
+  것과 같은 계정 토큰으로 `POST /v0/learning/intonation-cards/{cardId}/recordings`에 multipart(`audio`=앱 레포
+  `app/src/debug/assets/fake_mic.wav`, `meta`=`{durationMs, clientQuality:{rms,peak,silenceRatio,clipped}}` JSON 파트)를
+  회신마다 새 `Idempotency-Key`로 올리고, 202의 진짜 attemptId를 `replyRecorded`에 싣는다. 그 뒤 채점 조회는 가로채지
+  않는다. A-4(「분석 중이에요」·「곡선 추출」) → A-5에서 점수·코멘트를 `request`로 따로 받은 폴링 응답과 대조하고,
+  [다시 시도]로 같은 카드를 다시 올려 「지난번보다 …점」이 (2회차 − 1회차)의 `formatDelta`와 같은지 본다. 카드가 가장
+  적은 코스(시드 V10에선 레벨 5의 7장)를 끝까지 돌아 A-6 → A-1 그 코스 행에 「완료」(서버 KAN-268 계산)까지 간다.
+  업로드 8회 × 분석 2~3초라 이 테스트만 약 19초다. 계정은 테스트마다 새로 만든다(`loginWithFakeIdp`) — 다른 테스트의
+  시도가 직전 대비·완료 판정에 섞이지 않게.
+- **가짜 AI 엔진의 한계.** 점수는 attemptId 해시라 0~100 아무 값이고, segments를 주지 않아 `pitchFeedback`이 늘 빈
+  배열이다 — 실채점 테스트에서 코멘트는 「높낮이 순서가 경남 화자와 같아요」 갈래만 실제로 지나간다(코멘트 목록 갈래는
+  vitest가 덮는다). 실패는 `ACCENTURY_AI_FAKE_FAIL_ITEM` 한 문항(학습이면 cardId)의 `AUDIO_TOO_QUIET`뿐인데 그 자리는
+  retake 스펙이 쓰고, 오독·분석 실패는 아예 못 낸다.
+- **실패 주입.** 그래서 실패 출구 3종은 `stubAttempts`에 오류 코드(`ANALYSIS_MISREAD`·`AUDIO_TOO_QUIET`·
+  `ANALYSIS_UNSCORABLE` → `FAILED` + `error`)를 넣어 만든다. 다시 부르면 나중 route가 먼저 잡혀 한 테스트 안에서 셋을
+  차례로 바꿔 끼운다. 각각 문구·대사 표시(오독·조용함만)·버튼 1개·[다시 녹음] 뒤 같은 cardId 녹음 호출을 본다.
+  60초 소진은 벽시계를 태워야 해 E2E에서 빼고 vitest 가짜 타이머가 덮는다.
 - 브라우저 단독(브리지 없음) 케이스는 없다. 학습은 로그인 필수라 브리지 토큰 없이는 목록이 열리지 않아
   A-2의 비활성 [다시 말해 보기]에 닿지 못한다 — vitest(`IntonationLearningScreens.test.tsx`)가 덮는다.
 - **로그인 분당 상한에 걸릴 수 있다.** 서버 `accentury.auth.rate-limit-per-minute`가 IP당 30이고 이 스펙은
-  한 판에 7번 로그인한다. `--repeat-each=3`(21번) 뒤 1분 안에 다른 학습 스펙을 돌리면 `RATE_LIMITED` 429로
+  한 판에 9번 로그인한다(KAN-254 4단계 뒤). `--repeat-each=3`(27번) 뒤 1분 안에 다른 학습 스펙을 돌리면 `RATE_LIMITED` 429로
   로그인 헬퍼에서 100ms 만에 실패한다(2026-10-12 실측). 1분 쉬고 다시 돌리면 된다.
 
 ## 실측 수치

@@ -69,6 +69,7 @@ vitest가 못 보는 것을 실제 Chromium에서 본다 — `getUserMedia`·`Au
 | `e2e/feedback.spec.ts` | 완주 → 결과 화면 후기 시트 → 실패·재시도(같은 멱등 키)·저장·리로드 후 409 | 스택, `E2E_FAIL_ITEM` **없음** |
 | `e2e/retake.spec.ts` | 음성 문항 분석 실패 → [다시 녹음] → 그 문항만 재녹음 → 결과 완주 (`E2E_FAIL_TIMES=1`) / 재녹음도 실패하면 [다시 녹음]이 다시 선다 (`E2E_FAIL_TIMES` 없음) | 스택, `E2E_FAIL_ITEM` **있음** |
 | `e2e/mic-blocked.spec.ts` | 마이크 거부·점유 안내, 세션 미생성 | 없음 (BE를 부르지 않는다) |
+| `e2e/intonation-learning.spec.ts` | 억양 학습 A-1~A-6 — 브리지 흉내, 업로드를 `request`로 흉내 낸 실채점(점수·직전 대비·코스 「완료」), 실패 출구 | 스택, BE `--accentury.auth.fake-idp=true`, `E2E_FAIL_ITEM` 무관 |
 
 #### 스택 띄우기
 
@@ -101,8 +102,12 @@ docker compose -f docker-compose.yml -f /tmp/ai-ports.yml up -d --wait ai
 #      같은 출처라도 POST에 Origin을 실어 보내고 프록시가 그대로 넘기므로 없으면 세션 생성이 403이다.
 #    - ai-token은 compose의 ai가 검사하는 내부 토큰(ACCENTURY_AI_INTERNAL_TOKEN)과 같은 값이어야
 #      한다. 빠지면 BE→AI 호출이 401로 막혀 회로가 열리고, 분석 대기에서 멈춘다.
+#    - 학습 스펙(word-learning·intonation-learning)은 계정 로그인이라 fake-idp가 켜져 있어야 하고,
+#      Refresh 저장소인 Redis(1단계 compose의 redis)가 떠 있어야 로그인이 된다.
+#    - Flyway 체크섬이 기존 볼륨과 어긋나 기동이 멈추면 볼륨을 지우지 말고 별도 DB 컨테이너를 띄워
+#      --spring.datasource.url=jdbc:postgresql://localhost:<포트>/accentury를 덧붙인다.
 cd backend && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
-  ./gradlew bootRun --args="--accentury.cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174 --accentury.analysis.ai-base-url=http://127.0.0.1:8000 --accentury.analysis.ai-token=local-internal-token-0123456789abcdef"
+  ./gradlew bootRun --args="--accentury.auth.fake-idp=true --accentury.cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174 --accentury.analysis.ai-base-url=http://127.0.0.1:8000 --accentury.analysis.ai-token=local-internal-token-0123456789abcdef"
 
 # 4) 확인 — 둘 다 200이어야 한다
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/actuator/health
