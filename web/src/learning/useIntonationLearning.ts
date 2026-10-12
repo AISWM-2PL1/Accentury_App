@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { planNextPoll } from '../analysis/pollSchedule'
+import { planNextPoll, POLL_BUDGET_MS } from '../analysis/pollSchedule'
 import { installIntonationRecordedReceiver, startIntonationRecording } from '../bridge/bridge'
 import type { WordApiDeps } from './wordApi'
 import { WordLearningError } from './wordApi'
@@ -116,13 +116,13 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
    * 카드 1건 폴링. 간격·60초 예산은 레벨테스트와 같은 `planNextPoll`이다(서버 pollAfterMs와 백오프의 max, 지터).
    * 혼잡 예산은 안 쓴다 — 학습 응답엔 queue 안내가 없다. 카드마다 따로 돌아 각자 예산을 갖는다.
    * 부를 때마다 예산부터 새로 선다(타임아웃 행의 [다시 시도]).
+   *
+   * 예산은 조회 응답과 독립된 deadline 타이머로도 건다(KAN-254 리뷰 P1) — planNextPoll은 응답이 와야 판정하므로
+   * 요청이 끝나지 않으면 A-4에서 못 나온다. 요청은 끊지 않는다(`request`가 AbortSignal을 받지 않음): 종결 뒤
+   * 늦게 온 응답은 cancelled로 버린다. 종결(settle)·취소 모두 같은 cancel을 거쳐 한 번만 끝난다.
    */
   const startPolling = (cardId: string, attemptId: string) => {
     polls.current.get(cardId)?.()
-    const settle = (result: CardResult) => {
-      polls.current.delete(cardId)
-      setResults((r) => ({ ...r, [cardId]: result }))
-    }
     setResults((r) => ({ ...r, [cardId]: { attemptId, outcome: 'processing' } }))
 
     const startedAt = Date.now()
@@ -130,10 +130,18 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
     let timer: ReturnType<typeof setTimeout> | undefined
     let round = 0
     let serverPollAfterMs: number | null = null
-    polls.current.set(cardId, () => {
+    const cancel = () => {
       cancelled = true
       clearTimeout(timer)
-    })
+      clearTimeout(deadline)
+    }
+    const settle = (result: CardResult) => {
+      cancel()
+      polls.current.delete(cardId)
+      setResults((r) => ({ ...r, [cardId]: result }))
+    }
+    const deadline = setTimeout(() => settle({ attemptId, outcome: 'timeout' }), POLL_BUDGET_MS)
+    polls.current.set(cardId, cancel)
 
     const tick = async () => {
       try {
