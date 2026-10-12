@@ -3,6 +3,7 @@ package com.accentury.app.web
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.analytics.EventParam
 import com.accentury.app.bridge.GuideF0
+import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.recording.GuideF0Fixture
 import com.accentury.app.bridge.SharePayload
 import com.accentury.app.bridge.VoiceItemStart
@@ -921,5 +922,59 @@ class AccenturyBridgeTest {
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
         h.queue.drain()
         assertEquals(0, h.refreshRequested)
+    }
+
+    /** startIntonationRecording을 한 번 부르고 콜백이 받은 값을 돌려준다 (KAN-253). 무시됐으면 null. */
+    private fun startIntonation(payloadJson: String, urlAllowed: () -> Boolean = { true }, beforeDrain: () -> Unit = {}): IntonationRecordingStart? {
+        val queue = FakeMainQueue()
+        var received: IntonationRecordingStart? = null
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = urlAllowed,
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
+            onStartIntonationRecording = { received = it },
+        )
+        bridge.startIntonationRecording(payloadJson)
+        beforeDrain()
+        queue.drain()
+        return received
+    }
+
+    private val intonationPayload = """{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000}"""
+
+    @Test
+    fun `허용된 origin이면 억양 녹음 시작이 파싱된 payload로 간다`() {
+        assertEquals("card_1", startIntonation(intonationPayload)?.cardId)
+    }
+
+    @Test
+    fun `allowlist 밖 origin의 억양 녹음 시작은 버린다`() {
+        assertNull(startIntonation(intonationPayload, urlAllowed = { false }))
+    }
+
+    @Test
+    fun `억양 녹음 시작도 실행 시점 origin으로 판정한다`() {
+        var allowedNow = true
+        assertNull(startIntonation(intonationPayload, urlAllowed = { allowedNow }, beforeDrain = { allowedNow = false }))
+    }
+
+    @Test
+    fun `불량 억양 payload는 콜백 없이 버린다`() {
+        assertNull(startIntonation("""{"cardId":"","prompt":"a","maxDurationMs":10000}"""))
+        assertNull(startIntonation("not json"))
     }
 }

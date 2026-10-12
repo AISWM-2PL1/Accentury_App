@@ -229,6 +229,11 @@ iOS의 계정 Access 토큰(`getAccessToken`, KAN-255)도 세션 토큰·광고 
 
 KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android(2·3, 4단계)·iOS(4~6, 5단계) 완료 (§11).
 
+KAN-253은 웹 쪽 1·7을 1단계, Android 2·3을 2단계에서 끝냈다(iOS 4~6은 3단계). 메서드가 녹음 화면을 띄우는 종류라
+Android는 표의 2·3 말고도 손대는 곳이 있다 — `bridge/IntonationRecordingStart.kt`(payload 파서) ·
+`bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/`(업로드·화면) · `recording/RecordingScreen.kt`의
+`RecordingPurpose`. 목록과 이유는 §12 「Android 구현」.
+
 테스트도 같은 수만큼 늘어난다: `bridge.test.ts`, `AccenturyBridgeTest.kt`,
 `AccenturyBridgeTests.swift`, `BridgeUserScriptTests.swift`(메서드 목록).
 
@@ -562,7 +567,7 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 
 계약 버전은 2 그대로다 — 메서드 하나(`startIntonationRecording`)와 수신 슬롯 하나(`onIntonationRecorded`)를
 **추가**만 했다(§1). 모르는 앱에서는 래퍼가 false라 A-2의 [말해 보기]가 비활성이다. 웹 쪽은 1단계 완료
-(`web/src/bridge/bridge.ts`, `web/src/learning/useIntonationLearning.ts`), 네이티브는 2단계 Android · 3단계 iOS.
+(`web/src/bridge/bridge.ts`, `web/src/learning/useIntonationLearning.ts`), 네이티브는 2단계 Android 완료 · 3단계 iOS.
 
 ### web → native: `startIntonationRecording(payloadJson)`
 
@@ -587,7 +592,7 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 웹은 A-2(`view.screen === 'card'`)에 있는 동안만 이 슬롯을 설치하고, **지금 카드의 `cardId`가 아닌 회신과 모양이 어긋난
 payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표시로 간다(A-4 본 화면·결과 폴링은 KAN-254).
 
-### 네이티브가 지킬 것 (2단계 Android · 3단계 iOS)
+### 네이티브가 지킬 것 (2단계 Android 완료 · 3단계 iOS)
 
 - **녹음 화면은 레벨테스트 것을 재사용한다.** 상태 머신(카운트다운 → 녹음 → 확인 → 업로드), 품질 선차단
   `TOO_QUIET`·`TOO_SHORT`·`CLIPPED`(Android `recording/RecordingScreen.kt`의 `QualityStatus`, iOS `Recording/RecordingScreen.swift`),
@@ -600,7 +605,24 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
   - multipart는 레벨테스트 업로드(`upload/UploadClient.kt`)와 같다 — 파트 `audio`(`recording.wav`, `audio/wav`) + `meta`(`application/json`, `{durationMs, clientQuality}`). 서버도 같은 `VoiceRecordings.read`로 읽는다.
   - `Authorization: Bearer <계정 Access 토큰>` — 세션 토큰이 아니다(§11). 401이면 TokenRefresher로 **갱신 1회 뒤 같은 요청 재시도 1회**, 그래도 401이면 로그인 만료로 안내(업로드 실패와 같이 회신 없음).
   - `Idempotency-Key`: 녹음 1건(확인 단계에서 제출한 그 오디오)마다 새로 만들고, 그 녹음의 재시도에는 **같은 키**를 다시 쓴다. 다시 녹음하면 새 키.
-  - [재시도]는 무제한. 단 `503 ANALYSIS_UNAVAILABLE`은 서버가 그 키의 시도를 실패로 기록했을 수 있어(같은 키 재전송이 실패 시도를 돌려준다) **재시도 때 새 키**를 쓴다. 400·413·415·422처럼 봉투 `retryable:false`면 재시도 대신 다시 녹음을 안내한다(오디오가 같으면 결과도 같다).
+  - [재시도]는 무제한. 단 `503 ANALYSIS_UNAVAILABLE`은 서버가 그 키의 시도를 실패로 기록했을 수 있어(같은 키 재전송이 실패 시도를 202로 돌려준다 — 서버 코드로 확인, 아래 「Android 구현」) **재시도 때 새 키**를 쓴다. 400·413·415·422처럼 봉투 `retryable:false`면 재시도 대신 다시 녹음을 안내한다(오디오가 같으면 결과도 같다).
   - 202 응답 `{attemptId, contentVersion, cardId, status, pollAfterMs}` 중 `attemptId`만 웹으로 넘긴다. 폴링은 웹(KAN-254)이 한다.
 - **뒤로가기 = 회신 없이 A-2 복귀.** 업로드 진행 중이면 요청을 버린다(같은 키로 서버에 이미 닿았더라도 웹은 그 시도를 모른다 — 다음 녹음은 새 키라 별개 시도다).
 - origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
+
+#### Android 구현 (KAN-253 2단계)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `web/AccenturyBridge.kt`(`startIntonationRecording`) · `web/WebViewHost.kt`(전달) · `bridge/IntonationRecordingStart.kt`(파서) · `bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/IntonationUploadClient.kt` · `learning/IntonationRecordingViewModel.kt`(열림·업로드·키 규칙) · `learning/IntonationRecordingOverlay.kt`(A-3) · `recording/PcmPlayer.kt`([내 녹음 듣기]) · `MainActivity.kt` TestFlow(결선) |
+| origin·파싱 | `startVoiceItem`과 같은 순서 — postToMain 뒤 `isCurrentUrlAllowed`, 파싱 실패는 `CrashReports.recordBridgeParseFailure("startIntonationRecording")`. 빈 `cardId`·빈 `prompt`·`maxDurationMs ≤ 0`은 버린다. `guideF0`만 불량이면 곡선만 버린다(`decodeTolerantOfGuide`, `startVoiceItem`과 공유) |
+| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `RecordingPurpose`를 받는다 — `LevelTest(itemNumber, totalItems)`는 이전과 같은 모양, `IntonationLearning(standard)`는 진행바·`n / N` 없음, 대사 카드 아래 「표준어 · …」 한 줄(null이면 생략), 확인 단계에 [내 녹음 듣기]. 확인 뒤의 일은 호출자의 `onNext`가 정한다. 녹음 뷰모델은 레벨테스트와 다른 인스턴스(`viewModel(key = "intonation")`) |
+| 업로드 | `AuthClients.authedClient`에 60초 callTimeout만 얹어 쓴다 — 계정 Bearer와 401 → 갱신 1회 → 같은 요청 재시도 1회가 그 클라이언트(`AccessTokenInterceptor`·`TokenAuthenticator`)에 이미 있다. multipart는 레벨테스트와 같은 `upload/UploadClient.kt`의 `recordingMultipart` |
+| 멱등 키 | 제출 1건마다 `li_<UUID>`, [재시도]는 같은 키. `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키 — 서버 `IntonationScoringService.upload`가 분석 큐 전달 실패 시 그 키의 시도를 `RETRYABLE_FAILED`로 커밋하고 503을 주며, 같은 키 재전송에는 그 실패 시도를 202로 돌려준다(2026-10-12 origin/Dev 확인). 회로 차단(`accepts()` false)의 503은 시도를 만들지 않아 어느 키든 같다 |
+| 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요」(Refresh 거절이면 TokenRefresher가 이미 로그인 화면으로 돌린다) |
+| 회신·닫기 | 202 → `onIntonationRecorded({cardId, attemptId})` 한 번 → 화면 닫기. 업로드 중·202 뒤에는 하단이 「제출 중…」 |
+| 뒤로가기 | 오버레이의 `BackHandler`가 `close()` — 진행 중 업로드 취소, 음성 바이트 0으로 덮기, 회신 없음. 권한 화면에서도 같다 |
+| 마이크 권한 | 학습만 하는 사용자는 시작 게이트를 안 지났을 수 있어 열 때마다 확인하고, 없으면 `PermissionGate`를 먼저 띄운다 |
+| [내 녹음 듣기] | `AudioTrack` `MODE_STATIC`으로 방금 PCM을 메모리에서 재생(MediaPlayer는 파일·URI가 필요해 WAV를 디스크에 써야 한다 — FR-DP-02). 재생 중 다시 누르면 정지. 확인 단계 이탈(재녹음)·[다음]·화면 이탈 때 정지·`release()`. 레벨테스트 확인 단계에는 없다(`RecordingPurpose.offersPlayback`) |
+| 회전·로그아웃 | 열린 카드·업로드는 ViewModel이라 회전을 넘긴다. TestFlow가 내려가면(로그아웃) `close()`·녹음 `reset()` |
+| `LOGIN_ENABLED=false` | 업로드 뷰모델을 만들지 않고 `startIntonationRecording`을 버린다 — 그 빌드의 웹은 계정 토큰이 없어 A-2까지 오지 못한다 |
