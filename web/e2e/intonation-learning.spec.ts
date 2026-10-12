@@ -12,16 +12,26 @@
  * 2. **회신 → A-4 대기 → 피드백 자리 표시 → 다음 카드가 실 문서에서 이어진다.** 네이티브 회신은
  *    `window.AccenturyWeb.onIntonationRecorded`를 다음 틱에 부르는 것으로 흉내 낸다
  *    (evaluateJavascript와 같은 순서). 회신이 없거나(뒤로가기) 다른 카드 것이면 A-2가 그대로여야 한다.
- *    회신의 attemptId는 가짜라 채점 조회(KAN-254)는 [stubAttempts]로 가로챈다 — 실 채점 E2E는 KAN-254 4단계.
+ *    이 둘은 회신의 attemptId가 가짜라 채점 조회를 [stubAttempts]로 가로챈다.
+ * 3. **실채점 (KAN-254 4단계).** 네이티브 업로드를 Playwright `request`로 흉내 낸다 — 브리지에 심은 것과 같은
+ *    계정 토큰으로 `POST /v0/learning/intonation-cards/{cardId}/recordings`에 가짜 마이크 WAV를 올리고([uploadRecording]),
+ *    202의 진짜 attemptId를 회신에 싣는다. 그 뒤 채점 조회는 가로채지 않는다 — A-5 점수·코멘트·직전 대비를 서버
+ *    폴링 응답과 대조하고, 코스를 끝까지 돌아 A-1에 「완료」(KAN-268)가 서는지 본다. 가짜 AI 엔진은 해시 점수만 주고
+ *    segments를 안 줘 pitchFeedback이 늘 빈 배열이다. 실패 출구는 엔진이 오독·분석 실패를 못 내므로 [stubAttempts]로 만든다.
  *
- * 실제 녹음·업로드는 네이티브 몫이라 이 스펙 밖이다 — 에뮬레이터 확인이 덮는다
+ * 실제 녹음(마이크·녹음 화면)은 네이티브 몫이라 이 스펙 밖이다 — 에뮬레이터 확인이 덮는다
  * (`docs/wiki/browser-e2e.md`의 「억양 학습 스펙」 절).
  *
  * 브리지 흉내·로그인·StrictMode 이중 조회 주의는 `word-learning.spec.ts`와 같다. 백엔드는
  * `--accentury.auth.fake-idp=true`로 떠 있어야 하고 Flyway 시드 코스(V10)가 있어야 한다.
  */
 
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { feedbackComment, formatDelta } from '../src/learning/intonationFeedback'
+import type { IntonationAttempt } from '../src/learning/intonationApi'
 import { loginWithFakeIdp } from './helpers/accountLogin'
 
 /** 앱이 WebView에 싣는 쿼리와 같은 모양. `screen=intonation`이 억양 학습 진입이다 (App.tsx) */
@@ -76,28 +86,70 @@ function intonationCalls(page: Page): Promise<RecordingCall[]> {
   return page.evaluate(() => (window as unknown as { __intonationCalls: RecordingCall[] }).__intonationCalls)
 }
 
-/** 네이티브 회신 흉내 — 테스트가 고른 cardId로 */
-function replyRecorded(page: Page, cardId: string): Promise<void> {
-  return page.evaluate((id) => {
+/** 네이티브 회신 흉내 — 테스트가 고른 cardId로. attemptId는 실채점이면 [uploadRecording]이 받은 값 */
+function replyRecorded(page: Page, cardId: string, attemptId = 'la_e2e_manual'): Promise<void> {
+  return page.evaluate(([id, attempt]) => {
     const web = (window as unknown as { AccenturyWeb: { onIntonationRecorded: (p: string) => void } }).AccenturyWeb
-    web.onIntonationRecorded(JSON.stringify({ cardId: id, attemptId: 'la_e2e_manual' }))
-  }, cardId)
+    web.onIntonationRecorded(JSON.stringify({ cardId: id, attemptId: attempt }))
+  }, [cardId, attemptId] as const)
+}
+
+/** 앱 디버그 빌드가 에뮬레이터 마이크에 주입하는 것과 같은 WAV (16kHz 모노, 2.5초) */
+const FAKE_MIC_WAV = readFileSync(fileURLToPath(new URL('../../app/src/debug/assets/fake_mic.wav', import.meta.url)))
+
+/**
+ * 네이티브 업로드 흉내 (KAN-254 4단계) — 앱이 녹음 뒤 올리는 것과 같은 multipart다. 회신마다 새 Idempotency-Key라
+ * 같은 카드를 다시 올리면 새 시도가 생긴다. meta.clientQuality는 객체여야 한다(문자열이면 400). 202의 attemptId를 돌려준다
+ */
+async function uploadRecording(request: APIRequestContext, token: string, cardId: string): Promise<string> {
+  const res = await request.post(`/v0/learning/intonation-cards/${cardId}/recordings`, {
+    headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': randomUUID() },
+    multipart: {
+      audio: { name: 'recording.wav', mimeType: 'audio/wav', buffer: FAKE_MIC_WAV },
+      meta: {
+        name: 'meta.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(
+          JSON.stringify({ durationMs: 2500, clientQuality: { rms: 0.1, peak: 0.5, silenceRatio: 0.1, clipped: false } }),
+        ),
+      },
+    },
+  })
+  expect(res.status(), `업로드 실패 ${res.status()} ${await res.text()}`).toBe(202)
+  return ((await res.json()) as { attemptId: string }).attemptId
+}
+
+/** 서버 폴링 응답을 따로 받는다 — 화면이 A-5를 그린 뒤라 이미 COMPLETED다 */
+async function fetchAttempt(request: APIRequestContext, token: string, attemptId: string): Promise<IntonationAttempt> {
+  const res = await request.get(`/v0/learning/intonation-attempts/${attemptId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  expect(res.ok()).toBe(true)
+  return (await res.json()) as IntonationAttempt
 }
 
 const ATTEMPT_PATH = '/v0/learning/intonation-attempts/'
 
-/** 채점 조회를 가로챈다. 차례로 내주고 마지막 상태를 반복한다 (KAN-254 응답 모양) */
-async function stubAttempts(page: Page, statuses: ('PROCESSING' | 'COMPLETED')[]): Promise<void> {
+/** 실패 출구의 서버 오류 코드. 오독·조용함·그 밖의 분석 실패 (intonationFeedback.attemptOutcome) */
+type FailCode = 'ANALYSIS_MISREAD' | 'AUDIO_TOO_QUIET' | 'ANALYSIS_UNSCORABLE'
+
+/**
+ * 채점 조회를 가로챈다. 차례로 내주고 마지막 상태를 반복한다 (KAN-254 응답 모양). 오류 코드는 FAILED + error다.
+ * 다시 부르면 나중 route가 먼저 잡으므로 새 순서로 갈아 끼워진다
+ */
+async function stubAttempts(page: Page, statuses: ('PROCESSING' | 'COMPLETED' | FailCode)[]): Promise<void> {
   const queue = [...statuses]
   await page.route(
     (url) => url.pathname.startsWith(ATTEMPT_PATH),
     (route) => {
-      const status = queue.length > 1 ? queue.shift()! : queue[0]
+      const next = queue.length > 1 ? queue.shift()! : queue[0]
       const attemptId = route.request().url().split('/').pop()
+      const failed = next !== 'PROCESSING' && next !== 'COMPLETED'
       route.fulfill({
         json: {
-          attemptId, contentVersion: 'in-e2e', cardId: 'stub', status, pollAfterMs: 500,
-          ...(status === 'COMPLETED' ? { score: 77, pitchFeedback: [], previousScore: null } : {}),
+          attemptId, contentVersion: 'in-e2e', cardId: 'stub', status: failed ? 'FAILED' : next, pollAfterMs: 500,
+          ...(next === 'COMPLETED' ? { score: 77, pitchFeedback: [], previousScore: null } : {}),
+          ...(failed ? { error: { code: next, retryable: false } } : {}),
         },
       })
     },
@@ -305,4 +357,116 @@ test('401 - 브리지로 토큰을 갱신한 뒤 같은 요청을 다시 보내 
   const token = await loginWithFakeIdp(request)
   await openIntonation(page, { token: 'e2e-expired-token', refreshTo: token })
   await expectCourseList(page)
+})
+
+/** A-5에 선 점수·코멘트가 서버 응답과 같은지. 서버 응답을 돌려준다 */
+async function expectFeedbackMatchesServer(
+  page: Page,
+  request: APIRequestContext,
+  token: string,
+  attemptId: string,
+): Promise<IntonationAttempt> {
+  await expect(page.getByText('억양 점수', { exact: true })).toBeVisible({ timeout: 30_000 })
+  const attempt = await fetchAttempt(request, token, attemptId)
+  expect(attempt.status).toBe('COMPLETED')
+  await expect(page.locator('.intonation-score .text-hero')).toHaveText(`${attempt.score}점`)
+  const feedback = attempt.pitchFeedback ?? []
+  if (feedback.length > 0) {
+    await expect(page.locator('.intonation-comments li')).toHaveText(feedback.map(feedbackComment))
+  } else {
+    await expect(page.getByText('높낮이 순서가 경남 화자와 같아요', { exact: true })).toBeVisible()
+  }
+  return attempt
+}
+
+test('실채점 - 업로드 → A-4 → A-5가 서버 점수·코멘트와 같고, [다시 시도] 2회차에 직전 대비, 끝까지 돌면 A-1에 「완료」', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000) // 카드 7장 + 재시도 1회, 업로드마다 분석 2~3초
+  const token = await loginWithFakeIdp(request)
+  await openIntonation(page, { token })
+  await expectCourseList(page)
+
+  // 카드가 가장 적은 코스 (시드 V10에선 레벨 5의 7장)
+  const list = await request.get(LIST_PATH, { headers: { Authorization: `Bearer ${token}` } })
+  const { courses } = (await list.json()) as { courses: { courseId: string; title: string; cardCount: number }[] }
+  const course = courses.reduce((a, b) => (b.cardCount < a.cardCount ? b : a))
+  const row = page.locator('.word-set-row').filter({ has: page.getByText(course.title, { exact: true }) })
+  await expect(row).toContainText(`0/${course.cardCount}장`)
+  await row.click()
+
+  // 1번 카드 첫 시도 — A-4 대기를 거쳐 A-5. 첫 시도엔 직전 대비 줄이 없다
+  await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
+  const firstCardId = (await intonationCalls(page))[0].cardId
+  const firstAttemptId = await uploadRecording(request, token, firstCardId)
+  await replyRecorded(page, firstCardId, firstAttemptId)
+  await expect(page.getByText('분석 중이에요', { exact: true })).toBeVisible()
+  await expect(page.getByText('곡선 추출', { exact: true })).toBeVisible()
+  const first = await expectFeedbackMatchesServer(page, request, token, firstAttemptId)
+  expect(first.previousScore).toBeNull()
+  await expect(page.locator('.intonation-delta')).toHaveCount(0)
+
+  // [다시 시도] → 같은 카드 녹음 호출 → 새 키로 두 번째 업로드 → 직전 대비 (AC: 2회차)
+  await page.getByRole('button', { name: '다시 시도', exact: true }).click()
+  await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
+  expect((await intonationCalls(page))[1].cardId).toBe(firstCardId)
+  const secondAttemptId = await uploadRecording(request, token, firstCardId)
+  expect(secondAttemptId).not.toBe(firstAttemptId)
+  await replyRecorded(page, firstCardId, secondAttemptId)
+  const second = await expectFeedbackMatchesServer(page, request, token, secondAttemptId)
+  expect(second.previousScore).toBe(first.score)
+  const delta = page.locator('.intonation-delta')
+  await expect(delta).toContainText(`지난번보다 ${formatDelta(second.score! - first.score!)}점`)
+  await expect(delta).toContainText(`지난번 ${first.score}점에서 ${second.score}점`)
+
+  // 남은 카드도 실업로드로 — 카드마다 녹음 호출 1회, 마지막은 [코스 완료]
+  for (let n = 2; n <= course.cardCount; n++) {
+    await page.getByRole('button', { name: '다음 카드', exact: true }).click()
+    await expect.poll(async () => (await intonationCalls(page)).length).toBe(n + 1)
+    const call = (await intonationCalls(page))[n]
+    expect(call).toMatchObject({ itemNumber: n, totalItems: course.cardCount })
+    const attemptId = await uploadRecording(request, token, call.cardId)
+    await replyRecorded(page, call.cardId, attemptId)
+    await expectFeedbackMatchesServer(page, request, token, attemptId)
+  }
+  await page.getByRole('button', { name: '코스 완료', exact: true }).click()
+
+  // A-6 → A-1. 완료 저장 호출은 없고 서버가 시도 기록으로 계산한다 (KAN-268)
+  await expect(page.getByRole('heading', { level: 1, name: `${course.title} 코스를 마쳤어요` })).toBeVisible()
+  await page.getByRole('button', { name: '코스 목록으로', exact: true }).click()
+  await expectCourseList(page)
+  await expect(row.locator('.word-set-row__meta')).toHaveText(/완료$/)
+})
+
+/*
+ * 실패 출구 3종. 가짜 AI 엔진은 실패로 AUDIO_TOO_QUIET 하나만, 그것도 ACCENTURY_AI_FAKE_FAIL_ITEM 한 문항에만 낸다 —
+ * 그 자리는 retake 스펙(레벨테스트 문항 v3)이 쓰고, 오독(ANALYSIS_MISREAD)·분석 실패(ANALYSIS_UNSCORABLE)는 아예 못 낸다.
+ * 그래서 셋 다 채점 조회를 가로채 만든다. 60초 소진([다시 시도])은 벽시계 60초를 태워야 해 E2E에선 빼고
+ * vitest(`IntonationLearningScreens.test.tsx`의 가짜 타이머)가 덮는다.
+ */
+test('실패 출구 - 오독·조용함·분석 실패마다 문구와 버튼 하나, [다시 녹음]은 같은 카드 녹음을 다시 연다', async ({
+  page,
+  request,
+}) => {
+  await openIntonation(page, { token: await loginWithFakeIdp(request) })
+  await openFirstCourse(page)
+  const card = (await intonationCalls(page))[0]
+
+  const exits: [FailCode, string, boolean][] = [
+    ['ANALYSIS_MISREAD', '제시된 문장과 다르게 들렸어요', true],
+    ['AUDIO_TOO_QUIET', '목소리가 작게 들렸어요', true],
+    ['ANALYSIS_UNSCORABLE', '분석하지 못했어요. 다시 녹음해 주세요', false],
+  ]
+  for (const [i, [code, message, showsLine]] of exits.entries()) {
+    await stubAttempts(page, ['PROCESSING', code])
+    await replyRecorded(page, card.cardId)
+    await expect(page.getByText(message, { exact: true })).toBeVisible()
+    // 오독·조용함만 무엇을 다시 말할지 대사를 다시 보인다
+    await expect(page.getByText(card.prompt, { exact: true })).toHaveCount(showsLine ? 1 : 0)
+    await expect(page.getByRole('button')).toHaveCount(1)
+    await page.getByRole('button', { name: '다시 녹음', exact: true }).click()
+    await expect.poll(async () => (await intonationCalls(page)).length).toBe(i + 2)
+    expect((await intonationCalls(page))[i + 1].cardId).toBe(card.cardId)
+  }
 })
