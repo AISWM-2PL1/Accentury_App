@@ -9,9 +9,10 @@
  *    그대로 되비추는지만 본다. 여기서는 실 서버 상세 응답(Playwright `request`로 따로 받은 것)과
  *    `startIntonationRecording` payload의 cardId·prompt·standard·guideF0·itemNumber·totalItems를 대조한다 — 웹이 카드를
  *    seq로 다시 정렬하므로, 정렬이 어긋나면 엉뚱한 카드의 녹음이 엉뚱한 cardId로 올라간다.
- * 2. **회신 → 자리 표시 → 다음 카드가 실 문서에서 이어진다.** 네이티브 회신은
+ * 2. **회신 → A-4 대기 → 피드백 자리 표시 → 다음 카드가 실 문서에서 이어진다.** 네이티브 회신은
  *    `window.AccenturyWeb.onIntonationRecorded`를 다음 틱에 부르는 것으로 흉내 낸다
  *    (evaluateJavascript와 같은 순서). 회신이 없거나(뒤로가기) 다른 카드 것이면 A-2가 그대로여야 한다.
+ *    회신의 attemptId는 가짜라 채점 조회(KAN-254)는 [stubAttempts]로 가로챈다 — 실 채점 E2E는 KAN-254 4단계.
  *
  * 실제 녹음·업로드는 네이티브 몫이라 이 스펙 밖이다 — 에뮬레이터 확인이 덮는다
  * (`docs/wiki/browser-e2e.md`의 「억양 학습 스펙」 절).
@@ -83,6 +84,26 @@ function replyRecorded(page: Page, cardId: string): Promise<void> {
   }, cardId)
 }
 
+const ATTEMPT_PATH = '/v0/learning/intonation-attempts/'
+
+/** 채점 조회를 가로챈다. 차례로 내주고 마지막 상태를 반복한다 (KAN-254 응답 모양) */
+async function stubAttempts(page: Page, statuses: ('PROCESSING' | 'COMPLETED')[]): Promise<void> {
+  const queue = [...statuses]
+  await page.route(
+    (url) => url.pathname.startsWith(ATTEMPT_PATH),
+    (route) => {
+      const status = queue.length > 1 ? queue.shift()! : queue[0]
+      const attemptId = route.request().url().split('/').pop()
+      route.fulfill({
+        json: {
+          attemptId, contentVersion: 'in-e2e', cardId: 'stub', status, pollAfterMs: 500,
+          ...(status === 'COMPLETED' ? { score: 77, pitchFeedback: [], previousScore: null } : {}),
+        },
+      })
+    },
+  )
+}
+
 /** A-1이 그려졌는지. 제목과 레벨 묶음(h2 「레벨 N」)이 하나 이상 있어야 한다 */
 async function expectCourseList(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: '억양 학습' })).toBeVisible()
@@ -111,6 +132,7 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
   request,
 }) => {
   const token = await loginWithFakeIdp(request)
+  await stubAttempts(page, ['PROCESSING', 'COMPLETED'])
   await openIntonation(page, { token })
 
   // A-1. 추천 강조는 많아야 하나 (서버 §3.20)
@@ -157,9 +179,10 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
   await expect(speak(page)).toBeEnabled()
   await expect(page.getByRole('button', { name: '코스 목록으로', exact: true })).toBeVisible()
 
-  // 회신 → 「분석 중」 자리 표시 → 출구 하나
+  // 회신 → A-4 대기(단계 표시) → 피드백 자리 표시 → 출구 하나
   await replyRecorded(page, card.cardId)
-  await expect(page.getByText('분석 중이에요', { exact: true })).toBeVisible()
+  await expect(page.getByText('곡선 추출', { exact: true })).toBeVisible()
+  await expect(page.getByText('77점', { exact: true })).toBeVisible()
   if (cards.length > 1) {
     await page.getByRole('button', { name: '다음 카드', exact: true }).click()
     await expectCardProgress(page, 2, cards.length)
@@ -186,6 +209,7 @@ test('회신 없음(녹음 화면에서 뒤로가기) - 일시정지 A-2가 그�
 })
 
 test('다른 카드의 늦은 회신은 무시하고 지금 카드의 회신만 받는다', async ({ page, request }) => {
+  await stubAttempts(page, ['PROCESSING'])
   await openIntonation(page, { token: await loginWithFakeIdp(request) })
   await openFirstCourse(page)
   const { cardId } = (await intonationCalls(page))[0]
