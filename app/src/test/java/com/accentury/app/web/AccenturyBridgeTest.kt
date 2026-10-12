@@ -954,7 +954,8 @@ class AccenturyBridgeTest {
         return received
     }
 
-    private val intonationPayload = """{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000}"""
+    private val intonationPayload =
+        """{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000,"itemNumber":1,"totalItems":3}"""
 
     @Test
     fun `허용된 origin이면 억양 녹음 시작이 파싱된 payload로 간다`() {
@@ -974,7 +975,7 @@ class AccenturyBridgeTest {
 
     @Test
     fun `불량 억양 payload는 콜백 없이 버린다`() {
-        assertNull(startIntonation("""{"cardId":"","prompt":"a","maxDurationMs":10000}"""))
+        assertNull(startIntonation("""{"cardId":"","prompt":"a","maxDurationMs":10000,"itemNumber":1,"totalItems":1}"""))
         assertNull(startIntonation("not json"))
     }
 }

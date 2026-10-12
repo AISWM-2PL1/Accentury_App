@@ -350,7 +350,7 @@ Bearer만 받기 때문이다. 브라우저에는 IdP SDK가 없으므로 서버
 - 개발 빌드는 StrictMode라 진입 목록 조회가 두 번 나간다. 그래서 목록 실패 케이스는 「첫 요청만 500」이
   아니라 [다시 시도] 전까지 전부 500으로 막는다. 401 케이스도 갱신 횟수를 1로 못 박지 않는다.
 
-## 억양 학습 스펙 (KAN-253 4단계, 2026-10-12)
+## 억양 학습 스펙 (KAN-253 4·5단계, 2026-10-12)
 
 `intonation-learning.spec.ts`는 단어 학습 스펙과 같은 판 위에서 돈다 — 기동 인자·로그인 헬퍼·
 StrictMode 주의가 그대로다. 다른 점만 적는다.
@@ -358,13 +358,19 @@ StrictMode 주의가 그대로다. 다른 점만 적는다.
 - 시드: Flyway V10(`in-gn-2026.10.1`, 코스 14개)이 있어야 한다. A-1 첫 행이 서버 목록의 첫 코스인지,
   A-2 카드가 서버 상세(seq 정렬)의 첫 카드인지를 Playwright `request`로 같은 응답을 받아 대조한다.
 - 진입: `/?bridge=2&app=1.0&screen=intonation`.
-- 브리지 흉내에 `startIntonationRecording`을 더한다. payload를 `window.__intonationCalls`에 쌓고,
-  `autoReply`인 테스트만 다음 틱에 `window.AccenturyWeb.onIntonationRecorded({cardId, attemptId:'la_e2e_…'})`로
-  회신한다(네이티브 업로드 202 흉내). 회신 없음(뒤로가기)·다른 카드 회신은 테스트가 직접 부른다.
+- 브리지 흉내에 `startIntonationRecording`을 더한다. payload를 `window.__intonationCalls`에 쌓는다.
+  5단계부터 웹이 카드 진입(코스 열기·[다음 카드]) 때 자동으로 부르므로, 스펙은 버튼을 누르지 않고
+  `__intonationCalls` 길이(코스 열기 1, [다음 카드] 뒤 2, 카드 로드 실패 뒤 [다시 시도] 성공 1)와
+  `itemNumber`·`totalItems`까지 대조한다. 회신(`onIntonationRecorded`)은 전부 테스트가 직접 쏜다 — 자동 호출이
+  카드 진입 즉시라 자동 회신이면 일시정지 A-2를 볼 틈이 없어 4단계의 `autoReply` 흉내는 걷었다.
+  A-2에서는 [다시 말해 보기]·[코스 목록으로]를 확인한다.
+- 실 Vite는 StrictMode 개발 빌드라, 자동 호출 1회 단언이 StrictMode 이중 effect 회귀도 함께 잡는다.
+- 사용자 Vite(5173)가 이미 떠 있고 백엔드 CORS에 5174가 없으면 `E2E_BASE_URL=http://localhost:5173`으로 돌린다
+  (5단계 확인 때 8건 3.5초).
 - **실제 녹음·업로드는 E2E 밖이다.** 네이티브가 화면·업로드까지 하고 웹은 성공 회신만 받으므로,
   브라우저에서 볼 수 있는 것은 payload 모양과 회신 뒤 화면 전환까지다. 업로드는 에뮬레이터 확인으로 덮는다.
 - 브라우저 단독(브리지 없음) 케이스는 없다. 학습은 로그인 필수라 브리지 토큰 없이는 목록이 열리지 않아
-  A-2의 비활성 [말해 보기]에 닿지 못한다 — vitest(`IntonationLearningScreens.test.tsx`)가 덮는다.
+  A-2의 비활성 [다시 말해 보기]에 닿지 못한다 — vitest(`IntonationLearningScreens.test.tsx`)가 덮는다.
 - **로그인 분당 상한에 걸릴 수 있다.** 서버 `accentury.auth.rate-limit-per-minute`가 IP당 30이고 이 스펙은
   한 판에 7번 로그인한다. `--repeat-each=3`(21번) 뒤 1분 안에 다른 학습 스펙을 돌리면 `RATE_LIMITED` 429로
   로그인 헬퍼에서 100ms 만에 실패한다(2026-10-12 실측). 1분 쉬고 다시 돌리면 된다.

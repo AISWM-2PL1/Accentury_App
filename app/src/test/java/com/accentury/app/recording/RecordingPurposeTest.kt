@@ -15,9 +15,9 @@ class RecordingPurposeTest {
     }
 
     @Test
-    fun `억양 학습은 진행 표기가 없고 내 녹음 듣기가 있다`() {
-        val purpose = RecordingPurpose.IntonationLearning(standard = null)
-        assertFalse(purpose.showsProgress)
+    fun `억양 학습도 진행 표기가 있고(녹음 대기 화면 = 카드, 5단계) 내 녹음 듣기가 있다`() {
+        val purpose = RecordingPurpose.IntonationLearning(standard = null, itemNumber = 1, totalItems = 5)
+        assertTrue(purpose.showsProgress)
         assertTrue(purpose.offersPlayback)
     }
 }

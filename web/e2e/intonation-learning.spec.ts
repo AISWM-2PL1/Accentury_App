@@ -1,11 +1,13 @@
 /**
- * 억양 학습 A-1·A-2 (KAN-253 4단계) — 앱 WebView 실행을 흉내 내 실 백엔드의 시드 코스로 돈다.
+ * 억양 학습 A-1·A-2 (KAN-253 4·5단계) — 앱 WebView 실행을 흉내 내 실 백엔드의 시드 코스로 돈다.
+ * 5단계부터 카드에 들어서면(코스 열기, [다음 카드]) 웹이 녹음 화면을 자동으로 한 번 부르고, A-2는
+ * 녹음 화면을 뒤로가기로 닫았을 때 보이는 일시정지 화면이다([다시 말해 보기]·[코스 목록으로]).
  *
  * 여기서만 확인할 수 있는 것이 둘이다.
  *
- * 1. **[말해 보기]가 브리지에 싣는 카드가 서버의 카드와 같다.** vitest는 가짜 fetch가 준 카드를
+ * 1. **카드 진입 자동 호출이 브리지에 싣는 카드가 서버의 카드와 같다.** vitest는 가짜 fetch가 준 카드를
  *    그대로 되비추는지만 본다. 여기서는 실 서버 상세 응답(Playwright `request`로 따로 받은 것)과
- *    `startIntonationRecording` payload의 cardId·prompt·standard·guideF0를 대조한다 — 웹이 카드를
+ *    `startIntonationRecording` payload의 cardId·prompt·standard·guideF0·itemNumber·totalItems를 대조한다 — 웹이 카드를
  *    seq로 다시 정렬하므로, 정렬이 어긋나면 엉뚱한 카드의 녹음이 엉뚱한 cardId로 올라간다.
  * 2. **회신 → 자리 표시 → 다음 카드가 실 문서에서 이어진다.** 네이티브 회신은
  *    `window.AccenturyWeb.onIntonationRecorded`를 다음 틱에 부르는 것으로 흉내 낸다
@@ -31,8 +33,6 @@ interface BridgeMock {
   token: string
   /** 있으면 `refreshAccessToken`이 토큰을 이 값으로 바꾸고 'ok'를 회신한다. 없으면 'failed' */
   refreshTo?: string
-  /** true면 `startIntonationRecording` 다음 틱에 같은 cardId로 성공 회신 (네이티브 업로드 202 흉내) */
-  autoReply?: boolean
 }
 
 interface RecordingCall {
@@ -41,11 +41,13 @@ interface RecordingCall {
   standard: string | null
   maxDurationMs: number
   guideF0: unknown
+  itemNumber: number
+  totalItems: number
 }
 
 /** 브리지 흉내를 심고 억양 학습으로 들어간다. 녹음 호출은 [intonationCalls]로 읽는다 */
 async function openIntonation(page: Page, mock: BridgeMock): Promise<void> {
-  await page.addInitScript(({ token, refreshTo, autoReply }) => {
+  await page.addInitScript(({ token, refreshTo }) => {
     let current = token
     const calls: unknown[] = []
     const web = () =>
@@ -59,14 +61,9 @@ async function openIntonation(page: Page, mock: BridgeMock): Promise<void> {
           if (refreshTo !== undefined) current = refreshTo
           setTimeout(() => web()?.onAccessTokenRefreshed?.(refreshTo !== undefined ? 'ok' : 'failed'))
         },
+        // 회신은 테스트가 [replyRecorded]로 직접 쏜다 — 자동 호출이 카드 진입 즉시라, 자동 회신이면 A-2를 볼 틈이 없다
         startIntonationRecording: (payloadJson: string) => {
-          const payload = JSON.parse(payloadJson) as { cardId: string }
-          calls.push(payload)
-          if (autoReply === true) {
-            setTimeout(() =>
-              web()?.onIntonationRecorded?.(JSON.stringify({ cardId: payload.cardId, attemptId: `la_e2e_${calls.length}` })),
-            )
-          }
+          calls.push(JSON.parse(payloadJson))
         },
       },
     })
@@ -99,18 +96,22 @@ async function expectCardProgress(page: Page, current: number, total: number): P
   await expect(progress).toHaveAttribute('aria-valuemax', String(total))
 }
 
-const speak = (page: Page) => page.getByRole('button', { name: '말해 보기', exact: true })
+const speak = (page: Page) => page.getByRole('button', { name: '다시 말해 보기', exact: true })
 
-/** 첫 코스를 열어 A-2 1/N에 선다 */
+/** 첫 코스를 열어 A-2 1/N에 선다 — 자동 호출 1회까지 확인 */
 async function openFirstCourse(page: Page): Promise<void> {
   await expectCourseList(page)
   await page.locator('.word-set-row').first().click()
   await expect(speak(page)).toBeEnabled()
+  await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
 }
 
-test('A-1 → A-2 → 녹음 회신 → 다음 카드 - 브리지 payload가 서버 상세의 카드와 같다', async ({ page, request }) => {
+test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에서 다시 자동 호출 - 브리지 payload가 서버 상세의 카드와 같다', async ({
+  page,
+  request,
+}) => {
   const token = await loginWithFakeIdp(request)
-  await openIntonation(page, { token, autoReply: true })
+  await openIntonation(page, { token })
 
   // A-1. 추천 강조는 많아야 하나 (서버 §3.20)
   await expectCourseList(page)
@@ -133,17 +134,8 @@ test('A-1 → A-2 → 녹음 회신 → 다음 카드 - 브리지 payload가 서
   const cards = [...detail.cards].sort((a, b) => a.seq - b.seq)
   const card = cards[0]
 
-  // A-2. n/N, 사투리 대사, 가이드 곡선
+  // 코스 열기 = 녹음 화면 자동 호출 1회 (5단계)
   await rows.first().click()
-  await expectCardProgress(page, 1, cards.length)
-  await expect(page.getByRole('heading', { level: 1, name: card.dialect, exact: true })).toBeVisible()
-  if (card.standard !== null) await expect(page.getByText(card.standard, { exact: true })).toBeVisible()
-  const curve = page.getByRole('img', { name: '가이드 억양 곡선' })
-  await expect(curve).toBeVisible()
-  await expect(curve.locator('path').first()).toBeAttached()
-
-  // [말해 보기] → 브리지 payload
-  await speak(page).click()
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
   expect((await intonationCalls(page))[0]).toEqual({
     cardId: card.cardId,
@@ -151,26 +143,39 @@ test('A-1 → A-2 → 녹음 회신 → 다음 카드 - 브리지 payload가 서
     standard: card.standard,
     maxDurationMs: 10_000,
     guideF0: card.guideF0,
+    itemNumber: 1,
+    totalItems: cards.length,
   })
 
+  // 녹음 화면 아래의 일시정지 A-2. n/N, 사투리 대사, 가이드 곡선, 버튼 둘
+  await expectCardProgress(page, 1, cards.length)
+  await expect(page.getByRole('heading', { level: 1, name: card.dialect, exact: true })).toBeVisible()
+  if (card.standard !== null) await expect(page.getByText(card.standard, { exact: true })).toBeVisible()
+  const curve = page.getByRole('img', { name: '가이드 억양 곡선' })
+  await expect(curve).toBeVisible()
+  await expect(curve.locator('path').first()).toBeAttached()
+  await expect(speak(page)).toBeEnabled()
+  await expect(page.getByRole('button', { name: '코스 목록으로', exact: true })).toBeVisible()
+
   // 회신 → 「분석 중」 자리 표시 → 출구 하나
+  await replyRecorded(page, card.cardId)
   await expect(page.getByText('분석 중이에요', { exact: true })).toBeVisible()
   if (cards.length > 1) {
     await page.getByRole('button', { name: '다음 카드', exact: true }).click()
     await expectCardProgress(page, 2, cards.length)
     await expect(page.getByRole('heading', { level: 1, name: cards[1].dialect, exact: true })).toBeVisible()
+    await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
+    expect((await intonationCalls(page))[1]).toMatchObject({ cardId: cards[1].cardId, itemNumber: 2, totalItems: cards.length })
   } else {
     await page.getByRole('button', { name: '코스 목록으로', exact: true }).click()
     await expectCourseList(page)
   }
 })
 
-test('회신 없음(녹음 화면에서 뒤로가기) - A-2 그대로이고 [말해 보기]를 다시 누를 수 있다', async ({ page, request }) => {
+test('회신 없음(녹음 화면에서 뒤로가기) - 일시정지 A-2가 그대로이고 [다시 말해 보기]로 다시 연다', async ({ page, request }) => {
   await openIntonation(page, { token: await loginWithFakeIdp(request) })
   await openFirstCourse(page)
 
-  await speak(page).click()
-  await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
   await page.waitForTimeout(500)
   await expect(page.getByRole('progressbar', { name: '카드 진행률' })).toHaveAttribute('aria-valuenow', '1')
   await expect(speak(page)).toBeEnabled()
@@ -183,8 +188,6 @@ test('회신 없음(녹음 화면에서 뒤로가기) - A-2 그대로이고 [말
 test('다른 카드의 늦은 회신은 무시하고 지금 카드의 회신만 받는다', async ({ page, request }) => {
   await openIntonation(page, { token: await loginWithFakeIdp(request) })
   await openFirstCourse(page)
-  await speak(page).click()
-  await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
   const { cardId } = (await intonationCalls(page))[0]
 
   await replyRecorded(page, `${cardId}-other`)
@@ -252,6 +255,8 @@ test('카드 로드 실패 - 500은 [다시 시도]로 다시 불러 A-2, 404는
   reply = 'pass'
   await retry.click()
   await expect(speak(page)).toBeEnabled()
+  // 실패한 로드는 녹음을 부르지 않고, 성공한 재시도에서 1회
+  await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
 
   // 404 → 재시도 불가 → [코스 목록으로] 하나, 누르면 목록
   await page.reload()

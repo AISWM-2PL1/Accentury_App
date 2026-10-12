@@ -87,9 +87,13 @@ struct RecordingScreen: View {
                      * 같은 이유다 — 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를 빼면 같은
                      * 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
                      */
-                    // 억양 학습에는 진행 표기가 없다 (KAN-253, §12) — 웹 A-2가 이미 n/N을 보여 준다.
-                    if case let .levelTest(itemNumber, totalItems) = purpose {
+                    switch purpose {
+                    case let .levelTest(itemNumber, totalItems):
                         ProgressIndicator(current: itemNumber, total: totalItems, note: "음성")
+                    // 억양 학습은 이 화면이 A-2 카드 역할이라 n/N을 여기서 그린다 (KAN-253 5단계). 라벨·종류 표기는
+                    // 웹 A-2(일시정지 화면)의 「카드 진행률」·note 없음과 맞춘다 — 뒤로가기로 오갈 때 줄이 튀지 않게.
+                    case let .intonationLearning(_, itemNumber, totalItems):
+                        ProgressIndicator(current: itemNumber, total: totalItems, label: "카드 진행률")
                     }
 
                     /*
@@ -202,7 +206,7 @@ struct RecordingScreen: View {
     }
 
     private var promptCardSupporting: String? {
-        guard case let .intonationLearning(standard) = purpose, let standard else { return nil }
+        guard case let .intonationLearning(standard, _, _) = purpose, let standard else { return nil }
         return "표준어 · \(standard)"
     }
 

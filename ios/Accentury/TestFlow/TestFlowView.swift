@@ -147,7 +147,7 @@ struct TestFlowView: View {
                         let clients = AuthHub.clients
                         return await clients.refresher.refresh(staleAccess: await clients.store.read()?.accessToken)
                     },
-                    // 억양 학습 [말해 보기] (KAN-253). 학습은 로그인 필수라 로그인을 끈 빌드는 버린다 — 그 빌드의 웹은 계정
+                    // 억양 학습 녹음 호출 (KAN-253). 학습은 로그인 필수라 로그인을 끈 빌드는 버린다 — 그 빌드의 웹은 계정
                     // 토큰이 없어 A-2까지 오지 못한다(안드로이드와 같다).
                     onStartIntonationRecording: { start in
                         guard AppConfig.loginEnabled else { return }

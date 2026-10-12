@@ -2,7 +2,7 @@ import AccenturyCore
 import SwiftUI
 
 /// 억양 학습 녹음 화면 A-3 (KAN-253, webview-bridge.md §12). 안드로이드 `learning/IntonationRecordingOverlay.kt`의 이식본이다.
-/// 레벨테스트와 같은 ``RecordingScreen``을 학습 모양(``AccenturyCore/RecordingPurpose/intonationLearning(standard:)``)으로
+/// 레벨테스트와 같은 ``RecordingScreen``을 학습 모양(``AccenturyCore/RecordingPurpose/intonationLearning(standard:itemNumber:totalItems:)``)으로
 /// 띄우고, 확인 뒤의 일(카드 업로드)만 여기서 정한다.
 ///
 /// `recording`은 레벨테스트 오버레이와 다른 인스턴스다(호출자가 따로 든다) — 학습이 레벨테스트 녹음 상태를 읽거나 되감지
@@ -23,7 +23,7 @@ struct IntonationRecordingOverlay: View {
     var body: some View {
         RecordingScreen(
             questionText: start.prompt,
-            purpose: .intonationLearning(standard: start.standard),
+            purpose: .intonationLearning(standard: start.standard, itemNumber: start.itemNumber, totalItems: start.totalItems),
             // 202 뒤 회신·닫기까지 한 프레임이라도 버튼이 다시 서지 않게 accepted도 제출 중으로 본다.
             submitting: isSubmitting,
             guideF0: start.guideF0,

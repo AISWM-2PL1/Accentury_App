@@ -559,15 +559,18 @@ final class AccenturyBridgeTests: XCTestCase {
 
     // MARK: startIntonationRecording (KAN-253)
 
-    private let intonationPayload = #"{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000}"#
+    private let intonationPayload =
+        #"{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000,"itemNumber":1,"totalItems":3}"#
 
-    /// 우리 웹의 [말해 보기]는 파싱된 카드 컨텍스트로 녹음 창구에 간다.
+    /// 우리 웹의 카드 진입 자동 호출은 파싱된 카드 컨텍스트로 녹음 창구에 간다.
     func testAllowedOriginHandsTheParsedIntonationStartToItsCallback() {
         let sink = Sink()
         makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
             .handle(method: "startIntonationRecording", payload: intonationPayload)
         XCTAssertEqual(
-            [IntonationRecordingStart(cardId: "card_1", prompt: "어데 가노?", standard: "어디 가니?", maxDurationMs: 10_000)],
+            [IntonationRecordingStart(
+                cardId: "card_1", prompt: "어데 가노?", standard: "어디 가니?", maxDurationMs: 10_000, itemNumber: 1, totalItems: 3
+            )],
             sink.intonationStarts
         )
     }

@@ -6,10 +6,15 @@
  * 녹음은 네이티브가 화면·업로드까지 끝내고 성공한 경우에만 `onIntonationRecorded`로 회신한다.
  * 회신이 오면 'submitted'(분석 중 자리 표시)로 간다 — 결과 폴링·A-4 본 화면은 KAN-254다.
  * 회신이 없으면(업로드 전 뒤로가기) A-2 그대로다.
+ *
+ * 5단계(2026-10-12 사용자 결정): 카드에 들어서는 순간(코스 상세 로드 성공, [다음 카드]) 녹음 화면을
+ * 자동으로 한 번 연다 — 녹음 대기 화면이 카드 n/N·대사·곡선을 다 보여 A-2와 중복이었다. 그래서 A-2는
+ * 녹음 화면을 뒤로가기로 닫았을 때 드러나는 일시정지 화면이다. 호출은 effect가 아니라 그 전이를 만든
+ * 비동기 작업·클릭 핸들러 안에서 한다 — StrictMode가 effect를 두 번 돌려도 두 번 열리지 않게.
  */
 
 import { useEffect, useState } from 'react'
-import { installIntonationRecordedReceiver } from '../bridge/bridge'
+import { installIntonationRecordedReceiver, startIntonationRecording } from '../bridge/bridge'
 import type { WordApiDeps } from './wordApi'
 import { WordLearningError } from './wordApi'
 import {
@@ -18,6 +23,24 @@ import {
   type IntonationCourse,
   type IntonationCourseSummary,
 } from './intonationApi'
+
+/** 녹음 최대 길이 — 레벨테스트 음성 문항과 같은 10초 컷 (KAN-253 브리지 계약) */
+const MAX_DURATION_MS = 10_000
+
+/** 카드 하나의 녹음 화면을 연다. 브리지가 없거나(브라우저 단독) 카드가 없으면 false */
+export function recordCard(course: IntonationCourse, index: number): boolean {
+  const card = course.cards[index]
+  if (card === undefined) return false
+  return startIntonationRecording({
+    cardId: card.cardId,
+    prompt: card.dialect,
+    standard: card.standard,
+    maxDurationMs: MAX_DURATION_MS,
+    guideF0: card.guideF0,
+    itemNumber: index + 1,
+    totalItems: course.cards.length,
+  })
+}
 
 export type IntonationLearningView =
   | { screen: 'loading' }
@@ -51,7 +74,11 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
   useEffect(backToList, [])
 
   const openCourse = (courseId: string) =>
-    run(async () => ({ screen: 'card', course: await fetchIntonationCourse(apiBase, courseId, deps), index: 0 }))
+    run(async () => {
+      const course = await fetchIntonationCourse(apiBase, courseId, deps)
+      recordCard(course, 0) // 카드 진입 = 녹음 화면 자동 호출 (5단계). [다시 시도]도 이 작업을 다시 돌려 1회다
+      return { screen: 'card', course, index: 0 }
+    })
 
   // A-2에 있는 동안만 회신을 듣는다. 지금 카드의 회신만 받는다 — 늦게 온 앞 카드 회신이 화면을 넘기지 않게
   const listeningCardId = view.screen === 'card' ? view.course.cards[view.index]?.cardId : undefined
@@ -63,13 +90,16 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
     })
   }, [listeningCardId])
 
-  /** 자리 표시의 [다음 카드] — 마지막 카드에서는 화면이 [코스 목록으로]를 대신 그린다 */
-  const nextCard = () =>
-    setView((v) =>
-      v.screen === 'submitted' && v.index + 1 < v.course.cards.length
-        ? { screen: 'card', course: v.course, index: v.index + 1 }
-        : v,
-    )
+  /**
+   * 자리 표시의 [다음 카드] — 마지막 카드에서는 화면이 [코스 목록으로]를 대신 그린다.
+   * setView 갱신 함수는 StrictMode가 두 번 부르므로 브리지 호출은 그 밖, 클릭 한 번에 한 번만 둔다
+   */
+  const nextCard = () => {
+    if (view.screen !== 'submitted' || view.index + 1 >= view.course.cards.length) return
+    const index = view.index + 1
+    setView({ screen: 'card', course: view.course, index })
+    recordCard(view.course, index)
+  }
 
   return { view, backToList, openCourse, nextCard }
 }

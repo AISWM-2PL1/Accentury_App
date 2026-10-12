@@ -15,7 +15,10 @@ class IntonationRecordingStartTest {
         standard: String = "\"어디 가니?\"",
         maxDurationMs: Long = 10_000L,
         guideF0: String = guide,
-    ) = """{"cardId":"$cardId","prompt":"$prompt","standard":$standard,"maxDurationMs":$maxDurationMs,"guideF0":$guideF0}"""
+        itemNumber: Int = 2,
+        totalItems: Int = 5,
+    ) = """{"cardId":"$cardId","prompt":"$prompt","standard":$standard,"maxDurationMs":$maxDurationMs,"guideF0":$guideF0,""" +
+        """"itemNumber":$itemNumber,"totalItems":$totalItems}"""
 
     @Test
     fun `정상 payload를 그대로 읽는다`() {
@@ -27,6 +30,8 @@ class IntonationRecordingStartTest {
                 standard = "어디 가니?",
                 maxDurationMs = 10_000L,
                 guideF0 = GuideF0(unit = "semitone", frameIntervalMs = 50, values = listOf(0.0, null, 1.5)),
+                itemNumber = 2,
+                totalItems = 5,
             ),
             start,
         )
@@ -51,6 +56,20 @@ class IntonationRecordingStartTest {
     }
 
     @Test
+    fun `진행 정보가 빠지면 버린다 (5단계 필수 필드)`() {
+        assertNull(parseIntonationRecordingStart("""{"cardId":"c","prompt":"a","maxDurationMs":10000,"totalItems":3}"""))
+        assertNull(parseIntonationRecordingStart("""{"cardId":"c","prompt":"a","maxDurationMs":10000,"itemNumber":1}"""))
+    }
+
+    @Test
+    fun `진행 정보가 범위 밖이면 버린다 - 1 ≤ itemNumber ≤ totalItems`() {
+        assertNull(parseIntonationRecordingStart(payload(itemNumber = 0)))
+        assertNull(parseIntonationRecordingStart(payload(itemNumber = 6, totalItems = 5)))
+        assertNull(parseIntonationRecordingStart(payload(itemNumber = 0, totalItems = 0)))
+        assertNotNull(parseIntonationRecordingStart(payload(itemNumber = 5, totalItems = 5)))
+    }
+
+    @Test
     fun `빈 cardId·빈 대사·0 이하 녹음 길이는 버린다`() {
         assertNull(parseIntonationRecordingStart(payload(cardId = " ")))
         assertNull(parseIntonationRecordingStart(payload(prompt = "")))
@@ -67,7 +86,7 @@ class IntonationRecordingStartTest {
 
     @Test
     fun `guideF0가 없어도 유효하다`() {
-        val json = """{"cardId":"c","prompt":"a","standard":null,"maxDurationMs":10000}"""
+        val json = """{"cardId":"c","prompt":"a","standard":null,"maxDurationMs":10000,"itemNumber":1,"totalItems":1}"""
         assertNull(parseIntonationRecordingStart(json)!!.guideF0)
     }
 }

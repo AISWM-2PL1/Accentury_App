@@ -63,9 +63,12 @@ sealed interface RecordingPurpose {
         override val offersPlayback get() = false
     }
 
-    /** 억양 학습 카드 (KAN-253, webview-bridge.md §12). 진행 표기 없음, 표준어 줄은 null이면 생략. */
-    data class IntonationLearning(val standard: String?) : RecordingPurpose {
-        override val showsProgress get() = false
+    /**
+     * 억양 학습 카드 (KAN-253, webview-bridge.md §12). 표준어 줄은 null이면 생략.
+     * 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「카드 진행률」)를 그린다.
+     */
+    data class IntonationLearning(val standard: String?, val itemNumber: Int, val totalItems: Int) : RecordingPurpose {
+        override val showsProgress get() = true
         override val offersPlayback get() = true
     }
 }

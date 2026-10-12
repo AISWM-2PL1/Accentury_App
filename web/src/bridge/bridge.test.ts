@@ -184,7 +184,9 @@ describe('startVoiceItem — 문항 컨텍스트를 JSON으로 넘긴다', () =>
 })
 
 describe('억양 학습 녹음 (KAN-253)', () => {
-  const start = { cardId: 'c1', prompt: '안녕하능교', standard: null, maxDurationMs: 10_000, guideF0: REAL_GUIDE_F0 }
+  const start = {
+    cardId: 'c1', prompt: '안녕하능교', standard: null, maxDurationMs: 10_000, guideF0: REAL_GUIDE_F0, itemNumber: 1, totalItems: 3,
+  }
 
   it('startIntonationRecording: 있으면 JSON으로 넘기고 true, 메서드가 없는 앱이면 false', () => {
     window.AccenturyBridge = fakeBridge()

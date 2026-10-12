@@ -132,7 +132,7 @@ export interface AccenturyBridge {
    */
   refreshAccessToken?(): void
   /**
-   * 억양 학습 대사 카드의 [말해 보기] → 네이티브 녹음 화면 (KAN-253). 인자는 [IntonationRecordingStart]의 JSON.
+   * 억양 학습 카드 진입(자동)·일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면 (KAN-253). 인자는 [IntonationRecordingStart]의 JSON.
    * 업로드까지 네이티브가 하고, 성공하면 [AccenturyWeb.onIntonationRecorded]로 회신한다(webview-bridge §12).
    * [getSessionToken]과 같은 이유로 optional이다
    */
@@ -247,6 +247,8 @@ export interface AccenturyWeb {
  * @property standard 표준어 원문. 없으면 null — 네이티브는 생략한다
  * @property maxDurationMs 최대 녹음 길이. 레벨테스트와 같은 10초 컷
  * @property guideF0 상단 레인 가이드 곡선. [VoiceItemStart.guideF0]와 같은 규칙으로 가공 없이 건넨다
+ * @property itemNumber 코스 안 몇 번째 카드인지(1부터) — 녹음 대기 화면이 A-2 카드 역할을 하며 「n / N」을 그린다
+ * @property totalItems 코스의 카드 수. 1 ≤ itemNumber ≤ totalItems
  */
 export interface IntonationRecordingStart {
   cardId: string
@@ -254,6 +256,8 @@ export interface IntonationRecordingStart {
   standard: string | null
   maxDurationMs: number
   guideF0: GuideF0
+  itemNumber: number
+  totalItems: number
 }
 
 /** 억양 녹음 회신 — 네이티브가 업로드 202를 받은 뒤에만 보낸다. attemptId는 결과 폴링(KAN-254)의 키다 */
@@ -299,7 +303,8 @@ declare global {
  * KAN-255의 `getAccessToken`·`refreshAccessToken`·`onAccessTokenRefreshed`도 추가라 2를 유지한다.
  * 모르는 앱에서는 토큰이 null이라 단어 학습 화면이 로그인 안내로 내려간다.
  *
- * KAN-253의 `startIntonationRecording`·`onIntonationRecorded`도 추가라 2를 유지한다. 모르는 앱에서는 [말해 보기]가 비활성이다.
+ * KAN-253의 `startIntonationRecording`·`onIntonationRecorded`도 추가라 2를 유지한다. 모르는 앱에서는 [다시 말해 보기]가 비활성이다.
+ * 같은 티켓 5단계의 payload `itemNumber`·`totalItems`도 릴리스 전 계약에 넣은 필드라 2를 유지한다.
  */
 export const REQUIRED_BRIDGE_VERSION = 2
 
@@ -652,7 +657,7 @@ export function startIntonationRecording(start: IntonationRecordingStart): boole
 }
 
 /**
- * [startIntonationRecording]을 부를 수 있는 실행인가. [말해 보기]를 미리 비활성으로 그리려고 둔다 —
+ * [startIntonationRecording]을 부를 수 있는 실행인가. [다시 말해 보기]를 미리 비활성으로 그리려고 둔다 —
  * 학습은 로그인 필수라 앱 전용이고, 웹 녹음기 폴백은 없다 (KAN-253).
  */
 export function canStartIntonationRecording(): boolean {

@@ -75,7 +75,7 @@ fun IntonationRecordingOverlay(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         RecordingScreen(
             questionText = start.prompt,
-            purpose = RecordingPurpose.IntonationLearning(start.standard),
+            purpose = RecordingPurpose.IntonationLearning(start.standard, start.itemNumber, start.totalItems),
             guideF0 = start.guideF0,
             centerHz = centerHz,
             // 202 뒤 회신·닫기까지 한 프레임이라도 버튼이 다시 서지 않게 Accepted도 제출 중으로 본다.

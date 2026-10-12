@@ -5,7 +5,9 @@ import XCTest
 @MainActor
 final class IntonationRecordingModelTests: XCTestCase {
 
-    private let start = IntonationRecordingStart(cardId: "card_1", prompt: "어데 가노?", standard: nil, maxDurationMs: 10_000)
+    private let start = IntonationRecordingStart(
+        cardId: "card_1", prompt: "어데 가노?", standard: nil, maxDurationMs: 10_000, itemNumber: 1, totalItems: 3
+    )
     private let quality = ClientQuality(rms: 0.1, peak: 0.8, silenceRatio: 0.1, clipped: false)
     private let unavailable = IntonationUploadResult.rejected(status: 503, code: "ANALYSIS_UNAVAILABLE", message: "분석 서버에 연결할 수 없습니다.", retryable: true)
     private let rateLimited = IntonationUploadResult.rejected(status: 429, code: "RATE_LIMITED", message: "잠시 후", retryable: true)
