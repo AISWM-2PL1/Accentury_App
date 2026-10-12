@@ -222,6 +222,8 @@
 }
 
 .intonation-footer__retry {
+  /* 테두리까지 벽돌 — 결과 화면 [다시 테스트하기](.result-retest__button)와 같은 채운 벽돌 */
+  border-color: var(--color-point);
   background: var(--color-point);
   color: var(--color-point-foreground);
 }
