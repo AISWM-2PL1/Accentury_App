@@ -1,11 +1,11 @@
 /**
- * 억양 학습 API (KAN-253 1단계). 토큰·401 규칙 자체는 wordApi.test가 정본이고, 여기서는 두 경로가
+ * 억양 학습 API (KAN-253 1단계, 채점 결과 조회는 KAN-254 1단계). 토큰·401 규칙 자체는 wordApi.test가 정본이고, 여기서는 두 경로가
  * 그 공통 요청을 타는지(갱신 재시도 한 줄)와 억양 DTO의 null 필드·404 code를 본다.
  */
 
 import { describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
-import { fetchIntonationCourse, fetchIntonationCourses } from './intonationApi'
+import { fetchIntonationAttempt, fetchIntonationCourse, fetchIntonationCourses } from './intonationApi'
 import { WordLearningError, type WordApiDeps } from './wordApi'
 
 const API = 'http://localhost:8080/'
@@ -105,5 +105,61 @@ describe('억양 코스 두 경로', () => {
     const error = (await fetchIntonationCourses(API, deps(fetchImpl, { getToken: () => null })).catch((e: unknown) => e)) as WordLearningError
     expect(error.code).toBe('CLIENT_NOT_SIGNED_IN')
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+const BASE_ATTEMPT = { attemptId: 'at 1', contentVersion: 'it-gn-2026.10.1', cardId: 'c1', pollAfterMs: 1000 }
+
+const COMPLETED = {
+  ...BASE_ATTEMPT,
+  status: 'COMPLETED',
+  score: 72,
+  pitchFeedback: [
+    { word: '밥', raise: null, lower: null, split: true },
+    { word: '뭇나', raise: '뭇', lower: '나', split: false },
+  ],
+  previousScore: null,
+  modelVersion: 'm1',
+  scoreVersion: 's1',
+}
+
+describe('억양 채점 결과 조회 (KAN-254)', () => {
+  it('COMPLETED: GET 경로 인코딩, 점수·피드백·previousScore null 그대로', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, COMPLETED))
+
+    expect(await fetchIntonationAttempt(API, 'at 1', deps(fetchImpl))).toEqual(COMPLETED)
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(url).toBe('http://localhost:8080/v0/learning/intonation-attempts/at%201')
+    expect(init?.method).toBe('GET')
+  })
+
+  it('PROCESSING은 점수 필드가 없어도 통과', async () => {
+    const body = { ...BASE_ATTEMPT, status: 'PROCESSING' }
+    expect(await fetchIntonationAttempt(API, 'a', deps(async () => jsonResponse(200, body)))).toEqual(body)
+  })
+
+  it('FAILED는 error를 그대로 싣는다', async () => {
+    const body = { ...BASE_ATTEMPT, status: 'FAILED', error: { code: 'ANALYSIS_MISREAD', retryable: false } }
+    expect((await fetchIntonationAttempt(API, 'a', deps(async () => jsonResponse(200, body)))).error).toEqual(body.error)
+  })
+
+  it.each([
+    ['status 미지 값', { ...BASE_ATTEMPT, status: 'DONE' }],
+    ['pitchFeedback 항목 split 누락', { ...COMPLETED, pitchFeedback: [{ word: '밥', raise: null, lower: null }] }],
+    ['COMPLETED인데 score 없음', { ...COMPLETED, score: undefined }],
+  ])('모양이 어긋나면(%s) 재시도 불가 오류', async (_, body) => {
+    const error = await fetchIntonationAttempt(API, 'a', deps(async () => jsonResponse(200, body))).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(WordLearningError)
+    expect((error as WordLearningError).code).toBeNull()
+    expect((error as WordLearningError).retryable).toBe(false)
+  })
+
+  it('404 LEARNING_ATTEMPT_NOT_FOUND는 code 그대로, retryable false', async () => {
+    const fetchImpl: FetchLike = async () =>
+      jsonResponse(404, { code: 'LEARNING_ATTEMPT_NOT_FOUND', message: '없는 학습 시도입니다.', retryable: false, retryAfterMs: null, correlationId: 'c' })
+    const error = await fetchIntonationAttempt(API, 'nope', deps(fetchImpl)).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(WordLearningError)
+    expect((error as WordLearningError).code).toBe('LEARNING_ATTEMPT_NOT_FOUND')
+    expect((error as WordLearningError).retryable).toBe(false)
   })
 })
