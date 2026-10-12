@@ -10,9 +10,10 @@ final class RecordingPurposeTests: XCTestCase {
         XCTAssertFalse(purpose.offersPlayback)
     }
 
-    func test억양_학습은_진행_표기가_없고_내_녹음_듣기가_있다() {
-        let purpose = RecordingPurpose.intonationLearning(standard: nil)
-        XCTAssertFalse(purpose.showsProgress)
+    func test억양_학습도_진행_표기가_있고_내_녹음_듣기가_있다() {
+        // 5단계: 녹음 대기 화면이 A-2 카드 역할이라 n/N을 그린다
+        let purpose = RecordingPurpose.intonationLearning(standard: nil, itemNumber: 1, totalItems: 5)
+        XCTAssertTrue(purpose.showsProgress)
         XCTAssertTrue(purpose.offersPlayback)
     }
 }

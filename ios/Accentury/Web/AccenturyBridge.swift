@@ -65,7 +65,7 @@ struct BridgeDispatcher {
     /// `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (``WebViewCoordinator``, webview-bridge.md §11).
     let onRefreshAccessToken: () -> Void
 
-    /// 억양 학습 A-2의 [말해 보기] (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·`onIntonationRecorded` 회신은
+    /// 억양 학습 녹음 호출(카드 진입 자동·[다시 말해 보기]) (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·`onIntonationRecorded` 회신은
     /// 창구 너머가 한다 (webview-bridge.md §12). 기본값은 학습을 모르는 테스트 하네스용이다(안드로이드와 같다).
     var onStartIntonationRecording: (IntonationRecordingStart) -> Void = { _ in }
 
@@ -210,7 +210,7 @@ struct BridgeDispatcher {
             onRefreshAccessToken()
 
         case "startIntonationRecording":
-            // 억양 학습 [말해 보기] → 네이티브 녹음 화면 (KAN-253, §12). `startVoiceItem`과 같은 순서다 — origin을 통과한
+            // 억양 학습 녹음 호출 → 네이티브 녹음 화면 (KAN-253, §12). `startVoiceItem`과 같은 순서다 — origin을 통과한
             // payload만 파싱하고, 불량은 조용히 버리되 흔적을 남긴다. 회신은 업로드 202 때 한 번뿐이다.
             guard let json = payload as? String else { return }
             guard let start = parseIntonationRecordingStart(json) else {

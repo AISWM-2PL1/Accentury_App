@@ -87,15 +87,16 @@ public enum RecordingPurpose: Equatable, Sendable {
     /// 레벨테스트 음성 문항 (KAN-100). 화면 모양은 KAN-253 전과 같다.
     case levelTest(itemNumber: Int, totalItems: Int)
 
-    /// 억양 학습 카드 (KAN-253, webview-bridge.md §12). 진행 표기 없음, 표준어 줄은 nil이면 생략.
-    case intonationLearning(standard: String?)
+    /// 억양 학습 카드 (KAN-253, webview-bridge.md §12). 표준어 줄은 nil이면 생략.
+    /// 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「카드 진행률」)를 그린다.
+    case intonationLearning(standard: String?, itemNumber: Int, totalItems: Int)
 
-    /// 진행바·캡션의 `n / N`을 그리는가.
-    public var showsProgress: Bool {
-        if case .levelTest = self { return true }
-        return false
-    }
+    /// 진행바·캡션의 `n / N`을 그리는가. 5단계부터 둘 다 그린다.
+    public var showsProgress: Bool { true }
 
     /// 확인 단계에 [내 녹음 듣기]를 두는가 — 학습에만 (2026-10-12 착수 결정).
-    public var offersPlayback: Bool { !showsProgress }
+    public var offersPlayback: Bool {
+        if case .intonationLearning = self { return true }
+        return false
+    }
 }

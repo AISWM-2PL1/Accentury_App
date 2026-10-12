@@ -58,7 +58,7 @@ import com.accentury.app.ui.components.Haptic
  *   임의 스레드에서 안전해야 한다. 로그인 안 됨·로그인 끈 빌드면 빈 문자열
  * @param onRefreshAccessToken 웹이 401을 받아 청한 계정 토큰 갱신 (KAN-255). 즉시 돌아오고, 결과는 창구 너머가
  *   `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (webview-bridge.md §11)
- * @param onStartIntonationRecording 억양 학습 A-2의 [말해 보기] (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·
+ * @param onStartIntonationRecording 억양 학습 녹음 호출(카드 진입 자동·[다시 말해 보기]) (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·
  *   `onIntonationRecorded` 회신은 창구 너머가 한다 (webview-bridge.md §12). 기본값은 학습을 모르는 테스트 하네스용이다
  */
 class AccenturyBridge(
@@ -348,7 +348,7 @@ class AccenturyBridge(
     }
 
     /**
-     * 억양 학습 [말해 보기] → 네이티브 녹음 화면 (KAN-253, §12). [startVoiceItem]과 같은 순서다 — origin 검증을 통과한
+     * 억양 학습 녹음 호출 → 네이티브 녹음 화면 (KAN-253, §12). [startVoiceItem]과 같은 순서다 — origin 검증을 통과한
      * payload만 파싱하고, 불량은 조용히 버리되 흔적을 남긴다. 회신(`onIntonationRecorded`)은 업로드 202 때 한 번뿐이다.
      */
     @JavascriptInterface

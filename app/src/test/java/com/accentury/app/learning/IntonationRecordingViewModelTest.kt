@@ -34,7 +34,9 @@ class IntonationRecordingViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private val start = IntonationRecordingStart(cardId = "card_1", prompt = "어데 가노?", standard = null, maxDurationMs = 10_000L)
+    private val start = IntonationRecordingStart(
+        cardId = "card_1", prompt = "어데 가노?", standard = null, maxDurationMs = 10_000L, itemNumber = 1, totalItems = 3,
+    )
     private val quality = ClientQuality(rms = 0.1, peak = 0.8, silenceRatio = 0.1, clipped = false)
 
     /** 응답을 차례로 돌려주고 실린 키를 기록하는 가짜 업로드. */

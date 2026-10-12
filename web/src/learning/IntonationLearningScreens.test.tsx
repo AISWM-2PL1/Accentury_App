@@ -1,8 +1,10 @@
 /**
- * 억양 학습 A-1·A-2 (KAN-253 1단계). 상태별 출구가 정확히 하나인지, 카드 화면의 [말해 보기]
- * 브리지 호출, 녹음 회신 뒤 자리 표시를 본다. 네트워크는 deps.fetchImpl로 갈아끼운다.
+ * 억양 학습 A-1·A-2 (KAN-253 1·5단계). 상태별 출구, 카드 진입 때 녹음 화면 자동 호출이 정확히 1회인지
+ * (StrictMode 포함), 일시정지 A-2의 [다시 말해 보기]·[코스 목록으로], 녹음 회신 뒤 자리 표시를 본다.
+ * 네트워크는 deps.fetchImpl로 갈아끼운다.
  */
 
+import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
@@ -60,9 +62,10 @@ function deps(fetchImpl: FetchLike, token: string | null = 'acc'): WordApiDeps {
   return { fetchImpl, getToken: () => token, refreshToken: async () => false }
 }
 
-function renderRoute(routes: Record<string, Reply | Reply[]>, token: string | null = 'acc') {
+function renderRoute(routes: Record<string, Reply | Reply[]>, token: string | null = 'acc', strict = false) {
   const onLeave = vi.fn()
-  render(<IntonationLearningRoute apiBase="http://api" onLeave={onLeave} deps={deps(fakeServer(routes), token)} />)
+  const route = <IntonationLearningRoute apiBase="http://api" onLeave={onLeave} deps={deps(fakeServer(routes), token)} />
+  render(strict ? <StrictMode>{route}</StrictMode> : route)
   return { onLeave }
 }
 
@@ -173,24 +176,28 @@ describe('A-2 카드 로드 실패', () => {
 })
 
 describe('A-2 → 녹음 회신 → 자리 표시', () => {
-  it('[말해 보기]가 payload로 브리지를 부르고, 지금 카드의 회신만 자리 표시로 넘긴다. [다음 카드] → 마지막 카드는 [코스 목록으로]', async () => {
+  const ROUTES = { '/intonation-courses': ok(LIST), '/intonation-courses/k1': ok(COURSE) }
+  const payload = (start: ReturnType<typeof vi.fn>, n: number) => JSON.parse(start.mock.calls[n][0])
+
+  it('카드 진입 때 녹음 화면을 자동으로 1회 열고, 지금 카드의 회신만 자리 표시로 넘긴다. [다음 카드]에서 다시 1회 → 마지막 카드는 [코스 목록으로]', async () => {
     const start = vi.fn()
     withBridge(start)
-    renderRoute({ '/intonation-courses': ok(LIST), '/intonation-courses/k1': ok(COURSE) })
+    renderRoute(ROUTES)
     fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     await screen.findByRole('heading', { name: '안녕하능교' })
     // 수신 지점은 A-2 진입 뒤 이펙트에서 설치된다 — 그 전에 쏘면 아래 무시 검사가 헛돈다
     await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
     expect(screen.getByText('1 / 2', { exact: false })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '말해 보기' }))
     expect(start).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(start.mock.calls[0][0])).toEqual({
+    expect(payload(start, 0)).toEqual({
       cardId: 'c1',
       prompt: '안녕하능교',
       standard: '안녕하세요',
       maxDurationMs: 10000,
       guideF0: GUIDE,
+      itemNumber: 1,
+      totalItems: 2,
     })
 
     // 다른 카드의 회신·깨진 payload는 무시
@@ -201,12 +208,70 @@ describe('A-2 → 녹음 회신 → 자리 표시', () => {
     act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1' })))
     expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
     expect(buttonNames()).toEqual(['다음 카드'])
+    expect(start).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: '다음 카드' }))
     expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
+    expect(start).toHaveBeenCalledTimes(2)
+    expect(payload(start, 1)).toMatchObject({ cardId: 'c2', standard: null, itemNumber: 2, totalItems: 2 })
     await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
     act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c2', attemptId: 'la_2' })))
     expect(buttonNames()).toEqual(['코스 목록으로'])
+  })
+
+  it('StrictMode에서도 카드 진입마다 자동 호출은 1회다', async () => {
+    const start = vi.fn()
+    withBridge(start)
+    renderRoute(ROUTES, 'acc', true)
+    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
+    await screen.findByRole('heading', { name: '안녕하능교' })
+    await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
+    expect(start).toHaveBeenCalledTimes(1)
+
+    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1' })))
+    fireEvent.click(screen.getByRole('button', { name: '다음 카드' }))
+    await screen.findByRole('heading', { name: '밥 뭇나' })
+    expect(start).toHaveBeenCalledTimes(2)
+    expect(payload(start, 1).cardId).toBe('c2')
+  })
+
+  it('카드 로드 실패 → [다시 시도]로 열릴 때 자동 호출 1회 (실패한 시도는 부르지 않는다)', async () => {
+    const start = vi.fn()
+    withBridge(start)
+    renderRoute({
+      '/intonation-courses': ok(LIST),
+      '/intonation-courses/k1': [fail(503, 'SERVICE_UNAVAILABLE', '잠시 뒤에 다시 해 주세요', true), ok(COURSE)],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
+    await screen.findByText('잠시 뒤에 다시 해 주세요')
+    expect(start).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await screen.findByRole('heading', { name: '안녕하능교' })
+    expect(start).toHaveBeenCalledTimes(1)
+  })
+
+  it('녹음 화면을 닫고 돌아온 A-2(일시정지): 버튼은 [다시 말해 보기]·[코스 목록으로] 둘, 다시 말해 보기는 같은 카드로 다시 연다', async () => {
+    const start = vi.fn()
+    withBridge(start)
+    renderRoute(ROUTES)
+    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
+    await screen.findByRole('heading', { name: '안녕하능교' })
+    expect(buttonNames()).toEqual(['다시 말해 보기', '코스 목록으로'])
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 말해 보기' }))
+    expect(start).toHaveBeenCalledTimes(2)
+    expect(payload(start, 1)).toEqual(payload(start, 0))
+
+    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
+    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
+  })
+
+  it('브리지 없음(브라우저 단독): 카드는 그대로 열리고 [다시 말해 보기] 비활성', async () => {
+    renderRoute(ROUTES)
+    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
+    await screen.findByRole('heading', { name: '안녕하능교' })
+    expect(screen.getByRole('button', { name: '다시 말해 보기' })).toBeDisabled()
+    expect(screen.getByText('앱에서 녹음할 수 있어요')).toBeInTheDocument()
   })
 })
 
@@ -231,10 +296,11 @@ describe('A-2 대사 카드', () => {
     expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
   })
 
-  it('브리지에 startIntonationRecording이 없으면 [말해 보기] 비활성 + 「앱에서 녹음할 수 있어요」', () => {
+  it('브리지에 startIntonationRecording이 없으면 [다시 말해 보기] 비활성 + 「앱에서 녹음할 수 있어요」, [코스 목록으로]는 살아 있다', () => {
     withBridge()
     renderCard(0)
-    expect(screen.getByRole('button', { name: '말해 보기' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '다시 말해 보기' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '코스 목록으로' })).toBeEnabled()
     expect(screen.getByText('앱에서 녹음할 수 있어요')).toBeInTheDocument()
   })
 })

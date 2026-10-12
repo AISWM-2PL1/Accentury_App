@@ -202,17 +202,24 @@ fun RecordingScreen(
              * [note]가 "음성"인 것도 같은 이유다 - 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를
              * 빼면 같은 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
              */
-            // 억양 학습에는 진행 표기가 없다 (KAN-253, §12) - 웹 A-2가 이미 n/N을 보여 준다.
-            if (purpose is RecordingPurpose.LevelTest) {
-                ProgressIndicator(
+            when (purpose) {
+                is RecordingPurpose.LevelTest -> ProgressIndicator(
                     current = purpose.itemNumber,
                     total = purpose.totalItems,
                     note = "음성",
                     modifier = Modifier.fillMaxWidth(),
                 )
-
-                Spacer(modifier = Modifier.height(Spacing.x6))
+                // 억양 학습은 이 화면이 A-2 카드 역할이라 n/N을 여기서 그린다 (KAN-253 5단계). 라벨·종류 표기는
+                // 웹 A-2(일시정지 화면)의 「카드 진행률」·note 없음과 맞춘다 - 뒤로가기로 오갈 때 줄이 튀지 않게.
+                is RecordingPurpose.IntonationLearning -> ProgressIndicator(
+                    current = purpose.itemNumber,
+                    total = purpose.totalItems,
+                    label = "카드 진행률",
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
+
+            Spacer(modifier = Modifier.height(Spacing.x6))
             /*
              * 대사 카드. 배지·이모지·부연을 걷고 캡션 한 줄 + 대사만 남겼다 (아트보드 ②).
              * "평소 말하듯 자연스럽게 읽어주세요"가 사라진 것은 문구를 줄이려는 게 아니라 자리를

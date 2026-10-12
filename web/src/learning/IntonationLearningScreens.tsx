@@ -6,17 +6,14 @@
  */
 
 import { useMemo } from 'react'
-import { canStartIntonationRecording, startIntonationRecording } from '../bridge/bridge'
+import { canStartIntonationRecording } from '../bridge/bridge'
 import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
 import { Button, ProgressIndicator, StatusBlock } from '../ui'
 import { CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
 import type { IntonationCourse, IntonationCourseSummary } from './intonationApi'
 import { errorExit } from './useWordLearning'
-import { useIntonationLearning, type IntonationLearningView } from './useIntonationLearning'
-
-/** 녹음 최대 길이 — 레벨테스트 음성 문항과 같은 10초 컷 (KAN-253 브리지 계약) */
-const MAX_DURATION_MS = 10_000
+import { recordCard, useIntonationLearning, type IntonationLearningView } from './useIntonationLearning'
 
 // ── 라우트 ──────────────────────────────────────────────────────────────
 
@@ -148,7 +145,8 @@ export function IntonationCourseListScreen({
   )
 }
 
-// ── A-2 대사 카드 ────────────────────────────────────────────────────────
+// ── A-2 대사 카드 = 일시정지 화면 ───────────────────────────────────────────
+// 카드 진입 때 녹음 화면이 자동으로 열리므로(5단계) 이 화면은 녹음 화면을 뒤로가기로 닫았을 때 보인다
 
 export function IntonationCardScreen({
   course,
@@ -175,15 +173,6 @@ export function IntonationCardScreen({
   }
 
   const canRecord = canStartIntonationRecording()
-
-  const record = () =>
-    startIntonationRecording({
-      cardId: card.cardId,
-      prompt: card.dialect,
-      standard: card.standard,
-      maxDurationMs: MAX_DURATION_MS,
-      guideF0: card.guideF0,
-    })
 
   return (
     <main className="item-screen">
@@ -212,8 +201,11 @@ export function IntonationCardScreen({
 
       <div className="item-screen__footer">
         {!canRecord && <p className="type-caption intonation-note">앱에서 녹음할 수 있어요</p>}
-        <Button disabled={!canRecord} onClick={record} style={{ width: '100%' }}>
-          말해 보기
+        <Button disabled={!canRecord} onClick={() => recordCard(course, index)} style={{ width: '100%' }}>
+          다시 말해 보기
+        </Button>
+        <Button variant="text" onClick={onBackToList} style={{ width: '100%' }}>
+          코스 목록으로
         </Button>
       </div>
     </main>

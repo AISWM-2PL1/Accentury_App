@@ -69,7 +69,7 @@ sealed interface WebLoadState {
  * @param onShowInterstitialAd 대기 화면의 전면 광고 (KAN-196). 메인 스레드로 온다
  * @param accessToken 계정 Access 토큰 (KAN-255). 브리지가 JS 스레드에서 동기로 읽는다
  * @param onRefreshAccessToken 웹이 401 뒤 청한 계정 토큰 갱신 (KAN-255). 메인 스레드로 온다
- * @param onStartIntonationRecording 억양 학습 [말해 보기] (KAN-253). 검증된 payload만 메인 스레드로 온다
+ * @param onStartIntonationRecording 억양 학습 녹음 호출 (KAN-253). 검증된 payload만 메인 스레드로 온다
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
  */

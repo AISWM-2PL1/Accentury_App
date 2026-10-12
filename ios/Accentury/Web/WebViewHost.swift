@@ -212,7 +212,7 @@ struct WebViewHost: View {
     /// nil은 "갱신하지 않았다"(로그인을 끈 빌드) — 'failed'로 회신한다.
     let refreshAccessToken: () async -> RefreshOutcome?
 
-    /// 억양 학습 [말해 보기] (KAN-253). 검증된 payload만 메인 스레드로 온다.
+    /// 억양 학습 녹음 호출 (KAN-253). 검증된 payload만 메인 스레드로 온다.
     var onStartIntonationRecording: (IntonationRecordingStart) -> Void = { _ in }
 
     /// 결과를 웹으로 주입하려면(`evaluateJavaScript`) 상위가 인스턴스를 알아야 한다.
