@@ -107,37 +107,18 @@ public final class URLSessionUploadClient: UploadClient, Sendable {
         let boundary = makeBoundary()
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
-        urlRequest.httpBody = try Self.multipartBody(request, boundary: boundary)
+        urlRequest.httpBody = try recordingMultipartBody(
+            wavBytes: request.wavBytes,
+            durationMs: request.durationMs,
+            clientQuality: request.clientQuality,
+            boundary: boundary
+        )
         urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: headerContentType)
         urlRequest.setValue(bearerPrefix + sessionToken, forHTTPHeaderField: headerAuthorization)
         // 비용이 발생하는 POST라 중복 접수를 막는다 (§2.2). 재시도해도 같은 attemptId를 쓴다.
         urlRequest.setValue(request.attemptId, forHTTPHeaderField: headerIdempotencyKey)
         urlRequest.setValue(UUID().uuidString, forHTTPHeaderField: headerCorrelationId)
         return urlRequest
-    }
-
-    /// 파트는 정확히 둘이다 — `audio`와 `meta`. 하나라도 빠지면 서버가 400을 준다(§3.3).
-    ///
-    /// KAN-88 티켓이 한때 지시했던 평면 파트(`itemId`·`idempotencyKey`·`recordedDurationMs`)는
-    /// 정본에 없다. 경로와 헤더가 이미 같은 값을 나르므로 여기서 다시 보내지 않는다.
-    static func multipartBody(_ request: UploadRequest, boundary: String) throws -> Data {
-        let meta = try JSONEncoder().encode(
-            MetaPart(durationMs: request.durationMs, clientQuality: request.clientQuality)
-        )
-
-        var body = Data()
-        func append(_ text: String) { body.append(Data(text.utf8)) }
-
-        append("--\(boundary)\r\n")
-        append("Content-Disposition: form-data; name=\"\(partAudio)\"; filename=\"\(audioFileName)\"\r\n")
-        append("Content-Type: \(audioMediaType)\r\n\r\n")
-        body.append(request.wavBytes)
-        append("\r\n--\(boundary)\r\n")
-        append("Content-Disposition: form-data; name=\"\(partMeta)\"\r\n")
-        append("Content-Type: \(metaMediaType)\r\n\r\n")
-        body.append(meta)
-        append("\r\n--\(boundary)--\r\n")
-        return body
     }
 
     /// 방어적 파싱. 세 규칙 모두 안드로이드와 같다 (`docs/wiki/upload-client.md`).
@@ -171,6 +152,36 @@ public final class URLSessionUploadClient: UploadClient, Sendable {
     static func isRetryableStatus(_ status: Int) -> Bool {
         status >= 500 || status == statusRequestTimeout || status == statusTooManyRequests
     }
+}
+
+/// 녹음 업로드 multipart 본문. 파트는 정확히 둘이다 — `audio`와 `meta`. 하나라도 빠지면 서버가 400을 준다(§3.3).
+///
+/// KAN-88 티켓이 한때 지시했던 평면 파트(`itemId`·`idempotencyKey`·`recordedDurationMs`)는
+/// 정본에 없다. 경로와 헤더가 이미 같은 값을 나르므로 여기서 다시 보내지 않는다.
+///
+/// 억양 학습 업로드(KAN-253, ``IntonationUploadClient``)도 이것을 쓴다 — 서버가 두 경로를 같은
+/// `VoiceRecordings.read`로 읽으므로 본문 규칙이 두 벌로 갈라지면 한쪽만 400을 받는다(안드로이드 `recordingMultipart`).
+func recordingMultipartBody(
+    wavBytes: Data,
+    durationMs: Int64,
+    clientQuality: ClientQuality,
+    boundary: String
+) throws -> Data {
+    let meta = try JSONEncoder().encode(MetaPart(durationMs: durationMs, clientQuality: clientQuality))
+
+    var body = Data()
+    func append(_ text: String) { body.append(Data(text.utf8)) }
+
+    append("--\(boundary)\r\n")
+    append("Content-Disposition: form-data; name=\"\(partAudio)\"; filename=\"\(audioFileName)\"\r\n")
+    append("Content-Type: \(audioMediaType)\r\n\r\n")
+    body.append(wavBytes)
+    append("\r\n--\(boundary)\r\n")
+    append("Content-Disposition: form-data; name=\"\(partMeta)\"\r\n")
+    append("Content-Type: \(metaMediaType)\r\n\r\n")
+    body.append(meta)
+    append("\r\n--\(boundary)--\r\n")
+    return body
 }
 
 /// multipart의 meta 파트 본문(§3.3). audio와 함께 둘 다 필수다.

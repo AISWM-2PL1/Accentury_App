@@ -78,7 +78,7 @@ public struct GuideF0: Codable, Equatable, Sendable {
 /// (KAN-17 산출물)에서 오므로, 여기서 payload째 거부하면 정의 데이터 한 줄이 문항 진행 전체를
 /// 막게 되기 때문이다.
 public func parseVoiceItemStart(_ payloadJson: String) -> VoiceItemStart? {
-    guard let start = decodeStart(payloadJson) else { return nil }
+    guard let start = decodeTolerantOfGuide(payloadJson, as: VoiceItemStart.self) else { return nil }
 
     if start.itemId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
     if start.itemNumber < 1 || start.totalItems < 1 { return nil }
@@ -89,10 +89,11 @@ public func parseVoiceItemStart(_ payloadJson: String) -> VoiceItemStart? {
 }
 
 /// 전체 파싱을 먼저 시도하고, 실패하면 guideF0만 떼어낸 뒤 한 번 더 시도한다.
-private func decodeStart(_ payloadJson: String) -> VoiceItemStart? {
+/// 억양 학습 녹음 payload(KAN-253, ``parseIntonationRecordingStart(_:)``)도 같은 곡선 관용 규칙을 쓴다.
+func decodeTolerantOfGuide<T: Decodable>(_ payloadJson: String, as type: T.Type) -> T? {
     guard let data = payloadJson.data(using: .utf8) else { return nil }
     let decoder = JSONDecoder()
-    if let start = try? decoder.decode(VoiceItemStart.self, from: data) {
+    if let start = try? decoder.decode(T.self, from: data) {
         return start
     }
     // guideF0만 불량일 수 있다 — 곡선을 버리고 구제를 시도한다. 안드로이드가 `JsonObject`를
@@ -100,5 +101,5 @@ private func decodeStart(_ payloadJson: String) -> VoiceItemStart? {
     guard var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
     object.removeValue(forKey: "guideF0")
     guard let stripped = try? JSONSerialization.data(withJSONObject: object) else { return nil }
-    return try? decoder.decode(VoiceItemStart.self, from: stripped)
+    return try? decoder.decode(T.self, from: stripped)
 }

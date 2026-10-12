@@ -212,6 +212,9 @@ struct WebViewHost: View {
     /// nil은 "갱신하지 않았다"(로그인을 끈 빌드) — 'failed'로 회신한다.
     let refreshAccessToken: () async -> RefreshOutcome?
 
+    /// 억양 학습 [말해 보기] (KAN-253). 검증된 payload만 메인 스레드로 온다.
+    var onStartIntonationRecording: (IntonationRecordingStart) -> Void = { _ in }
+
     /// 결과를 웹으로 주입하려면(`evaluateJavaScript`) 상위가 인스턴스를 알아야 한다.
     var onWebViewCreated: (WKWebView) -> Void = { _ in }
     /// 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다.
@@ -245,6 +248,7 @@ struct WebViewHost: View {
                     onShowInterstitialAd: onShowInterstitialAd,
                     readAccessToken: readAccessToken,
                     refreshAccessToken: refreshAccessToken,
+                    onStartIntonationRecording: onStartIntonationRecording,
                     onWebViewCreated: onWebViewCreated,
                     onWebViewReleased: onWebViewReleased
                 )
@@ -299,6 +303,7 @@ private struct WebViewRepresentable: UIViewRepresentable {
     let onShowInterstitialAd: () -> Void
     let readAccessToken: () async -> String
     let refreshAccessToken: () async -> RefreshOutcome?
+    let onStartIntonationRecording: (IntonationRecordingStart) -> Void
     let onWebViewCreated: (WKWebView) -> Void
     let onWebViewReleased: (WKWebView) -> Void
 
@@ -316,7 +321,8 @@ private struct WebViewRepresentable: UIViewRepresentable {
             onSetAdConsent: onSetAdConsent,
             onShowInterstitialAd: onShowInterstitialAd,
             readAccessToken: readAccessToken,
-            refreshAccessToken: refreshAccessToken
+            refreshAccessToken: refreshAccessToken,
+            onStartIntonationRecording: onStartIntonationRecording
         )
         // 해제 콜백은 `dismantleUIView`가 static이라 Coordinator를 거쳐야 한다.
         coordinator.onReleased = onWebViewReleased
@@ -511,6 +517,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
     private let onShowInterstitialAd: () -> Void
     private let readAccessToken: () async -> String
     private let refreshAccessToken: () async -> RefreshOutcome?
+    private let onStartIntonationRecording: (IntonationRecordingStart) -> Void
 
     /// 브리지 메시지 수신기. `lazy`인 이유는 dispatcher의 origin 판정 클로저가 `self`(현재 URL과
     /// 최신 allowlist)를 읽어야 하기 때문이다 — 초기화 중에는 잡을 수 없다.
@@ -532,7 +539,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
             onShowInterstitialAd: { [weak self] in self?.onShowInterstitialAd() },
             // 화면·모델과 무관한 출력이라 위 콜백들처럼 호출자에서 내려받지 않는다 (KAN-258).
             onHaptic: { HapticPlayer.play($0) },
-            onRefreshAccessToken: { [weak self] in self?.refreshAccessTokenForWeb() }
+            onRefreshAccessToken: { [weak self] in self?.refreshAccessTokenForWeb() },
+            onStartIntonationRecording: { [weak self] in self?.onStartIntonationRecording($0) }
         )
     )
 
@@ -549,7 +557,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         onSetAdConsent: @escaping (AdConsent) -> Void,
         onShowInterstitialAd: @escaping () -> Void,
         readAccessToken: @escaping () async -> String,
-        refreshAccessToken: @escaping () async -> RefreshOutcome?
+        refreshAccessToken: @escaping () async -> RefreshOutcome?,
+        onStartIntonationRecording: @escaping (IntonationRecordingStart) -> Void
     ) {
         self.allowedOrigins = allowedOrigins
         self.model = model
@@ -564,6 +573,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate {
         self.onShowInterstitialAd = onShowInterstitialAd
         self.readAccessToken = readAccessToken
         self.refreshAccessToken = refreshAccessToken
+        self.onStartIntonationRecording = onStartIntonationRecording
         super.init()
     }
 

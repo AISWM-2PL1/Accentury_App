@@ -154,7 +154,8 @@ enum BridgeUserScript {
             showInterstitialAd: function(){ post("showInterstitialAd"); },
             haptic: function(t){ post("haptic", String(t)); },
             getAccessToken: function(){ return accessToken; },
-            refreshAccessToken: function(){ post("refreshAccessToken"); }
+            refreshAccessToken: function(){ post("refreshAccessToken"); },
+            startIntonationRecording: function(json){ post("startIntonationRecording", String(json)); }
           });
         })();
         """

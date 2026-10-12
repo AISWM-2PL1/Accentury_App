@@ -7,7 +7,7 @@ import WebKit
 ///
 /// 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
 /// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)·햅틱(KAN-258)·
-/// 계정 토큰(KAN-255)까지 필요한 열다섯 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
+/// 계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)까지 필요한 열여섯 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
 /// 그중 값을 돌려주는 넷(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`)은 여기로 오지
 /// 않는다 — JS 안에서 끝난다 (``BridgeUserScript`` 참고).
 ///
@@ -64,6 +64,10 @@ struct BridgeDispatcher {
     /// 웹이 401을 받아 청한 계정 토큰 갱신 (KAN-255). 인자가 없고 즉시 돌아온다 — 결과는 창구 너머가
     /// `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (``WebViewCoordinator``, webview-bridge.md §11).
     let onRefreshAccessToken: () -> Void
+
+    /// 억양 학습 A-2의 [말해 보기] (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·`onIntonationRecorded` 회신은
+    /// 창구 너머가 한다 (webview-bridge.md §12). 기본값은 학습을 모르는 테스트 하네스용이다(안드로이드와 같다).
+    var onStartIntonationRecording: (IntonationRecordingStart) -> Void = { _ in }
 
     /// 메시지 한 건을 처리한다. 조건에 맞지 않으면 **조용히** 아무 일도 하지 않는다.
     ///
@@ -204,6 +208,16 @@ struct BridgeDispatcher {
              * 연타를 여기서 세지 않는 이유는 `startRetest`와 같다 — 줄 세우기의 주인은 TokenRefresher 하나다.
              */
             onRefreshAccessToken()
+
+        case "startIntonationRecording":
+            // 억양 학습 [말해 보기] → 네이티브 녹음 화면 (KAN-253, §12). `startVoiceItem`과 같은 순서다 — origin을 통과한
+            // payload만 파싱하고, 불량은 조용히 버리되 흔적을 남긴다. 회신은 업로드 202 때 한 번뿐이다.
+            guard let json = payload as? String else { return }
+            guard let start = parseIntonationRecordingStart(json) else {
+                CrashReports.recordBridgeParseFailure("startIntonationRecording")
+                return
+            }
+            onStartIntonationRecording(start)
 
         default:
             // 모르는 메서드. 신버전 웹이 구버전 앱에 보낸 호출일 수도 있고(메서드 추가는
