@@ -1,19 +1,21 @@
 /**
- * 억양 학습 화면 A-1(코스 목록)·A-2(대사 카드)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
+ * 억양 학습 화면 A-1(코스 목록)·A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
  * 갖고 여기 화면들은 그리고 버튼을 잇기만 한다 — `WordLearningScreens.tsx`와 같은 나눔이다.
  *
  * 화면 규칙은 code wiki ux-ui.md 「억양 학습 화면 (KAN-253)」 절, 녹음 계약은 webview-bridge.md §12.
  */
 
-import { useMemo } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { canStartIntonationRecording } from '../bridge/bridge'
 import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
 import { Button, ProgressIndicator, StatusBlock } from '../ui'
+import { CheckSmallIcon } from '../ui/icons'
 import { CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
 import type { IntonationCourse, IntonationCourseSummary } from './intonationApi'
 import { errorExit } from './useWordLearning'
 import { recordCard, useIntonationLearning, type IntonationLearningView } from './useIntonationLearning'
+import { SLOW_NOTICE_MS, WAITING_STAGES, waitingStage } from './intonationWaiting'
 
 // ── 라우트 ──────────────────────────────────────────────────────────────
 
@@ -49,9 +51,20 @@ export function IntonationLearningRoute({ apiBase, onLeave, deps }: IntonationLe
           onBackToList={learning.backToList}
         />
       )
-    case 'submitted':
+    case 'waiting':
+      return <IntonationWaitingScreen />
+    case 'retry':
       return (
-        <IntonationSubmittedScreen
+        <IntonationRetryScreen
+          view={view}
+          onRetry={learning.retryPolling}
+          onRerecord={learning.rerecord}
+        />
+      )
+    case 'feedback':
+      return (
+        <IntonationFeedbackScreen
+          score={view.score}
           last={view.index === view.course.cards.length - 1}
           onNext={learning.nextCard}
           onBackToList={learning.backToList}
@@ -212,13 +225,105 @@ export function IntonationCardScreen({
   )
 }
 
-// ── A-3 회신 뒤 자리 표시 (A-4 본 화면은 KAN-254) ─────────────────────────
+// ── A-4 분석 대기 ─────────────────────────────────────────────────────────
+// 폴링은 훅이 한다. 이 화면은 마운트 뒤 경과 시간으로 단계·안심 문구만 그린다 — [다시 시도]로 다시 들어오면
+// 화면도 새로 마운트돼 폴링 예산과 같이 0부터 센다. 정상 대기엔 버튼이 없다(이탈은 시스템 뒤로가기, KAN-253)
 
-export function IntonationSubmittedScreen({
+export function IntonationWaitingScreen() {
+  const [startedAt] = useState(() => Date.now())
+  const [now, setNow] = useState(startedAt)
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [])
+  const elapsedMs = now - startedAt
+  const stage = waitingStage(elapsedMs)
+
+  // 단계 마크업·클래스는 레벨테스트 대기 화면(AnalysisWaitingScreen)과 같다. 세션 10문항에 묶인 그 화면 대신 카드 1건용
+  return (
+    <main className="screen">
+      <div className="analysis-body analysis-body--centered">
+        <div className="analysis-waiting">
+          <h1 className="type-headline">분석 중이에요</h1>
+          <div className="analysis-steps">
+            {WAITING_STAGES.map((label, i) => {
+              const step = i + 1
+              const state = step < stage ? 'done' : step === stage ? 'current' : 'todo'
+              return (
+                <Fragment key={label}>
+                  {step > 1 && (
+                    <div className="analysis-step-line" data-state={step <= stage ? 'done' : 'todo'} aria-hidden="true" />
+                  )}
+                  <div className="analysis-step" data-state={state}>
+                    <span className="analysis-step__dot" aria-hidden="true">
+                      {state === 'done' ? <CheckSmallIcon /> : step}
+                    </span>
+                    <span className="type-caption analysis-step__label">{label}</span>
+                  </div>
+                </Fragment>
+              )
+            })}
+          </div>
+          {elapsedMs >= SLOW_NOTICE_MS && (
+            <p className="type-caption status-block__detail">분석에 조금 더 걸리고 있어요. 곧 끝나요</p>
+          )}
+        </div>
+      </div>
+    </main>
+  )
+}
+
+// ── A-4 실패 출구 (KAN-191: 버튼 하나) ──────────────────────────────────────
+
+const RETRY_MESSAGE = {
+  timeout: '분석이 예상보다 오래 걸리고 있어요',
+  failed: '분석하지 못했어요. 다시 녹음해 주세요',
+  misread: '제시된 문장과 다르게 들렸어요',
+  quiet: '목소리가 작게 들렸어요',
+} as const
+
+export function IntonationRetryScreen({
+  view,
+  onRetry,
+  onRerecord,
+}: {
+  view: Extract<IntonationLearningView, { screen: 'retry' }>
+  onRetry: () => void
+  onRerecord: () => void
+}) {
+  const card = view.course.cards[view.index]
+  // 오독·조용함은 무엇을 다시 말할지 보여 준다 — 녹음 화면이 열리기 전에 대사를 다시 읽게
+  const showLine = (view.reason === 'misread' || view.reason === 'quiet') && card !== undefined
+  const action =
+    view.reason === 'timeout' ? <Button onClick={onRetry}>다시 시도</Button> : <Button onClick={onRerecord}>다시 녹음</Button>
+  return (
+    <main className="screen">
+      {showLine && (
+        <div className="prompt-card">
+          {card.standard !== null && (
+            <>
+              <span className="type-caption prompt-card__badge">표준어</span>
+              <p className="type-title-sm">{card.standard}</p>
+            </>
+          )}
+          <span className="type-caption prompt-card__badge">사투리</span>
+          <p className="type-title">{card.dialect}</p>
+        </div>
+      )}
+      <StatusBlock tone="error" message={RETRY_MESSAGE[view.reason]} action={action} />
+    </main>
+  )
+}
+
+// ── A-5 피드백 자리 표시 (본 화면은 KAN-254 3단계) ─────────────────────────
+
+export function IntonationFeedbackScreen({
+  score,
   last,
   onNext,
   onBackToList,
 }: {
+  score: number
   last: boolean
   onNext: () => void
   onBackToList: () => void
@@ -231,7 +336,7 @@ export function IntonationSubmittedScreen({
   )
   return (
     <main className="screen">
-      <StatusBlock tone="waiting" message="분석 중이에요" action={action} />
+      <StatusBlock tone="waiting" message={`${score}점`} action={action} />
     </main>
   )
 }
