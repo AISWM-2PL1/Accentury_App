@@ -1392,6 +1392,8 @@ a.btn {
  */
 .curve-lane {
   position: relative;
+  /* 캔버스의 margin-top(24)이 레인 밖으로 새면(마진 상쇄) 레인째 24px 내려가 라벨이 캔버스 위에 얹힌다 (KAN-254 에뮬 확인) */
+  display: flow-root;
   height: var(--curve-lane-height);
 }
 
