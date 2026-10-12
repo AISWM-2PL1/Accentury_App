@@ -34,11 +34,14 @@ final class EventLog: @unchecked Sendable {
 ///
 /// 세 가지를 흉내 낸다:
 /// - **콜드**: `recordingStream()`을 부를 때마다 처음부터 다시 흐른다 (재녹음·재응시 경로).
-/// - **정리 구간**: 취소되거나 다 흘렀을 때 `release{n}`을 남긴다 — 실제 캡처가 AVAudioEngine을
-///   멈추고 세션을 내리는 자리이고, "화면을 떠나면 마이크를 놓는가"를 여기서 단언한다.
-/// - **늦은 반납**: `releaseDelay`를 주면 취소가 돌아온 뒤에도 한동안 마이크를 쥐고 있다.
-///   취소에 영향받지 않는 대기(`DispatchQueue.asyncAfter`)라 코틀린 테스트의
-///   `withContext(NonCancellable) { delay(...) }`와 같은 모양이다.
+/// - **정리 구간**: 스트림이 **어떤 경로로 끝나든**(취소·다 흐름·실패·소비자가 루프를 빠져나감)
+///   `release{n}`을 정확히 1회 남긴다 — 실제 캡처(`AudioRecorder`)의 `onTermination` 자리이고,
+///   "화면을 떠나면 마이크를 놓는가"를 여기서 단언한다. 이터레이터가 해제될 때 남기므로 엔진이
+///   정지 깃발을 보고 `break`한 경우도 잡힌다 (취소 경로에서만 남기던 예전 대역은 정지 깃발이
+///   취소보다 먼저 닿는 인터리빙에서 반납을 영영 안 남겼다 — KAN-254 PR #32 CI).
+/// - **늦은 반납**: `releaseDelay`를 주면 그만큼 마이크를 더 쥐고 있다. 이터레이터 해제 안에서
+///   동기로 기다리므로 `engine.record`가 돌아오기 전에 반납이 끝난다 — 코틀린 테스트의
+///   `withContext(NonCancellable) { delay(...) }`처럼 취소와 무관하게 끝까지 수행된다.
 final class FakePcmSource: PcmSource, @unchecked Sendable {
 
     let events: EventLog
@@ -81,42 +84,32 @@ final class FakePcmSource: PcmSource, @unchecked Sendable {
 
         var emitted = 0
         var opened = false
+        let releaser = Releaser { [events, releaseDelay] in
+            if opened {
+                if releaseDelay > 0 { Thread.sleep(forTimeInterval: releaseDelay) }
+                events.append("release\(id)")
+            }
+        }
         return AsyncThrowingStream(unfolding: { [self] in
+            // 클로저가 releaser를 쥐고 있다 — 이터레이터가 해제되면 클로저와 함께 풀리며 반납한다.
+            _ = releaser
             if !opened {
                 opened = true
                 events.append("open\(id)")
             }
-            if let failure {
-                await self.release(id)
-                throw failure
-            }
-            if intervalNanos > 0 {
-                do {
-                    try await Task.sleep(nanoseconds: intervalNanos)
-                } catch {
-                    // 취소가 여기로 온다. 실제 캡처의 정리 구간과 같은 자리라 반납을 남긴다.
-                    await self.release(id)
-                    throw error
-                }
-            }
-            if let limit, emitted >= limit {
-                await self.release(id)
-                return nil
-            }
+            if let failure { throw failure }
+            if intervalNanos > 0 { try await Task.sleep(nanoseconds: intervalNanos) }
+            if let limit, emitted >= limit { return nil }
             emitted += 1
             return chunk
         })
     }
+}
 
-    private func release(_ id: Int) async {
-        if releaseDelay > 0 {
-            // 취소와 무관하게 끝까지 수행된다 — 실제 오디오 세션 반납이 그렇다.
-            await withCheckedContinuation { continuation in
-                DispatchQueue.global().asyncAfter(deadline: .now() + releaseDelay) {
-                    continuation.resume()
-                }
-            }
-        }
-        events.append("release\(id)")
-    }
+/// 해제될 때 한 번 정리를 돈다. `AsyncThrowingStream(unfolding:)`에는 `onTermination`이 없어서
+/// 이터레이터 수명에 정리를 거는 자리로 쓴다.
+private final class Releaser: @unchecked Sendable {
+    private let onRelease: () -> Void
+    init(_ onRelease: @escaping () -> Void) { self.onRelease = onRelease }
+    deinit { onRelease() }
 }

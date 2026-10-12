@@ -192,6 +192,25 @@ final class RecordingControllerTests: XCTestCase {
         XCTAssertEqual(.idle, controller.state)
     }
 
+    /// 위 테스트가 CI에서 튄 경로를 결정적으로 고정한다 (KAN-254 PR #32). 취소 없이 정지 요청만
+    /// 보내면 엔진은 다음 청크를 받은 뒤 깃발을 보고 루프를 빠져나간다 — 소스 입장에서는 "소비자가
+    /// 이터레이터를 놓았다"는 것뿐이다. 실기기 소스는 이 경우에도 `onTermination`으로 마이크를
+    /// 놓으므로, 가짜도 같은 경로에서 반납을 남겨야 한다.
+    func test정지_요청만으로_루프를_빠져나가도_마이크를_놓는다() async {
+        let (controller, source, _) = makeController(limit: nil, intervalNanos: 2_000_000)
+
+        controller.startRecording()
+        await waitUntil("첫 청크가 오지 않았다") {
+            if case let .recording(recording) = controller.state { return recording.elapsedMs > 0 }
+            return false
+        }
+
+        controller.stopRecording()
+
+        _ = await awaitReview(controller)
+        XCTAssertEqual(["open1", "release1"], source.events.all)
+    }
+
     func test엔진_실패는_Failed_상태가_된다() async {
         let (controller, _, _) = makeController(limit: nil, failure: CaptureError("녹음 중 권한 회수"))
 
