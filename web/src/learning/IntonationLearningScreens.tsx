@@ -453,10 +453,10 @@ export function IntonationFeedbackScreen({
 
       {/* 점수와 무관하게 Primary는 결과 목록 복귀다 — 재도전은 보조로만 권한다 (5단계) */}
       <div className="item-screen__footer intonation-footer">
-        <Button onClick={onBackToSummary} style={{ width: '100%' }}>
+        <Button className="intonation-footer__back" onClick={onBackToSummary} style={{ width: '100%' }}>
           결과 목록으로
         </Button>
-        <Button variant="secondary" onClick={onRetry} style={{ width: '100%' }}>
+        <Button className="intonation-footer__retry" onClick={onRetry} style={{ width: '100%' }}>
           다시 시도
         </Button>
       </div>

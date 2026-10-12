@@ -209,8 +209,20 @@
 }
 
 /* 하단 자리는 블록이라 테두리 있는 보조 버튼이 주버튼에 붙지 않게 띄운다 */
-.intonation-footer .btn--secondary {
+.intonation-footer .btn--secondary,
+.intonation-footer .btn + .btn {
   margin-top: var(--space-3);
+}
+
+/* A-5 하단 (2026-10-12 에뮬 확인 뒤 사용자 지정): 목록 복귀는 배경색 바탕에 잉크 테두리·글자, 다시 시도는 벽돌색 */
+.intonation-footer__back {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.intonation-footer__retry {
+  background: var(--color-point);
+  color: var(--color-point-foreground);
 }
 
 /* ── 억양 학습 결과 목록 (KAN-254 5단계) — 행은 .word-set-row를 그대로 쓴다 ── */
