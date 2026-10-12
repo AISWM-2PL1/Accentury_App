@@ -505,7 +505,7 @@ export function IntonationSummaryScreen({
             <button key={card.cardId} type="button" className="word-set-row intonation-result-tile" onClick={() => onOpen(i)}>
               {/* 대사는 상세에서 보인다 — 목록은 번호만 (2026-10-12 사용자 결정) */}
               <span className="type-body intonation-result__label">{i + 1}번 문항</span>
-              <span className="type-caption word-set-row__meta">
+              <span className={`type-caption word-set-row__meta${r.outcome === 'completed' ? ' intonation-result__score' : ''}`}>
                 {r.outcome === 'completed' ? `${r.score}점` : ROW_STATUS[r.outcome]}
               </span>
             </button>
