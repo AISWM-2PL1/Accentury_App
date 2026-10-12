@@ -244,7 +244,7 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     await reply('c2', 'la_2')
     expect(await screen.findByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
     expect(screen.getByText('평균 76점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['1안녕하능교80점', '2밥 뭇나72점', '코스 목록으로'])
+    expect(buttonNames()).toEqual(['1번 문항80점', '2번 문항72점', '코스 목록으로'])
     expect(start).toHaveBeenCalledTimes(2)
   })
 
@@ -367,7 +367,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
   }
   const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
   const stageOf = (label: string) => screen.getByText(label).closest('.analysis-step')?.getAttribute('data-state')
-  const row = (dialect: string) => screen.getByRole('button', { name: new RegExp(dialect) })
+  const row = (label: string) => screen.getByRole('button', { name: new RegExp(label) })
   const SUMMARY = '코스 k1 코스를 마쳤어요'
 
   afterEach(() => vi.useRealTimers())
@@ -388,8 +388,8 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(calls.filter((p) => p.endsWith('/la_2'))).toHaveLength(4)
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
     expect(screen.getByText('평균 78점')).toBeInTheDocument() // (91 + 64) / 2 = 77.5 → 반올림
-    expect(row('안녕하능교')).toHaveTextContent('91점')
-    expect(row('밥 뭇나')).toHaveTextContent('64점')
+    expect(row('1번 문항')).toHaveTextContent('91점')
+    expect(row('2번 문항')).toHaveTextContent('64점')
   })
 
   it('마지막 회신 때 이미 다 끝났으면 대기 없이 바로 목록', async () => {
@@ -411,7 +411,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
 
   it('완료 행 → A-5 (버튼 [결과 목록으로]·[다시 시도]) → [결과 목록으로]', async () => {
     await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72) })
-    fireEvent.click(row('안녕하능교'))
+    fireEvent.click(row('1번 문항'))
     expect(screen.getByText('억양 점수')).toBeInTheDocument()
     expect(screen.getByText('80점')).toBeInTheDocument()
     expect(buttonNames()).toEqual(['결과 목록으로', '다시 시도'])
@@ -425,7 +425,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
       la_2: completed('la_2', 72),
       la_3: [processing('la_3'), completed('la_3', 86, 80)],
     })
-    fireEvent.click(row('안녕하능교'))
+    fireEvent.click(row('1번 문항'))
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     expect(start).toHaveBeenCalledTimes(3)
     expect(JSON.parse(start.mock.calls[2][0]).cardId).toBe('c1')
@@ -443,17 +443,17 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(screen.getByText('지난번보다 +6점')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
-    expect(row('안녕하능교')).toHaveTextContent('86점')
+    expect(row('1번 문항')).toHaveTextContent('86점')
     expect(screen.getByText('평균 79점')).toBeInTheDocument()
   })
 
   it('복귀 모드 A-2에서 회신 없이 [결과 목록으로] → 목록, 행은 그대로', async () => {
     await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72) })
-    fireEvent.click(row('안녕하능교'))
+    fireEvent.click(row('1번 문항'))
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
-    expect(row('안녕하능교')).toHaveTextContent('80점')
+    expect(row('1번 문항')).toHaveTextContent('80점')
   })
 
   it.each([
@@ -462,9 +462,9 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     ['SOMETHING_ELSE', '분석하지 못했어요. 다시 녹음해 주세요', false],
   ])('%s 행 「다시 녹음 필요」 → 문구 + [다시 녹음]·[결과 목록으로] → 같은 카드 녹음 1회', async (code, message, showsLine) => {
     const { start } = await toEnd({ la_1: completed('la_1', 80), la_2: failed('la_2', code) })
-    expect(row('밥 뭇나')).toHaveTextContent('다시 녹음 필요')
+    expect(row('2번 문항')).toHaveTextContent('다시 녹음 필요')
     expect(screen.getByText('평균 80점')).toBeInTheDocument()
-    fireEvent.click(row('밥 뭇나'))
+    fireEvent.click(row('2번 문항'))
     expect(screen.getByText(message)).toBeInTheDocument()
     expect(buttonNames()).toEqual(['다시 녹음', '결과 목록으로'])
     expect(screen.queryByText('밥 뭇나') !== null).toBe(showsLine)
@@ -483,12 +483,12 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     const { calls } = await toEnd({ la_1: completed('la_1', 80), la_2: la2 })
     await advance(70_000)
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
-    expect(row('밥 뭇나')).toHaveTextContent('확인 필요')
+    expect(row('2번 문항')).toHaveTextContent('확인 필요')
     const before = calls.length
     await advance(20_000)
     expect(calls).toHaveLength(before) // 소진 뒤엔 자동 조회가 없다
 
-    fireEvent.click(row('밥 뭇나'))
+    fireEvent.click(row('2번 문항'))
     expect(screen.getByText('분석이 예상보다 오래 걸리고 있어요')).toBeInTheDocument()
     expect(buttonNames()).toEqual(['다시 시도', '결과 목록으로'])
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
@@ -502,7 +502,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     await advance(6_000)
     expect(screen.getByText('70점')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
-    expect(row('밥 뭇나')).toHaveTextContent('70점')
+    expect(row('2번 문항')).toHaveTextContent('70점')
   })
 
   it('[코스 목록으로] → 목록을 다시 받는다 (완료 저장 호출 없음)', async () => {
@@ -530,7 +530,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(screen.queryByText('잠시 뒤에')).toBeNull()
     await advance(2_000)
     expect(calls.filter((p) => p.endsWith('/la_1'))).toHaveLength(2)
-    expect(row('안녕하능교')).toHaveTextContent('65점')
+    expect(row('1번 문항')).toHaveTextContent('65점')
   })
 
   it('언마운트하면 진행 중인 폴링을 모두 멈춘다', async () => {
@@ -579,7 +579,7 @@ describe('결과 목록', () => {
     )
     expect(screen.getByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
     expect(screen.getByText('평균 76점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['1가81점', '2나분석 중', '3다다시 녹음 필요', '4라확인 필요', '5마70점', '코스 목록으로'])
+    expect(buttonNames()).toEqual(['1번 문항81점', '2번 문항분석 중', '3번 문항다시 녹음 필요', '4번 문항확인 필요', '5번 문항70점', '코스 목록으로'])
     fireEvent.click(screen.getByRole('button', { name: /^4/ }))
     expect(onOpen).toHaveBeenCalledWith(3)
   })
