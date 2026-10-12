@@ -242,13 +242,14 @@
   flex-direction: column;
   justify-content: center;
   gap: var(--space-1);
-  min-height: 96px;
+  min-height: 144px;
   padding: var(--space-3) var(--space-2);
   text-align: center;
 }
 
 .intonation-result-tile .word-set-row__meta {
   justify-content: center;
+  font-size: var(--text-title-sm);
   flex-shrink: 1;
   word-break: keep-all;
 }
