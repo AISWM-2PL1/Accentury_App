@@ -414,6 +414,9 @@ struct TestFlowView: View {
                         recording: intonationRecording,
                         centerHz: model.voiceCenterHz.map { Float($0) }
                     )
+                    // 회신 직후 웹이 다음 카드를 바로 열면(KAN-254 5단계) 닫힘·열림이 한 번에 묶여 화면이 안 걷히고
+                    // 앞 카드의 확인 단계가 남는다 — 카드가 바뀌면 새 화면으로 세워 onDisappear 정리를 태운다
+                    .id(start.cardId)
                 }
             }
 
