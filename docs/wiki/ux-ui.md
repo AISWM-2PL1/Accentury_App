@@ -266,4 +266,32 @@ Jetpack Compose(상태관리·테마·Navigation-Compose·Canvas·애니메이�
 | 녹음 화면을 닫음 / 업로드 실패 뒤 닫음 | 일시정지 A-2 (회신 없음) | [다시 말해 보기] · [코스 목록으로] |
 | 브리지 없음 (브라우저 단독) | A-2, 「앱에서 녹음할 수 있어요」 | [다시 말해 보기] 비활성 · [코스 목록으로] |
 
+## 억양 학습 피드백 (KAN-254)
+
+- **계약 (KAN-267, 2026-10-12)**: `GET /v0/learning/intonation-attempts/{attemptId}` → 점수 1개(0~100), `pitchFeedback[]` = `{word, raise|null, lower|null, split}`, `previousScore`(직전 없으면 null). 사용자 곡선·이탈 구간은 응답에 없다. 조회는 `fetchIntonationAttempt`, 분기·문장은 `web/src/learning/intonationFeedback.ts`.
+- 곡선은 WebView가 그리고, 코멘트 문장은 서버가 아니라 클라이언트가 만든다.
+
+| 응답 | 화면 | 출구 |
+|---|---|---|
+| `PROCESSING` | 분석 대기 | 없음 (폴링) |
+| `COMPLETED` | 피드백 (점수·직전 대비·코멘트) | 2단계에서 정함 |
+| 실패 + `ANALYSIS_MISREAD` | 「제시된 문장과 다르게 들렸어요」 | [다시 녹음] |
+| 실패 + `AUDIO_TOO_QUIET` | 「목소리가 작게 들렸어요」 | [다시 녹음] |
+| 그 외 실패 (`RETRYABLE_FAILED`·`FAILED`, code 무관) | 오류 문구 | [다시 녹음] |
+| 60초 안에 결과 없음 (클라이언트 타임아웃) | 오류 문구 | [다시 시도] |
+
+코멘트는 어절마다 한 줄이다. 음절 글자는 작은따옴표로 감싸고 「음절」을 붙인다 — 글자 받침에 따라 을/를을 고르지 않으려는 것이다.
+
+| `pitchFeedback` 항목 | 문장 |
+|---|---|
+| `split: true` | `{word}: 경남 화자마다 높이는 음절이 달라요. 편하게 말해도 괜찮아요` |
+| raise·lower 둘 다 | `{word}: '{raise}' 음절을 더 높이고 '{lower}' 음절은 낮춰 보세요` |
+| raise만 | `{word}: '{raise}' 음절을 더 높여 보세요` |
+| lower만 | `{word}: '{lower}' 음절을 낮춰 보세요` |
+| 둘 다 null, `split: false` | `{word}: 가장 높은 음절은 맞았어요. 나머지 높낮이를 가이드 곡선에 맞춰 보세요` |
+
+- **직전 대비 (NFR-US-03)**: 색 없이 부호로 읽힌다 — `+6` / `−3`(U+2212) / `±0`. `previousScore`가 null이면 표기하지 않는다.
+- **대사 위 강조**: `syllableMarks`가 어절을 대사 앞에서부터 차례로 찾아 raise·lower 글자 위치와 코멘트 번호를 준다. 못 찾은 표시는 건너뛰고, raise와 lower가 같은 글자면 raise만 남긴다.
+- **범위 축소 (2026-10-12)**: 점수 3종·사용자 곡선·이탈 구간 번호 라벨은 KAN-263 후속으로 미뤘다.
+
 관련: [architecture.md](architecture.md), [audio-capture.md](audio-capture.md), [mvp-spec.md](mvp-spec.md)
