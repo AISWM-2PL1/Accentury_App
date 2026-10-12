@@ -131,6 +131,12 @@ export interface AccenturyBridge {
    * 없다(§6). [getSessionToken]과 같은 이유로 optional이다
    */
   refreshAccessToken?(): void
+  /**
+   * 억양 학습 대사 카드의 [말해 보기] → 네이티브 녹음 화면 (KAN-253). 인자는 [IntonationRecordingStart]의 JSON.
+   * 업로드까지 네이티브가 하고, 성공하면 [AccenturyWeb.onIntonationRecorded]로 회신한다(webview-bridge §12).
+   * [getSessionToken]과 같은 이유로 optional이다
+   */
+  startIntonationRecording?(payloadJson: string): void
 }
 
 /**
@@ -230,6 +236,30 @@ export interface AccenturyWeb {
   onRetestFailed?(payloadJson: string): void
   /** 계정 토큰 갱신 결과 (KAN-255). 인자는 `'ok' | 'failed'` — JSON이 아니라 문자열 그대로다 */
   onAccessTokenRefreshed?(result: string): void
+  /** 억양 녹음 업로드 성공 (KAN-253). 인자는 [IntonationRecorded]의 JSON. 실패·취소는 오지 않는다 */
+  onIntonationRecorded?(payloadJson: string): void
+}
+
+/**
+ * 억양 학습 녹음 화면에 건넬 카드 컨텍스트 (KAN-253, webview-bridge §12).
+ *
+ * @property prompt 사투리 대사 — 녹음 화면의 큰 글자
+ * @property standard 표준어 원문. 없으면 null — 네이티브는 생략한다
+ * @property maxDurationMs 최대 녹음 길이. 레벨테스트와 같은 10초 컷
+ * @property guideF0 상단 레인 가이드 곡선. [VoiceItemStart.guideF0]와 같은 규칙으로 가공 없이 건넨다
+ */
+export interface IntonationRecordingStart {
+  cardId: string
+  prompt: string
+  standard: string | null
+  maxDurationMs: number
+  guideF0: GuideF0
+}
+
+/** 억양 녹음 회신 — 네이티브가 업로드 202를 받은 뒤에만 보낸다. attemptId는 결과 폴링(KAN-254)의 키다 */
+export interface IntonationRecorded {
+  cardId: string
+  attemptId: string
 }
 
 declare global {
@@ -268,6 +298,8 @@ declare global {
  *
  * KAN-255의 `getAccessToken`·`refreshAccessToken`·`onAccessTokenRefreshed`도 추가라 2를 유지한다.
  * 모르는 앱에서는 토큰이 null이라 단어 학습 화면이 로그인 안내로 내려간다.
+ *
+ * KAN-253의 `startIntonationRecording`·`onIntonationRecorded`도 추가라 2를 유지한다. 모르는 앱에서는 [말해 보기]가 비활성이다.
  */
 export const REQUIRED_BRIDGE_VERSION = 2
 
@@ -607,6 +639,41 @@ export function haptic(type: HapticType): boolean {
   if (typeof bridge?.haptic !== 'function') return false
   bridge.haptic(type)
   return true
+}
+
+/**
+ * 억양 학습 녹음 화면을 연다 (KAN-253). 반환 규칙은 [startVoiceItem]과 같다 — 메서드가 없으면 false.
+ */
+export function startIntonationRecording(start: IntonationRecordingStart): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.startIntonationRecording !== 'function') return false
+  bridge.startIntonationRecording(JSON.stringify(start))
+  return true
+}
+
+/**
+ * [startIntonationRecording]을 부를 수 있는 실행인가. [말해 보기]를 미리 비활성으로 그리려고 둔다 —
+ * 학습은 로그인 필수라 앱 전용이고, 웹 녹음기 폴백은 없다 (KAN-253).
+ */
+export function canStartIntonationRecording(): boolean {
+  return typeof window.AccenturyBridge?.startIntonationRecording === 'function'
+}
+
+/**
+ * 억양 녹음 회신 수신 지점 (KAN-253). 반환값은 해제 함수다. 모양이 어긋난 payload는 버린다 —
+ * [installItemResultReceiver]와 같은 규칙.
+ */
+export function installIntonationRecordedReceiver(handler: (recorded: IntonationRecorded) => void): () => void {
+  return installReceiver('onIntonationRecorded', (payloadJson) => {
+    try {
+      const v = JSON.parse(payloadJson) as Partial<IntonationRecorded> | null
+      if (typeof v?.cardId === 'string' && typeof v.attemptId === 'string' && v.attemptId !== '') {
+        handler({ cardId: v.cardId, attemptId: v.attemptId })
+      }
+    } catch {
+      // 깨진 JSON — 회신이 없던 것과 같게 둔다 (사용자는 A-2에 남아 다시 녹음할 수 있다)
+    }
+  })
 }
 
 export function installItemResultReceiver(handler: (result: ItemResult) => void): () => void {

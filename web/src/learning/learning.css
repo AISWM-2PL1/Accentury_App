@@ -151,3 +151,21 @@
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
 }
+
+/* ── 억양 학습 A-1·A-2 (KAN-253) — 코스 행은 위 .word-set-row를 그대로 쓴다 ── */
+
+.intonation-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.intonation-row__topic,
+.intonation-note {
+  color: var(--color-muted-foreground);
+}
+
+.intonation-note {
+  width: 100%;
+  text-align: center;
+}

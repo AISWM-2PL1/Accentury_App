@@ -55,6 +55,7 @@
 | `haptic(type)` | KAN-258 | 가벼운 탭·성공·실패 햅틱. 인자는 `'tap' \| 'success' \| 'error'`, 그 밖은 네이티브가 무시. 회신 없음. OS 「터치 진동」 설정을 따른다 (§9) | 래퍼 false — 무동작 (브라우저 단독·구버전 앱) |
 | `getAccessToken(): string` | KAN-255 | 계정 Access 토큰. 단어 학습 API(`/v0/learning/word-*`)의 `Authorization`에 싣는다. 동기 반환. 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열 (§11). Android: `AccenturyBridge.getAccessToken` ← `MainActivity` TestFlow의 `currentAccessToken()`. iOS: `BridgeUserScript`의 문서 변수 `accessToken` ← `WebViewCoordinator.pushAccessToken` ← `TestFlowView`의 `readAccessToken` | 빈 값은 `null`로 정규화 → 네트워크 전에 `CLIENT_NOT_SIGNED_IN` |
 | `refreshAccessToken()` | KAN-255 | 계정 토큰 갱신 요청. **fire-and-forget** — 결과는 `onAccessTokenRefreshed`로 온다 (§11). Android: `AccenturyBridge.refreshAccessToken` → `MainActivity` TestFlow의 `refreshAccessToken()`. iOS: `BridgeDispatcher` `case "refreshAccessToken"` → `WebViewCoordinator.refreshAccessTokenForWeb` → `TestFlowView`의 `refreshAccessToken` | 래퍼 `refreshAccessToken()`이 즉시 false → `UNAUTHENTICATED` |
+| `startIntonationRecording(payloadJson)` | KAN-253 | 억양 학습 A-2의 [말해 보기] → 네이티브 녹음 화면(A-3). payload = `{cardId, prompt, standard, maxDurationMs, guideF0}`. 업로드까지 네이티브가 하고 성공하면 `onIntonationRecorded`로 회신 (§12) | 래퍼 false. 웹은 `canStartIntonationRecording()`이 false면 [말해 보기]를 비활성으로 그리고 「앱에서 녹음할 수 있어요」 — 웹 녹음기 폴백 없음 |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
@@ -67,6 +68,7 @@
 | `onItemResult(payloadJson)` | KAN-100 | 네이티브 녹음이 끝난 문항 결과 |
 | `onRetestFailed(payloadJson)` | KAN-34 | 재응시 실패 (`startRetest`·`startRetestAfterFailure` 공통). **성공은 오지 않는다** — 성공하면 페이지가 리로드된다. KAN-196부터 보상형 광고를 중간에 닫은 경우도 이 슬롯이다: `{code:'AD_DISMISSED', message:'광고를 끝까지 보시면 다시 테스트할 수 있어요', retryable:true, retryAfterMs:null}` (§8) |
 | `onAccessTokenRefreshed(result)` | KAN-255 | `refreshAccessToken()`의 결과. 인자는 JSON이 아니라 문자열 `'ok' \| 'failed'` 그대로다 (§11) |
+| `onIntonationRecorded(payloadJson)` | KAN-253 | 억양 녹음 업로드 202 접수. payload = `{cardId, attemptId}`. **성공만 온다** — 업로드 실패·녹음 화면 닫기는 회신 없음 (§12) |
 
 슬롯 단위로 갈아끼운다. 객체를 통째로 교체하면 나중에 설치한 수신자가 먼저 설치된 것을 지운다.
 
@@ -555,3 +557,50 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 | 회신 | 메인 액터에서 한 번. **성공이면 새 토큰을 먼저 밀고(`accessTokenPushJs`) 그 뒤 `onAccessTokenRefreshed('ok')`** — 웹이 'ok'를 받자마자 `getAccessToken()`을 다시 읽기 때문(안드로이드엔 없는 단계). 순서는 `accessTokenRefreshReplyScripts`가 정하고 JSContext 테스트가 고정. `.refreshed`만 `'ok'`. WebView가 없으면 웹 타임아웃 |
 | SignedOut | TokenRefresher의 로그아웃 신호가 게이트를 로그인 화면으로 돌린다 — 브리지 쪽 추가 처리 없음 |
 | `loginEnabled=false` | `AuthHub`를 깨우지 않는다. 읽기는 늘 `""`, 갱신은 nil → 즉시 `'failed'`. 예전 로그인 빌드가 Keychain에 남긴 토큰이 익명 빌드 웹으로 새지 않게 |
+
+## 12. 억양 학습 녹음 (KAN-253)
+
+계약 버전은 2 그대로다 — 메서드 하나(`startIntonationRecording`)와 수신 슬롯 하나(`onIntonationRecorded`)를
+**추가**만 했다(§1). 모르는 앱에서는 래퍼가 false라 A-2의 [말해 보기]가 비활성이다. 웹 쪽은 1단계 완료
+(`web/src/bridge/bridge.ts`, `web/src/learning/useIntonationLearning.ts`), 네이티브는 2단계 Android · 3단계 iOS.
+
+### web → native: `startIntonationRecording(payloadJson)`
+
+| 필드 | 타입 | 내용 |
+|---|---|---|
+| `cardId` | string | 서버 카드 id. 업로드 경로에 그대로 쓴다 |
+| `prompt` | string | 사투리 대사 — 녹음 화면의 큰 글자 |
+| `standard` | string \| null | 표준어 원문. null이면 그 줄을 그리지 않는다 |
+| `maxDurationMs` | number | 늘 `10000` — 레벨테스트와 같은 10초 컷 |
+| `guideF0` | `{unit, frameIntervalMs, values}` | 서버 카드의 곡선을 가공 없이. `startVoiceItem`의 `guideF0`와 같은 형식·같은 렌더 규칙(`unit`이 `semitone`이 아니면 가이드 레인을 비운다, `values`의 null은 무성) |
+
+반환 규칙은 `startVoiceItem`과 같다 — 웹 래퍼는 메서드가 없으면 false. 네이티브는 즉시 반환하고 녹음 화면을 띄운다.
+
+### native → web: `onIntonationRecorded(payloadJson)`
+
+| 상황 | 회신 |
+|---|---|
+| 업로드가 202를 받음 | `{cardId, attemptId}` **한 번**. `attemptId`는 202 본문의 값(`la_…`). 회신 뒤 녹음 화면을 닫고 WebView로 돌아온다 |
+| 업로드 실패 (네트워크·5xx·429 등) | **회신 없음.** 녹음 화면 안에서 [재시도]를 무제한 준다 |
+| 사용자가 녹음 화면을 시스템 뒤로가기로 닫음 (녹음 전·확인 단계·업로드 실패 후 어디서든) | **회신 없음.** 웹은 A-2 그대로라 [말해 보기]로 다시 시작한다 |
+
+웹은 A-2(`view.screen === 'card'`)에 있는 동안만 이 슬롯을 설치하고, **지금 카드의 `cardId`가 아닌 회신과 모양이 어긋난
+payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표시로 간다(A-4 본 화면·결과 폴링은 KAN-254).
+
+### 네이티브가 지킬 것 (2단계 Android · 3단계 iOS)
+
+- **녹음 화면은 레벨테스트 것을 재사용한다.** 상태 머신(카운트다운 → 녹음 → 확인 → 업로드), 품질 선차단
+  `TOO_QUIET`·`TOO_SHORT`·`CLIPPED`(Android `recording/RecordingScreen.kt`의 `QualityStatus`, iOS `Recording/RecordingScreen.swift`),
+  `maxDurationMs` 10초 자동 컷, 2단 레인(위 가이드 `guideF0`, 아래 내 억양). 진행 표기(`itemNumber/totalItems`)는 없다.
+- **세션 ID·문항 인덱스와 섞지 않는다.** 억양 학습은 레벨테스트 세션이 없다. 레벨테스트 진행 상태(세션 토큰,
+  문항 인덱스, 보관 음성 복구 §10, 재응시 잠금)를 읽거나 갱신하지 않고, `onItemResult`도 보내지 않는다. 카드 식별은 `cardId` 하나다.
+- **확인 단계에 [내 녹음 듣기] Secondary 버튼**을 둔다 — 학습 화면에만(레벨테스트 녹음 화면에는 없음, 2026-10-12 착수 결정).
+  다시 녹음·제출 버튼 구성은 레벨테스트 확인 단계 그대로.
+- **업로드**: `POST /v0/learning/intonation-cards/{cardId}/recordings` (서버 KAN-267, 명세 §3.19).
+  - multipart는 레벨테스트 업로드(`upload/UploadClient.kt`)와 같다 — 파트 `audio`(`recording.wav`, `audio/wav`) + `meta`(`application/json`, `{durationMs, clientQuality}`). 서버도 같은 `VoiceRecordings.read`로 읽는다.
+  - `Authorization: Bearer <계정 Access 토큰>` — 세션 토큰이 아니다(§11). 401이면 TokenRefresher로 **갱신 1회 뒤 같은 요청 재시도 1회**, 그래도 401이면 로그인 만료로 안내(업로드 실패와 같이 회신 없음).
+  - `Idempotency-Key`: 녹음 1건(확인 단계에서 제출한 그 오디오)마다 새로 만들고, 그 녹음의 재시도에는 **같은 키**를 다시 쓴다. 다시 녹음하면 새 키.
+  - [재시도]는 무제한. 단 `503 ANALYSIS_UNAVAILABLE`은 서버가 그 키의 시도를 실패로 기록했을 수 있어(같은 키 재전송이 실패 시도를 돌려준다) **재시도 때 새 키**를 쓴다. 400·413·415·422처럼 봉투 `retryable:false`면 재시도 대신 다시 녹음을 안내한다(오디오가 같으면 결과도 같다).
+  - 202 응답 `{attemptId, contentVersion, cardId, status, pollAfterMs}` 중 `attemptId`만 웹으로 넘긴다. 폴링은 웹(KAN-254)이 한다.
+- **뒤로가기 = 회신 없이 A-2 복귀.** 업로드 진행 중이면 요청을 버린다(같은 키로 서버에 이미 닿았더라도 웹은 그 시도를 모른다 — 다음 녹음은 새 키라 별개 시도다).
+- origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).

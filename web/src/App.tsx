@@ -5,6 +5,7 @@ import { track } from './analytics/track'
 import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
+import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
 import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
@@ -178,6 +179,14 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
    */
   if (params.get('screen') === 'words') {
     return <WordLearningRoute apiBase={API_BASE} onLeave={() => goToIntro(navigate)} />
+  }
+
+  /*
+   * `?screen=intonation` — 억양 학습(KAN-253). 단어 학습과 같은 이유로 A-1·A-2는 라우트 안의 상태로
+   * 넘긴다 (`learning/useIntonationLearning` 머리 주석). [학습 종류로]도 같은 임시 처리다.
+   */
+  if (params.get('screen') === 'intonation') {
+    return <IntonationLearningRoute apiBase={API_BASE} onLeave={() => goToIntro(navigate)} />
   }
 
   return <IntroRoute standalone={standalone} navigate={navigate} voiceCheckCapture={voiceCheckCapture} />
