@@ -36,6 +36,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -1046,12 +1047,16 @@ private fun TestFlow(
                     if (!intonationMicOk) {
                         PermissionGate(onGranted = { intonationMicOk = true })
                     } else {
-                        IntonationRecordingOverlay(
-                            start = intonationStart,
-                            uploader = intonation,
-                            recording = intonationRecording,
-                            centerHz = voiceCenterHz,
-                        )
+                        // 회신 직후 웹이 다음 카드를 바로 열면(KAN-254 5단계) close·open이 한 프레임에 묶여 화면이 안 내려가고
+                        // 앞 카드의 확인 단계([다음] 등)가 남는다 — 카드가 바뀌면 새로 세워 onDispose의 recording.reset()을 태운다
+                        key(intonationStart.cardId) {
+                            IntonationRecordingOverlay(
+                                start = intonationStart,
+                                uploader = intonation,
+                                recording = intonationRecording,
+                                centerHz = voiceCenterHz,
+                            )
+                        }
                     }
                 }
 
