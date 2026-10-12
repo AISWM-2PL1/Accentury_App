@@ -235,3 +235,9 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+
+/* 결과 목록 행 「n번 문항」 — Jua(굵기 하나짜리라 weight로 굵히지 않고 서체 자체의 두께를 쓴다, 2026-10-12 사용자 지정) */
+.intonation-result__label {
+  font-family: var(--font-display);
+  font-weight: var(--weight-normal);
+}
