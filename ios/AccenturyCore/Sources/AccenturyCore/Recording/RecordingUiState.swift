@@ -78,3 +78,24 @@ public enum RecordingUiState: Equatable, Sendable {
         public var canProceed: Bool { quality == .normal }
     }
 }
+
+/// 녹음 화면을 누가 띄웠는가 (KAN-253). 안드로이드 `recording/RecordingUiState.kt`의 `RecordingPurpose` 이식본이다.
+/// 상태 머신·품질 선차단·10초 컷·2단 레인은 같고, 위쪽 표기와 확인 단계의 보조 동작만 갈린다. 확인 뒤 무엇을 할지
+/// (업로드 대상)는 호출자의 `onNext`가 정한다 — 화면은 세션도 카드도 모른다.
+public enum RecordingPurpose: Equatable, Sendable {
+
+    /// 레벨테스트 음성 문항 (KAN-100). 화면 모양은 KAN-253 전과 같다.
+    case levelTest(itemNumber: Int, totalItems: Int)
+
+    /// 억양 학습 카드 (KAN-253, webview-bridge.md §12). 진행 표기 없음, 표준어 줄은 nil이면 생략.
+    case intonationLearning(standard: String?)
+
+    /// 진행바·캡션의 `n / N`을 그리는가.
+    public var showsProgress: Bool {
+        if case .levelTest = self { return true }
+        return false
+    }
+
+    /// 확인 단계에 [내 녹음 듣기]를 두는가 — 학습에만 (2026-10-12 착수 결정).
+    public var offersPlayback: Bool { !showsProgress }
+}

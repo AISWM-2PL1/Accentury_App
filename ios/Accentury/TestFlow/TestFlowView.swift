@@ -44,6 +44,27 @@ struct TestFlowView: View {
     @StateObject private var voiceCheck = VoiceCheckModel()
     @StateObject private var uploads = UploadModel()
 
+    /*
+     * 억양 학습 녹음 (KAN-253, webview-bridge.md §12). 녹음 모델은 레벨테스트(`recording`)와 다른 인스턴스다 — 같은 것을 쓰면
+     * 학습이 레벨테스트의 녹음 상태를 되감거나 읽게 된다(§12 「세션 ID·문항 인덱스와 섞지 않는다」). 업로드는 계정 토큰 전송이라
+     * 로그인을 끈 빌드에서는 `startIntonationRecording`을 버려 이 모델이 열리지 않는다(아래 WebViewHost 결선).
+     */
+    @StateObject private var intonation = IntonationRecordingModel(upload: { cardId, key, wav, durationMs, quality in
+        await TestFlowView.intonationUploader.upload(
+            cardId: cardId,
+            idempotencyKey: key,
+            wavBytes: wav,
+            durationMs: durationMs,
+            clientQuality: quality
+        )
+    })
+    @StateObject private var intonationRecording = RecordingModel()
+    /// 학습만 하는 사용자는 시작 게이트의 권한 칸을 지나지 않았을 수 있다 — 화면을 열 때마다 다시 본다.
+    @State private var intonationMicOk = false
+
+    /// 처음 업로드할 때 만든다 — 로그인을 끈 빌드는 여기까지 오지 않아 `AuthHub`를 깨우지 않는다.
+    private static let intonationUploader = AuthHub.clients.intonationUploadClient()
+
     /// 광고 허브 (KAN-196). 프로세스 단위 인스턴스라 `@StateObject`가 아니라 `@ObservedObject`다 —
     /// 미리 받아 둔 광고가 화면 재생성을 넘겨야 해서 뷰가 소유하지 않는다 (``AdsController`` 주석).
     /// 관측하는 값은 `consent` 하나이고, 그것이 바뀌면 `WebViewHost`가 현재 문서에 다시 민다.
@@ -125,6 +146,13 @@ struct TestFlowView: View {
                         guard AppConfig.loginEnabled else { return nil }
                         let clients = AuthHub.clients
                         return await clients.refresher.refresh(staleAccess: await clients.store.read()?.accessToken)
+                    },
+                    // 억양 학습 [말해 보기] (KAN-253). 학습은 로그인 필수라 로그인을 끈 빌드는 버린다 — 그 빌드의 웹은 계정
+                    // 토큰이 없어 A-2까지 오지 못한다(안드로이드와 같다).
+                    onStartIntonationRecording: { start in
+                        guard AppConfig.loginEnabled else { return }
+                        intonationMicOk = MicPermission.currentStatus().granted
+                        intonation.open(start)
                     },
                     onWebViewCreated: { created in
                         webView = created
@@ -244,7 +272,21 @@ struct TestFlowView: View {
          * 정하는데, 빌린 실행 시간은 제때 반납하지 않으면 iOS가 앱을 죽이는 자원이다. `deinit`은
          * 같은 정리를 한 번 더 시도하는 안전망으로 남긴다(반납은 멱등이라 겹쳐도 한 번이다).
          */
-        .onDisappear { uploads.teardown() }
+        .onDisappear {
+            uploads.teardown()
+            // TestFlow가 내려가면(로그아웃) 학습 녹음도 놓는다 — 진행 중 업로드 취소·음성 참조 폐기·마이크 해제.
+            intonation.close()
+            intonationRecording.reset()
+        }
+        /*
+         * 202 → 웹에 한 번 회신하고 화면을 닫는다 (KAN-253, §12). WebView가 없으면 회신 없이 닫는다 — 웹은 A-2 그대로라
+         * 다시 말해 볼 수 있다. 닫기가 상태를 idle로 돌리므로 같은 접수로 두 번 회신하지 않는다.
+         */
+        .onChange(of: intonation.uploadState) { state in
+            guard case .accepted(let recorded) = state else { return }
+            webView?.evaluateJavaScript(intonationRecordedDeliveryJs(recorded), completionHandler: nil)
+            intonation.close()
+        }
         /*
          * 앱이 뒤로 가면 마이크를 놓는다. 녹음 화면이 떠 있는 채로 홈으로 나가는 것은 흔한
          * 일이고, 그동안 마이크가 열려 있는 것은 사용자에게 설명할 수 없는 상태다. 돌아와서
@@ -258,7 +300,10 @@ struct TestFlowView: View {
          * 해제" AC는 그대로 지켜진다.
          */
         .onChange(of: scenePhase) { phase in
-            if phase == .background { recording.reset() }
+            if phase == .background {
+                recording.reset()
+                intonationRecording.reset()
+            }
         }
         /*
          * 자취 없는 제출을 걷는 최후 안전망 (KAN-146). 안드로이드
@@ -356,9 +401,25 @@ struct TestFlowView: View {
     /// 가져간 경우를 뒤 분기가 다시 적지 않는다.
     @ViewBuilder
     private var overlay: some View {
+        // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
+        // 닫기 = 회신 없이 A-2로 (§12). 권한 화면에서의 닫기도 같다.
+        if let start = intonation.start {
+            IntonationCloseChrome(onClose: { intonation.close() }) {
+                if !intonationMicOk {
+                    PermissionGateView(onGranted: { intonationMicOk = true })
+                } else {
+                    IntonationRecordingOverlay(
+                        start: start,
+                        uploader: intonation,
+                        recording: intonationRecording,
+                        centerHz: model.voiceCenterHz.map { Float($0) }
+                    )
+                }
+            }
+
         // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던 재응시를
         // 이어 간다. 이번에는 지역이 있어 ``TestFlowModel/startRetest()``가 곧장 세션 요청으로 간다.
-        if model.retestRegionPending {
+        } else if model.retestRegionPending {
             AnonymousRegionScreen(onDone: { code in
                 model.onRetestRegionChosen(code)
                 Task { @MainActor in await proceedRetest() }
@@ -444,6 +505,8 @@ struct TestFlowView: View {
         if case .needsPermission = model.phase { return true }
         // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
         if model.retestRegionPending { return true }
+        // 억양 학습의 권한 화면도 웹을 덮는 동안은 숨긴다 (KAN-253, 안드로이드와 같다).
+        if intonation.start != nil, !intonationMicOk { return true }
         return false
     }
 
@@ -764,8 +827,7 @@ private struct RecordingOverlay: View {
     var body: some View {
         RecordingScreen(
             questionText: start.prompt,
-            questionIndex: start.itemNumber,
-            totalQuestions: start.totalItems,
+            purpose: .levelTest(itemNumber: start.itemNumber, totalItems: start.totalItems),
             submitting: submitting,
             afterUploadFailure: afterUploadFailure,
             failureMessage: failureMessage,

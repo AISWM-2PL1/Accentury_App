@@ -29,6 +29,7 @@ final class AccenturyBridgeTests: XCTestCase {
         var interstitialCalls = 0
         var haptics: [Haptic] = []
         var refreshAccessTokenCalls = 0
+        var intonationStarts: [IntonationRecordingStart] = []
     }
 
     private func makeDispatcher(
@@ -47,7 +48,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onSetAdConsent: { sink.consents.append($0) },
             onShowInterstitialAd: { sink.interstitialCalls += 1 },
             onHaptic: { sink.haptics.append($0) },
-            onRefreshAccessToken: { sink.refreshAccessTokenCalls += 1 }
+            onRefreshAccessToken: { sink.refreshAccessTokenCalls += 1 },
+            onStartIntonationRecording: { sink.intonationStarts.append($0) }
         )
     }
 
@@ -553,5 +555,39 @@ final class AccenturyBridgeTests: XCTestCase {
         let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
         dispatcher.handle(method: "refreshAccessToken", payload: nil)
         XCTAssertEqual(0, sink.refreshAccessTokenCalls)
+    }
+
+    // MARK: startIntonationRecording (KAN-253)
+
+    private let intonationPayload = #"{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000}"#
+
+    /// 우리 웹의 [말해 보기]는 파싱된 카드 컨텍스트로 녹음 창구에 간다.
+    func testAllowedOriginHandsTheParsedIntonationStartToItsCallback() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+            .handle(method: "startIntonationRecording", payload: intonationPayload)
+        XCTAssertEqual(
+            [IntonationRecordingStart(cardId: "card_1", prompt: "어데 가노?", standard: "어디 가니?", maxDurationMs: 10_000)],
+            sink.intonationStarts
+        )
+    }
+
+    /// allowlist 밖 문서의 호출은 내용과 무관하게 조용히 버린다 (§5).
+    func testIntonationStartIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
+            .handle(method: "startIntonationRecording", payload: intonationPayload)
+        XCTAssertTrue(sink.intonationStarts.isEmpty)
+    }
+
+    /// 불량 payload(빈 cardId·JSON 아님·문자열 아닌 봉투)는 콜백 없이 버린다.
+    func testMalformedIntonationPayloadsAreIgnoredSilently() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+        dispatcher.handle(method: "startIntonationRecording", payload: #"{"cardId":"","prompt":"a","maxDurationMs":10000}"#)
+        dispatcher.handle(method: "startIntonationRecording", payload: "not json")
+        dispatcher.handle(method: "startIntonationRecording", payload: nil)
+        dispatcher.handle(method: "startIntonationRecording", payload: ["cardId": "card_1"])
+        XCTAssertTrue(sink.intonationStarts.isEmpty)
     }
 }

@@ -229,10 +229,14 @@ iOS의 계정 Access 토큰(`getAccessToken`, KAN-255)도 세션 토큰·광고 
 
 KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android(2·3, 4단계)·iOS(4~6, 5단계) 완료 (§11).
 
-KAN-253은 웹 쪽 1·7을 1단계, Android 2·3을 2단계에서 끝냈다(iOS 4~6은 3단계). 메서드가 녹음 화면을 띄우는 종류라
+KAN-253은 웹 쪽 1·7을 1단계, Android 2·3을 2단계, iOS 4~6을 3단계에서 끝냈다. 메서드가 녹음 화면을 띄우는 종류라
 Android는 표의 2·3 말고도 손대는 곳이 있다 — `bridge/IntonationRecordingStart.kt`(payload 파서) ·
 `bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/`(업로드·화면) · `recording/RecordingScreen.kt`의
 `RecordingPurpose`. 목록과 이유는 §12 「Android 구현」.
+iOS도 같다 — Core `Bridge/IntonationRecordingStart.swift`(파서) · `Bridge/IntonationRecordedDelivery.swift`(회신 JS) ·
+`Learning/`(업로드·키 규칙 모델) · `Recording/RecordingUiState.swift`의 `RecordingPurpose`, 앱 `Learning/IntonationRecordingOverlay.swift`(화면) ·
+`Recording/PcmPlayer.swift` · `Recording/RecordingScreen.swift` · `Web/WebViewHost.swift`(전달) · `TestFlow/TestFlowView.swift`(결선).
+목록과 이유는 §12 「iOS 구현」.
 
 테스트도 같은 수만큼 늘어난다: `bridge.test.ts`, `AccenturyBridgeTest.kt`,
 `AccenturyBridgeTests.swift`, `BridgeUserScriptTests.swift`(메서드 목록).
@@ -567,7 +571,7 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 
 계약 버전은 2 그대로다 — 메서드 하나(`startIntonationRecording`)와 수신 슬롯 하나(`onIntonationRecorded`)를
 **추가**만 했다(§1). 모르는 앱에서는 래퍼가 false라 A-2의 [말해 보기]가 비활성이다. 웹 쪽은 1단계 완료
-(`web/src/bridge/bridge.ts`, `web/src/learning/useIntonationLearning.ts`), 네이티브는 2단계 Android 완료 · 3단계 iOS.
+(`web/src/bridge/bridge.ts`, `web/src/learning/useIntonationLearning.ts`), 네이티브는 2단계 Android 완료 · 3단계 iOS 완료.
 
 ### web → native: `startIntonationRecording(payloadJson)`
 
@@ -592,7 +596,7 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 웹은 A-2(`view.screen === 'card'`)에 있는 동안만 이 슬롯을 설치하고, **지금 카드의 `cardId`가 아닌 회신과 모양이 어긋난
 payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표시로 간다(A-4 본 화면·결과 폴링은 KAN-254).
 
-### 네이티브가 지킬 것 (2단계 Android 완료 · 3단계 iOS)
+### 네이티브가 지킬 것 (2단계 Android 완료 · 3단계 iOS 완료)
 
 - **녹음 화면은 레벨테스트 것을 재사용한다.** 상태 머신(카운트다운 → 녹음 → 확인 → 업로드), 품질 선차단
   `TOO_QUIET`·`TOO_SHORT`·`CLIPPED`(Android `recording/RecordingScreen.kt`의 `QualityStatus`, iOS `Recording/RecordingScreen.swift`),
@@ -626,3 +630,21 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | [내 녹음 듣기] | `AudioTrack` `MODE_STATIC`으로 방금 PCM을 메모리에서 재생(MediaPlayer는 파일·URI가 필요해 WAV를 디스크에 써야 한다 — FR-DP-02). 재생 중 다시 누르면 정지. 확인 단계 이탈(재녹음)·[다음]·화면 이탈 때 정지·`release()`. 레벨테스트 확인 단계에는 없다(`RecordingPurpose.offersPlayback`) |
 | 회전·로그아웃 | 열린 카드·업로드는 ViewModel이라 회전을 넘긴다. TestFlow가 내려가면(로그아웃) `close()`·녹음 `reset()` |
 | `LOGIN_ENABLED=false` | 업로드 뷰모델을 만들지 않고 `startIntonationRecording`을 버린다 — 그 빌드의 웹은 계정 토큰이 없어 A-2까지 오지 못한다 |
+
+#### iOS 구현 (KAN-253 3단계)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | 앱 `Web/AccenturyBridge.swift`(`startIntonationRecording` case) · `Web/BridgeUserScript.swift`(JS 메서드) · `Web/WebViewHost.swift`(전달) · `Learning/IntonationRecordingOverlay.swift`(A-3·닫기) · `Recording/PcmPlayer.swift`([내 녹음 듣기]) · `Recording/RecordingScreen.swift` · `TestFlow/TestFlowView.swift`(결선). Core `Bridge/IntonationRecordingStart.swift`(파서) · `Bridge/IntonationRecordedDelivery.swift`(회신 JS) · `Learning/IntonationUploadClient.swift` · `Learning/IntonationRecordingModel.swift`(열림·업로드·키 규칙) · `Recording/RecordingUiState.swift`(`RecordingPurpose`) |
+| origin·파싱 | `startVoiceItem`과 같은 순서 — `BridgeDispatcher`가 처리 시점 URL로 origin 먼저, 파싱 실패는 `CrashReports.recordBridgeParseFailure("startIntonationRecording")`. 빈 `cardId`·빈 `prompt`·`maxDurationMs ≤ 0`은 버린다. `guideF0`만 불량이면 곡선만 버린다(`decodeTolerantOfGuide`, `parseVoiceItemStart`와 공유) |
+| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `purpose: RecordingPurpose`를 받는다 — `.levelTest(itemNumber:totalItems:)`는 이전과 같은 모양, `.intonationLearning(standard:)`는 진행바·`n / N` 없음, 대사 카드 아래 「표준어 · …」 한 줄(nil이면 생략), 확인 단계에 [내 녹음 듣기]. 실패 하단은 `footerOverride`로 호출자가 그린다. 녹음 모델은 레벨테스트와 다른 `@StateObject` 인스턴스(`intonationRecording`) |
+| 업로드 | `AuthClients.intonationUploadClient()` — 60초 상한 업로드 세션(`defaultUploadSession()`) 위에 `AuthorizedSession`(계정 Bearer, 401 → `TokenRefresher` 갱신 1회 → 같은 `URLRequest` 재시도 1회)을 얹는다. multipart는 레벨테스트와 같은 `recordingMultipartBody` 한 벌(`URLSessionUploadClient.swift`) |
+| 멱등 키 | Android와 같다 — 제출 1건마다 `li_<소문자 UUID>`, [재시도]는 같은 키, `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키, 다시 녹음은 새 키 |
+| 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요. 다시 로그인해 주세요」 |
+| 회신·닫기 | `uploadState`가 `.accepted` → `onIntonationRecorded({cardId, attemptId})` 한 번 → `close()`(상태가 idle로 돌아가 두 번 회신하지 않는다). 업로드 중·202 뒤에는 하단이 「제출 중…」. 닫기·다시 녹음 뒤 늦게 온 202는 세대 번호로 버린다 |
+| 뒤로가기 | iOS에는 시스템 뒤로가기가 없어 `IntonationCloseChrome`이 왼쪽 위 닫기(xmark)와 왼쪽 가장자리 스와이프를 둔다 — 둘 다 `close()`: 진행 중 업로드 Task 취소(URLSession까지 내려간다), 보관 음성 참조 폐기, 회신 없음. 권한 화면에서도 같다 |
+| 음성 바이트 | 디스크에 닿지 않는다(레벨테스트와 같이 메모리 PCM → `WavWriter` 메모리 WAV, `RecordingFileLifecycleTests`의 규칙). Swift `Data`는 값 타입이라 Android처럼 0으로 덮지 않고, `UploadManager`와 같이 접수·다시 녹음·닫기에서 참조를 놓는다(`retainsAudio`로 테스트) |
+| 마이크 권한 | 열 때마다 `MicPermission.currentStatus()`로 확인하고, 없으면 `PermissionGateView`를 먼저 띄운다. 그동안 톱니는 숨긴다 |
+| [내 녹음 듣기] | `AVAudioPlayer(data:fileTypeHint: .wav)`로 메모리 WAV를 재생(파일 URL 없음 — FR-DP-02). 녹음 세션이 `.record`라 재생 직전 `.playback`으로 바꾸고 정지 때 비활성화한다(다음 녹음은 `AudioRecorder`가 `.record`로 다시 잡는다). 재생 중 다시 누르면 정지. [재녹음]·확인 단계 이탈·[다음]·화면 이탈 때 정지 |
+| 백그라운드·로그아웃 | 앱이 `.background`로 가면 학습 녹음도 `reset()`(마이크 해제, 레벨테스트와 같은 규칙). `TestFlowView`가 사라지면(로그아웃) `close()`·녹음 `reset()` |
+| `LOGIN_ENABLED=false` | `startIntonationRecording`을 버린다 — 업로드 클라이언트(`AuthHub`)는 첫 업로드 때만 만들어 그 빌드에서는 깨우지 않는다 |

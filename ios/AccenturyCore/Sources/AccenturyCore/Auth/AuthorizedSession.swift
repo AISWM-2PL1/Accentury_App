@@ -61,7 +61,7 @@ public final class AuthClients: Sendable {
     /// Bearer + 자동 갱신 전송. 사용자 API가 쓴다.
     public let authorized: AuthorizedSession
     public let api: AuthApi
-    private let baseURL: String
+    let baseURL: String
 
     /// - Parameter session: 로그인·갱신이 그대로 나가는 바탕 세션
     public init(baseURL: String, store: TokenStore, session: URLSession = .shared) {
