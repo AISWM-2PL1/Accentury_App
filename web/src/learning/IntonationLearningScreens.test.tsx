@@ -1,6 +1,7 @@
 /**
- * 억양 학습 A-1·A-2 (KAN-253 1·5단계)와 A-4 분석 대기·실패 출구 (KAN-254 2단계)·A-5 피드백·A-6 코스 완료 (3단계). 상태별 출구, 카드 진입 때 녹음 화면 자동 호출이 정확히 1회인지
- * (StrictMode 포함), 일시정지 A-2의 [다시 말해 보기]·[코스 목록으로], 녹음 회신 뒤 피드백·코스 완료를 본다.
+ * 억양 학습 A-1·A-2 (KAN-253 1·5단계)와 A-4 분석 대기·실패 출구 (KAN-254 2단계)·A-5 피드백 (3단계)·카드 연속 녹음과
+ * 결과 목록 (5단계). 상태별 출구, 카드 진입·회신 뒤 녹음 화면 호출이 정확히 1회인지(StrictMode 포함), 일시정지 A-2의
+ * [다시 말해 보기]·[코스 목록으로], 카드별 뒤 폴링 → 결과 목록 → 상세·다시 녹음을 본다.
  * 네트워크는 deps.fetchImpl로 갈아끼운다.
  */
 
@@ -8,7 +9,13 @@ import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
-import { IntonationCardScreen, IntonationFeedbackScreen, IntonationLearningRoute } from './IntonationLearningScreens'
+import {
+  IntonationCardScreen,
+  IntonationFeedbackScreen,
+  IntonationLearningRoute,
+  IntonationSummaryScreen,
+} from './IntonationLearningScreens'
+import type { CardResult } from './useIntonationLearning'
 import type { IntonationCourse, PitchFeedbackItem } from './intonationApi'
 import type { WordApiDeps } from './wordApi'
 
@@ -178,10 +185,18 @@ describe('A-2 카드 로드 실패', () => {
 const attempt = (attemptId: string, status: string, extra: Record<string, unknown> = {}) => ({
   attemptId, contentVersion: 'v1', cardId: 'c1', status, pollAfterMs: 1000, ...extra,
 })
-const completed = (attemptId: string, score = 80) =>
-  ok(attempt(attemptId, 'COMPLETED', { score, pitchFeedback: [], previousScore: null }))
+const completed = (attemptId: string, score = 80, previousScore: number | null = null) =>
+  ok(attempt(attemptId, 'COMPLETED', { score, pitchFeedback: [], previousScore }))
+const processing = (attemptId: string) => ok(attempt(attemptId, 'PROCESSING'))
+const failed = (attemptId: string, code: string) => ok(attempt(attemptId, 'FAILED', { error: { code, retryable: false } }))
 
-describe('A-2 → 녹음 회신 → 피드백', () => {
+/** 지금 카드의 회신을 쏜다 — 수신 지점은 A-2 진입 뒤 이펙트에서 설치되므로 설치를 기다린다 */
+async function reply(cardId: string, attemptId: string) {
+  await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
+  act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId, attemptId })))
+}
+
+describe('카드 연속 녹음 (KAN-254 5단계)', () => {
   const ROUTES = {
     '/intonation-courses': ok(LIST),
     '/intonation-courses/k1': ok(COURSE),
@@ -190,7 +205,7 @@ describe('A-2 → 녹음 회신 → 피드백', () => {
   }
   const payload = (start: ReturnType<typeof vi.fn>, n: number) => JSON.parse(start.mock.calls[n][0])
 
-  it('카드 진입 때 녹음 화면을 자동으로 1회 열고, 지금 카드의 회신만 대기→피드백으로 넘긴다. [다음 카드]에서 다시 1회 → 마지막 카드는 [코스 완료]', async () => {
+  it('카드 진입 때 녹음 화면을 자동으로 1회 열고, 지금 카드의 회신이 오면 대기·피드백 없이 바로 다음 카드 녹음 → 마지막 회신 뒤 결과 목록', async () => {
     const start = vi.fn()
     withBridge(start)
     renderRoute(ROUTES)
@@ -215,24 +230,25 @@ describe('A-2 → 녹음 회신 → 피드백', () => {
     act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c2', attemptId: 'x' })))
     act(() => window.AccenturyWeb?.onIntonationRecorded?.('{broken'))
     expect(screen.getByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
-
-    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1' })))
-    expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
-    expect(await screen.findByText('80점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다음 카드', '다시 시도'])
     expect(start).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByRole('button', { name: '다음 카드' }))
+    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1' })))
+    // 같은 회신이 한 번 더 와도 다음 카드로 두 번 넘어가지 않는다
+    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1' })))
     expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
+    expect(screen.queryByText('분석 중이에요')).toBeNull()
+    expect(screen.queryByText('억양 점수')).toBeNull()
     expect(start).toHaveBeenCalledTimes(2)
     expect(payload(start, 1)).toMatchObject({ cardId: 'c2', standard: null, itemNumber: 2, totalItems: 2 })
-    await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
-    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c2', attemptId: 'la_2' })))
-    expect(await screen.findByText('72점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['코스 완료', '다시 시도'])
+
+    await reply('c2', 'la_2')
+    expect(await screen.findByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
+    expect(screen.getByText('평균 76점')).toBeInTheDocument()
+    expect(buttonNames()).toEqual(['1안녕하능교80점', '2밥 뭇나72점', '코스 목록으로'])
+    expect(start).toHaveBeenCalledTimes(2)
   })
 
-  it('StrictMode에서도 카드 진입마다 자동 호출은 1회다', async () => {
+  it('StrictMode에서도 카드 진입·회신마다 녹음 호출은 1회다', async () => {
     const start = vi.fn()
     withBridge(start)
     renderRoute(ROUTES, 'acc', true)
@@ -241,8 +257,7 @@ describe('A-2 → 녹음 회신 → 피드백', () => {
     await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
     expect(start).toHaveBeenCalledTimes(1)
 
-    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1' })))
-    fireEvent.click(await screen.findByRole('button', { name: '다음 카드' }))
+    await reply('c1', 'la_1')
     await screen.findByRole('heading', { name: '밥 뭇나' })
     expect(start).toHaveBeenCalledTimes(2)
     expect(payload(start, 1).cardId).toBe('c2')
@@ -318,49 +333,73 @@ describe('A-2 대사 카드', () => {
   })
 })
 
-// ── A-4 분석 대기 (KAN-254 2단계) ─────────────────────────────────────────
+// ── 뒤 폴링·A-4 대기·결과 목록·상세 (KAN-254 2·5단계, 라우트 결선) ─────────────
 // 폴링은 가짜 타이머로 민다. 지터가 있어도 간격은 최대 6초(5초 상한 +20%)라 시간을 넉넉히 민다
 
-describe('A-4 분석 대기', () => {
-  /** 카드 c1까지 열고 회신을 쏴 대기에 세운다. attempts는 /intonation-attempts/la_1 응답(배열이면 차례로) */
-  async function toWaiting(attempts: Reply | Reply[], start = vi.fn()) {
+describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
+  /**
+   * 코스 k1을 열고 두 카드 회신(la_1, la_2)을 쏜다. attempts는 /intonation-attempts/{id} 응답(배열이면 차례로,
+   * 마지막은 남는다 — 나중에 바꿔 끼우려면 그 배열의 [0]을 갈면 된다). 조회 경로와 목록 조회 횟수를 센다
+   */
+  async function toEnd(attempts: Record<string, Reply | Reply[]>, start = vi.fn(), cards = 2) {
     vi.useFakeTimers()
     withBridge(start)
     const calls: string[] = []
-    const server = fakeServer({ '/intonation-courses': ok(LIST), '/intonation-courses/k1': ok(COURSE), '/intonation-attempts/la_1': attempts })
+    const listCalls = vi.fn()
+    const routes: Record<string, Reply | Reply[]> = { '/intonation-courses': ok(LIST), '/intonation-courses/k1': ok(COURSE) }
+    for (const [id, r] of Object.entries(attempts)) routes[`/intonation-attempts/${id}`] = r
+    const server = fakeServer(routes)
     const fetchImpl: FetchLike = (input, init) => {
-      if (new URL(input).pathname.includes('/intonation-attempts/')) calls.push(new URL(input).pathname)
+      const path = new URL(input).pathname
+      if (path.includes('/intonation-attempts/')) calls.push(path)
+      if (path.endsWith('/intonation-courses')) listCalls()
       return server(input, init)
     }
     const view = render(<IntonationLearningRoute apiBase="http://api" onLeave={vi.fn()} deps={deps(fetchImpl)} />)
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: /코스 k1/ }))
     await act(async () => {})
-    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1' })))
-    await act(async () => {}) // 첫 조회 응답까지
-    return { calls, start, unmount: view.unmount }
+    for (const [cardId, attemptId] of [['c1', 'la_1'], ['c2', 'la_2']].slice(0, cards)) {
+      act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId, attemptId })))
+      await act(async () => {}) // 첫 조회 응답·다음 카드 수신기 설치까지
+    }
+    return { calls, start, listCalls, unmount: view.unmount }
   }
   const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
   const stageOf = (label: string) => screen.getByText(label).closest('.analysis-step')?.getAttribute('data-state')
+  const row = (dialect: string) => screen.getByRole('button', { name: new RegExp(dialect) })
+  const SUMMARY = '코스 k1 코스를 마쳤어요'
 
   afterEach(() => vi.useRealTimers())
 
-  it('회신 → 대기(단계 1, 버튼 없음) → PROCESSING 몇 회 → COMPLETED → 점수·[다음 카드]', async () => {
-    const processing = ok(attempt('la_1', 'PROCESSING'))
-    const { calls } = await toWaiting([processing, processing, processing, completed('la_1', 91)])
+  it('카드마다 뒤에서 따로 폴링 — 마지막 회신 뒤 분석 중이 남으면 A-4(단계 1, 버튼 없음) → 모두 끝나면 목록', async () => {
+    const { calls } = await toEnd({
+      la_1: completed('la_1', 91),
+      la_2: [processing('la_2'), processing('la_2'), processing('la_2'), completed('la_2', 64)],
+    })
     expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
     expect(stageOf('곡선 추출')).toBe('current')
     expect(stageOf('점수 계산')).toBe('todo')
     expect(buttonNames()).toEqual([])
+    expect(calls).toEqual(['/v0/learning/intonation-attempts/la_1', '/v0/learning/intonation-attempts/la_2'])
+
     await advance(20_000)
-    expect(calls).toHaveLength(4)
-    expect(calls.every((p) => p.endsWith('/la_1'))).toBe(true)
-    expect(screen.getByText('91점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다음 카드', '다시 시도'])
+    expect(calls.filter((p) => p.endsWith('/la_1'))).toHaveLength(1)
+    expect(calls.filter((p) => p.endsWith('/la_2'))).toHaveLength(4)
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+    expect(screen.getByText('평균 78점')).toBeInTheDocument() // (91 + 64) / 2 = 77.5 → 반올림
+    expect(row('안녕하능교')).toHaveTextContent('91점')
+    expect(row('밥 뭇나')).toHaveTextContent('64점')
   })
 
-  it('경과 시간으로 단계가 넘어가고 10초부터 안심 문구', async () => {
-    await toWaiting(ok(attempt('la_1', 'PROCESSING')))
+  it('마지막 회신 때 이미 다 끝났으면 대기 없이 바로 목록', async () => {
+    await toEnd({ la_1: completed('la_1'), la_2: completed('la_2', 72) })
+    expect(screen.queryByText('분석 중이에요')).toBeNull()
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+  })
+
+  it('대기 화면 경과 시간으로 단계가 넘어가고 10초부터 안심 문구', async () => {
+    await toEnd({ la_1: completed('la_1'), la_2: processing('la_2') })
     await advance(3_000)
     expect(stageOf('곡선 추출')).toBe('done')
     expect(stageOf('분포 비교')).toBe('current')
@@ -370,69 +409,193 @@ describe('A-4 분석 대기', () => {
     expect(screen.getByText('분석에 조금 더 걸리고 있어요. 곧 끝나요')).toBeInTheDocument()
   })
 
-  it('60초 소진 → 「분석이 예상보다 오래 걸리고 있어요」 [다시 시도] 하나 → 같은 attemptId로 다시 조회', async () => {
-    const { calls } = await toWaiting(ok(attempt('la_1', 'PROCESSING')))
-    await advance(70_000)
-    expect(screen.getByText('분석이 예상보다 오래 걸리고 있어요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다시 시도'])
-    const before = calls.length
-    await advance(20_000)
-    expect(calls).toHaveLength(before) // 소진 뒤엔 자동 조회가 없다
+  it('완료 행 → A-5 (버튼 [결과 목록으로]·[다시 시도]) → [결과 목록으로]', async () => {
+    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72) })
+    fireEvent.click(row('안녕하능교'))
+    expect(screen.getByText('억양 점수')).toBeInTheDocument()
+    expect(screen.getByText('80점')).toBeInTheDocument()
+    expect(buttonNames()).toEqual(['결과 목록으로', '다시 시도'])
+    fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+  })
 
+  it('A-5 [다시 시도] → 같은 카드 녹음(복귀 모드) → 그 카드 1건 대기 → A-5에 직전 대비 → 목록 행·평균 갱신', async () => {
+    const { start } = await toEnd({
+      la_1: completed('la_1', 80),
+      la_2: completed('la_2', 72),
+      la_3: [processing('la_3'), completed('la_3', 86, 80)],
+    })
+    fireEvent.click(row('안녕하능교'))
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    expect(start).toHaveBeenCalledTimes(3)
+    expect(JSON.parse(start.mock.calls[2][0]).cardId).toBe('c1')
+    // 회신 없이 닫아도 막히지 않게 복귀 모드 A-2의 출구는 [결과 목록으로]
+    expect(screen.getByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
+    expect(buttonNames()).toEqual(['다시 말해 보기', '결과 목록으로'])
+
     await act(async () => {})
-    expect(calls).toHaveLength(before + 1)
-    expect(calls.at(-1)).toMatch(/\/la_1$/)
+    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_3' })))
+    await act(async () => {})
     expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
-    expect(stageOf('곡선 추출')).toBe('current') // 예산과 함께 단계도 0부터
+    expect(start).toHaveBeenCalledTimes(3) // 복귀 모드는 다음 카드로 넘어가지 않는다
+    await advance(2_000)
+    expect(screen.getByText('86점')).toBeInTheDocument()
+    expect(screen.getByText('지난번보다 +6점')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
+    expect(row('안녕하능교')).toHaveTextContent('86점')
+    expect(screen.getByText('평균 79점')).toBeInTheDocument()
+  })
+
+  it('복귀 모드 A-2에서 회신 없이 [결과 목록으로] → 목록, 행은 그대로', async () => {
+    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72) })
+    fireEvent.click(row('안녕하능교'))
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+    expect(row('안녕하능교')).toHaveTextContent('80점')
   })
 
   it.each([
     ['ANALYSIS_MISREAD', '제시된 문장과 다르게 들렸어요', true],
     ['AUDIO_TOO_QUIET', '목소리가 작게 들렸어요', true],
     ['SOMETHING_ELSE', '분석하지 못했어요. 다시 녹음해 주세요', false],
-  ])('%s → 문구 + [다시 녹음] 하나, 누르면 녹음 화면 1회·같은 카드', async (code, message, showsLine) => {
-    const { start } = await toWaiting(ok(attempt('la_1', 'FAILED', { error: { code, retryable: false } })))
+  ])('%s 행 「다시 녹음 필요」 → 문구 + [다시 녹음]·[결과 목록으로] → 같은 카드 녹음 1회', async (code, message, showsLine) => {
+    const { start } = await toEnd({ la_1: completed('la_1', 80), la_2: failed('la_2', code) })
+    expect(row('밥 뭇나')).toHaveTextContent('다시 녹음 필요')
+    expect(screen.getByText('평균 80점')).toBeInTheDocument()
+    fireEvent.click(row('밥 뭇나'))
     expect(screen.getByText(message)).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다시 녹음'])
-    expect(screen.queryByText('안녕하능교') !== null).toBe(showsLine)
-    expect(screen.queryByText('안녕하세요') !== null).toBe(showsLine)
-    expect(start).toHaveBeenCalledTimes(1)
+    expect(buttonNames()).toEqual(['다시 녹음', '결과 목록으로'])
+    expect(screen.queryByText('밥 뭇나') !== null).toBe(showsLine)
 
     fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
-    expect(start).toHaveBeenCalledTimes(2)
-    expect(JSON.parse(start.mock.calls[1][0]).cardId).toBe('c1')
-    expect(screen.getByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
+    expect(start).toHaveBeenCalledTimes(3)
+    expect(JSON.parse(start.mock.calls[2][0]).cardId).toBe('c2')
+    expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
     // card 뷰로 돌아와야 새 회신을 받는다
     await act(async () => {})
     expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined()
   })
 
+  it('카드마다 60초 예산 — 소진 카드는 「확인 필요」로 목록 → [다시 시도]가 같은 attemptId 폴링을 새로 세워 대기 → 결과가 행에 반영', async () => {
+    const la2: Reply[] = [processing('la_2')]
+    const { calls } = await toEnd({ la_1: completed('la_1', 80), la_2: la2 })
+    await advance(70_000)
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+    expect(row('밥 뭇나')).toHaveTextContent('확인 필요')
+    const before = calls.length
+    await advance(20_000)
+    expect(calls).toHaveLength(before) // 소진 뒤엔 자동 조회가 없다
+
+    fireEvent.click(row('밥 뭇나'))
+    expect(screen.getByText('분석이 예상보다 오래 걸리고 있어요')).toBeInTheDocument()
+    expect(buttonNames()).toEqual(['다시 시도', '결과 목록으로'])
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await act(async () => {})
+    expect(calls).toHaveLength(before + 1)
+    expect(calls.at(-1)).toMatch(/\/la_2$/)
+    expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
+    expect(stageOf('곡선 추출')).toBe('current') // 예산과 함께 단계도 0부터
+
+    la2[0] = completed('la_2', 70)
+    await advance(6_000)
+    expect(screen.getByText('70점')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
+    expect(row('밥 뭇나')).toHaveTextContent('70점')
+  })
+
+  it('[코스 목록으로] → 목록을 다시 받는다 (완료 저장 호출 없음)', async () => {
+    const { listCalls, calls } = await toEnd({ la_1: completed('la_1'), la_2: completed('la_2', 72) })
+    expect(listCalls).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
+    await act(async () => {})
+    expect(screen.getByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
+    expect(listCalls).toHaveBeenCalledTimes(2)
+    expect(calls).toHaveLength(2)
+  })
+
   it('403 → 기존 오류 화면, [코스 목록으로] 하나', async () => {
-    await toWaiting(fail(403, 'LEARNING_ATTEMPT_FORBIDDEN', '내 시도가 아니에요', false))
+    await toEnd({ la_1: fail(403, 'LEARNING_ATTEMPT_FORBIDDEN', '내 시도가 아니에요', false) }, vi.fn(), 1)
     expect(screen.getByText('내 시도가 아니에요')).toBeInTheDocument()
     expect(buttonNames()).toEqual(['코스 목록으로'])
   })
 
-  it('retryable 오류 1회 뒤에도 대기 화면 그대로 계속 조회한다', async () => {
-    const { calls } = await toWaiting([fail(503, 'SERVICE_UNAVAILABLE', '잠시 뒤에', true), completed('la_1', 65)])
-    expect(calls).toHaveLength(1)
+  it('retryable 오류 1회 뒤에도 그 카드 폴링을 계속한다', async () => {
+    const { calls } = await toEnd({
+      la_1: [fail(503, 'SERVICE_UNAVAILABLE', '잠시 뒤에', true), completed('la_1', 65)],
+      la_2: completed('la_2', 75),
+    })
     expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
     expect(screen.queryByText('잠시 뒤에')).toBeNull()
     await advance(2_000)
-    expect(calls).toHaveLength(2)
-    expect(screen.getByText('65점')).toBeInTheDocument()
+    expect(calls.filter((p) => p.endsWith('/la_1'))).toHaveLength(2)
+    expect(row('안녕하능교')).toHaveTextContent('65점')
   })
 
-  it('대기 중 언마운트하면 더 조회하지 않는다', async () => {
-    const { calls, unmount } = await toWaiting(ok(attempt('la_1', 'PROCESSING')))
-    expect(calls).toHaveLength(1)
+  it('언마운트하면 진행 중인 폴링을 모두 멈춘다', async () => {
+    const { calls, unmount } = await toEnd({ la_1: processing('la_1'), la_2: processing('la_2') })
+    expect(calls).toHaveLength(2)
     unmount()
     await advance(30_000)
-    expect(calls).toHaveLength(1)
+    expect(calls).toHaveLength(2)
+  })
+
+  it('코스 중간에 [코스 목록으로]로 나가면 뒤 폴링을 멈춘다', async () => {
+    const { calls } = await toEnd({ la_1: processing('la_1') }, vi.fn(), 1)
+    expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
+    await act(async () => {})
+    const before = calls.length
+    await advance(30_000)
+    expect(calls).toHaveLength(before)
   })
 })
 
+// ── 결과 목록 (화면 단독) ────────────────────────────────────────────────
+
+describe('결과 목록', () => {
+  const COURSE5: IntonationCourse = {
+    ...COURSE,
+    cards: ['가', '나', '다', '라', '마'].map((d, i) => ({ ...COURSE.cards[1], cardId: `c${i}`, seq: i, dialect: d })),
+  }
+  const done = (score: number): CardResult => ({ attemptId: 'a', outcome: 'completed', score, feedback: [], previousScore: null })
+
+  it('heading·평균(완료만, 반올림)·행 상태 4종, 하단 [코스 목록으로]', () => {
+    const onOpen = vi.fn()
+    render(
+      <IntonationSummaryScreen
+        course={COURSE5}
+        results={{
+          c0: done(81),
+          c1: { attemptId: 'a', outcome: 'processing' },
+          c2: { attemptId: 'a', outcome: 'quiet' },
+          c3: { attemptId: 'a', outcome: 'timeout' },
+          c4: done(70),
+        }}
+        onOpen={onOpen}
+        onBackToList={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
+    expect(screen.getByText('평균 76점')).toBeInTheDocument()
+    expect(buttonNames()).toEqual(['1가81점', '2나분석 중', '3다다시 녹음 필요', '4라확인 필요', '5마70점', '코스 목록으로'])
+    fireEvent.click(screen.getByRole('button', { name: /^4/ }))
+    expect(onOpen).toHaveBeenCalledWith(3)
+  })
+
+  it('완료 카드가 없으면 평균 줄이 없다', () => {
+    render(
+      <IntonationSummaryScreen
+        course={COURSE}
+        results={{ c1: { attemptId: 'a', outcome: 'failed' }, c2: { attemptId: 'b', outcome: 'misread' } }}
+        onOpen={vi.fn()}
+        onBackToList={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText(/평균/)).toBeNull()
+  })
+})
 // ── A-5 피드백 (KAN-254 3단계, 화면 단독) ────────────────────────────────
 
 describe('A-5 피드백', () => {
@@ -444,9 +607,10 @@ describe('A-5 피드백', () => {
   ) =>
     render(
       <IntonationFeedbackScreen
-        view={{ screen: 'feedback', course: COURSE, index, attemptId: 'la_1', score, feedback, previousScore }}
-        onNext={vi.fn()}
-        onComplete={vi.fn()}
+        course={COURSE}
+        index={index}
+        result={{ score, feedback, previousScore }}
+        onBackToSummary={vi.fn()}
         onRetry={vi.fn()}
       />,
     )
@@ -515,62 +679,3 @@ describe('A-5 피드백', () => {
   })
 })
 
-// ── A-5 버튼·A-6 코스 완료 (라우트 결선) ─────────────────────────────────
-
-describe('A-5 버튼 → A-6', () => {
-  async function toFeedback(cardId: string, attemptId: string, start: ReturnType<typeof vi.fn>) {
-    await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
-    act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId, attemptId })))
-    await screen.findByText('억양 점수')
-    return start
-  }
-  const ROUTES = {
-    '/intonation-courses': ok(LIST),
-    '/intonation-courses/k1': ok(COURSE),
-    '/intonation-attempts/la_1': completed('la_1'),
-    '/intonation-attempts/la_2': completed('la_2', 72),
-  }
-
-  it('[다시 시도] → 같은 카드로 녹음 화면 1회, A-2로 돌아가 새 회신을 받는다', async () => {
-    const start = vi.fn()
-    withBridge(start)
-    renderRoute(ROUTES)
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
-    await screen.findByRole('heading', { name: '안녕하능교' })
-    await toFeedback('c1', 'la_1', start)
-
-    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
-    expect(start).toHaveBeenCalledTimes(2)
-    expect(JSON.parse(start.mock.calls[1][0]).cardId).toBe('c1')
-    expect(screen.getByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
-    await toFeedback('c1', 'la_1', start)
-  })
-
-  it('마지막 카드 [코스 완료] → A-6 → [코스 목록으로] → 목록을 다시 받는다', async () => {
-    const start = vi.fn()
-    withBridge(start)
-    const listCalls = vi.fn()
-    const server = fakeServer(ROUTES)
-    const fetchImpl: FetchLike = (input, init) => {
-      if (new URL(input).pathname.endsWith('/intonation-courses')) listCalls()
-      return server(input, init)
-    }
-    render(<IntonationLearningRoute apiBase="http://api" onLeave={vi.fn()} deps={deps(fetchImpl)} />)
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
-    await screen.findByRole('heading', { name: '안녕하능교' })
-    await toFeedback('c1', 'la_1', start)
-    fireEvent.click(screen.getByRole('button', { name: '다음 카드' }))
-    await screen.findByRole('heading', { name: '밥 뭇나' })
-    await toFeedback('c2', 'la_2', start)
-
-    fireEvent.click(screen.getByRole('button', { name: '코스 완료' }))
-    expect(screen.getByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
-    expect(screen.getByText('카드 2장을 모두 연습했어요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['코스 목록으로'])
-    expect(listCalls).toHaveBeenCalledTimes(1)
-
-    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
-    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-    expect(listCalls).toHaveBeenCalledTimes(2)
-  })
-})

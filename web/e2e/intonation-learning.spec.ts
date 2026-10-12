@@ -9,15 +9,16 @@
  *    그대로 되비추는지만 본다. 여기서는 실 서버 상세 응답(Playwright `request`로 따로 받은 것)과
  *    `startIntonationRecording` payload의 cardId·prompt·standard·guideF0·itemNumber·totalItems를 대조한다 — 웹이 카드를
  *    seq로 다시 정렬하므로, 정렬이 어긋나면 엉뚱한 카드의 녹음이 엉뚱한 cardId로 올라간다.
- * 2. **회신 → A-4 대기 → 피드백 자리 표시 → 다음 카드가 실 문서에서 이어진다.** 네이티브 회신은
+ * 2. **회신 → 바로 다음 카드 녹음이 실 문서에서 이어진다 (KAN-254 5단계).** 네이티브 회신은
  *    `window.AccenturyWeb.onIntonationRecorded`를 다음 틱에 부르는 것으로 흉내 낸다
  *    (evaluateJavascript와 같은 순서). 회신이 없거나(뒤로가기) 다른 카드 것이면 A-2가 그대로여야 한다.
  *    이 둘은 회신의 attemptId가 가짜라 채점 조회를 [stubAttempts]로 가로챈다.
- * 3. **실채점 (KAN-254 4단계).** 네이티브 업로드를 Playwright `request`로 흉내 낸다 — 브리지에 심은 것과 같은
+ * 3. **실채점 (KAN-254 4·5단계).** 네이티브 업로드를 Playwright `request`로 흉내 낸다 — 브리지에 심은 것과 같은
  *    계정 토큰으로 `POST /v0/learning/intonation-cards/{cardId}/recordings`에 가짜 마이크 WAV를 올리고([uploadRecording]),
- *    202의 진짜 attemptId를 회신에 싣는다. 그 뒤 채점 조회는 가로채지 않는다 — A-5 점수·코멘트·직전 대비를 서버
- *    폴링 응답과 대조하고, 코스를 끝까지 돌아 A-1에 「완료」(KAN-268)가 서는지 본다. 가짜 AI 엔진은 해시 점수만 주고
- *    segments를 안 줘 pitchFeedback이 늘 빈 배열이다. 실패 출구는 엔진이 오독·분석 실패를 못 내므로 [stubAttempts]로 만든다.
+ *    202의 진짜 attemptId를 회신에 싣는다. 그 뒤 채점 조회는 가로채지 않는다 — 카드를 끝까지 연속으로 올린 뒤 결과 목록의
+ *    평균·행 점수, 행을 연 A-5 점수·코멘트·직전 대비를 서버 폴링 응답과 대조하고, A-1에 「완료」(KAN-268)가 서는지 본다.
+ *    가짜 AI 엔진은 해시 점수만 주고 segments를 안 줘 pitchFeedback이 늘 빈 배열이다. 실패 출구는 엔진이 오독·분석 실패를
+ *    못 내므로 채점 조회를 가로채 만든다.
  *
  * 실제 녹음(마이크·녹음 화면)은 네이티브 몫이라 이 스펙 밖이다 — 에뮬레이터 확인이 덮는다
  * (`docs/wiki/browser-e2e.md`의 「억양 학습 스펙」 절).
@@ -133,23 +134,18 @@ const ATTEMPT_PATH = '/v0/learning/intonation-attempts/'
 /** 실패 출구의 서버 오류 코드. 오독·조용함·그 밖의 분석 실패 (intonationFeedback.attemptOutcome) */
 type FailCode = 'ANALYSIS_MISREAD' | 'AUDIO_TOO_QUIET' | 'ANALYSIS_UNSCORABLE'
 
-/**
- * 채점 조회를 가로챈다. 차례로 내주고 마지막 상태를 반복한다 (KAN-254 응답 모양). 오류 코드는 FAILED + error다.
- * 다시 부르면 나중 route가 먼저 잡으므로 새 순서로 갈아 끼워진다
- */
-async function stubAttempts(page: Page, statuses: ('PROCESSING' | 'COMPLETED' | FailCode)[]): Promise<void> {
+/** 채점 조회를 가로챈다. 차례로 내주고 마지막 상태를 반복한다 (KAN-254 응답 모양) */
+async function stubAttempts(page: Page, statuses: ('PROCESSING' | 'COMPLETED')[]): Promise<void> {
   const queue = [...statuses]
   await page.route(
     (url) => url.pathname.startsWith(ATTEMPT_PATH),
     (route) => {
       const next = queue.length > 1 ? queue.shift()! : queue[0]
       const attemptId = route.request().url().split('/').pop()
-      const failed = next !== 'PROCESSING' && next !== 'COMPLETED'
       route.fulfill({
         json: {
-          attemptId, contentVersion: 'in-e2e', cardId: 'stub', status: failed ? 'FAILED' : next, pollAfterMs: 500,
+          attemptId, contentVersion: 'in-e2e', cardId: 'stub', status: next, pollAfterMs: 500,
           ...(next === 'COMPLETED' ? { score: 77, pitchFeedback: [], previousScore: null } : {}),
-          ...(failed ? { error: { code: next, retryable: false } } : {}),
         },
       })
     },
@@ -231,20 +227,16 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
   await expect(speak(page)).toBeEnabled()
   await expect(page.getByRole('button', { name: '코스 목록으로', exact: true })).toBeVisible()
 
-  // 회신 → A-4 대기(단계 표시) → 피드백 → [다음 카드] (마지막이면 [코스 완료] → A-6)
+  // 회신 → 대기·피드백 없이 바로 다음 카드의 녹음 자동 호출 (5단계). 채점은 뒤에서 돈다
   await replyRecorded(page, card.cardId)
-  await expect(page.getByText('곡선 추출', { exact: true })).toBeVisible()
-  await expect(page.getByText('77점', { exact: true })).toBeVisible()
   if (cards.length > 1) {
-    await page.getByRole('button', { name: '다음 카드', exact: true }).click()
     await expectCardProgress(page, 2, cards.length)
     await expect(page.getByRole('heading', { level: 1, name: cards[1].dialect, exact: true })).toBeVisible()
     await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
     expect((await intonationCalls(page))[1]).toMatchObject({ cardId: cards[1].cardId, itemNumber: 2, totalItems: cards.length })
+    await expect(page.getByText('분석 중이에요', { exact: true })).toHaveCount(0)
   } else {
-    await page.getByRole('button', { name: '코스 완료', exact: true }).click()
-    await page.getByRole('button', { name: '코스 목록으로', exact: true }).click()
-    await expectCourseList(page)
+    await expect(page.getByText('77점', { exact: true })).toBeVisible()
   }
 })
 
@@ -272,9 +264,9 @@ test('다른 카드의 늦은 회신은 무시하고 지금 카드의 회신만 
   await expect(speak(page)).toBeVisible()
   await expect(page.getByText('분석 중이에요', { exact: true })).toHaveCount(0)
 
-  // 수신 지점이 살아 있었다는 앵커 — 같은 cardId면 넘어간다 (없음 단언이 헛돌지 않게)
+  // 수신 지점이 살아 있었다는 앵커 — 같은 cardId면 다음 카드 녹음으로 넘어간다 (없음 단언이 헛돌지 않게)
   await replyRecorded(page, cardId)
-  await expect(page.getByText('분석 중이에요', { exact: true })).toBeVisible()
+  await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
 })
 
 test('목록 조회 실패 - 출구는 [다시 시도] 하나, 누르면 목록이 뜬다', async ({ page, request }) => {
@@ -366,7 +358,7 @@ async function expectFeedbackMatchesServer(
   token: string,
   attemptId: string,
 ): Promise<IntonationAttempt> {
-  await expect(page.getByText('억양 점수', { exact: true })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText('억양 점수', { exact: true })).toBeVisible({ timeout: 70_000 })
   const attempt = await fetchAttempt(request, token, attemptId)
   expect(attempt.status).toBe('COMPLETED')
   await expect(page.locator('.intonation-score .text-hero')).toHaveText(`${attempt.score}점`)
@@ -379,11 +371,22 @@ async function expectFeedbackMatchesServer(
   return attempt
 }
 
-test('실채점 - 업로드 → A-4 → A-5가 서버 점수·코멘트와 같고, [다시 시도] 2회차에 직전 대비, 끝까지 돌면 A-1에 「완료」', async ({
+/** 결과 목록 행 — 위에서부터 카드 순서다 */
+const resultRows = (page: Page) => page.locator('.intonation-results .word-set-row')
+
+/** 결과 목록의 평균·행 점수가 서버 점수와 같은지 */
+async function expectSummary(page: Page, title: string, scores: number[]): Promise<void> {
+  await expect(page.getByRole('heading', { level: 1, name: `${title} 코스를 마쳤어요` })).toBeVisible({ timeout: 90_000 })
+  const average = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+  await expect(page.getByText(`평균 ${average}점`, { exact: true })).toBeVisible()
+  await expect(resultRows(page).locator('.word-set-row__meta')).toHaveText(scores.map((s) => `${s}점`))
+}
+
+test('실채점 - 카드를 연속으로 올리면 결과 목록의 평균·행 점수가 서버와 같고, 행 A-5의 [다시 시도] 2회차에 직전 대비가 행에 반영, A-1에 「완료」', async ({
   page,
   request,
 }) => {
-  test.setTimeout(120_000) // 카드 7장 + 재시도 1회, 업로드마다 분석 2~3초
+  test.setTimeout(240_000) // 카드 7장 + 재시도 1회, 업로드마다 분석 (로컬 AI 스텁 지연 8초)
   const token = await loginWithFakeIdp(request)
   await openIntonation(page, { token })
   await expectCourseList(page)
@@ -396,44 +399,53 @@ test('실채점 - 업로드 → A-4 → A-5가 서버 점수·코멘트와 같�
   await expect(row).toContainText(`0/${course.cardCount}장`)
   await row.click()
 
-  // 1번 카드 첫 시도 — A-4 대기를 거쳐 A-5. 첫 시도엔 직전 대비 줄이 없다
-  await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
-  const firstCardId = (await intonationCalls(page))[0].cardId
-  const firstAttemptId = await uploadRecording(request, token, firstCardId)
-  await replyRecorded(page, firstCardId, firstAttemptId)
+  // 회신마다 결과를 보이지 않고 바로 다음 카드 녹음을 부른다 (5단계)
+  const attemptIds: string[] = []
+  for (let n = 1; n <= course.cardCount; n++) {
+    await expect.poll(async () => (await intonationCalls(page)).length).toBe(n)
+    const call = (await intonationCalls(page))[n - 1]
+    expect(call).toMatchObject({ itemNumber: n, totalItems: course.cardCount })
+    const attemptId = await uploadRecording(request, token, call.cardId)
+    attemptIds.push(attemptId)
+    await replyRecorded(page, call.cardId, attemptId)
+    await expect(page.getByText('억양 점수', { exact: true })).toHaveCount(0)
+  }
+  expect(await intonationCalls(page)).toHaveLength(course.cardCount)
+  // 마지막 카드는 막 올렸으니 아직 분석 중이다 — 대기를 거쳐 목록
   await expect(page.getByText('분석 중이에요', { exact: true })).toBeVisible()
-  await expect(page.getByText('곡선 추출', { exact: true })).toBeVisible()
-  const first = await expectFeedbackMatchesServer(page, request, token, firstAttemptId)
+
+  await expect(page.getByRole('heading', { level: 1, name: `${course.title} 코스를 마쳤어요` })).toBeVisible({ timeout: 90_000 })
+  const attempts = await Promise.all(attemptIds.map((id) => fetchAttempt(request, token, id)))
+  expect(attempts.map((a) => a.status)).toEqual(attemptIds.map(() => 'COMPLETED'))
+  const scores = attempts.map((a) => a.score!)
+  await expectSummary(page, course.title, scores)
+
+  // 1번 행 → A-5 서버 점수 그대로, 첫 시도라 직전 대비 없음
+  await resultRows(page).first().click()
+  const first = await expectFeedbackMatchesServer(page, request, token, attemptIds[0])
   expect(first.previousScore).toBeNull()
   await expect(page.locator('.intonation-delta')).toHaveCount(0)
 
-  // [다시 시도] → 같은 카드 녹음 호출 → 새 키로 두 번째 업로드 → 직전 대비 (AC: 2회차)
+  // [다시 시도] → 같은 카드 녹음 호출(복귀 모드) → 새 키로 두 번째 업로드 → 그 카드 대기 → A-5 직전 대비 (AC: 2회차)
   await page.getByRole('button', { name: '다시 시도', exact: true }).click()
-  await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
-  expect((await intonationCalls(page))[1].cardId).toBe(firstCardId)
+  await expect.poll(async () => (await intonationCalls(page)).length).toBe(course.cardCount + 1)
+  const firstCardId = (await intonationCalls(page))[0].cardId
+  expect((await intonationCalls(page))[course.cardCount].cardId).toBe(firstCardId)
   const secondAttemptId = await uploadRecording(request, token, firstCardId)
-  expect(secondAttemptId).not.toBe(firstAttemptId)
+  expect(secondAttemptId).not.toBe(attemptIds[0])
   await replyRecorded(page, firstCardId, secondAttemptId)
+  await expect(page.getByText('분석 중이에요', { exact: true })).toBeVisible()
   const second = await expectFeedbackMatchesServer(page, request, token, secondAttemptId)
   expect(second.previousScore).toBe(first.score)
   const delta = page.locator('.intonation-delta')
   await expect(delta).toContainText(`지난번보다 ${formatDelta(second.score! - first.score!)}점`)
   await expect(delta).toContainText(`지난번 ${first.score}점에서 ${second.score}점`)
 
-  // 남은 카드도 실업로드로 — 카드마다 녹음 호출 1회, 마지막은 [코스 완료]
-  for (let n = 2; n <= course.cardCount; n++) {
-    await page.getByRole('button', { name: '다음 카드', exact: true }).click()
-    await expect.poll(async () => (await intonationCalls(page)).length).toBe(n + 1)
-    const call = (await intonationCalls(page))[n]
-    expect(call).toMatchObject({ itemNumber: n, totalItems: course.cardCount })
-    const attemptId = await uploadRecording(request, token, call.cardId)
-    await replyRecorded(page, call.cardId, attemptId)
-    await expectFeedbackMatchesServer(page, request, token, attemptId)
-  }
-  await page.getByRole('button', { name: '코스 완료', exact: true }).click()
+  // [결과 목록으로] → 1번 행·평균이 2회차 점수로 갱신
+  await page.getByRole('button', { name: '결과 목록으로', exact: true }).click()
+  await expectSummary(page, course.title, [second.score!, ...scores.slice(1)])
 
-  // A-6 → A-1. 완료 저장 호출은 없고 서버가 시도 기록으로 계산한다 (KAN-268)
-  await expect(page.getByRole('heading', { level: 1, name: `${course.title} 코스를 마쳤어요` })).toBeVisible()
+  // [코스 목록으로] → A-1. 완료 저장 호출은 없고 서버가 시도 기록으로 계산한다 (KAN-268)
   await page.getByRole('button', { name: '코스 목록으로', exact: true }).click()
   await expectCourseList(page)
   await expect(row.locator('.word-set-row__meta')).toHaveText(/완료$/)
@@ -442,31 +454,53 @@ test('실채점 - 업로드 → A-4 → A-5가 서버 점수·코멘트와 같�
 /*
  * 실패 출구 3종. 가짜 AI 엔진은 실패로 AUDIO_TOO_QUIET 하나만, 그것도 ACCENTURY_AI_FAKE_FAIL_ITEM 한 문항에만 낸다 —
  * 그 자리는 retake 스펙(레벨테스트 문항 v3)이 쓰고, 오독(ANALYSIS_MISREAD)·분석 실패(ANALYSIS_UNSCORABLE)는 아예 못 낸다.
- * 그래서 셋 다 채점 조회를 가로채 만든다. 60초 소진([다시 시도])은 벽시계 60초를 태워야 해 E2E에선 빼고
- * vitest(`IntonationLearningScreens.test.tsx`의 가짜 타이머)가 덮는다.
+ * 그래서 채점 조회를 가로채 만든다 — 회신의 attemptId에 오류 코드를 실어 카드마다 다른 실패를 낸다.
+ * 60초 소진(「확인 필요」·[다시 시도])은 벽시계 60초를 태워야 해 E2E에선 빼고 vitest 가짜 타이머가 덮는다.
  */
-test('실패 출구 - 오독·조용함·분석 실패마다 문구와 버튼 하나, [다시 녹음]은 같은 카드 녹음을 다시 연다', async ({
+test('실패 출구 - 오독·조용함·분석 실패 행은 「다시 녹음 필요」, 상세 문구와 [다시 녹음]·[결과 목록으로], [다시 녹음]은 그 카드 녹음을 연다', async ({
   page,
   request,
 }) => {
-  await openIntonation(page, { token: await loginWithFakeIdp(request) })
-  await openFirstCourse(page)
-  const card = (await intonationCalls(page))[0]
-
   const exits: [FailCode, string, boolean][] = [
     ['ANALYSIS_MISREAD', '제시된 문장과 다르게 들렸어요', true],
     ['AUDIO_TOO_QUIET', '목소리가 작게 들렸어요', true],
     ['ANALYSIS_UNSCORABLE', '분석하지 못했어요. 다시 녹음해 주세요', false],
   ]
-  for (const [i, [code, message, showsLine]] of exits.entries()) {
-    await stubAttempts(page, ['PROCESSING', code])
-    await replyRecorded(page, card.cardId)
+  await page.route(
+    (url) => url.pathname.startsWith(ATTEMPT_PATH),
+    (route) => {
+      const attemptId = route.request().url().split('/').pop()!
+      const code = exits[Number(attemptId.split('_').pop()) % exits.length][0]
+      route.fulfill({
+        json: { attemptId, contentVersion: 'in-e2e', cardId: 'stub', status: 'FAILED', pollAfterMs: 500, error: { code, retryable: false } },
+      })
+    },
+  )
+  await openIntonation(page, { token: await loginWithFakeIdp(request) })
+  await openFirstCourse(page)
+  const total = (await intonationCalls(page))[0].totalItems
+  for (let n = 0; n < total; n++) {
+    await expect.poll(async () => (await intonationCalls(page)).length).toBe(n + 1)
+    await replyRecorded(page, (await intonationCalls(page))[n].cardId, `la_e2e_${n}`)
+  }
+  const cards = await intonationCalls(page)
+  await expect(page.getByText(/코스를 마쳤어요$/)).toBeVisible()
+  await expect(page.getByText(/^평균/)).toHaveCount(0) // 완료 카드가 없으면 평균 줄이 없다
+  await expect(resultRows(page).locator('.word-set-row__meta')).toHaveText(cards.map(() => '다시 녹음 필요'))
+
+  for (const [i, [, message, showsLine]] of exits.entries()) {
+    await resultRows(page).nth(i).click()
     await expect(page.getByText(message, { exact: true })).toBeVisible()
     // 오독·조용함만 무엇을 다시 말할지 대사를 다시 보인다
-    await expect(page.getByText(card.prompt, { exact: true })).toHaveCount(showsLine ? 1 : 0)
-    await expect(page.getByRole('button')).toHaveCount(1)
+    await expect(page.getByText(cards[i].prompt, { exact: true })).toHaveCount(showsLine ? 1 : 0)
+    await expect(page.getByRole('button')).toHaveCount(2)
+    if (i < exits.length - 1) {
+      await page.getByRole('button', { name: '결과 목록으로', exact: true }).click()
+      continue
+    }
     await page.getByRole('button', { name: '다시 녹음', exact: true }).click()
-    await expect.poll(async () => (await intonationCalls(page)).length).toBe(i + 2)
-    expect((await intonationCalls(page))[i + 1].cardId).toBe(card.cardId)
+    await expect.poll(async () => (await intonationCalls(page)).length).toBe(total + 1)
+    expect((await intonationCalls(page))[total].cardId).toBe(cards[i].cardId)
+    await expect(page.getByRole('button', { name: '결과 목록으로', exact: true })).toBeVisible()
   }
 })
