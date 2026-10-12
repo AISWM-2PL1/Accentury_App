@@ -214,7 +214,8 @@
   margin-top: var(--space-3);
 }
 
-/* A-5 하단 (2026-10-12 에뮬 확인 뒤 사용자 지정): 목록 복귀는 배경색 바탕에 잉크 테두리·글자, 다시 시도는 벽돌색 */
+/* A-5 하단 (2026-10-12 에뮬 확인 뒤 사용자 지정): 목록 복귀는 배경색 바탕에 잉크 테두리·글자, 다시 시도는 벽돌색.
+   벽돌색은 결과 목록의 [코스 목록으로]도 같이 쓴다 */
 .intonation-footer__back {
   background: var(--color-background);
   color: var(--color-foreground);
