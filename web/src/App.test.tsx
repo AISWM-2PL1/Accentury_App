@@ -346,6 +346,34 @@ describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
   })
 })
 
+describe('App — 억양 학습 진입 쿼리 (KAN-253)', () => {
+  it('?screen=intonation이면 억양 학습 라우트가 코스 목록을 그린다', async () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation`)
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      getAccessToken: () => 'acc',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          contentVersion: 'v1',
+          courses: [
+            { courseId: 'k1', seq: 1, level: 1, topic: null, title: '인사', cardCount: 3, completedCardCount: 0, completed: false, recommended: true },
+          ],
+        }),
+      })),
+    )
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /인사/ })).toBeInTheDocument()
+  })
+})
+
 describe('App — 웹 단독 실행 (KAN-31)', () => {
   /** §3.1 201 응답을 돌려주는 fetch 스텁 */
   function stubSessionFetch(body: Record<string, unknown> = {}) {

@@ -65,6 +65,16 @@ export function buildWordsUrl(search: string): string {
   return toQuery(params)
 }
 
+/** 억양 학습 (`?screen=intonation`, KAN-253). 남기고 지우는 규칙은 [buildWordsUrl]과 같다 */
+export function buildIntonationUrl(search: string): string {
+  const params = new URLSearchParams(search)
+  params.set('screen', 'intonation')
+  params.delete('sessionId')
+  params.delete('testVersion')
+  params.delete('voiceSet')
+  return toQuery(params)
+}
+
 /** 인트로 — 화면 지정만 걷어낸다 */
 export function buildIntroUrl(search: string): string {
   const params = new URLSearchParams(search)

@@ -242,4 +242,25 @@ Jetpack Compose(상태관리·테마·Navigation-Compose·Canvas·애니메이�
 | `UNAUTHENTICATED` (어느 단계든) | 오류 문구 그대로 | [학습 종류로] |
 | 제출 실패 (위 두 줄 외) | W-3에 남음, 답·멱등 키 유지, 문구 | 버튼이 [다시 시도]로 바뀜. 답을 바꿔 다시 낼 수도 있음 |
 
+## 억양 학습 화면 (KAN-253)
+
+- **진입**: `?screen=intonation` 하나 (`buildIntonationUrl`). A-1 코스 목록 → A-2 대사 카드 → (네이티브 A-3 녹음) → 「분석 중이에요」 자리 표시 → 다음 카드. A-4 결과 본 화면은 KAN-254.
+- **상태 전환**: 단어 학습과 같다 — `web/src/learning/useIntonationLearning.ts`의 `view`로 넘기고 URL로 복원하지 않는다. 이탈은 시스템 뒤로가기만(상단 이탈 버튼 없음, 2026-10-12 착수 결정).
+- **A-1**: 레벨별 묶음, 행에 제목·주제(null이면 생략)·진도(`완료` 또는 `k/n장`). 추천은 서버 `recommended`(KAN-268) true 1개만 단어 학습 행과 같은 강조(두께·그림자·「추천」 배지). 임시 첫 코스 추천은 쓰지 않는다.
+- **A-2**: 진행 n/N, 표준어(null이면 생략)·사투리 대사, 가이드 곡선 `CurveLane` 1단. Primary [말해 보기] → `startIntonationRecording` (webview-bridge §12). 브리지에 메서드가 없으면(브라우저 단독·구버전 앱) 비활성 + 「앱에서 녹음할 수 있어요」 — 학습은 로그인 필수라 웹 녹음기 폴백은 없다. 카드 이동은 seq 순서대로 자리 표시의 [다음 카드]로만 한다.
+- 기준 음원 재생(FR-AD-05, 0.75x·1.0x)은 음원 확보 전까지 범위 밖 — 별도 티켓.
+- **[학습 종류로] (임시)**: 단어 학습과 같이 인트로로(`goToIntro`).
+
+| 상태 | 화면 | 출구 |
+|---|---|---|
+| 목록 로딩 | 「불러오는 중이에요」 | 없음 |
+| 목록 실패 (code 무관) | 오류 문구 | [다시 시도] |
+| 빈 목록 | 「아직 준비 중인 코스예요」 | [학습 종류로] |
+| 카드 로드 실패 (retryable) | 오류 문구 | [다시 시도] |
+| 재시도로 안 풀리는 code (`LEARNING_COURSE_NOT_FOUND` 등) | 오류 문구 | [코스 목록으로] |
+| `CLIENT_NOT_SIGNED_IN` | 「로그인하면 억양 학습을 할 수 있어요」 | [학습 종류로] |
+| `UNAUTHENTICATED` | 오류 문구 그대로 | [학습 종류로] |
+| 녹음 회신(`onIntonationRecorded`) 뒤 | 「분석 중이에요」 (attemptId 보관, KAN-254가 폴링) | 마지막 카드가 아니면 [다음 카드], 마지막이면 [코스 목록으로] |
+| 녹음 화면을 닫음 / 업로드 실패 | A-2 그대로 (회신 없음) | [말해 보기] |
+
 관련: [architecture.md](architecture.md), [audio-capture.md](audio-capture.md), [mvp-spec.md](mvp-spec.md)

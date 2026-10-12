@@ -4,6 +4,7 @@ import {
   getAccessToken,
   getSessionToken,
   haptic,
+  installIntonationRecordedReceiver,
   installItemResultReceiver,
   installRetestFailedReceiver,
   isBridgeCompatible,
@@ -17,6 +18,7 @@ import {
   shareResult,
   showInterstitialAd,
   startRetest,
+  startIntonationRecording,
   startRetestAfterFailure,
   startVoiceItem,
   writeAdConsent,
@@ -178,6 +180,35 @@ describe('startVoiceItem — 문항 컨텍스트를 JSON으로 넘긴다', () =>
     } as unknown as AccenturyBridge
 
     expect(startVoiceItem(voiceStart)).toBe(false)
+  })
+})
+
+describe('억양 학습 녹음 (KAN-253)', () => {
+  const start = { cardId: 'c1', prompt: '안녕하능교', standard: null, maxDurationMs: 10_000, guideF0: REAL_GUIDE_F0 }
+
+  it('startIntonationRecording: 있으면 JSON으로 넘기고 true, 메서드가 없는 앱이면 false', () => {
+    window.AccenturyBridge = fakeBridge()
+    expect(startIntonationRecording(start)).toBe(false)
+
+    const fn = vi.fn()
+    window.AccenturyBridge = fakeBridge({ startIntonationRecording: fn })
+    expect(startIntonationRecording(start)).toBe(true)
+    const sent = JSON.parse(fn.mock.calls[0][0])
+    expect({ ...sent, guideF0: null }).toEqual({ ...start, guideF0: null })
+    expect(sent.guideF0.values.length).toBe(REAL_GUIDE_F0.values.length)
+  })
+
+  it('onIntonationRecorded: 맞는 payload만 넘기고 깨진 것은 버린다, 해제하면 슬롯이 사라진다', () => {
+    const handler = vi.fn()
+    const uninstall = installIntonationRecordedReceiver(handler)
+
+    window.AccenturyWeb?.onIntonationRecorded?.('{broken')
+    window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1' }))
+    window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1', extra: 1 }))
+    expect(handler.mock.calls).toEqual([[{ cardId: 'c1', attemptId: 'la_1' }]])
+
+    uninstall()
+    expect(window.AccenturyWeb).toBeUndefined()
   })
 })
 

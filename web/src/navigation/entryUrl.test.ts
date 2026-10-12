@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { buildIntroUrl, buildResultUrl, buildTestUrl, buildWordsUrl } from './entryUrl'
+import { buildIntonationUrl, buildIntroUrl, buildResultUrl, buildTestUrl, buildWordsUrl } from './entryUrl'
 
 /** 앱 진입(bridge·app)과 공유 링크 진입(c)이 한꺼번에 들어 있는 최악의 조합 */
 const ENTRY = '?bridge=1&app=1.0&c=kko_share'
@@ -92,5 +92,17 @@ describe('buildWordsUrl — 단어 학습 (KAN-255)', () => {
 
   it('빈 쿼리에서도 화면 지정 하나는 남는다', () => {
     expect(buildWordsUrl('')).toBe('?screen=words')
+  })
+})
+
+describe('buildIntonationUrl — 억양 학습 (KAN-253)', () => {
+  it('화면을 intonation으로 두고 레벨테스트 값만 지운다', () => {
+    const next = paramsOf(buildIntonationUrl(`${ENTRY}&screen=result&sessionId=s_1&testVersion=gn-2026.08.1&voiceSet=3`))
+
+    expect(next.get('screen')).toBe('intonation')
+    expect(next.get('sessionId')).toBeNull()
+    expect(next.get('voiceSet')).toBeNull()
+    expect(next.get('bridge')).toBe('1')
+    expect(next.get('c')).toBe('kko_share')
   })
 })

@@ -21,6 +21,9 @@
  * **`ITEM_ALREADY_ANSWERED`를 성공으로 접지 않는다.** 레벨테스트는 답안이 서버에 있기만 하면
  * 됐지만, 단어 학습은 정오·정답·해설을 화면에 보여야 해서 결과 본문 없는 성공은 쓸 데가 없다.
  * 응답 유실 뒤 재시도는 **같은 멱등 키로** 보내면 서버가 같은 결과를 돌려준다.
+ *
+ * 공통 요청([request])과 모양 검증 조각은 억양 학습(`intonationApi.ts`, KAN-253)도 같이 쓴다 —
+ * 토큰·401 갱신 규칙(§11)이 학습 API 전체에 하나여야 해서다.
  */
 
 import { getAccessToken, refreshAccessToken, waitForAccessToken } from '../bridge/bridge'
@@ -231,7 +234,7 @@ export async function completeWordAttempt(
 /**
  * 토큰 확보 → 요청 → 401이면 갱신 1회 후 재시도 → 오류 봉투 해석. 성공이면 파싱한 본문을 준다.
  */
-async function request(
+export async function request(
   apiBase: string,
   path: string,
   method: 'GET' | 'POST',
@@ -301,7 +304,7 @@ function unauthenticated(): WordLearningError {
 }
 
 /** 계약과 다른 응답 — 다시 받아도 같은 모양이라 재시도하지 않는다 */
-function shapeError(): WordLearningError {
+export function shapeError(): WordLearningError {
   return new WordLearningError('학습 정보를 해석할 수 없어요', null, false)
 }
 
@@ -320,15 +323,15 @@ function requireValues(values: Record<string, string>): void {
 
 // ── 응답 모양 검증 (필수 필드 타입만) ─────────────────────────────────────
 
-type FieldType = 'string' | 'number' | 'boolean'
+export type FieldType = 'string' | 'number' | 'boolean'
 
-function hasFields(value: unknown, fields: Record<string, FieldType>): value is Record<string, unknown> {
+export function hasFields(value: unknown, fields: Record<string, FieldType>): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) return false
   const record = value as Record<string, unknown>
   return Object.entries(fields).every(([key, type]) => typeof record[key] === type)
 }
 
-function isArrayOf(value: unknown, fields: Record<string, FieldType>, extra: (v: Record<string, unknown>) => boolean = () => true): boolean {
+export function isArrayOf(value: unknown, fields: Record<string, FieldType>, extra: (v: Record<string, unknown>) => boolean = () => true): boolean {
   return Array.isArray(value) && value.every((v) => hasFields(v, fields) && extra(v))
 }
 
