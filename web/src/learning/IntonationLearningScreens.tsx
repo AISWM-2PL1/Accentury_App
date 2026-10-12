@@ -1,21 +1,23 @@
 /**
- * 억양 학습 화면 A-1(코스 목록)·A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
+ * 억양 학습 화면 A-1(코스 목록)·A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)·A-5(피드백)·A-6(코스 완료, KAN-254 3단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
  * 갖고 여기 화면들은 그리고 버튼을 잇기만 한다 — `WordLearningScreens.tsx`와 같은 나눔이다.
  *
- * 화면 규칙은 code wiki ux-ui.md 「억양 학습 화면 (KAN-253)」 절, 녹음 계약은 webview-bridge.md §12.
+ * 화면 규칙은 code wiki ux-ui.md 「억양 학습 화면 (KAN-253)」·「억양 학습 피드백 (KAN-254)」 절, 녹음 계약은 webview-bridge.md §12.
  */
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { canStartIntonationRecording } from '../bridge/bridge'
 import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
 import { Button, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckSmallIcon } from '../ui/icons'
+import { TextHero } from '../ui/TextHero'
 import { CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
 import type { IntonationCourse, IntonationCourseSummary } from './intonationApi'
 import { errorExit } from './useWordLearning'
 import { recordCard, useIntonationLearning, type IntonationLearningView } from './useIntonationLearning'
 import { SLOW_NOTICE_MS, WAITING_STAGES, waitingStage } from './intonationWaiting'
+import { feedbackComment, formatDelta, scoreDelta, syllableMarks, type SyllableMark } from './intonationFeedback'
 
 // ── 라우트 ──────────────────────────────────────────────────────────────
 
@@ -64,12 +66,14 @@ export function IntonationLearningRoute({ apiBase, onLeave, deps }: IntonationLe
     case 'feedback':
       return (
         <IntonationFeedbackScreen
-          score={view.score}
-          last={view.index === view.course.cards.length - 1}
+          view={view}
           onNext={learning.nextCard}
-          onBackToList={learning.backToList}
+          onComplete={learning.completeCourse}
+          onRetry={learning.rerecord}
         />
       )
+    case 'complete':
+      return <IntonationCourseCompleteScreen course={view.course} onBackToList={learning.backToList} />
   }
 }
 
@@ -315,28 +319,135 @@ export function IntonationRetryScreen({
   )
 }
 
-// ── A-5 피드백 자리 표시 (본 화면은 KAN-254 3단계) ─────────────────────────
+// ── A-5 피드백 (KAN-254 3단계) ─────────────────────────────────────────────
+// 위→아래 점수 → 대사 강조 → 가이드 곡선 → 어절 코멘트 → 직전 대비. 점수가 3초 안에 읽혀야 해서 맨 위다(NFR-US-01).
+// 곡선 위엔 음절을 찍지 않는다 — 가이드 프레임과 음절의 시간 대응을 서버가 주지 않는다(2026-10-12 결정)
+
+/** 대사에서 강조할 글자를 감싼다. 색 없이도 읽히게 밑줄·↑↓·코멘트 번호를 같이 단다(NFR-US-03) */
+function MarkedLine({ text, marks }: { text: string; marks: SyllableMark[] }) {
+  const nodes: ReactNode[] = []
+  let from = 0
+  // 한 어절 안에서 lower가 raise보다 앞 글자일 수 있어 위치순으로 다시 세운다
+  for (const m of [...marks].sort((a, b) => a.index - b.index)) {
+    const syllable = text[m.index]
+    nodes.push(text.slice(from, m.index))
+    nodes.push(
+      // span엔 접근성 이름을 못 달아 role="img"로 세운다 — 글자·기호·번호를 한 번에 「뭇, 더 높이기, 1번」으로 읽힌다
+      <span
+        key={m.index}
+        role="img"
+        className={`intonation-mark intonation-mark--${m.mark}`}
+        aria-label={`${syllable}, ${m.mark === 'raise' ? '더 높이기' : '낮추기'}, ${m.commentNo}번`}
+      >
+        {syllable}
+        <span aria-hidden="true" className="intonation-mark__sign">
+          {m.mark === 'raise' ? '↑' : '↓'}
+          <sup>{m.commentNo}</sup>
+        </span>
+      </span>,
+    )
+    from = m.index + 1
+  }
+  nodes.push(text.slice(from))
+  return <>{nodes}</>
+}
 
 export function IntonationFeedbackScreen({
-  score,
-  last,
+  view,
   onNext,
+  onComplete,
+  onRetry,
+}: {
+  view: Extract<IntonationLearningView, { screen: 'feedback' }>
+  onNext: () => void
+  onComplete: () => void
+  onRetry: () => void
+}) {
+  const { course, index, score, feedback, previousScore } = view
+  const card = course.cards[index]
+  const guidePoints = useMemo(
+    () => (card !== undefined && card.guideF0.unit === 'semitone' ? guideCurveDisplayPoints(card.guideF0.values) : []),
+    [card],
+  )
+  if (card === undefined) return null // 훅이 있는 카드로만 'feedback'을 세운다
+
+  const last = index === course.cards.length - 1
+  const delta = scoreDelta(score, previousScore)
+
+  return (
+    <main className="item-screen">
+      <div className="intonation-score">
+        <p className="type-caption intonation-score__caption">억양 점수</p>
+        <p className="text-hero">{score}점</p>
+      </div>
+
+      <div className="prompt-card">
+        {card.standard !== null && <p className="type-caption prompt-card__badge">{card.standard}</p>}
+        <p className="type-title">
+          <MarkedLine text={card.dialect} marks={syllableMarks(card.dialect, feedback)} />
+        </p>
+      </div>
+
+      {guidePoints.length > 0 && (
+        <div className="curve-card">
+          <CurveLane label="경남 화자 억양" ariaLabel="가이드 억양 곡선" segments={[guidePoints]} variant="guide" />
+        </div>
+      )}
+
+      {feedback.length > 0 ? (
+        // 번호는 pitchFeedback 순서 — 대사 위 위첨자 번호와 같다
+        <ol className="intonation-comments">
+          {feedback.map((item, i) => (
+            <li key={i} className="type-body">
+              {feedbackComment(item)}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="type-body">높낮이 순서가 경남 화자와 같아요</p>
+      )}
+
+      {delta !== null && (
+        <p className="type-body intonation-delta">
+          <span aria-hidden="true">지난번보다 {formatDelta(delta)}점</span>
+          <span className="sr-only">
+            지난번 {previousScore}점에서 {score}점
+          </span>
+        </p>
+      )}
+
+      {/* 점수와 무관하게 Primary는 앞으로 가기다 — 재도전은 보조로만 권한다 */}
+      <div className="item-screen__footer intonation-footer">
+        <Button onClick={last ? onComplete : onNext} style={{ width: '100%' }}>
+          {last ? '코스 완료' : '다음 카드'}
+        </Button>
+        <Button variant="secondary" onClick={onRetry} style={{ width: '100%' }}>
+          다시 시도
+        </Button>
+      </div>
+    </main>
+  )
+}
+
+// ── A-6 코스 완료 (KAN-254 3단계) ──────────────────────────────────────────
+// 완료 저장 호출은 없다. [코스 목록으로]가 목록을 다시 받으면 서버(KAN-268)가 completed를 계산해 준다
+
+export function IntonationCourseCompleteScreen({
+  course,
   onBackToList,
 }: {
-  score: number
-  last: boolean
-  onNext: () => void
+  course: IntonationCourse
   onBackToList: () => void
 }) {
-  // 출구는 하나: 다음 카드가 있으면 [다음 카드], 마지막이면 [코스 목록으로]
-  const action = last ? (
-    <Button onClick={onBackToList}>코스 목록으로</Button>
-  ) : (
-    <Button onClick={onNext}>다음 카드</Button>
-  )
   return (
-    <main className="screen">
-      <StatusBlock tone="waiting" message={`${score}점`} action={action} />
+    <main className="item-screen">
+      <TextHero heading>{course.title} 코스를 마쳤어요</TextHero>
+      <p className="type-body word-complete__count">카드 {course.cards.length}장을 모두 연습했어요</p>
+      <div className="item-screen__footer">
+        <Button onClick={onBackToList} style={{ width: '100%' }}>
+          코스 목록으로
+        </Button>
+      </div>
     </main>
   )
 }

@@ -6,6 +6,7 @@
  * 녹음은 네이티브가 화면·업로드까지 끝내고 성공한 경우에만 `onIntonationRecorded`로 회신한다.
  * 회신이 오면 'waiting'(A-4 분석 대기, KAN-254 2단계)으로 가 채점 결과를 폴링한다. 완료면 'feedback',
  * 오독·조용함·분석 실패·60초 소진이면 'retry'다. 회신이 없으면(업로드 전 뒤로가기) A-2 그대로다.
+ * 마지막 카드 피드백의 [코스 완료]는 'complete'(A-6, KAN-254 3단계)로 간다.
  *
  * 5단계(2026-10-12 사용자 결정): 카드에 들어서는 순간(코스 상세 로드 성공, [다음 카드]) 녹음 화면을
  * 자동으로 한 번 연다 — 녹음 대기 화면이 카드 n/N·대사·곡선을 다 보여 A-2와 중복이었다. 그래서 A-2는
@@ -60,7 +61,7 @@ export type IntonationLearningView =
       attemptId: string
       reason: 'timeout' | 'failed' | 'misread' | 'quiet'
     }
-  /** 채점 완료. 본 화면(어절 강조·곡선·코멘트·직전 대비)은 KAN-254 3단계 */
+  /** A-5 채점 완료 (KAN-254 3단계) */
   | {
       screen: 'feedback'
       course: IntonationCourse
@@ -70,6 +71,8 @@ export type IntonationLearningView =
       feedback: PitchFeedbackItem[]
       previousScore: number | null
     }
+  /** A-6 코스 완료. 완료 저장 호출은 없다 — [코스 목록으로]가 다시 받는 목록에 서버(KAN-268)가 completed를 계산해 준다 */
+  | { screen: 'complete'; course: IntonationCourse }
   /** fromList: 목록 조회 실패 — 돌아갈 목록이 없으니 재시도 불가여도 [다시 시도]다 */
   | { screen: 'error'; error: WordLearningError; retry: () => void; fromList: boolean }
 
@@ -165,7 +168,7 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
   }, [waiting])
 
   /**
-   * 피드백의 [다음 카드] — 마지막 카드에서는 화면이 [코스 목록으로]를 대신 그린다.
+   * 피드백의 [다음 카드] — 마지막 카드에서는 화면이 [코스 완료](completeCourse)를 대신 그린다.
    * setView 갱신 함수는 StrictMode가 두 번 부르므로 브리지 호출은 그 밖, 클릭 한 번에 한 번만 둔다
    */
   const nextCard = () => {
@@ -181,12 +184,21 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
     setView({ screen: 'waiting', course: view.course, index: view.index, attemptId: view.attemptId })
   }
 
-  /** 실패의 [다시 녹음] — 같은 카드로 돌아가 녹음 화면을 1회 연다. card 뷰라야 회신 수신기가 새 attemptId를 받는다 */
+  /** 마지막 카드 피드백의 [코스 완료] */
+  const completeCourse = () => {
+    if (view.screen !== 'feedback' || view.index + 1 < view.course.cards.length) return
+    setView({ screen: 'complete', course: view.course })
+  }
+
+  /**
+   * 실패의 [다시 녹음]·피드백의 [다시 시도] — 같은 카드로 돌아가 녹음 화면을 1회 연다.
+   * card 뷰라야 회신 수신기가 새 attemptId를 받는다
+   */
   const rerecord = () => {
-    if (view.screen !== 'retry') return
+    if (view.screen !== 'retry' && view.screen !== 'feedback') return
     setView({ screen: 'card', course: view.course, index: view.index })
     recordCard(view.course, view.index)
   }
 
-  return { view, backToList, openCourse, nextCard, retryPolling, rerecord }
+  return { view, backToList, openCourse, nextCard, completeCourse, retryPolling, rerecord }
 }
