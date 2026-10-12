@@ -243,7 +243,7 @@
   justify-content: flex-start; /* 번호는 위에 두고 점수가 남은 높이의 가운데에 선다 */
   gap: var(--space-1);
   min-height: 144px;
-  padding: var(--space-3) var(--space-2);
+  padding: var(--space-6) var(--space-2) var(--space-3);
   text-align: center;
   /* 눌리는 타일임을 종이 그림자로 말한다 — 기본 행은 그림자가 없다(A-1은 추천만). 눌림은 .word-set-row:active가 그림자를 걷는다 */
   box-shadow: var(--shadow-card);
@@ -256,6 +256,7 @@
 
 /* 점수만 크게 — 「다시 녹음 필요」 같은 상태 글자는 좁은 타일에서 30px면 서너 줄로 깨진다 */
 .intonation-result__score {
+  color: var(--color-foreground); /* 타일의 주인공은 점수 — 번호(회색)보다 진하게 */
   font-family: var(--font-display);
   font-size: var(--text-title);
   flex-shrink: 1;
@@ -264,6 +265,7 @@
 
 /* 결과 목록 행 「n번 문항」 — Jua(굵기 하나짜리라 weight로 굵히지 않고 서체 자체의 두께를 쓴다, 2026-10-12 사용자 지정) */
 .intonation-result__label {
+  color: var(--color-muted-foreground);
   font-family: var(--font-display);
   font-weight: var(--weight-normal);
 }
