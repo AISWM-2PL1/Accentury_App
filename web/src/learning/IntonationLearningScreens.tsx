@@ -503,10 +503,8 @@ export function IntonationSummaryScreen({
           if (r === undefined) return null // 회신 없이 끝난 카드는 없다 — 카드는 회신으로만 넘어간다
           return (
             <button key={card.cardId} type="button" className="word-set-row" onClick={() => onOpen(i)}>
-              <span className="intonation-result__card">
-                <span className="type-caption intonation-row__topic">{i + 1}</span>
-                <span className="type-body intonation-result__line">{card.dialect}</span>
-              </span>
+              {/* 대사는 상세에서 보인다 — 목록은 번호만 (2026-10-12 사용자 결정) */}
+              <span className="type-body">{i + 1}번 문항</span>
               <span className="type-caption word-set-row__meta">
                 {r.outcome === 'completed' ? `${r.score}점` : ROW_STATUS[r.outcome]}
               </span>
