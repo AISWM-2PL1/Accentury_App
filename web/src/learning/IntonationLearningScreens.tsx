@@ -1,5 +1,5 @@
 /**
- * 억양 학습 화면 A-1(코스 목록)·A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)·A-5(피드백)·A-6(코스 완료, KAN-254 3단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
+ * 억양 학습 화면 A-1(코스 목록)·A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)·A-5(피드백, 3단계)·결과 목록(A-6 자리, 5단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
  * 갖고 여기 화면들은 그리고 버튼을 잇기만 한다 — `WordLearningScreens.tsx`와 같은 나눔이다.
  *
  * 화면 규칙은 code wiki ux-ui.md 「억양 학습 화면 (KAN-253)」·「억양 학습 피드백 (KAN-254)」 절, 녹음 계약은 webview-bridge.md §12.
@@ -13,9 +13,9 @@ import { Button, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckSmallIcon } from '../ui/icons'
 import { TextHero } from '../ui/TextHero'
 import { CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
-import type { IntonationCourse, IntonationCourseSummary } from './intonationApi'
+import type { IntonationCourse, IntonationCourseSummary, PitchFeedbackItem } from './intonationApi'
 import { errorExit } from './useWordLearning'
-import { recordCard, useIntonationLearning, type IntonationLearningView } from './useIntonationLearning'
+import { recordCard, useIntonationLearning, type CardResult, type IntonationLearningView } from './useIntonationLearning'
 import { SLOW_NOTICE_MS, WAITING_STAGES, waitingStage } from './intonationWaiting'
 import { feedbackComment, formatDelta, scoreDelta, syllableMarks, type SyllableMark } from './intonationFeedback'
 
@@ -50,30 +50,47 @@ export function IntonationLearningRoute({ apiBase, onLeave, deps }: IntonationLe
           key={view.index}
           course={view.course}
           index={view.index}
-          onBackToList={learning.backToList}
+          onBackToList={view.revisit ? learning.backToSummary : learning.backToList}
+          backLabel={view.revisit ? '결과 목록으로' : '코스 목록으로'}
         />
       )
     case 'waiting':
       return <IntonationWaitingScreen />
-    case 'retry':
+    case 'summary':
+      return (
+        <IntonationSummaryScreen
+          course={view.course}
+          results={learning.results}
+          onOpen={learning.openDetail}
+          onBackToList={learning.backToList}
+        />
+      )
+    case 'detail': {
+      const result = learning.results[view.course.cards[view.index]?.cardId ?? '']
+      if (result === undefined) return null // 회신이 온 카드만 목록 행이 된다
+      if (result.outcome === 'processing') return <IntonationWaitingScreen key={result.attemptId} />
+      if (result.outcome === 'completed') {
+        return (
+          <IntonationFeedbackScreen
+            course={view.course}
+            index={view.index}
+            result={result}
+            onBackToSummary={learning.backToSummary}
+            onRetry={learning.rerecord}
+          />
+        )
+      }
       return (
         <IntonationRetryScreen
-          view={view}
+          course={view.course}
+          index={view.index}
+          reason={result.outcome}
           onRetry={learning.retryPolling}
           onRerecord={learning.rerecord}
+          onBackToSummary={learning.backToSummary}
         />
       )
-    case 'feedback':
-      return (
-        <IntonationFeedbackScreen
-          view={view}
-          onNext={learning.nextCard}
-          onComplete={learning.completeCourse}
-          onRetry={learning.rerecord}
-        />
-      )
-    case 'complete':
-      return <IntonationCourseCompleteScreen course={view.course} onBackToList={learning.backToList} />
+    }
   }
 }
 
@@ -169,10 +186,13 @@ export function IntonationCardScreen({
   course,
   index,
   onBackToList,
+  backLabel = '코스 목록으로',
 }: {
   course: IntonationCourse
   index: number
+  /** 복귀 모드(결과 목록에서 다시 녹음)면 [결과 목록으로]로 바뀐다 — 회신 없이 닫아도 막히지 않게 */
   onBackToList: () => void
+  backLabel?: string
 }) {
   const card = course.cards[index]
   const guidePoints = useMemo(
@@ -222,7 +242,7 @@ export function IntonationCardScreen({
           다시 말해 보기
         </Button>
         <Button variant="text" onClick={onBackToList} style={{ width: '100%' }}>
-          코스 목록으로
+          {backLabel}
         </Button>
       </div>
     </main>
@@ -230,8 +250,9 @@ export function IntonationCardScreen({
 }
 
 // ── A-4 분석 대기 ─────────────────────────────────────────────────────────
-// 폴링은 훅이 한다. 이 화면은 마운트 뒤 경과 시간으로 단계·안심 문구만 그린다 — [다시 시도]로 다시 들어오면
-// 화면도 새로 마운트돼 폴링 예산과 같이 0부터 센다. 정상 대기엔 버튼이 없다(이탈은 시스템 뒤로가기, KAN-253)
+// 폴링은 훅이 한다. 이 화면은 마운트 뒤 경과 시간으로 단계·안심 문구만 그린다 — 상세의 대기는 attemptId를 key로 받아
+// [다시 시도]마다 새로 마운트돼 폴링 예산과 같이 0부터 센다. 정상 대기엔 버튼이 없다(이탈은 시스템 뒤로가기, KAN-253).
+// 마지막 회신 뒤 코스 전체 대기와 분석 중 행 상세 대기가 같은 화면이다
 
 export function IntonationWaitingScreen() {
   const [startedAt] = useState(() => Date.now())
@@ -287,19 +308,32 @@ const RETRY_MESSAGE = {
 } as const
 
 export function IntonationRetryScreen({
-  view,
+  course,
+  index,
+  reason,
   onRetry,
   onRerecord,
+  onBackToSummary,
 }: {
-  view: Extract<IntonationLearningView, { screen: 'retry' }>
+  course: IntonationCourse
+  index: number
+  reason: keyof typeof RETRY_MESSAGE
   onRetry: () => void
   onRerecord: () => void
+  onBackToSummary: () => void
 }) {
-  const card = view.course.cards[view.index]
+  const card = course.cards[index]
   // 오독·조용함은 무엇을 다시 말할지 보여 준다 — 녹음 화면이 열리기 전에 대사를 다시 읽게
-  const showLine = (view.reason === 'misread' || view.reason === 'quiet') && card !== undefined
-  const action =
-    view.reason === 'timeout' ? <Button onClick={onRetry}>다시 시도</Button> : <Button onClick={onRerecord}>다시 녹음</Button>
+  const showLine = (reason === 'misread' || reason === 'quiet') && card !== undefined
+  // 동작은 하나, 결과 목록 복귀는 텍스트 버튼으로 낮춘다 (KAN-191의 버튼 하나 규칙을 상세 안에서 유지)
+  const action = (
+    <>
+      {reason === 'timeout' ? <Button onClick={onRetry}>다시 시도</Button> : <Button onClick={onRerecord}>다시 녹음</Button>}
+      <Button variant="text" onClick={onBackToSummary}>
+        결과 목록으로
+      </Button>
+    </>
+  )
   return (
     <main className="screen">
       {showLine && (
@@ -314,7 +348,7 @@ export function IntonationRetryScreen({
           <p className="type-title">{card.dialect}</p>
         </div>
       )}
-      <StatusBlock tone="error" message={RETRY_MESSAGE[view.reason]} action={action} />
+      <StatusBlock tone="error" message={RETRY_MESSAGE[reason]} action={action} />
     </main>
   )
 }
@@ -353,25 +387,26 @@ function MarkedLine({ text, marks }: { text: string; marks: SyllableMark[] }) {
 }
 
 export function IntonationFeedbackScreen({
-  view,
-  onNext,
-  onComplete,
+  course,
+  index,
+  result,
+  onBackToSummary,
   onRetry,
 }: {
-  view: Extract<IntonationLearningView, { screen: 'feedback' }>
-  onNext: () => void
-  onComplete: () => void
+  course: IntonationCourse
+  index: number
+  result: { score: number; feedback: PitchFeedbackItem[]; previousScore: number | null }
+  onBackToSummary: () => void
   onRetry: () => void
 }) {
-  const { course, index, score, feedback, previousScore } = view
+  const { score, feedback, previousScore } = result
   const card = course.cards[index]
   const guidePoints = useMemo(
     () => (card !== undefined && card.guideF0.unit === 'semitone' ? guideCurveDisplayPoints(card.guideF0.values) : []),
     [card],
   )
-  if (card === undefined) return null // 훅이 있는 카드로만 'feedback'을 세운다
+  if (card === undefined) return null // 훅이 있는 카드로만 'detail'을 세운다
 
-  const last = index === course.cards.length - 1
   const delta = scoreDelta(score, previousScore)
 
   return (
@@ -416,10 +451,10 @@ export function IntonationFeedbackScreen({
         </p>
       )}
 
-      {/* 점수와 무관하게 Primary는 앞으로 가기다 — 재도전은 보조로만 권한다 */}
+      {/* 점수와 무관하게 Primary는 결과 목록 복귀다 — 재도전은 보조로만 권한다 (5단계) */}
       <div className="item-screen__footer intonation-footer">
-        <Button onClick={last ? onComplete : onNext} style={{ width: '100%' }}>
-          {last ? '코스 완료' : '다음 카드'}
+        <Button onClick={onBackToSummary} style={{ width: '100%' }}>
+          결과 목록으로
         </Button>
         <Button variant="secondary" onClick={onRetry} style={{ width: '100%' }}>
           다시 시도
@@ -429,20 +464,56 @@ export function IntonationFeedbackScreen({
   )
 }
 
-// ── A-6 코스 완료 (KAN-254 3단계) ──────────────────────────────────────────
-// 완료 저장 호출은 없다. [코스 목록으로]가 목록을 다시 받으면 서버(KAN-268)가 completed를 계산해 준다
+// ── 결과 목록 (A-6 자리, KAN-254 5단계) ─────────────────────────────────────
+// 완료 저장 호출은 없다. [코스 목록으로]가 목록을 다시 받으면 서버(KAN-268)가 completed를 계산해 준다.
+// 행은 A-1 코스 행(.word-set-row)과 같은 종이 행이다
 
-export function IntonationCourseCompleteScreen({
+const ROW_STATUS: Record<Exclude<CardResult['outcome'], 'completed'>, string> = {
+  processing: '분석 중',
+  misread: '다시 녹음 필요',
+  quiet: '다시 녹음 필요',
+  failed: '다시 녹음 필요',
+  timeout: '확인 필요',
+}
+
+export function IntonationSummaryScreen({
   course,
+  results,
+  onOpen,
   onBackToList,
 }: {
   course: IntonationCourse
+  results: Record<string, CardResult>
+  onOpen: (index: number) => void
   onBackToList: () => void
 }) {
+  const scores = course.cards.flatMap((c) => {
+    const r = results[c.cardId]
+    return r?.outcome === 'completed' ? [r.score] : []
+  })
   return (
     <main className="item-screen">
       <TextHero heading>{course.title} 코스를 마쳤어요</TextHero>
-      <p className="type-body word-complete__count">카드 {course.cards.length}장을 모두 연습했어요</p>
+      {scores.length > 0 && (
+        <p className="type-body word-complete__count">평균 {Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)}점</p>
+      )}
+      <div className="intonation-results">
+        {course.cards.map((card, i) => {
+          const r = results[card.cardId]
+          if (r === undefined) return null // 회신 없이 끝난 카드는 없다 — 카드는 회신으로만 넘어간다
+          return (
+            <button key={card.cardId} type="button" className="word-set-row" onClick={() => onOpen(i)}>
+              <span className="intonation-result__card">
+                <span className="type-caption intonation-row__topic">{i + 1}</span>
+                <span className="type-body intonation-result__line">{card.dialect}</span>
+              </span>
+              <span className="type-caption word-set-row__meta">
+                {r.outcome === 'completed' ? `${r.score}점` : ROW_STATUS[r.outcome]}
+              </span>
+            </button>
+          )
+        })}
+      </div>
       <div className="item-screen__footer">
         <Button onClick={onBackToList} style={{ width: '100%' }}>
           코스 목록으로

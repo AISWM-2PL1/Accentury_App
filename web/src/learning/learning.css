@@ -212,3 +212,25 @@
 .intonation-footer .btn--secondary {
   margin-top: var(--space-3);
 }
+
+/* ── 억양 학습 결과 목록 (KAN-254 5단계) — 행은 .word-set-row를 그대로 쓴다 ── */
+
+.intonation-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.intonation-result__card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* 대사는 한 줄 — 길면 말줄임으로 자르고 오른쪽 상태 글자를 밀어내지 않는다 */
+.intonation-result__line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
