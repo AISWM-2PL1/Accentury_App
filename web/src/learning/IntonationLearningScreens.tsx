@@ -515,7 +515,7 @@ export function IntonationSummaryScreen({
         })}
       </div>
       <div className="item-screen__footer">
-        <Button onClick={onBackToList} style={{ width: '100%' }}>
+        <Button className="intonation-footer__retry" onClick={onBackToList} style={{ width: '100%' }}>
           코스 목록으로
         </Button>
       </div>
