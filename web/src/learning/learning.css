@@ -245,6 +245,8 @@
   min-height: 144px;
   padding: var(--space-3) var(--space-2);
   text-align: center;
+  /* 눌리는 타일임을 종이 그림자로 말한다 — 기본 행은 그림자가 없다(A-1은 추천만). 눌림은 .word-set-row:active가 그림자를 걷는다 */
+  box-shadow: var(--shadow-card);
 }
 
 .intonation-result-tile .word-set-row__meta {
@@ -254,6 +256,7 @@
 
 /* 점수만 크게 — 「다시 녹음 필요」 같은 상태 글자는 좁은 타일에서 30px면 서너 줄로 깨진다 */
 .intonation-result__score {
+  font-family: var(--font-display);
   font-size: var(--text-title);
   flex-shrink: 1;
   word-break: keep-all;
