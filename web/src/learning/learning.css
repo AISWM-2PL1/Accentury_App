@@ -230,10 +230,26 @@
 
 /* ── 억양 학습 결과 목록 (KAN-254 5단계) — 행은 .word-set-row를 그대로 쓴다 ── */
 
+/* 3열 격자 (2026-10-12 사용자 결정) — 행이 번호·점수뿐이라 한 줄 행은 가로가 비고, 9~10장이 한 화면에 안 들어왔다 */
 .intonation-results {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+/* 종이 행(.word-set-row)의 테두리·그림자·눌림은 그대로, 배치만 세로 가운데로 */
+.intonation-result-tile {
   flex-direction: column;
-  gap: var(--space-3);
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-2);
+  text-align: center;
+}
+
+.intonation-result-tile .word-set-row__meta {
+  justify-content: center;
+  flex-shrink: 1;
+  word-break: keep-all;
 }
 
 /* 결과 목록 행 「n번 문항」 — Jua(굵기 하나짜리라 weight로 굵히지 않고 서체 자체의 두께를 쓴다, 2026-10-12 사용자 지정) */
