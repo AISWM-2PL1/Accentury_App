@@ -2,10 +2,16 @@ package com.accentury.app.learning
 
 import android.annotation.SuppressLint
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -15,8 +21,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.accentury.app.R
 import com.accentury.app.audio.AudioQuality
 import com.accentury.app.audio.WavWriter
 import com.accentury.app.bridge.IntonationRecordingStart
@@ -29,6 +40,7 @@ import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
+import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.Spacing
 
 /**
@@ -144,4 +156,28 @@ private fun UploadFailedControls(
             }
         },
     )
+}
+
+/**
+ * 억양 학습 화면(권한 게이트 포함) 오른쪽 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 화면에 나가는 버튼이 없어
+ * 시스템 뒤로가기를 알아야만 나갈 수 있었다. 호출자는 뒤로가기와 같은 `close`를 넘긴다 — 정리(마이크·PCM, 진행 중
+ * 업로드 폐기, 웹 회신 없음)가 한 길로 간다. 뒤로가기가 제출 중에도 닫으므로 ✕도 늘 선다.
+ * 모양·크기는 설정 톱니(auth/SettingsScreen.kt `SettingsGearButton`)와 같다. 녹음 화면 본문은 위 64dp부터라 겹치지 않는다.
+ */
+@Composable
+fun IntonationCloseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(Dimens.touchTargetMin)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.background)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.outline_close_24),
+            contentDescription = "닫기",
+            tint = MaterialTheme.colorScheme.primary,
+        )
+    }
 }
