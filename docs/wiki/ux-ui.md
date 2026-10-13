@@ -223,13 +223,13 @@ Jetpack Compose(상태관리·테마·Navigation-Compose·Canvas·애니메이�
 
 ## 앱 진입 구조 — 하단 탭 바 (KAN-252)
 
-2026-10-13 사용자 결정. 1단계의 별도 홈·학습 종류 선택 L-1(`?screen=learn`)을 버리고 **웹이 그리는 하단 탭 바 5칸**으로 간다.
+2026-10-13 사용자 결정. 1단계의 별도 홈·학습 종류 선택 L-1(`?screen=learn`)을 버리고 **웹이 그리는 하단 탭 바 5칸**으로 간다. 순서는 같은 날 에뮬 확인에서 홈을 가운데 두는 단어 학습 · 억양 학습 · 홈 · 사투리 번역기 · 설정으로 바꿨다(2026-10-13 사용자 결정).
 
 | 순서 | 탭 | 가는 곳 |
 |---|---|---|
-| 1 | 홈 | `?screen=home` — 제목·한 줄 설명·[레벨 테스트 시작] 하나. 누르면 기존 인트로(`goToIntro`). 테스트 전후 판정 없음 |
+| 1 | 단어 학습 | `?screen=words` (W-1) |
 | 2 | 억양 학습 | `?screen=intonation` (A-1) |
-| 3 | 단어 학습 | `?screen=words` (W-1) |
+| 3 | 홈 | `?screen=home` — 제목·한 줄 설명·[레벨 테스트 시작] 하나. 누르면 기존 인트로(`goToIntro`). 테스트 전후 판정 없음 |
 | 4 | 사투리 번역기 | `?screen=translate` — 「준비 중이에요」 빈 화면. 번역 화면·서버 API(KAN-266)는 다음 티켓 |
 | 5 | 설정 | 브리지 `openSettings()` → 네이티브의 기존 설정 화면 (webview-bridge §13). 앱이 메서드를 모르면 탭을 그리지 않는다 |
 
@@ -237,11 +237,12 @@ Jetpack Compose(상태관리·테마·Navigation-Compose·Canvas·애니메이�
 - **웹 단독(브라우저)**: 탭 바 없음. 시작은 기존 인트로 그대로다 — 학습은 로그인 필수라 브라우저에서는 탭이 갈 곳이 없다.
 - **이동**: 탭마다 같은 문서를 다시 로드한다(`goToTab` → `buildTabUrl`). `bridge`·`app`·`c`는 남기고 레벨테스트 값(`sessionId`·`testVersion`·`voiceSet`)은 지운다. 히스토리는 쌓는다(`location.href` 대입) — 앱 안 뒤로가기는 네이티브 몫이다.
 - **현재 탭**: `aria-current="page"` + 포인트 컬러 + 라벨 굵기(색만으로 가르지 않음).
-- **모양**: `web/src/ui/TabBar.tsx` 하나. 하단 고정, 위 경계 잉크 1.5px, 칸 최소 높이 `--touch-target-min`(48), 인라인 SVG 아이콘 + 라벨, 아래 여백에 `env(safe-area-inset-bottom)`. 탭 바가 선 화면은 `body:has(.tab-bar) main`이 본문 아래 여백을 탭 바 높이만큼 늘린다(`components.css`).
+- **모양**: `web/src/ui/TabBar.tsx` 하나. 하단 고정, 위 경계 잉크 1.5px, 칸 최소 높이 `--touch-target-min`(48), 인라인 SVG 아이콘 + 라벨(설정은 네이티브 `SettingsGearButton`과 같은 Material outlined settings 톱니 — 원+방사선 그림이 해처럼 보여 2026-10-13 교체), 아래 여백에 `env(safe-area-inset-bottom)`. 탭 바가 선 화면은 `body:has(.tab-bar) main`이 본문 아래 여백을 탭 바 높이만큼 늘린다(`components.css`).
 - **결과 화면 보조 버튼**: [이 등급에 맞는 억양 학습 시작](앱 안에서만, 공유 아래 글자 버튼)은 그대로 A-1로 간다.
 - **[학습 종류로] 삭제**: A-1·W-1의 [학습 종류로]는 탭 바가 대신한다. 빈 목록·로그인 안내 화면에서는 탭 바가 유일한 출구다. 학습 안쪽 이동([코스 목록으로]·[세트 목록으로]·[결과 목록으로])은 그대로다.
 - **시스템 뒤로가기(앱, 로그인 빌드)**: 현재 문서의 `screen`이 `intonation`·`words`·`translate`이거나, `screen`이 없는 인트로에서 아직 [시작하기]를 누르기 전이면 홈 문서(`screen=home`, 웹 탭 이동과 같은 쿼리)로 간다. 홈·테스트 진행·결과·그 밖은 예전처럼 앱이 닫힌다 — 테스트 중 이탈을 막는 KAN-191·KAN-147 규칙은 그대로다. 학습 카드 단계도 `screen`이 같아 뒤로 = 홈인데, 학습은 이탈 허용이라 받아들였다. 억양 녹음 화면·설정 화면의 뒤로가기는 각자의 것이 먼저다. Android는 3단계(`webBackTarget`, `MainActivity.kt` TestFlow), iOS는 4단계 완료(같은 판정 `webBackTarget`, `TestFlowView.swift`). **iOS에는 시스템 뒤로 버튼이 없어 화면 왼쪽 가장자리에서 오른쪽으로 끄는 스와이프가 뒤로다** — 대상이 없으면(홈·테스트 진행·결과) 아무 일도 없고, 억양 녹음 화면·설정 화면이 떠 있으면 스와이프를 받지 않는다. WebView 히스토리 스와이프(`allowsBackForwardNavigationGestures`)는 쓰지 않는다. 로그인을 끈 익명 빌드는 인트로로 시작해 탭 바가 보이지 않으므로 이 규칙이 없다.
 - **설정 톱니(앱, 로그인 빌드)**: WebView 위 톱니는 탭 바가 없는 레벨 테스트 웹 화면 — 인트로(`screen` 없음)·테스트 진행(`screen=test`) — 에서만 선다. 탭 화면(홈·억양·단어·번역기)과 결과는 탭 바의 [설정]이 있어 숨기고, 네이티브 녹음 화면(레벨 테스트 VOICE 문항·억양 학습)에서도 숨긴다(2026-10-13 사용자 결정). Android는 3단계 보완(`showsSettingsGear`, `MainActivity.kt` TestFlow), iOS는 4단계 완료(`showsSettingsGear`, `TestFlowView.swift`). 익명 빌드는 예전 그대로 웹 화면·녹음 화면 모두에 톱니가 선다.
+- **억양 학습 녹음 화면 우상단 ✕ 닫기 버튼**(2026-10-13 사용자 결정, Android·iOS) — 시스템 뒤로/아래로 쓸기와 같은 닫기. 레벨 테스트 녹음은 KAN-147대로 출구 없음.
 
 ## 단어 학습 화면 (KAN-255)
 
