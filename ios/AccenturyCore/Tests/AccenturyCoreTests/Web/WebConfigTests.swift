@@ -317,6 +317,30 @@ final class WebConfigTests: XCTestCase {
         XCTAssertNil(webBackTarget(currentUrl: nil, startRequested: false))
     }
 
+    // MARK: - webTabUrl: 탭 문서 조립 — 억양 녹음 ✕의 목적지 (KAN-252, 2026-10-13)
+
+    /// 탭 문서는 screen만 바꾼다.
+    func testTabUrlReplacesScreen() {
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: "\(app)&screen=intonation", screen: "intonation"))
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: home, screen: "intonation"))
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: app, screen: "intonation"))
+    }
+
+    /// 탭 문서는 레벨테스트 값을 지우고 계측 코드는 남기며 fragment를 뗀다.
+    func testTabUrlKeepsCampaignAndDropsTestValues() {
+        XCTAssertEqual(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=intonation",
+            webTabUrl(
+                currentUrl: "\(app)&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1&c=abc#x", screen: "intonation"
+            )
+        )
+    }
+
+    /// 문서가 아직 없으면 탭 문서도 없다.
+    func testTabUrlWithoutDocumentIsNil() {
+        XCTAssertNil(webTabUrl(currentUrl: nil, screen: "intonation"))
+    }
+
     // MARK: - showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13)
 
     /// 톱니는 인트로와 테스트 진행에서만 선다.

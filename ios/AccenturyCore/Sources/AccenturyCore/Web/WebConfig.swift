@@ -111,11 +111,21 @@ public func webBackTarget(currentUrl: String?, startRequested: Bool) -> String? 
         goHome = !startRequested
     }
     guard goHome else { return nil }
+    return webTabUrl(currentUrl: currentUrl, screen: homeScreen)
+}
+
+/// 현재 문서를 탭 `screen` 문서로 옮긴 URL (KAN-252). 안드로이드 `webTabUrl`의 이식본이다. 웹 탭 이동(`buildTabUrl`)과 같은
+/// 쿼리 규칙이다 — `screen`만 바꾸고 레벨테스트 값을 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다.
+/// ``webBackTarget(currentUrl:startRequested:)``(홈)과 억양 녹음 ✕(억양 탭, 2026-10-13 사용자 결정)가 같이 쓴다.
+/// 문서를 아직 모르면(nil) nil — 호출자는 옮기지 않는다.
+public func webTabUrl(currentUrl: String?, screen: String) -> String? {
+    guard let currentUrl else { return nil }
+    let (base, params) = splitDocumentUrl(currentUrl)
     let kept = params.filter { param in
         let key = queryKey(param)
         return key != "screen" && !testQueryKeys.contains(key)
     }
-    return "\(base)?" + (kept.map(String.init) + ["screen=\(homeScreen)"]).joined(separator: "&")
+    return "\(base)?" + (kept.map(String.init) + ["screen=\(screen)"]).joined(separator: "&")
 }
 
 /// 로그인 빌드에서 WebView 위 설정 톱니를 세울 문서인가 (KAN-252, 2026-10-13 사용자 결정). 안드로이드 `showsSettingsGear`의

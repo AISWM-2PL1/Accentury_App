@@ -459,9 +459,19 @@ struct TestFlowView: View {
     @ViewBuilder
     private var overlay: some View {
         // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
-        // 닫기 = 회신 없이 A-2로 (§12). 권한 화면에서의 닫기도 같다.
+        // 스와이프 닫기 = 회신 없이 A-2로 (§12). ✕는 같은 close 다음 억양 탭 문서를 다시 열어 코스 목록(A-1)으로 간다 —
+        // A-1은 그 문서의 첫 상태라서다(2026-10-13 사용자 결정, 안드로이드와 같다). 권한 화면에서의 닫기도 같다.
         if let start = intonation.start {
-            IntonationCloseChrome(onClose: { intonation.close() }) {
+            IntonationCloseChrome(
+                onClose: { intonation.close() },
+                onCloseButton: {
+                    intonation.close()
+                    guard let target = webTabUrl(currentUrl: currentWebUrl, screen: "intonation"),
+                          let url = URL(string: target)
+                    else { return }
+                    webView?.load(URLRequest(url: url))
+                }
+            ) {
                 if !intonationMicOk {
                     PermissionGateView(onGranted: { intonationMicOk = true })
                 } else {

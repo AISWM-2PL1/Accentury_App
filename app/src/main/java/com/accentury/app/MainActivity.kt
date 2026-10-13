@@ -147,6 +147,7 @@ import com.accentury.app.web.parseAppLink
 import com.accentury.app.web.showsSettingsGear
 import com.accentury.app.web.webBackTarget
 import com.accentury.app.web.webOrigin
+import com.accentury.app.web.webTabUrl
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -1099,9 +1100,14 @@ private fun TestFlow(
                             )
                         }
                     }
-                    // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close, 권한 화면에서도 같다.
+                    // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close 다음 억양 탭 문서를 다시 열어
+                    // 코스 목록(A-1)으로 간다 — A-1은 그 문서의 첫 상태라서다. 오버레이만 닫으면 대사 카드(A-2)가 남아
+                    // [코스 목록으로]를 한 번 더 눌러야 했다. 뒤로가기는 그대로 카드로 간다. 권한 화면에서도 같다.
                     IntonationCloseButton(
-                        onClick = intonation::close,
+                        onClick = {
+                            intonation.close()
+                            webTabUrl(webUrl, "intonation")?.let { webView?.loadUrl(it) }
+                        },
                         modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
                     )
                 }
