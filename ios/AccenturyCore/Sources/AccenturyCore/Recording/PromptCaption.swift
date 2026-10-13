@@ -11,17 +11,10 @@ import Foundation
 /// 안드로이드는 이 함수가 `RecordingScreen.kt`(Composable 파일) 안에 있지만 화면 요소가 아니라
 /// 갈림 하나라서, 여기서는 화면 밖 순수 계층에 둔다 — `PromptCaptionTest`가 보는 것도 그 갈림이다.
 public func promptCaption(questionIndex: Int, totalQuestions: Int) -> String {
-    guard let prefix = promptCaptionPrefix(questionIndex: questionIndex, totalQuestions: totalQuestions) else {
-        return "이 문장을 읽어주세요"
+    if questionIndex > 0 && totalQuestions > 0 {
+        return "\(questionIndex) / \(totalQuestions) · 이 문장을 읽어주세요"
     }
-    return "\(prefix) 이 문장을 읽어주세요"
-}
-
-/// 캡션의 번호 접두 "1 / 7 ·". 번호를 모르면 nil이다 (``promptCaption(questionIndex:totalQuestions:)``와 같은 이유).
-/// 감정 칩이 「이 문장을 읽어주세요」 자리를 대신할 때 칩 앞에 이것만 남는다 (KAN-283, 2026-10-14).
-public func promptCaptionPrefix(questionIndex: Int, totalQuestions: Int) -> String? {
-    guard questionIndex > 0 && totalQuestions > 0 else { return nil }
-    return "\(questionIndex) / \(totalQuestions) ·"
+    return "이 문장을 읽어주세요"
 }
 
 /// 대사 위 감정 칩 문구 (KAN-283). 정의의 emotion이 없거나 공백뿐이면 nil — 칩 없이 지금 화면 그대로다.
