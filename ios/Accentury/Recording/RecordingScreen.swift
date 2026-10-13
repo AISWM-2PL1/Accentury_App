@@ -88,7 +88,7 @@ struct RecordingScreen: View {
                      * 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
                      */
                     switch purpose {
-                    case let .levelTest(itemNumber, totalItems):
+                    case let .levelTest(itemNumber, totalItems, _):
                         ProgressIndicator(current: itemNumber, total: totalItems, note: "음성")
                     // 억양 학습은 이 화면이 A-2 카드 역할이라 n/N을 여기서 그린다 (KAN-253 5단계). 라벨·종류 표기는
                     // 웹 A-2(일시정지 화면)의 「카드 진행률」·note 없음과 맞춘다 — 뒤로가기로 오갈 때 줄이 튀지 않게.
@@ -106,7 +106,9 @@ struct RecordingScreen: View {
                         caption: promptCardCaption,
                         prompt: questionText,
                         // 억양 학습의 표준어 원문 (KAN-253). nil이면 그 줄을 그리지 않는다 (§12).
-                        supporting: promptCardSupporting
+                        supporting: promptCardSupporting,
+                        // 레벨테스트 감정 칩 (KAN-283). 억양 학습은 emotion이 없어 칩도 없다.
+                        cue: promptCardCue
                     )
 
                     curveCard
@@ -198,7 +200,7 @@ struct RecordingScreen: View {
 
     private var promptCardCaption: String {
         switch purpose {
-        case let .levelTest(itemNumber, totalItems):
+        case let .levelTest(itemNumber, totalItems, _):
             return promptCaption(questionIndex: itemNumber, totalQuestions: totalItems)
         case .intonationLearning:
             return promptCaption(questionIndex: 0, totalQuestions: 0)
@@ -208,6 +210,11 @@ struct RecordingScreen: View {
     private var promptCardSupporting: String? {
         guard case let .intonationLearning(standard, _, _) = purpose, let standard else { return nil }
         return "표준어 · \(standard)"
+    }
+
+    private var promptCardCue: String? {
+        guard case let .levelTest(_, _, emotion) = purpose else { return nil }
+        return emotionCue(emotion)
     }
 
     @ViewBuilder

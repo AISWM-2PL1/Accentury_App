@@ -904,7 +904,7 @@ private struct RecordingOverlay: View {
     var body: some View {
         RecordingScreen(
             questionText: start.prompt,
-            purpose: .levelTest(itemNumber: start.itemNumber, totalItems: start.totalItems),
+            purpose: .levelTest(itemNumber: start.itemNumber, totalItems: start.totalItems, emotion: start.emotion),
             submitting: submitting,
             afterUploadFailure: afterUploadFailure,
             failureMessage: failureMessage,
