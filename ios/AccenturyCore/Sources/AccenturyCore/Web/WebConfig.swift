@@ -114,6 +114,14 @@ public func webBackTarget(currentUrl: String?, startRequested: Bool) -> String? 
     return webTabUrl(currentUrl: currentUrl, screen: homeScreen)
 }
 
+/// 첫 문서를 홈(`screen=home`)으로 열까 (KAN-252). 안드로이드 `startsAtHome`의 이식본이다. 탭 바 빌드(로그인 빌드)이고, 재응시가
+/// 인트로를 요청하지 않았고, **앱 링크로 들어오지 않았을** 때만 홈이다. 앱 링크는 계측 코드가 없거나 무효여도(`campaignToken` nil)
+/// 링크로 친다 — 공유 링크를 누른 사람은 테스트를 하러 온 것이라 예전처럼 인트로다 (PR #33 리뷰 P1). 그래서 `campaignToken`이
+/// 아니라 링크를 인정했다는 사실(``parseAppLink(_:allowedOrigins:)``가 nil이 아님)을 본다.
+public func startsAtHome(tabBarEntry: Bool, introRequested: Bool, appLinkEntered: Bool) -> Bool {
+    tabBarEntry && !introRequested && !appLinkEntered
+}
+
 /// 현재 문서를 탭 `screen` 문서로 옮긴 URL (KAN-252). 안드로이드 `webTabUrl`의 이식본이다. 웹 탭 이동(`buildTabUrl`)과 같은
 /// 쿼리 규칙이다 — `screen`만 바꾸고 레벨테스트 값을 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다.
 /// ``webBackTarget(currentUrl:startRequested:)``(홈)과 억양 녹음 ✕(억양 탭, 2026-10-13 사용자 결정)가 같이 쓴다.

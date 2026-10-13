@@ -335,17 +335,11 @@ describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
     expect(screen.getByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
   })
 
-  it('로그인 안 됐으면 안내와 탭 바 — 탭이 앱 표식을 남긴 채 다른 탭으로 보낸다 (KAN-252)', async () => {
+  it('로그인 안 됐으면 안내만 — 탭 바는 계정 로그인 상태에서만 선다 (KAN-252, PR #33 리뷰 P1)', async () => {
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
-    const navigate = vi.fn()
-    render(<App navigate={navigate} />)
+    render(<App navigate={vi.fn()} />)
     expect(await screen.findByText('로그인하면 단어 학습을 할 수 있어요')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '단어 학습' })).toHaveAttribute('aria-current', 'page')
-    fireEvent.click(screen.getByRole('button', { name: '홈' }))
-    expect(navigate).toHaveBeenCalledTimes(1)
-    const next = new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '')
-    expect(next.get('screen')).toBe('home')
-    expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+    expect(screen.queryByRole('navigation', { name: '주 메뉴' })).toBeNull()
   })
 })
 
@@ -353,6 +347,45 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
   const APP = `?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0`
   const tabBar = () => screen.queryByRole('navigation', { name: '주 메뉴' })
   const queryOf = (url: unknown) => new URLSearchParams(String(url).split('?')[1] ?? '')
+  // 탭 바는 앱 안 + 계정 로그인 상태에서만 선다 (PR #33 리뷰 P1). 브리지를 따로 세우는 테스트는 getAccessToken을 직접 싣는다.
+  beforeEach(() => {
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      getAccessToken: () => 'acc',
+    }
+  })
+
+  it('앱 안이라도 계정 토큰이 없으면(익명 빌드) 홈·번역기에 탭 바가 없다 (PR #33 리뷰 P1)', () => {
+    for (const screenName of ['home', 'translate']) {
+      setSearch(`${APP}&screen=${screenName}`)
+      window.AccenturyBridge = {
+        requestMicPermission: vi.fn(),
+        startVoiceItem: vi.fn(),
+        getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+        getAccessToken: () => '',
+      }
+      const view = render(<App navigate={vi.fn()} />)
+      expect(tabBar()).toBeNull()
+      view.unmount()
+    }
+  })
+
+  it('토큰이 늦게 밀려오면(iOS 첫 문서) 탭 바가 뒤따라 선다 (PR #33 리뷰 P1)', async () => {
+    setSearch(`${APP}&screen=home`)
+    let token = ''
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      getAccessToken: () => token,
+    }
+    render(<App navigate={vi.fn()} />)
+    expect(tabBar()).toBeNull()
+    token = 'acc'
+    expect(await screen.findByRole('navigation', { name: '주 메뉴' })).toBeInTheDocument()
+  })
 
   it('?screen=home이면 홈과 탭 바(홈 강조), [레벨 테스트 시작]은 인트로 없이 브리지 requestMicPermission을 한 번 부른다', () => {
     setSearch(`${APP}&screen=home`)
@@ -361,6 +394,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       requestMicPermission,
       startVoiceItem: vi.fn(),
       getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      getAccessToken: () => 'acc',
     }
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
@@ -374,6 +408,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
 
   it('홈 [레벨 테스트 시작] — 브리지가 없으면(구버전 앱) 앱 표식을 남긴 채 인트로로', () => {
     setSearch(`${APP}&screen=home&c=kko_share`)
+    delete window.AccenturyBridge
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
 
@@ -417,6 +452,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       requestMicPermission: vi.fn(),
       startVoiceItem: vi.fn(),
       getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      getAccessToken: () => 'acc',
       openSettings,
     }
     const navigate = vi.fn()
@@ -1145,12 +1181,14 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
    * `startRetest`는 일부러 빼 둔다 — 메서드 추가는 계약 버전을 올리지 않으므로(§5) 이
    * 조합(토큰은 주는데 재응시는 모르는 앱)이 실재한다. 재응시 결선 테스트는 따로 심는다.
    */
-  function stubBridgeWithToken(token = 'token-1') {
+  /** `accessToken`은 계정 Access(KAN-255) — 기본 `''`은 익명 빌드·로그아웃이다(탭 바·학습 진입 없음, PR #33 리뷰 P1). */
+  function stubBridgeWithToken(token = 'token-1', accessToken = '') {
     window.AccenturyBridge = {
       requestMicPermission: vi.fn(),
       startVoiceItem: vi.fn(),
       getContractVersion: () => 1,
       getSessionToken: () => token,
+      getAccessToken: () => accessToken,
     }
   }
 
@@ -1342,7 +1380,7 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
 
   it('앱 안 결과 화면의 [이 등급에 맞는 억양 학습 시작]은 앱 표식을 남긴 채 A-1로 보낸다 (KAN-252)', async () => {
     setSearch(RESULT_SEARCH)
-    stubBridgeWithToken()
+    stubBridgeWithToken('token-1', 'acc')
     stubResultFetch()
     const navigate = vi.fn()
 
@@ -1359,7 +1397,7 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
 
   it('앱 안 결과 화면에는 탭 바가 서고 어느 탭도 강조하지 않는다 (KAN-252)', async () => {
     setSearch(RESULT_SEARCH)
-    stubBridgeWithToken()
+    stubBridgeWithToken('token-1', 'acc')
     stubResultFetch()
     const navigate = vi.fn()
 
@@ -1372,6 +1410,19 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     expect(next.get('screen')).toBe('home')
     expect(next.get('sessionId')).toBeNull()
     expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+  })
+
+  it('익명 빌드(계정 토큰 없음) 결과 화면에는 탭 바·학습 버튼이 없고 [다시 테스트하기]는 그대로다 (PR #33 리뷰 P1)', async () => {
+    setSearch(RESULT_SEARCH)
+    stubBridgeWithToken()
+    stubResultFetch()
+
+    render(<App navigate={vi.fn()} />)
+    await screen.findByRole('heading', { name: '명예주민' })
+
+    expect(screen.queryByRole('navigation', { name: '주 메뉴' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '이 등급에 맞는 억양 학습 시작' })).toBeNull()
+    expect(screen.getByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
   })
 
   /*

@@ -145,6 +145,7 @@ import com.accentury.app.web.appLinkOrigins
 import com.accentury.app.web.buildWebUrl
 import com.accentury.app.web.parseAppLink
 import com.accentury.app.web.showsSettingsGear
+import com.accentury.app.web.startsAtHome
 import com.accentury.app.web.webBackTarget
 import com.accentury.app.web.webOrigin
 import com.accentury.app.web.webTabUrl
@@ -454,7 +455,8 @@ private fun TestFlow(
      * `POST /v0/sessions`의 campaignToken이다. 앱이 세션을 직접 만드는 구조라(KAN-34) URL만으로는
      * 서버 세션에 유입 경로가 남지 않아 둘 다 필요하다.
      */
-    val campaignToken = appLink.collectAsStateWithLifecycle().value?.campaignToken
+    val appLinkEntry = appLink.collectAsStateWithLifecycle().value
+    val campaignToken = appLinkEntry?.campaignToken
 
     /*
      * 결과 공유 (KAN-30). Activity 컨텍스트인 이유: 공유 시트와 카톡 전환은 지금 화면 위에 올라와야
@@ -522,7 +524,7 @@ private fun TestFlow(
     /*
      * 첫 문서를 홈이 아니라 인트로로 열어야 하는가 (KAN-252). 홈 시작은 [tabBarEntry] 빌드의 **앱을 연 첫 문서**에만 해당한다.
      * 재응시는 "새 세션을 든 채 인트로로 돌아가는" 흐름이라(아래 buildWebUrl 주석) 거기서 세운다 — 세우지 않으면 재응시가
-     * 홈으로 떨어진다. 앱 링크(campaignToken)도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다. 진입 URL 문자열이
+     * 홈으로 떨어진다. 앱 링크 진입도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다([startsAtHome]). 진입 URL 문자열이
      * 곧 로드라(WebViewHost) 이 값이 바뀌는 순간이 곧 리로드다. 회전을 넘긴다 — 사라지면 회전 한 번에 홈이 다시 뜬다.
      */
     var introRequested by rememberSaveable { mutableStateOf(false) }
@@ -967,9 +969,9 @@ private fun TestFlow(
                      * 리로드를 감수한다 (KAN-32 결정).
                      */
                     campaignToken = campaignToken,
-                    // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면
-                    // 예전처럼 인트로다 — 공유 링크를 누른 사람은 테스트를 하러 온 것이다.
-                    home = tabBarEntry && !introRequested && campaignToken == null,
+                    // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면 코드가
+                    // 없거나 무효여도 예전처럼 인트로다 — 판정은 [startsAtHome] (PR #33 리뷰 P1).
+                    home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLinkEntry != null),
                 ),
                 allowedOrigins = setOfNotNull(webOrigin(BuildConfig.WEB_URL)),
                 // 웹의 어휘 답안 제출(KAN-13)이 쓸 토큰. 업로드·웹 진입 URL과 같은 세션에서 온다.

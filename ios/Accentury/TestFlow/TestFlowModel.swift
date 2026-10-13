@@ -57,6 +57,8 @@ final class TestFlowModel: ObservableObject {
     static let campaignTokenKey = "test_flow_campaign_token"
     /// 안드로이드 `var introRequested by rememberSaveable` (KAN-252).
     static let introRequestedKey = "test_flow_intro_requested"
+    /// 앱 링크로 들어왔는가 (KAN-252, PR #33 리뷰 P1). 아래 ``appLinkEntered`` 주석 참고.
+    static let appLinkEnteredKey = "test_flow_app_link_entered"
 
     // MARK: 시작 게이트의 네 칸 (KAN-34, KAN-105)
 
@@ -102,12 +104,20 @@ final class TestFlowModel: ObservableObject {
     /*
      * 첫 문서를 홈이 아니라 인트로로 열어야 하는가 (KAN-252). 홈 시작은 ``tabBarEntry`` 빌드의 **앱을 연 첫 문서**에만 해당한다.
      * 재응시는 "새 세션을 든 채 인트로로 돌아가는" 흐름이라(``startRetest()``) 거기서 세운다 — 세우지 않으면 재응시가 홈으로
-     * 떨어진다. 앱 링크(``campaignToken``)도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다. 진입 URL 문자열이 곧
+     * 떨어진다. 앱 링크 진입(``appLinkEntered``)도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다. 진입 URL 문자열이 곧
      * 로드라(``WebViewHost``) 이 값이 바뀌는 순간이 곧 리로드다. ``startRequested``와 같이 `UserDefaults`에 적어 시스템 종료 뒤
      * 장면 복원을 넘긴다 — 사라지면 재응시 직후 복원에서 인트로 대신 홈이 뜬다. 새 실행에서는 다른 저장분과 함께 지워진다(타입 주석).
      */
     @Published private(set) var introRequested: Bool {
         didSet { defaults.set(introRequested, forKey: Self.introRequestedKey) }
+    }
+
+    /// 이번 실행이 앱 링크로 들어왔는가 (KAN-252, PR #33 리뷰 P1). 안드로이드는 `appLink` StateFlow가 null이 아닌 것으로 같은 판정을
+    /// 한다. ``campaignToken``과 따로 드는 이유는 코드 없는 링크(`/t`)·무효 코드 링크다 — 파서는 링크로 인정하고 코드만 nil로 주므로,
+    /// 코드로 판정하면 그 링크가 홈으로 열린다. ``campaignToken``과 같은 이유로 `UserDefaults`에 적고, 새 실행에서는 함께 지워진다
+    /// (``clearSavedState(in:)``) — 링크는 그 뒤 씬이 붙으면서 ``applyAppLink(_:)``로 오므로 지우기가 새 링크를 먹지 않는다.
+    @Published private(set) var appLinkEntered: Bool {
+        didSet { defaults.set(appLinkEntered, forKey: Self.appLinkEnteredKey) }
     }
 
     // MARK: 컨트롤러가 정하는 값
@@ -154,9 +164,9 @@ final class TestFlowModel: ObservableObject {
              * (KAN-32 결정, 안드로이드와 같은 판단).
              */
             campaignToken: campaignToken,
-            // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면 예전처럼
-            // 인트로다 — 공유 링크를 누른 사람은 테스트를 하러 온 것이다.
-            home: tabBarEntry && !introRequested && campaignToken == nil
+            // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면 코드가 없거나
+            // 무효여도 예전처럼 인트로다 — 판정은 Core ``AccenturyCore/startsAtHome(tabBarEntry:introRequested:appLinkEntered:)``.
+            home: startsAtHome(tabBarEntry: tabBarEntry, introRequested: introRequested, appLinkEntered: appLinkEntered)
         )
     }
 
@@ -248,6 +258,7 @@ final class TestFlowModel: ObservableObject {
         self.voiceCenterHz = defaults.object(forKey: Self.voiceCenterKey) as? Double
         self.campaignToken = defaults.string(forKey: Self.campaignTokenKey)
         self.introRequested = defaults.bool(forKey: Self.introRequestedKey)
+        self.appLinkEntered = defaults.bool(forKey: Self.appLinkEnteredKey)
 
         /*
          * 대응 업로드가 없는 대기 시도를 한 번 걷어낸다 (안드로이드의 첫 LaunchedEffect).
@@ -284,6 +295,7 @@ final class TestFlowModel: ObservableObject {
             return
         }
         campaignToken = entry.campaignToken
+        appLinkEntered = true
         #if DEBUG
         smokeLog("APPLINK: campaignToken=\(entry.campaignToken ?? "(none)")")
         #endif
@@ -416,7 +428,8 @@ final class TestFlowModel: ObservableObject {
     /// 그대로 두면 다른 계정(또는 프로필을 다시 채운 계정)이 앞 응시의 세션을 복원해 이어 간다. 그래서 관문이 SignedIn을
     /// 벗어날 때 여기서 같은 결과를 만든다. 프로세스 사망 뒤 복원(SignedIn → SignedIn)은 건드리지 않는다.
     static func clearSavedState(in defaults: UserDefaults = .standard) {
-        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey, introRequestedKey] {
+        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey, introRequestedKey,
+                    appLinkEnteredKey] {
             defaults.removeObject(forKey: key)
         }
     }
