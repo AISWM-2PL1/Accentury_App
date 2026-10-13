@@ -30,6 +30,7 @@ final class AccenturyBridgeTests: XCTestCase {
         var haptics: [Haptic] = []
         var refreshAccessTokenCalls = 0
         var intonationStarts: [IntonationRecordingStart] = []
+        var openSettingsCalls = 0
     }
 
     private func makeDispatcher(
@@ -49,7 +50,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onShowInterstitialAd: { sink.interstitialCalls += 1 },
             onHaptic: { sink.haptics.append($0) },
             onRefreshAccessToken: { sink.refreshAccessTokenCalls += 1 },
-            onStartIntonationRecording: { sink.intonationStarts.append($0) }
+            onStartIntonationRecording: { sink.intonationStarts.append($0) },
+            onOpenSettings: { sink.openSettingsCalls += 1 }
         )
     }
 
@@ -592,5 +594,31 @@ final class AccenturyBridgeTests: XCTestCase {
         dispatcher.handle(method: "startIntonationRecording", payload: nil)
         dispatcher.handle(method: "startIntonationRecording", payload: ["cardId": "card_1"])
         XCTAssertTrue(sink.intonationStarts.isEmpty)
+    }
+
+    // MARK: openSettings (KAN-252)
+
+    /// 허용된 origin이면 설정 열기 콜백이 한 번 간다.
+    func testOpenSettingsReachesItsCallbackOnceFromAnAllowedOrigin() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(method: "openSettings", payload: nil)
+        XCTAssertEqual(1, sink.openSettingsCalls)
+    }
+
+    /// allowlist 밖 origin에서는 설정을 열지 않는다 (§5).
+    func testOpenSettingsIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false }).handle(method: "openSettings", payload: nil)
+        XCTAssertEqual(0, sink.openSettingsCalls)
+    }
+
+    /// 설정 열기도 처리 시점 origin으로 판정한다 — 안드로이드가 postToMain 큐를 비우기 전에 origin을 바꾸는 자리다.
+    func testOpenSettingsIsJudgedByTheOriginWhenHandled() {
+        let sink = Sink()
+        var allowedNow = true
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { allowedNow })
+        allowedNow = false
+        dispatcher.handle(method: "openSettings", payload: nil)
+        XCTAssertEqual(0, sink.openSettingsCalls)
     }
 }

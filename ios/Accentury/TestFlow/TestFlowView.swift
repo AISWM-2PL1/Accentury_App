@@ -23,16 +23,35 @@ import WebKit
 /// `ignoresSafeArea()`로 상태 바·홈 인디케이터 자리까지 넓힌다 — 자세한 이유는 `body`의 주석.
 struct TestFlowView: View {
 
-    /// 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(``AuthGateView``)가 이 위에 덮는다 (KAN-247)
+    /// 웹 위 톱니나 탭 바의 [설정](브리지 `openSettings`, KAN-252)을 눌렀다 — 설정 화면은 호출자(``AuthGateView``)가 이 위에
+    /// 덮는다 (KAN-247)
     private let onOpenSettings: () -> Void
 
+    /// 웹 하단 탭 바로 들어가는 빌드인가 (KAN-252, 로그인 빌드). 켜면 첫 문서가 홈(`screen=home`)이고, 톱니는 레벨 테스트 웹
+    /// 화면(인트로·진행)에만 세우며(``AccenturyCore/showsSettingsGear(_:)``, 나머지는 탭 바가 설정을 연다), 탭 화면·시작 전
+    /// 인트로의 왼쪽 가장자리 스와이프가 홈으로 간다(``AccenturyCore/webBackTarget(currentUrl:startRequested:)``).
+    /// 끄면(익명 빌드) 예전 그대로 인트로 시작·톱니·스와이프 없음이다. 안드로이드 `TestFlow(tabBarEntry)`의 이식본이다
+    private let tabBarEntry: Bool
+
+    /// 호출자가 이 화면 위에 무언가(설정·음성 저장 동의)를 덮었는가 (KAN-252). 덮인 동안은 가장자리 스와이프를 받지 않는다 —
+    /// 안드로이드에서 설정 화면의 BackHandler가 먼저 받는 자리다.
+    private let covered: Bool
+
     /// - Parameter anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
-    init(anonymousConsent: AnonymousVoiceConsentStore? = nil, onOpenSettings: @escaping () -> Void) {
+    init(
+        anonymousConsent: AnonymousVoiceConsentStore? = nil,
+        tabBarEntry: Bool,
+        covered: Bool = false,
+        onOpenSettings: @escaping () -> Void
+    ) {
         self.onOpenSettings = onOpenSettings
+        self.tabBarEntry = tabBarEntry
+        self.covered = covered
         // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
         _model = StateObject(
-            wrappedValue: anonymousConsent.map { TestFlowModel(onProfileIncomplete: {}, anonymousConsent: $0) }
-                ?? TestFlowModel()
+            wrappedValue: anonymousConsent.map {
+                TestFlowModel(onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry)
+            } ?? TestFlowModel(tabBarEntry: tabBarEntry)
         )
     }
 
@@ -73,6 +92,10 @@ struct TestFlowView: View {
     /// 결과를 웹에 넣으려면 `evaluateJavaScript`를 부를 인스턴스가 필요하다.
     /// 로드 실패 화면·재시도 구간에는 WebView가 아예 없으므로 옵셔널이다.
     @State private var webView: WKWebView?
+
+    /// WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 ``WebViewHost``의
+    /// `onPageStarted`로 갱신된다. ``TestFlowModel/webUrl``(앱이 건 진입 URL)과 다르다 — 탭 이동은 웹이 스스로 한다.
+    @State private var currentWebUrl: String?
 
     /// 지금 화면에 서 있는 오버레이 페이즈. 페이즈가 바뀔 때 녹음을 되감을지 정하는 데 쓴다
     /// (안드로이드 `DisposableEffect(phase) { onDispose { ... } }`의 자리).
@@ -154,6 +177,22 @@ struct TestFlowView: View {
                         intonationMicOk = MicPermission.currentStatus().granted
                         intonation.open(start)
                     },
+                    onOpenSettings: onOpenSettings,
+                    onPageStarted: { currentWebUrl = $0 },
+                    /*
+                     * 왼쪽 가장자리 스와이프 = 뒤로 (KAN-252). 안드로이드 시스템 뒤로가기(BackHandler)의 자리이고 대상과 판정은
+                     * ``AccenturyCore/webBackTarget(currentUrl:startRequested:)``에 있다. 목적지가 없으면(홈·테스트 진행·결과)
+                     * 아무 일도 없다 — KAN-191·KAN-147의 응시 이탈 방지 규칙을 건드리지 않는다. 웹 탭 이동과 같은 결과가 되게
+                     * 문서를 옮긴다. 억양 녹음 화면·호출자의 덮개(설정)가 떠 있으면 인식기 자체를 끈다(`edgeSwipeEnabled`).
+                     * 학습 카드 단계도 screen이 intonation·words라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다(안드로이드와 같다).
+                     */
+                    onEdgeSwipeBack: {
+                        guard let target = webBackTarget(currentUrl: currentWebUrl, startRequested: model.startRequested),
+                              let url = URL(string: target)
+                        else { return }
+                        webView?.load(URLRequest(url: url))
+                    },
+                    edgeSwipeEnabled: tabBarEntry && !covered && intonation.start == nil,
                     onWebViewCreated: { created in
                         webView = created
                         #if DEBUG
@@ -173,14 +212,17 @@ struct TestFlowView: View {
                 overlay
 
                 /*
-                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 익명 빌드는 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
                  * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
-                 * 계속 돈다(설정은 TestFlowView를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+                 * 계속 돈다(설정은 TestFlowView를 덮을 뿐 내리지 않는다).
+                 * 로그인 빌드(탭 바)는 레벨 테스트 웹 화면(인트로·진행)에서만 선다 (KAN-252, 2026-10-13 사용자 결정).
+                 * 탭 바가 없는 화면에만 설정 출구가 필요하고, 녹음 화면(레벨 테스트 VOICE·억양 학습)에서는 빼기로 했다.
+                 * 탭 화면·결과는 탭 바의 [설정]이 설정을 연다(webview-bridge §13). 시작 게이트 세 칸·문항 권한이 WebView를
                  * 덮는 동안은 숨긴다. 조건은 `overlay` 사슬의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
                  * `overlay` 뒤에 놓여 녹음 화면 위에 선다. 녹음 화면 본문은 위 64부터라 톱니(8~56)와 겹치지 않는다.
                  * 안전 영역은 이 ZStack이 이미 안쪽이다.
                  */
-                if !nativeCovering {
+                if gearVisible, !nativeCovering {
                     SettingsGearButton(action: onOpenSettings)
                         .padding(Papercut.space2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -511,6 +553,13 @@ struct TestFlowView: View {
         // 억양 학습의 권한 화면도 웹을 덮는 동안은 숨긴다 (KAN-253, 안드로이드와 같다).
         if intonation.start != nil, !intonationMicOk { return true }
         return false
+    }
+
+    /// 톱니를 세울 화면인가 (KAN-252). 로그인 빌드는 문서 판정(``AccenturyCore/showsSettingsGear(_:)``)에 더해 녹음 오버레이
+    /// (레벨 테스트 VOICE 녹음·제출, 억양 학습) 위에서 숨긴다. 익명 빌드는 예전 그대로다. ``nativeCovering``은 따로 본다.
+    private var gearVisible: Bool {
+        guard tabBarEntry else { return true }
+        return showsSettingsGear(currentWebUrl) && overlayStart == nil && intonation.start == nil
     }
 
     /// 녹음·제출 두 페이즈는 같은 화면을 쓰고 아래쪽만 다르다 (KAN-146).

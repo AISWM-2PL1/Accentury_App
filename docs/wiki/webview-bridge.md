@@ -671,7 +671,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 ## 13. 설정 열기 (KAN-252)
 
 계약 버전은 2 그대로다 — 메서드 하나(`openSettings`)를 **추가**만 했다(§1). 웹 쪽은 2단계 완료
-(`web/src/bridge/bridge.ts`, `web/src/ui/TabBar.tsx`), Android는 3단계 완료, iOS는 4단계.
+(`web/src/bridge/bridge.ts`, `web/src/ui/TabBar.tsx`), Android는 3단계 완료, iOS는 4단계 완료.
 
 2026-10-13 사용자 결정으로 앱 진입이 **웹이 그리는 하단 탭 바 5칸**(홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정)으로
 바뀌었다(ux-ui.md 「앱 진입 구조 — 하단 탭 바」). 앞 넷은 웹 화면이라 URL로 옮기고, 설정만 네이티브 화면이라 이 메서드로 연다.
@@ -684,7 +684,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | 호출 시점 | 탭 바의 [설정]을 누를 때 한 번. 웹은 문서를 옮기지 않는다 |
 | 존재 판정 | 웹 `canOpenSettings()` = `typeof window.AccenturyBridge?.openSettings === 'function'`. false면 [설정] 탭 자체를 그리지 않는다(`canStartIntonationRecording`과 같은 패턴). 래퍼 `openSettings()`는 메서드가 없으면 false |
 
-### 네이티브가 지킬 것 (3단계 Android 완료 · 4단계 iOS)
+### 네이티브가 지킬 것 (3단계 Android 완료 · 4단계 iOS 완료)
 
 - **기존 설정 화면 오버레이를 재사용한다.** 지금 WebView 위 톱니가 여는 그 화면(계정·로그아웃·약관 등)을 그대로 띄운다. 새 화면을 만들지 않는다.
 - **WebView 위 톱니는 레벨 테스트 웹 화면에만 남긴다** (2026-10-13 사용자 결정). 탭 바가 있는 화면에서는 설정으로 가는 길을 탭 바 하나로 모은다 — 둘 다 있으면 같은 곳으로 가는 버튼이 두 개다. 탭 바가 없는 인트로·테스트 진행에서는 톱니가 유일한 설정 출구라 남긴다. 단 이 메서드를 구현한 빌드(로그인 빌드)에서만 이렇게 한다(구버전 웹을 받는 경우는 없다 — 웹은 원격 배포라 늘 최신이다).
@@ -717,6 +717,23 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 **시작 URL 상태.** `home = tabBarEntry && !introRequested && campaignToken == null`. 재응시 성공(`RetestOutcome.Replaced`)이
 `introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다). 앱 링크로 들어오면(`c`가 있으면)
 예전처럼 인트로다. 테스트 진입 URL은 `home`을 보지 않는다. 진입 URL 문자열이 곧 로드라, 이 셋 말고는 홈 ↔ 인트로 리로드가 생기지 않는다.
+
+### iOS 구현 (4단계 완료)
+
+Android 3단계와 같은 규칙을 옮겼다. 판정 함수는 Core(`AccenturyCore/Web/WebConfig.swift`)에 두어 WebKit 없이 표로 검증한다.
+
+| 자리 | 내용 |
+|---|---|
+| `Web/AccenturyBridge.swift` `BridgeDispatcher` | `case "openSettings"` → `onOpenSettings`. 처리 시점 origin 판정은 디스패처 첫 guard가 한다(§6 — 메인 스레드로 넘기는 단계가 없다) |
+| `Web/BridgeUserScript.swift` | 객체 리터럴에 `openSettings: function(){ post("openSettings"); }` |
+| `Web/WebViewHost.swift` | `onOpenSettings` 전달, `didStartProvisionalNavigation`·`didCommit`에서 `onPageStarted(webView.url)`로 현재 문서 URL을 상위에 알림(뒤로·톱니 판정용), 왼쪽 가장자리 `UIScreenEdgePanGestureRecognizer`(60pt 이상 끌고 놓으면 `onEdgeSwipeBack`, `edgeSwipeEnabled`로 켜고 끔) |
+| `TestFlow/TestFlowView.swift` `tabBarEntry`·`covered` | 로그인 빌드(`AuthGateView` SignedIn)만 `true` — 톱니는 `showsSettingsGear(currentWebUrl)`이고 녹음 오버레이(VOICE 녹음·제출, 억양 학습) 위에서 숨김. 스와이프는 `webBackTarget` 대상이 있을 때만 그 URL을 `load`. 억양 녹음·설정·음성 저장 동의가 덮으면(`covered`) 인식기를 끈다. 익명 빌드(`AnonymousFlowView`)는 `false`라 인트로 시작·톱니 유지·스와이프 없음 |
+| `TestFlow/TestFlowModel.swift` | `webUrl`이 `home: tabBarEntry && !introRequested && campaignToken == nil`을 넘김. 재응시 성공(`.replaced`)이 `introRequested`를 세움 — `UserDefaults`(`test_flow_intro_requested`)에 적어 복원을 넘기고, 관문 이탈 때 `clearSavedState`가 함께 지운다 |
+| `AccenturyCore/Web/WebConfig.swift` | `buildWebUrl(home:)`, `webBackTarget(currentUrl:startRequested:)`, `showsSettingsGear(_:)` — 안드로이드 `WebConfig.kt`의 이식본, 테스트도 `WebConfigTests.swift`에 1:1 |
+
+**iOS의 뒤로는 왼쪽 가장자리 스와이프다.** iOS에는 시스템 뒤로 버튼이 없어 Android 시스템 뒤로가기 자리를 이 몸짓이 맡는다.
+판정 표는 Android와 같고, 대상이 없을 때(홈·테스트 진행·결과) Android는 앱이 닫히지만 iOS는 아무 일도 없다.
+`allowsBackForwardNavigationGestures`는 켜지 않는다 — 웹 히스토리를 되감는 것이 아니라 판정 표가 정한 홈 문서로 옮기는 결정이라서다.
 
 ### 앱 시작 URL (3·4단계)
 

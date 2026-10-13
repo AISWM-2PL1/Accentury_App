@@ -90,7 +90,12 @@ private struct SignedInScreen: View {
     var body: some View {
         let consentShown = consentShown
         ZStack {
-            TestFlowView(onOpenSettings: { settingsOpen = true })
+            // 하단 탭 바 진입 (KAN-252) — 홈으로 시작하고, 설정은 탭 바가 열며, 탭 화면의 가장자리 스와이프는 홈이다.
+            TestFlowView(
+                tabBarEntry: true,
+                covered: settingsOpen || consentShown,
+                onOpenSettings: { settingsOpen = true }
+            )
                 // 덮인 동안 스크린 리더가 아래 웹 화면으로 내려가지 않게 한다.
                 .accessibilityHidden(settingsOpen || consentShown)
             if consentShown {
@@ -159,7 +164,8 @@ struct AnonymousFlowView: View {
 
     var body: some View {
         ZStack {
-            TestFlowView(anonymousConsent: consentStore, onOpenSettings: { settingsOpen = true })
+            // 학습이 로그인 필수라 이 빌드는 인트로로 시작한다 — 탭 바가 보이지 않으니 톱니를 남긴다 (KAN-252).
+            TestFlowView(anonymousConsent: consentStore, tabBarEntry: false, onOpenSettings: { settingsOpen = true })
                 .accessibilityHidden(settingsOpen)
             if settingsOpen {
                 AnonymousSettingsScreen(

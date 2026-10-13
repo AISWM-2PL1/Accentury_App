@@ -46,6 +46,8 @@ final class TestFlowModel: ObservableObject {
     /// Universal Link가 실어 온 유입 계측 코드 (KAN-32). 안드로이드에는 대응 키가 없다 —
     /// 아래 ``campaignToken`` 주석 참고.
     static let campaignTokenKey = "test_flow_campaign_token"
+    /// 안드로이드 `var introRequested by rememberSaveable` (KAN-252).
+    static let introRequestedKey = "test_flow_intro_requested"
 
     // MARK: 시작 게이트의 네 칸 (KAN-34, KAN-105)
 
@@ -86,6 +88,17 @@ final class TestFlowModel: ObservableObject {
                 defaults.removeObject(forKey: Self.campaignTokenKey)
             }
         }
+    }
+
+    /*
+     * 첫 문서를 홈이 아니라 인트로로 열어야 하는가 (KAN-252). 홈 시작은 ``tabBarEntry`` 빌드의 **앱을 연 첫 문서**에만 해당한다.
+     * 재응시는 "새 세션을 든 채 인트로로 돌아가는" 흐름이라(``startRetest()``) 거기서 세운다 — 세우지 않으면 재응시가 홈으로
+     * 떨어진다. 앱 링크(``campaignToken``)도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다. 진입 URL 문자열이 곧
+     * 로드라(``WebViewHost``) 이 값이 바뀌는 순간이 곧 리로드다. ``startRequested``와 같이 `UserDefaults`에 적어 복원을 넘긴다 —
+     * 사라지면 재응시 직후 복원에서 인트로 대신 홈이 뜬다.
+     */
+    @Published private(set) var introRequested: Bool {
+        didSet { defaults.set(introRequested, forKey: Self.introRequestedKey) }
     }
 
     // MARK: 컨트롤러가 정하는 값
@@ -131,7 +144,10 @@ final class TestFlowModel: ObservableObject {
              * 응시 중에 자기 링크를 다시 누르는 일 자체가 드물어 그 리로드를 감수한다
              * (KAN-32 결정, 안드로이드와 같은 판단).
              */
-            campaignToken: campaignToken
+            campaignToken: campaignToken,
+            // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면 예전처럼
+            // 인트로다 — 공유 링크를 누른 사람은 테스트를 하러 온 것이다.
+            home: tabBarEntry && !introRequested && campaignToken == nil
         )
     }
 
@@ -164,6 +180,10 @@ final class TestFlowModel: ObservableObject {
     private let isMicGranted: () -> Bool
     private let onProfileIncomplete: @MainActor () -> Void
 
+    /// 웹 하단 탭 바로 들어가는 빌드인가 (KAN-252, 로그인 빌드). 켜면 첫 문서가 홈(`screen=home`)이다. 끄면(익명 빌드)
+    /// 예전 그대로 인트로로 시작한다 — 학습이 로그인 필수라 그 빌드엔 탭 바가 보이지 않는다.
+    let tabBarEntry: Bool
+
     /// 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). nil이면 계정 모드 — 동의·지역 단계가 없고 body에 버전·지역을 싣지 않는다.
     let anonymousConsent: AnonymousVoiceConsentStore?
     /// 저장소가 바뀌면 이 모델도 바뀐 것으로 알린다 — 시작 게이트의 동의 단계가 ``TestFlowView``에서 이 모델만 보고 걷힌다.
@@ -180,14 +200,17 @@ final class TestFlowModel: ObservableObject {
     ///   - anonymousConsent: 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). 주면 시작 게이트가 권한 → 동의(설치당 1회) →
     ///     지역(아직 없을 때, 동의와 무관, 설치당 1회) → 점검 → 세션이 되고, 세션 생성 body에 동의 버전·지역을 싣는다.
     ///     nil이 계정 모드다.
+    ///   - tabBarEntry: 홈으로 시작하는 로그인 빌드인가 (KAN-252, ``tabBarEntry``).
     init(
         defaults: UserDefaults = .standard,
         sessionClient: SessionClient? = TestFlowModel.defaultSessionClient(),
         isMicGranted: @escaping () -> Bool = { MicPermission.currentStatus().granted },
         onProfileIncomplete: @escaping @MainActor () -> Void = { AuthHub.gate.onProfileIncomplete() },
-        anonymousConsent: AnonymousVoiceConsentStore? = nil
+        anonymousConsent: AnonymousVoiceConsentStore? = nil,
+        tabBarEntry: Bool = false
     ) {
         self.defaults = defaults
+        self.tabBarEntry = tabBarEntry
         self.sessionClient = sessionClient
         self.isMicGranted = isMicGranted
         self.onProfileIncomplete = onProfileIncomplete
@@ -206,6 +229,7 @@ final class TestFlowModel: ObservableObject {
         self.micPassed = defaults.bool(forKey: Self.micPassedKey)
         self.voiceCenterHz = defaults.object(forKey: Self.voiceCenterKey) as? Double
         self.campaignToken = defaults.string(forKey: Self.campaignTokenKey)
+        self.introRequested = defaults.bool(forKey: Self.introRequestedKey)
 
         /*
          * 대응 업로드가 없는 대기 시도를 한 번 걷어낸다 (안드로이드의 첫 LaunchedEffect).
@@ -374,7 +398,7 @@ final class TestFlowModel: ObservableObject {
     /// 그대로 두면 다른 계정(또는 프로필을 다시 채운 계정)이 앞 응시의 세션을 복원해 이어 간다. 그래서 관문이 SignedIn을
     /// 벗어날 때 여기서 같은 결과를 만든다. 프로세스 사망 뒤 복원(SignedIn → SignedIn)은 건드리지 않는다.
     static func clearSavedState(in defaults: UserDefaults = .standard) {
-        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey] {
+        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey, introRequestedKey] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -463,6 +487,8 @@ final class TestFlowModel: ObservableObject {
             // (`webUrl`) 이 한 줄이 곧 인트로 리로드다. micPassed는 되돌리지 않는다 —
             // 권한이 이미 허용이면 다시 묻지 않는 것이 KAN-34 AC다.
             startRequested = false
+            // 홈 시작 빌드에서도 재응시 뒤는 인트로다 (KAN-252).
+            introRequested = true
             // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
             flow.onSessionReplaced()
             return nil
