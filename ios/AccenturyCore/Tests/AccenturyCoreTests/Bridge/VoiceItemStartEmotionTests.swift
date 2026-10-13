@@ -48,4 +48,26 @@ final class VoiceItemStartEmotionTests: XCTestCase {
         XCTAssertNil(start?.emotion)
         XCTAssertEqual(3, start?.guideF0?.values.count)
     }
+
+    func testGuideF0와_emotion이_둘_다_깨져도_문항은_살리고_둘_다_버린다() {
+        let start = parseVoiceItemStart(payload(emotionJson: "{}", guideJson: "\"x\""))
+        XCTAssertNotNil(start)
+        XCTAssertNil(start?.guideF0)
+        XCTAssertNil(start?.emotion)
+        XCTAssertEqual("v1", start?.itemId)
+        XCTAssertEqual(1, start?.itemNumber)
+        XCTAssertEqual(7, start?.totalItems)
+    }
+
+    func testEmotion을_버려_구제해도_필수_값이_잘못되면_nil_구제가_검증을_우회하지_않는다() {
+        let bad = payload(emotionJson: "{}")
+        XCTAssertNil(parseVoiceItemStart(bad.replacingOccurrences(of: "\"itemId\":\"v1\"", with: "\"itemId\":\"\"")))
+        XCTAssertNil(parseVoiceItemStart(bad.replacingOccurrences(of: "\"itemNumber\":1", with: "\"itemNumber\":0")))
+    }
+
+    func testGuideF0를_버려_구제해도_필수_값이_잘못되면_nil() {
+        let bad = payload(emotionJson: "\"다급한\"", guideJson: "\"x\"")
+        XCTAssertNil(parseVoiceItemStart(bad.replacingOccurrences(of: "\"itemId\":\"v1\"", with: "\"itemId\":\"\"")))
+        XCTAssertNil(parseVoiceItemStart(bad.replacingOccurrences(of: "\"itemNumber\":1", with: "\"itemNumber\":0")))
+    }
 }

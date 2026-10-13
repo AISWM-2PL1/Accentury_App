@@ -59,4 +59,29 @@ class VoiceItemStartEmotionTest {
         assertNull(start!!.emotion)
         assertEquals(3, start.guideF0?.values?.size)
     }
+
+    @Test
+    fun `guideF0와 emotion이 둘 다 깨져도 문항은 살리고 둘 다 버린다`() {
+        val start = parseVoiceItemStart(payload("{}", guideJson = "\"x\""))
+        assertNotNull(start)
+        assertNull(start!!.guideF0)
+        assertNull(start.emotion)
+        assertEquals("v1", start.itemId)
+        assertEquals(1, start.itemNumber)
+        assertEquals(7, start.totalItems)
+    }
+
+    @Test
+    fun `emotion을 버려 구제해도 필수 값이 잘못되면 null - 구제가 검증을 우회하지 않는다`() {
+        val bad = payload("{}")
+        assertNull(parseVoiceItemStart(bad.replace(""""itemId":"v1"""", """"itemId":""""")))
+        assertNull(parseVoiceItemStart(bad.replace(""""itemNumber":1""", """"itemNumber":0""")))
+    }
+
+    @Test
+    fun `guideF0를 버려 구제해도 필수 값이 잘못되면 null`() {
+        val bad = payload("\"다급한\"", guideJson = "\"x\"")
+        assertNull(parseVoiceItemStart(bad.replace(""""itemId":"v1"""", """"itemId":""""")))
+        assertNull(parseVoiceItemStart(bad.replace(""""itemNumber":1""", """"itemNumber":0""")))
+    }
 }
