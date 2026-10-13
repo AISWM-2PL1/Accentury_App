@@ -225,16 +225,22 @@ fun RecordingScreen(
              * "평소 말하듯 자연스럽게 읽어주세요"가 사라진 것은 문구를 줄이려는 게 아니라 자리를
              * 옮긴 것이다 - 카드는 읽을 문장을 내밀고, 어떻게 하라는 말은 버튼 밑 캡션이 한다.
              */
+            // 레벨테스트 감정 칩 (KAN-283). 억양 학습은 emotion이 없어 칩도 없다.
+            val cue = (purpose as? RecordingPurpose.LevelTest)?.let { emotionCue(it.emotion) }
             PromptCard(
+                // 칩이 있으면 「이 문장을 읽어주세요」 자리를 칩이 대신해 캡션은 번호 접두만 남는다 (2026-10-14)
                 caption = when (purpose) {
-                    is RecordingPurpose.LevelTest -> promptCaption(purpose.itemNumber, purpose.totalItems)
+                    is RecordingPurpose.LevelTest -> if (cue != null) {
+                        promptCaptionPrefix(purpose.itemNumber, purpose.totalItems)
+                    } else {
+                        promptCaption(purpose.itemNumber, purpose.totalItems)
+                    }
                     is RecordingPurpose.IntonationLearning -> promptCaption(0, 0)
                 },
                 prompt = questionText,
                 // 억양 학습의 표준어 원문 (KAN-253). null이면 그 줄을 그리지 않는다 (§12).
                 supporting = (purpose as? RecordingPurpose.IntonationLearning)?.standard?.let { "표준어 · $it" },
-                // 레벨테스트 감정 칩 (KAN-283). 억양 학습은 emotion이 없어 칩도 없다.
-                cue = (purpose as? RecordingPurpose.LevelTest)?.let { emotionCue(it.emotion) },
+                cue = cue,
             )
 
             Spacer(modifier = Modifier.height(Spacing.x6))
@@ -316,11 +322,14 @@ internal fun recordingResultHaptic(state: RecordingUiState): Haptic? = when (sta
  * 시작하는 줄은 숫자가 있는 것보다 나쁘다 — 사용자가 자기가 몇 번째인지 잘못 읽는다.
  */
 internal fun promptCaption(questionIndex: Int, totalQuestions: Int): String =
-    if (questionIndex > 0 && totalQuestions > 0) {
-        "$questionIndex / $totalQuestions · 이 문장을 읽어주세요"
-    } else {
-        "이 문장을 읽어주세요"
-    }
+    promptCaptionPrefix(questionIndex, totalQuestions)?.let { "$it 이 문장을 읽어주세요" } ?: "이 문장을 읽어주세요"
+
+/**
+ * 캡션의 번호 접두 "1 / 7 ·". 번호를 모르면 null이다 ([promptCaption]과 같은 이유).
+ * 감정 칩이 「이 문장을 읽어주세요」 자리를 대신할 때 칩 앞에 이것만 남는다 (KAN-283, 2026-10-14).
+ */
+internal fun promptCaptionPrefix(questionIndex: Int, totalQuestions: Int): String? =
+    if (questionIndex > 0 && totalQuestions > 0) "$questionIndex / $totalQuestions ·" else null
 
 /**
  * 대사 위 감정 칩 문구 (KAN-283). 정의의 emotion이 없거나 공백뿐이면 null — 칩 없이 지금 화면 그대로다.

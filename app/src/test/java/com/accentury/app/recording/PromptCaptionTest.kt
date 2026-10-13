@@ -26,6 +26,14 @@ class PromptCaptionTest {
     }
 
     @Test
+    fun `번호 접두 - 번호를 알면 가운데점까지, 모르면 null (KAN-283)`() {
+        assertEquals("1 / 7 ·", promptCaptionPrefix(1, 7))
+        assertNull(promptCaptionPrefix(0, 0))
+        assertNull(promptCaptionPrefix(3, 0))
+        assertNull(promptCaptionPrefix(0, 10))
+    }
+
+    @Test
     fun `감정 칩 - emotion이 있으면 앞뒤 공백을 걷고 문구를 붙인다 (KAN-283)`() {
         assertEquals("부탁하는 느낌으로 말해주세요!", emotionCue("부탁하는"))
         assertEquals("다급한 느낌으로 말해주세요!", emotionCue("  다급한 "))
