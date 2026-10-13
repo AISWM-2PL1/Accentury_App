@@ -343,6 +343,28 @@ describe('내보내는 길 — AC 5항', () => {
     expect(props.retest.onRetest).toHaveBeenCalledTimes(1)
   })
 
+  it('[이 등급에 맞는 억양 학습 시작]은 onStartLearning을 받을 때만 공유 바로 아래에 서고 누르면 부른다 (KAN-252)', async () => {
+    const onStartLearning = vi.fn()
+    renderScreen({ onStartLearning })
+
+    const share = await screen.findByRole('button', { name: '친구에게 공유하기' })
+    const learn = screen.getByRole('button', { name: '이 등급에 맞는 억양 학습 시작' })
+    expect(share.nextElementSibling).toBe(learn)
+    // 주버튼은 공유 그대로 — 학습 버튼은 글자 버튼이다
+    expect(share).toHaveClass('btn--primary')
+    expect(learn).toHaveClass('btn--text')
+
+    fireEvent.click(learn)
+    expect(onStartLearning).toHaveBeenCalledTimes(1)
+  })
+
+  it('onStartLearning이 없으면(웹 단독) 학습 버튼이 없다 (KAN-252)', async () => {
+    renderScreen()
+
+    await screen.findByRole('button', { name: '친구에게 공유하기' })
+    expect(screen.queryByRole('button', { name: '이 등급에 맞는 억양 학습 시작' })).not.toBeInTheDocument()
+  })
+
   it('공유 이미지(share.imageUrl)를 화면에 띄우지 않는다 — 원격 자산 로딩에 결과 화면이 걸리면 안 된다', async () => {
     renderScreen()
 

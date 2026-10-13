@@ -76,6 +76,12 @@ export interface ResultScreenProps {
    */
   onDownloadClick?: () => void
   /**
+   * [이 등급에 맞는 억양 학습 시작] (KAN-252). **값이 있으면 앱 안 WebView다** — `storePlatform`과 같은
+   * 방식으로 판정은 부모가 하고, 없으면(웹 단독) 버튼 자체를 그리지 않는다. 학습은 로그인 필수라
+   * 웹에서는 갈 곳이 없다 (2026-10-13 사용자 결정: 스토어 URL이 나오면 후속에서 잇는다).
+   */
+  onStartLearning?: () => void
+  /**
    * 결과가 처음으로 도착했다 (KAN-33 계측 자리). **성공한 첫 조회에 한 번만** 부른다 —
    * [다시 시도]로 다시 조회해도, 부모가 리렌더돼도 두 번 가지 않는다.
    *
@@ -118,6 +124,7 @@ export function ResultScreen({
   retest,
   storePlatform,
   onDownloadClick,
+  onStartLearning,
   onResultLoaded,
   onFeedbackOpen,
   onFeedbackSubmitted,
@@ -329,8 +336,16 @@ export function ResultScreen({
           <span>친구에게 공유하기</span>
         </Button>
         {/*
-          학습 시작이 아니라 다시 테스트다 — 이 화면에서 나가는 길은 공유와 재응시뿐이다.
-
+          억양 학습으로 가는 글자 버튼 (KAN-252). 주버튼은 공유 그대로다 — 후기와 같은 이유로 테두리를
+          주지 않아 공유·재응시와 무게를 겨루지 않고, 생김새도 후기 버튼(`.result-feedback__open`)을 같이 쓴다.
+          앱 안에서만 선다 ([ResultScreenProps.onStartLearning]).
+        */}
+        {onStartLearning !== undefined && (
+          <Button variant="text" className="result-feedback__open" onClick={onStartLearning}>
+            이 등급에 맞는 억양 학습 시작
+          </Button>
+        )}
+        {/*
           글자만 있던 버튼을 보조 버튼으로 올렸다 (KAN-161 3단계, 시안 v3). 글자 버튼은
           눌리는 것인지가 모양으로 드러나지 않는데, 이 자리는 결과를 다 본 사람이 실제로
           누르는 두 번째 출구다 — 테두리 1.5px 하나가 그 어포던스를 준다. 그림자는 여전히

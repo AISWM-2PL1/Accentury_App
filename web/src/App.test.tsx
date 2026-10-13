@@ -335,14 +335,36 @@ describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
     expect(screen.getByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
   })
 
-  it('로그인 안 됐으면 안내 뒤 [학습 종류로]가 인트로로 보낸다 (L-1 전 임시 목적지)', async () => {
+  it('로그인 안 됐으면 안내 뒤 [학습 종류로]가 앱 표식을 남긴 채 L-1로 보낸다 (KAN-252)', async () => {
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
     expect(await screen.findByText('로그인하면 단어 학습을 할 수 있어요')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '학습 종류로' }))
     expect(navigate).toHaveBeenCalledTimes(1)
-    expect(new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '').get('screen')).toBeNull()
+    const next = new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '')
+    expect(next.get('screen')).toBe('learn')
+    expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+  })
+})
+
+describe('App — 학습 종류 선택 L-1 진입 쿼리 (KAN-252)', () => {
+  it('?screen=learn이면 L-1을 그리고, 각 행이 앱 표식을 남긴 채 A-1·W-1로 보낸다', () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=learn`)
+    const navigate = vi.fn()
+    render(<App navigate={navigate} />)
+    expect(screen.getByRole('heading', { name: '어떤 학습을 할까요?' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^억양 학습/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^단어 학습/ }))
+
+    const [toIntonation, toWords] = navigate.mock.calls.map(([url]) => new URLSearchParams(String(url).split('?')[1]))
+    expect(toIntonation.get('screen')).toBe('intonation')
+    expect(toWords.get('screen')).toBe('words')
+    for (const next of [toIntonation, toWords]) {
+      expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+      expect(next.get('app')).toBe('1.0')
+    }
   })
 })
 
@@ -1243,6 +1265,23 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     expect(next.get('sessionId')).toBeNull()
   })
 
+  it('앱 안 결과 화면의 [이 등급에 맞는 억양 학습 시작]은 앱 표식을 남긴 채 A-1로 보낸다 (KAN-252)', async () => {
+    setSearch(RESULT_SEARCH)
+    stubBridgeWithToken()
+    stubResultFetch()
+    const navigate = vi.fn()
+
+    render(<App navigate={navigate} />)
+    fireEvent.click(await screen.findByRole('button', { name: '이 등급에 맞는 억양 학습 시작' }))
+
+    expect(navigate).toHaveBeenCalledTimes(1)
+    const next = new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '')
+    expect(next.get('screen')).toBe('intonation')
+    expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+    expect(next.get('app')).toBe('1.0')
+    expect(next.get('sessionId')).toBeNull()
+  })
+
   /*
    * 진행 기록 삭제 (KAN-198). KAN-99가 "삭제 시점은 결과 화면"이라 적어 두고 배선하지 않아
    * 응시마다 키가 하나씩 쌓이던 자리다.
@@ -1485,6 +1524,17 @@ describe('App — 웹 단독 결과 화면 (KAN-31 2단계)', () => {
     expect(url).not.toContain('st_web')
     expect(init.headers).toMatchObject({ Authorization: 'Bearer st_web' })
     expect(window.location.search).not.toContain('st_web')
+  })
+
+  it('웹 단독 결과 화면에는 억양 학습 버튼이 없다 — 학습은 로그인 필수라 갈 곳이 없다 (KAN-252)', async () => {
+    setSearch(WEB_RESULT_SEARCH)
+    saveWebSession(WEB_SESSION)
+    stubResultFetch()
+
+    render(<App />)
+
+    await screen.findByRole('button', { name: '친구에게 공유하기' })
+    expect(screen.queryByRole('button', { name: '이 등급에 맞는 억양 학습 시작' })).not.toBeInTheDocument()
   })
 
   it('안드로이드 브라우저에서는 [앱 다운로드]가 플레이스토어를 가리킨다', async () => {

@@ -6,12 +6,20 @@ import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
 import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
+import { LearningKindScreen } from './learning/LearningKindScreen'
 import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
 import { START_FAILED_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE } from './intro/introText'
 import { getSessionToken, isBridgeCompatible, isStandaloneWeb } from './bridge/bridge'
-import { buildIntroUrl, buildResultUrl, buildTestUrl } from './navigation/entryUrl'
+import {
+  buildIntonationUrl,
+  buildIntroUrl,
+  buildLearnUrl,
+  buildResultUrl,
+  buildTestUrl,
+  buildWordsUrl,
+} from './navigation/entryUrl'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
 import type { RegionCode } from './region/regions'
@@ -171,22 +179,28 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
   }
 
   /*
+   * `?screen=learn` — 학습 종류 선택 L-1(KAN-252). 앱 홈의 [학습] 카드가 여는 학습의 첫 화면이다.
+   * 고르면 A-1·W-1로 문서를 다시 로드해 넘긴다 — 두 학습이 각자 진입 쿼리 하나씩을 이미 갖고 있어서다.
+   */
+  if (params.get('screen') === 'learn') {
+    return <LearningKindScreen onIntonation={() => goToIntonation(navigate)} onWords={() => goToWords(navigate)} />
+  }
+
+  /*
    * `?screen=words` — 단어 학습(KAN-255). 진입 쿼리는 이것 하나이고 W-1~W-5는 문서를 다시 로드하지
    * 않고 라우트 안의 상태로 넘긴다 (세트·시도 id가 메모리에 있어야 하고, 학습은 이탈 허용이라 URL
-   * 복원이 필요 없다 — `learning/useWordLearning` 머리 주석).
-   *
-   * ponytail: [학습 종류로]는 L-1(학습 종류 선택)이 아직 없어 인트로로 보낸다 — L-1 생기면 교체
+   * 복원이 필요 없다 — `learning/useWordLearning` 머리 주석). [학습 종류로]는 L-1로 간다 (KAN-252).
    */
   if (params.get('screen') === 'words') {
-    return <WordLearningRoute apiBase={API_BASE} onLeave={() => goToIntro(navigate)} />
+    return <WordLearningRoute apiBase={API_BASE} onLeave={() => goToLearn(navigate)} />
   }
 
   /*
    * `?screen=intonation` — 억양 학습(KAN-253). 단어 학습과 같은 이유로 A-1·A-2는 라우트 안의 상태로
-   * 넘긴다 (`learning/useIntonationLearning` 머리 주석). [학습 종류로]도 같은 임시 처리다.
+   * 넘긴다 (`learning/useIntonationLearning` 머리 주석). [학습 종류로]도 L-1이다.
    */
   if (params.get('screen') === 'intonation') {
-    return <IntonationLearningRoute apiBase={API_BASE} onLeave={() => goToIntro(navigate)} />
+    return <IntonationLearningRoute apiBase={API_BASE} onLeave={() => goToLearn(navigate)} />
   }
 
   return <IntroRoute standalone={standalone} navigate={navigate} voiceCheckCapture={voiceCheckCapture} />
@@ -571,6 +585,13 @@ function ResultRoute({
     ? detectStorePlatform(navigator.userAgent, navigator.maxTouchPoints)
     : undefined
 
+  /*
+   * [이 등급에 맞는 억양 학습 시작] (KAN-252)은 앱 안에서만 준다 — `storePlatform`의 반대편이다. 학습은
+   * 로그인 필수(2026-10-04)라 웹 단독 실행에서 A-1을 열면 로그인 안내에서 막힌다. 웹에서는 스토어 URL이
+   * 나오면 그쪽으로 잇는다 (2026-10-13 사용자 결정, 후속).
+   */
+  const onStartLearning = standalone ? undefined : () => goToIntonation(navigate)
+
   return (
     <ResultScreen
       apiBase={API_BASE}
@@ -626,6 +647,7 @@ function ResultRoute({
         })
       }}
       storePlatform={storePlatform}
+      onStartLearning={onStartLearning}
       /*
        * 다운로드 탭 계측 (퍼널 4번째 지점, KAN-31 3단계). 링크의 이동은 이 콜백과 무관하게
        * 일어나므로 계측이 무엇을 하든 설치 전환이 끊기지 않는다 ([track]은 던지지 않는다).
@@ -700,6 +722,22 @@ function goToResult(sessionId: string, navigate: Navigate): void {
 function goToIntro(navigate: Navigate): void {
   // 같은 문서를 다시 로드한다 — 결과 화면이 들고 있던 상태를 확실히 버리기 위해서다.
   navigate(window.location.pathname + buildIntroUrl(window.location.search))
+}
+
+/**
+ * 학습 화면 전환 (KAN-252). [goToIntro]처럼 같은 문서를 다시 로드하고, 남기고 지우는 규칙은 각 빌더가
+ * 소유한다 — 앱 표식(`bridge`·`app`)이 남아야 다음 문서도 앱 실행으로 판정된다.
+ */
+function goToLearn(navigate: Navigate): void {
+  navigate(window.location.pathname + buildLearnUrl(window.location.search))
+}
+
+function goToWords(navigate: Navigate): void {
+  navigate(window.location.pathname + buildWordsUrl(window.location.search))
+}
+
+function goToIntonation(navigate: Navigate): void {
+  navigate(window.location.pathname + buildIntonationUrl(window.location.search))
 }
 
 /**
