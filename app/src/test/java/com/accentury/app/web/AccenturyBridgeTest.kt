@@ -978,4 +978,50 @@ class AccenturyBridgeTest {
         assertNull(startIntonation("""{"cardId":"","prompt":"a","maxDurationMs":10000,"itemNumber":1,"totalItems":1}"""))
         assertNull(startIntonation("not json"))
     }
+
+    /** openSettings를 한 번 부르고 콜백 횟수를 돌려준다 (KAN-252). */
+    private fun openSettings(urlAllowed: () -> Boolean, beforeDrain: () -> Unit = {}): Int {
+        val queue = FakeMainQueue()
+        var opened = 0
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = urlAllowed,
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
+            onOpenSettings = { opened++ },
+        )
+        bridge.openSettings()
+        beforeDrain()
+        queue.drain()
+        return opened
+    }
+
+    @Test
+    fun `허용된 origin이면 설정 열기 콜백이 한 번 간다`() {
+        assertEquals(1, openSettings(urlAllowed = { true }))
+    }
+
+    @Test
+    fun `allowlist 밖 origin에서는 설정을 열지 않는다`() {
+        assertEquals(0, openSettings(urlAllowed = { false }))
+    }
+
+    @Test
+    fun `설정 열기도 실행 시점 origin으로 판정한다`() {
+        var allowedNow = true
+        assertEquals(0, openSettings(urlAllowed = { allowedNow }, beforeDrain = { allowedNow = false }))
+    }
 }

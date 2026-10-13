@@ -143,6 +143,7 @@ import com.accentury.app.web.WebViewHost
 import com.accentury.app.web.appLinkOrigins
 import com.accentury.app.web.buildWebUrl
 import com.accentury.app.web.parseAppLink
+import com.accentury.app.web.webBackTarget
 import com.accentury.app.web.webOrigin
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.NonCancellable
@@ -326,6 +327,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                     anonymousConsent = null,
                     onProfileIncomplete = gate::onProfileIncomplete,
                     onOpenSettings = { settingsOpen = true },
+                    // 하단 탭 바 진입 (KAN-252) — 홈으로 시작하고, 설정은 탭 바가 열며, 탭 화면의 뒤로는 홈이다.
+                    tabBarEntry = true,
                 )
                 if (!consentPromptDone && shouldPromptVoiceConsent(state, promptStore.wasPrompted(state.user.id))) {
                     val finish = {
@@ -394,6 +397,8 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
             // 익명 세션에는 프로필이 없어 서버가 이 거절을 주지 않는다.
             onProfileIncomplete = {},
             onOpenSettings = { settingsOpen = true },
+            // 학습이 로그인 필수라 이 빌드는 인트로로 시작한다 — 탭 바가 보이지 않으니 톱니를 남긴다 (KAN-252).
+            tabBarEntry = false,
         )
         if (settingsOpen) {
             AnonymousSettingsScreen(
@@ -422,7 +427,11 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
  * @param anonymousConsent 익명 모드의 로컬 동의·지역 (KAN-270 5·7단계). null이면 계정 모드 — 동의·지역 단계가 없고 body에
  *   버전·지역을 싣지 않는다
  * @param onProfileIncomplete 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224)
- * @param onOpenSettings 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(AuthGate)가 이 위에 덮는다 (KAN-247)
+ * @param onOpenSettings 웹 위 톱니나 탭 바의 [설정](브리지 `openSettings`, KAN-252)을 눌렀다 — 설정 화면은 호출자가
+ *   이 위에 덮는다 (KAN-247)
+ * @param tabBarEntry 웹 하단 탭 바로 들어가는 빌드인가 (KAN-252, 로그인 빌드). 켜면 첫 문서가 홈(`screen=home`)이고,
+ *   톱니를 그리지 않으며(설정은 탭 바가 연다), 탭 화면·시작 전 인트로의 시스템 뒤로가기가 홈으로 간다([webBackTarget]).
+ *   끄면(익명 빌드) 예전 그대로 인트로 시작·톱니·뒤로 = 앱 종료다
  */
 @Composable
 private fun TestFlow(
@@ -431,6 +440,7 @@ private fun TestFlow(
     anonymousConsent: AnonymousVoiceConsentStore?,
     onProfileIncomplete: () -> Unit,
     onOpenSettings: () -> Unit,
+    tabBarEntry: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -505,6 +515,13 @@ private fun TestFlow(
      * 회전을 넘긴다. 회전으로 사라지면 웹 결과 화면이 다시 로드되어 버튼은 열리지만, 사용자가 광고를 한 번 더 봐야 한다.
      */
     var retestRegionPending by rememberSaveable { mutableStateOf(false) }
+    /*
+     * 첫 문서를 홈이 아니라 인트로로 열어야 하는가 (KAN-252). 홈 시작은 [tabBarEntry] 빌드의 **앱을 연 첫 문서**에만 해당한다.
+     * 재응시는 "새 세션을 든 채 인트로로 돌아가는" 흐름이라(아래 buildWebUrl 주석) 거기서 세운다 — 세우지 않으면 재응시가
+     * 홈으로 떨어진다. 앱 링크(campaignToken)도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다. 진입 URL 문자열이
+     * 곧 로드라(WebViewHost) 이 값이 바뀌는 순간이 곧 리로드다. 회전을 넘긴다 — 사라지면 회전 한 번에 홈이 다시 뜬다.
+     */
+    var introRequested by rememberSaveable { mutableStateOf(false) }
     val sessionGate = rememberSaveable(saver = SessionGateController.saver()) { SessionGateController() }
     /*
      * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
@@ -554,6 +571,8 @@ private fun TestFlow(
     // 결과를 웹에 넣으려면 evaluateJavascript를 부를 인스턴스가 필요하다.
     // 로드 실패 화면·재시도 구간에는 WebView가 아예 없으므로 nullable이다.
     var webView by remember { mutableStateOf<WebView?>(null) }
+    // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
+    var webUrl by remember { mutableStateOf<String?>(null) }
 
     /*
      * 업로드가 끝난 시도를 웹으로 흘려보낸다.
@@ -761,6 +780,8 @@ private fun TestFlow(
                      * 새 세션은 새 인스턴스를 받고, 끝난 응시의 업로드가 섞이지 않는다.
                      */
                     startRequested = false
+                    // 홈 시작 빌드에서도 재응시 뒤는 인트로다 (KAN-252).
+                    introRequested = true
                     // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
                     flow.onSessionReplaced()
                 }
@@ -942,6 +963,9 @@ private fun TestFlow(
                      * 리로드를 감수한다 (KAN-32 결정).
                      */
                     campaignToken = campaignToken,
+                    // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면
+                    // 예전처럼 인트로다 — 공유 링크를 누른 사람은 테스트를 하러 온 것이다.
+                    home = tabBarEntry && !introRequested && campaignToken == null,
                 ),
                 allowedOrigins = setOfNotNull(webOrigin(BuildConfig.WEB_URL)),
                 // 웹의 어휘 답안 제출(KAN-13)이 쓸 토큰. 업로드·웹 진입 URL과 같은 세션에서 온다.
@@ -992,11 +1016,25 @@ private fun TestFlow(
                         it.open(start)
                     }
                 },
+                onOpenSettings = onOpenSettings,
+                onPageStarted = { webUrl = it },
                 onWebViewCreated = { webView = it },
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.
                 onWebViewReleased = { if (webView === it) webView = null },
             )
+
+            /*
+             * 탭 화면의 시스템 뒤로가기 = 홈 (KAN-252). 대상과 판정은 [webBackTarget]에 있고, 목적지가 없으면 비활성이라
+             * 예전처럼 앱이 닫힌다(홈·테스트 진행·결과 — KAN-191·KAN-147). 웹 탭 이동과 같은 결과가 되게 문서를 옮긴다.
+             * 아래 오버레이들(억양 녹음의 BackHandler)과 AuthGate의 설정 화면보다 **먼저** 컴포지션에 들어가 있어야
+             * 그쪽이 우선한다 — Compose는 나중에 등록된 활성 콜백부터 부른다. 그래서 오버레이 `when`보다 앞에 둔다.
+             * 학습 카드 단계도 screen이 intonation·words라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다.
+             */
+            val backTarget = if (tabBarEntry) webBackTarget(webUrl, startRequested) else null
+            BackHandler(enabled = backTarget != null && webView != null) {
+                backTarget?.let { webView?.loadUrl(it) }
+            }
 
             // 오버레이는 WebView 위, 업로드 상태 바 아래다 — 녹음 중에도 실패한 업로드의
             // 재시도 통로가 가려지지 않아야 한다.
@@ -1215,7 +1253,9 @@ private fun TestFlow(
                 phase is TestFlowPhase.NeedsPermission ||
                 retestRegionPending ||
                 (intonationStart != null && !intonationMicOk)
-            if (!nativeCovering) {
+            // 탭 바 빌드는 톱니를 그리지 않는다 — 설정은 탭 바의 [설정]이 연다 (KAN-252, webview-bridge §13). 녹음 화면 위
+            // 톱니(2026-10-03 팀장 요청)도 함께 사라진다.
+            if (!tabBarEntry && !nativeCovering) {
                 SettingsGearButton(
                     onClick = onOpenSettings,
                     modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),

@@ -70,6 +70,9 @@ sealed interface WebLoadState {
  * @param accessToken 계정 Access 토큰 (KAN-255). 브리지가 JS 스레드에서 동기로 읽는다
  * @param onRefreshAccessToken 웹이 401 뒤 청한 계정 토큰 갱신 (KAN-255). 메인 스레드로 온다
  * @param onStartIntonationRecording 억양 학습 녹음 호출 (KAN-253). 검증된 payload만 메인 스레드로 온다
+ * @param onOpenSettings 탭 바의 [설정] (KAN-252). 메인 스레드로 온다
+ * @param onPageStarted 메인 프레임 문서가 바뀌었다 — 웹의 탭 이동은 `location.href` 대입이라 문서마다 온다.
+ *   상위가 시스템 뒤로가기를 문서의 `screen`으로 판정하는 데 쓴다 (KAN-252, [webBackTarget])
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
  */
@@ -93,6 +96,8 @@ fun WebViewHost(
     onRefreshAccessToken: () -> Unit,
     modifier: Modifier = Modifier,
     onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onPageStarted: (String?) -> Unit = {},
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
     onWebViewReleased: (WebView) -> Unit = {},
@@ -154,6 +159,7 @@ fun WebViewHost(
                                 // 메인 프레임 전환마다 동기 브리지용 origin 플래그 갱신 (메인 스레드).
                                 // 리다이렉트도 각 전환이 onPageStarted를 타므로 여기 한 곳이면 된다.
                                 originAllowed.set(isAllowedWebUrl(url, allowedOrigins))
+                                onPageStarted(url)
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
@@ -202,6 +208,7 @@ fun WebViewHost(
                                 accessToken = accessToken,
                                 onRefreshAccessToken = onRefreshAccessToken,
                                 onStartIntonationRecording = onStartIntonationRecording,
+                                onOpenSettings = onOpenSettings,
                             ),
                             "AccenturyBridge",
                         )

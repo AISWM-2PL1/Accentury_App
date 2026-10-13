@@ -671,7 +671,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 ## 13. 설정 열기 (KAN-252)
 
 계약 버전은 2 그대로다 — 메서드 하나(`openSettings`)를 **추가**만 했다(§1). 웹 쪽은 2단계 완료
-(`web/src/bridge/bridge.ts`, `web/src/ui/TabBar.tsx`), 네이티브는 3단계 Android · 4단계 iOS.
+(`web/src/bridge/bridge.ts`, `web/src/ui/TabBar.tsx`), Android는 3단계 완료, iOS는 4단계.
 
 2026-10-13 사용자 결정으로 앱 진입이 **웹이 그리는 하단 탭 바 5칸**(홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정)으로
 바뀌었다(ux-ui.md 「앱 진입 구조 — 하단 탭 바」). 앞 넷은 웹 화면이라 URL로 옮기고, 설정만 네이티브 화면이라 이 메서드로 연다.
@@ -684,13 +684,27 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | 호출 시점 | 탭 바의 [설정]을 누를 때 한 번. 웹은 문서를 옮기지 않는다 |
 | 존재 판정 | 웹 `canOpenSettings()` = `typeof window.AccenturyBridge?.openSettings === 'function'`. false면 [설정] 탭 자체를 그리지 않는다(`canStartIntonationRecording`과 같은 패턴). 래퍼 `openSettings()`는 메서드가 없으면 false |
 
-### 네이티브가 지킬 것 (3단계 Android · 4단계 iOS)
+### 네이티브가 지킬 것 (3단계 Android 완료 · 4단계 iOS)
 
 - **기존 설정 화면 오버레이를 재사용한다.** 지금 WebView 위 톱니가 여는 그 화면(계정·로그아웃·약관 등)을 그대로 띄운다. 새 화면을 만들지 않는다.
 - **WebView 위 톱니를 걷는다.** 설정으로 가는 길은 탭 바 하나로 모은다 — 둘 다 있으면 같은 곳으로 가는 버튼이 두 개다. 단 이 메서드를 구현한 빌드에서만 걷는다(구버전 웹을 받는 경우는 없다 — 웹은 원격 배포라 늘 최신이다).
 - **메인 스레드에서 연다.** Android `@JavascriptInterface`는 JS 스레드에서 불리므로 `postToMain`으로 넘긴다. iOS 메시지 핸들러는 이미 메인이지만 디스패처의 다른 화면 전환과 같은 경로를 탄다.
 - origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
 - 설정 화면을 닫으면 WebView의 그 문서(탭 화면)로 그대로 돌아온다 — 웹은 회신을 기다리지 않으므로 다시 그릴 것이 없다.
+
+### Android 구현 (3단계 완료)
+
+| 자리 | 내용 |
+|---|---|
+| `web/AccenturyBridge.kt` `openSettings()` | `postToMain` → `isCurrentUrlAllowed`면 `onOpenSettings`. `haptic`·`refreshAccessToken`과 같은 꼴 |
+| `web/WebViewHost.kt` | `onOpenSettings` 전달, `onPageStarted(url)`로 현재 문서 URL을 상위에 알림(뒤로가기 판정용) |
+| `MainActivity.kt` `TestFlow(tabBarEntry)` | 로그인 빌드(AuthGate SignedIn)만 `true` — 홈 시작·톱니 제거·탭 뒤로가기. 익명 빌드(AnonymousFlow)는 `false`라 인트로 시작·톱니 유지 |
+| `MainActivity.kt` 설정 화면 | 기존 `onOpenSettings`(settingsOpen = true) 그대로 — SignedIn은 `SettingsScreen`, 익명은 `AnonymousSettingsScreen` |
+| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)` |
+
+**시작 URL 상태.** `home = tabBarEntry && !introRequested && campaignToken == null`. 재응시 성공(`RetestOutcome.Replaced`)이
+`introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다). 앱 링크로 들어오면(`c`가 있으면)
+예전처럼 인트로다. 테스트 진입 URL은 `home`을 보지 않는다. 진입 URL 문자열이 곧 로드라, 이 셋 말고는 홈 ↔ 인트로 리로드가 생기지 않는다.
 
 ### 앱 시작 URL (3·4단계)
 

@@ -42,12 +42,15 @@ data class TestEntry(val testVersion: String, val voiceSet: Int, val sessionId: 
  *   `c`로 딸려 보내 웹이 만드는 첫 세션에 같은 코드가 실리게 한다 — 웹은 진입 쿼리의 `?c=`를
  *   `session/campaign.ts`로 읽고 `navigation/entryUrl.ts`가 화면을 옮겨도 그 값을 보존한다.
  *   앱이 값을 해석하지 않고 그대로 넘기는 자리라, 링크에서 실려 온 유입 경로가 세션까지 이어진다.
+ * @param home 인트로 대신 홈 탭(`screen=home`)으로 연다 (KAN-252). 로그인 빌드의 첫 문서만 켠다 — 재응시·앱 링크처럼
+ *   인트로로 가야 하는 경로는 호출자가 끈다. [testEntry]가 있으면 무시한다: 테스트 진입 URL은 그대로여야 한다
  */
 fun buildWebUrl(
     base: String,
     appVersionName: String,
     testEntry: TestEntry? = null,
     campaignToken: String? = null,
+    home: Boolean = false,
 ): String {
     val separator = if ('?' in base) '&' else '?'
     val query = StringBuilder("bridge=$BRIDGE_CONTRACT_VERSION&app=${encodeQueryValue(appVersionName)}")
@@ -56,11 +59,45 @@ fun buildWebUrl(
         query.append("&testVersion=${encodeQueryValue(testEntry.testVersion)}")
         query.append("&voiceSet=${testEntry.voiceSet}")
         query.append("&sessionId=${encodeQueryValue(testEntry.sessionId)}")
+    } else if (home) {
+        query.append("&screen=$HOME_SCREEN")
     }
     if (campaignToken != null) {
         query.append("&c=${encodeQueryValue(campaignToken)}")
     }
     return "$base$separator$query"
+}
+
+/** 홈 탭의 `screen` 값 (KAN-252). 웹 `TabScreen`의 'home'과 같다. */
+private const val HOME_SCREEN = "home"
+
+/** 뒤로가기가 홈으로 돌리는 탭 화면 (KAN-252). 홈 자신은 빠진다 — 홈에서의 뒤로는 앱 종료다. */
+private val BACK_TO_HOME_SCREENS = setOf("intonation", "words", "translate")
+
+/** 홈 문서로 옮길 때 지우는 레벨테스트 값. 웹 `buildTabUrl`이 지우는 것과 같다. */
+private val TEST_QUERY_KEYS = setOf("sessionId", "testVersion", "voiceSet")
+
+/**
+ * 시스템 뒤로가기의 목적지 (KAN-252, 로그인 빌드). 홈 문서 URL이면 그리로 옮기고, null이면 가로채지 않는다 —
+ * 가로채지 않으면 예전처럼 앱이 닫힌다.
+ *
+ * 홈으로 돌리는 것은 **탭 화면**(억양·단어·번역기)과 **시작을 누르기 전의 인트로**뿐이다. 홈 자신·테스트 진행·결과는
+ * 그대로 앱 종료다 — 테스트 중 시스템 뒤로가기로 응시가 끊기지 않게 한 KAN-191·KAN-147 규칙을 건드리지 않는다.
+ * 인트로는 `screen`이 없는 문서인데, [startRequested]가 서면 시작 게이트(권한·점검·세션)가 진행 중이라 마찬가지로 둔다.
+ *
+ * 목적지는 웹 탭 이동(`buildTabUrl`)과 같은 결과다 — `screen`만 home으로 바꾸고 레벨테스트 값을 지우며 나머지(`bridge`·
+ * `app`·`c`)는 보존한다. 판정을 URL 문자열 → 행동의 순수 함수로 둔 이유는 Compose 밖 JVM에서 표로 검증하려는 것이다.
+ */
+fun webBackTarget(currentUrl: String?, startRequested: Boolean): String? {
+    if (currentUrl == null) return null
+    val withoutFragment = currentUrl.substringBefore('#')
+    val base = withoutFragment.substringBefore('?')
+    val params = withoutFragment.substringAfter('?', "").split('&').filter { it.isNotEmpty() }
+    val screen = params.firstOrNull { it.substringBefore('=') == "screen" }?.substringAfter('=', "")
+    val goHome = if (screen == null) !startRequested else screen in BACK_TO_HOME_SCREENS
+    if (!goHome) return null
+    val kept = params.filter { it.substringBefore('=').let { key -> key != "screen" && key !in TEST_QUERY_KEYS } }
+    return "$base?" + (kept + "screen=$HOME_SCREEN").joinToString("&")
 }
 
 /**
