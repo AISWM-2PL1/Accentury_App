@@ -45,7 +45,7 @@ export type WordLearningView =
   /** fromList: 목록 조회 실패 — 돌아갈 목록이 없으니 재시도 불가여도 [다시 시도]다 */
   | { screen: 'error'; error: WordLearningError; retry: () => void; fromList: boolean }
 
-/** 오류 화면의 출구. 'leave' = [학습 종류로], 'retry' = [다시 시도], 'list' = [세트 목록으로] */
+/** 오류 화면의 출구. 'leave' = 버튼 없이 탭 바(로그인 안내, KAN-252), 'retry' = [다시 시도], 'list' = [세트 목록으로] */
 export type ErrorExit = 'leave' | 'retry' | 'list'
 
 export function isSignInCode(code: string | null): boolean {

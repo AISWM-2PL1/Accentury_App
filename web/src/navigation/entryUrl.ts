@@ -51,37 +51,18 @@ export function buildResultUrl(search: string, sessionId: string): string {
   return toQuery(params)
 }
 
-/**
- * 단어 학습 (`?screen=words`, KAN-255). 세트·시도 id는 URL에 싣지 않는다 — 학습 화면 안의
- * 이동은 화면 상태로 한다. 레벨테스트의 `sessionId`·`testVersion`·`voiceSet`은 지운다: 단어
- * 학습은 계정 API라 그 값을 읽지 않고, 남겨 두면 끝난 세션을 물고 다닌다 ([buildResultUrl]과 같은 이유).
- */
-export function buildWordsUrl(search: string): string {
-  const params = new URLSearchParams(search)
-  params.set('screen', 'words')
-  params.delete('sessionId')
-  params.delete('testVersion')
-  params.delete('voiceSet')
-  return toQuery(params)
-}
-
-/** 억양 학습 (`?screen=intonation`, KAN-253). 남기고 지우는 규칙은 [buildWordsUrl]과 같다 */
-export function buildIntonationUrl(search: string): string {
-  const params = new URLSearchParams(search)
-  params.set('screen', 'intonation')
-  params.delete('sessionId')
-  params.delete('testVersion')
-  params.delete('voiceSet')
-  return toQuery(params)
-}
+/** 하단 탭 바의 탭 네 곳 (KAN-252). [설정]은 네이티브 화면이라 URL이 없다 */
+export type TabScreen = 'home' | 'intonation' | 'words' | 'translate'
 
 /**
- * 학습 종류 선택 L-1 (`?screen=learn`, KAN-252). 앱 홈의 [학습] 카드와 A-1·W-1의 [학습 종류로]가 오는 자리다.
- * 남기고 지우는 규칙은 [buildWordsUrl]과 같다 — L-1에서 고르면 곧장 그 두 화면으로 넘어가기 때문이다
+ * 탭 화면 (`?screen=home|intonation|words|translate`, KAN-252). 단어 학습(KAN-255)·억양 학습(KAN-253) 진입도
+ * 이것이다. 학습 화면 안의 이동(세트·코스·시도 id)은 URL에 싣지 않는다 — 화면 상태로 한다.
+ * 레벨테스트의 `sessionId`·`testVersion`·`voiceSet`은 지운다: 탭 화면은 그 값을 읽지 않고, 남겨 두면 끝난
+ * 세션을 물고 다닌다 ([buildResultUrl]과 같은 이유).
  */
-export function buildLearnUrl(search: string): string {
+export function buildTabUrl(search: string, screen: TabScreen): string {
   const params = new URLSearchParams(search)
-  params.set('screen', 'learn')
+  params.set('screen', screen)
   params.delete('sessionId')
   params.delete('testVersion')
   params.delete('voiceSet')

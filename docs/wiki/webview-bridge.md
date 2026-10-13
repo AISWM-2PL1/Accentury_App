@@ -56,6 +56,7 @@
 | `getAccessToken(): string` | KAN-255 | 계정 Access 토큰. 단어 학습 API(`/v0/learning/word-*`)의 `Authorization`에 싣는다. 동기 반환. 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열 (§11). Android: `AccenturyBridge.getAccessToken` ← `MainActivity` TestFlow의 `currentAccessToken()`. iOS: `BridgeUserScript`의 문서 변수 `accessToken` ← `WebViewCoordinator.pushAccessToken` ← `TestFlowView`의 `readAccessToken` | 빈 값은 `null`로 정규화 → 네트워크 전에 `CLIENT_NOT_SIGNED_IN` |
 | `refreshAccessToken()` | KAN-255 | 계정 토큰 갱신 요청. **fire-and-forget** — 결과는 `onAccessTokenRefreshed`로 온다 (§11). Android: `AccenturyBridge.refreshAccessToken` → `MainActivity` TestFlow의 `refreshAccessToken()`. iOS: `BridgeDispatcher` `case "refreshAccessToken"` → `WebViewCoordinator.refreshAccessTokenForWeb` → `TestFlowView`의 `refreshAccessToken` | 래퍼 `refreshAccessToken()`이 즉시 false → `UNAUTHENTICATED` |
 | `startIntonationRecording(payloadJson)` | KAN-253 | 억양 학습 카드 진입(코스 열기·[다음 카드] 직후 웹이 자동 1회)과 일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면(A-3). payload = `{cardId, prompt, standard, maxDurationMs, guideF0, itemNumber, totalItems}`. 업로드까지 네이티브가 하고 성공하면 `onIntonationRecorded`로 회신 (§12) | 래퍼 false — 자동 호출은 조용히 넘어가고 A-2가 그대로 보인다. 웹은 `canStartIntonationRecording()`이 false면 [다시 말해 보기]를 비활성으로 그리고 「앱에서 녹음할 수 있어요」 — 웹 녹음기 폴백 없음 |
+| `openSettings()` | KAN-252 | 하단 탭 바의 [설정] → 네이티브의 기존 설정 화면을 띄운다. **인자도 반환도 회신도 없다** (§13) | 래퍼 false. 웹은 `canOpenSettings()`가 false면 [설정] 탭을 그리지 않는다 — 구버전 앱은 WebView 위 톱니가 그대로 남아 있다 |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
@@ -228,6 +229,8 @@ iOS의 계정 Access 토큰(`getAccessToken`, KAN-255)도 세션 토큰·광고 
 | 7 | 이 문서 §2 표 |
 
 KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android(2·3, 4단계)·iOS(4~6, 5단계) 완료 (§11).
+
+KAN-252는 웹 쪽 1·7·테스트를 2단계에서 끝냈고, Android 2·3과 iOS 4~6이 3·4단계다 (§13).
 
 KAN-253은 웹 쪽 1·7을 1단계, Android 2·3을 2단계, iOS 4~6을 3단계에서 끝냈다. 메서드가 녹음 화면을 띄우는 종류라
 Android는 표의 2·3 말고도 손대는 곳이 있다 — `bridge/IntonationRecordingStart.kt`(payload 파서) ·
@@ -516,7 +519,7 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
 1. 첫 토큰은 `waitForAccessToken()`으로 읽는다 — 바로 null이어도 **앱 실행(`getAccessToken` 메서드가
    있음)일 때만** 100ms 간격으로 최대 2초 다시 읽는다(KAN-255 리뷰 P0, 아래 「네이티브가 지킬 것」).
    그래도 null이면 네트워크 전에 `CLIENT_NOT_SIGNED_IN`(retryable false). 화면은
-   「로그인하면 단어 학습을 할 수 있어요」 + [학습 종류로]를 보인다(3단계). 브라우저 단독·구버전 앱은 기다리지 않는다.
+   「로그인하면 단어 학습을 할 수 있어요」 + 하단 탭 바를 보인다(3단계, 출구는 KAN-252에서 [학습 종류로] → 탭 바). 브라우저 단독·구버전 앱은 기다리지 않는다.
 2. 401이면 `refreshAccessToken()`을 **한 번** 부른다. 결과가 true면 `getAccessToken()`을 (기다리지 않고) 다시 읽어
    같은 요청(같은 멱등 키·같은 본문)을 한 번 재시도한다.
 3. 갱신 false·다시 읽은 토큰이 null·재시도도 401이면 `UNAUTHENTICATED`(retryable false).
@@ -664,3 +667,35 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | [내 녹음 듣기] | `AVAudioPlayer(data:fileTypeHint: .wav)`로 메모리 WAV를 재생(파일 URL 없음 — FR-DP-02). 녹음 세션이 `.record`라 재생 직전 `.playback`으로 바꾸고 정지 때 비활성화한다(다음 녹음은 `AudioRecorder`가 `.record`로 다시 잡는다). 재생 중 다시 누르면 정지. [재녹음]·확인 단계 이탈·[다음]·화면 이탈 때 정지 |
 | 백그라운드·로그아웃 | 앱이 `.background`로 가면 학습 녹음도 `reset()`(마이크 해제, 레벨테스트와 같은 규칙). `TestFlowView`가 사라지면(로그아웃) `close()`·녹음 `reset()` |
 | `LOGIN_ENABLED=false` | `startIntonationRecording`을 버린다 — 업로드 클라이언트(`AuthHub`)는 첫 업로드 때만 만들어 그 빌드에서는 깨우지 않는다 |
+
+## 13. 설정 열기 (KAN-252)
+
+계약 버전은 2 그대로다 — 메서드 하나(`openSettings`)를 **추가**만 했다(§1). 웹 쪽은 2단계 완료
+(`web/src/bridge/bridge.ts`, `web/src/ui/TabBar.tsx`), 네이티브는 3단계 Android · 4단계 iOS.
+
+2026-10-13 사용자 결정으로 앱 진입이 **웹이 그리는 하단 탭 바 5칸**(홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정)으로
+바뀌었다(ux-ui.md 「앱 진입 구조 — 하단 탭 바」). 앞 넷은 웹 화면이라 URL로 옮기고, 설정만 네이티브 화면이라 이 메서드로 연다.
+
+### web → native: `openSettings()`
+
+| 항목 | 내용 |
+|---|---|
+| 시그니처 | `openSettings(): void` — 인자 없음, 반환 없음, `AccenturyWeb` 회신 없음 |
+| 호출 시점 | 탭 바의 [설정]을 누를 때 한 번. 웹은 문서를 옮기지 않는다 |
+| 존재 판정 | 웹 `canOpenSettings()` = `typeof window.AccenturyBridge?.openSettings === 'function'`. false면 [설정] 탭 자체를 그리지 않는다(`canStartIntonationRecording`과 같은 패턴). 래퍼 `openSettings()`는 메서드가 없으면 false |
+
+### 네이티브가 지킬 것 (3단계 Android · 4단계 iOS)
+
+- **기존 설정 화면 오버레이를 재사용한다.** 지금 WebView 위 톱니가 여는 그 화면(계정·로그아웃·약관 등)을 그대로 띄운다. 새 화면을 만들지 않는다.
+- **WebView 위 톱니를 걷는다.** 설정으로 가는 길은 탭 바 하나로 모은다 — 둘 다 있으면 같은 곳으로 가는 버튼이 두 개다. 단 이 메서드를 구현한 빌드에서만 걷는다(구버전 웹을 받는 경우는 없다 — 웹은 원격 배포라 늘 최신이다).
+- **메인 스레드에서 연다.** Android `@JavascriptInterface`는 JS 스레드에서 불리므로 `postToMain`으로 넘긴다. iOS 메시지 핸들러는 이미 메인이지만 디스패처의 다른 화면 전환과 같은 경로를 탄다.
+- origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
+- 설정 화면을 닫으면 WebView의 그 문서(탭 화면)로 그대로 돌아온다 — 웹은 회신을 기다리지 않으므로 다시 그릴 것이 없다.
+
+### 앱 시작 URL (3·4단계)
+
+앱은 WebView를 **`?bridge=<보유 버전>&app=<앱 버전>&screen=home`**으로 연다(지금은 `screen` 없이 인트로). 탭 이동은 웹이
+`location.href` 대입으로 문서를 다시 로드하므로 **WebView 히스토리가 탭마다 한 칸씩 쌓인다.** 시스템 뒤로가기를 WebView
+`goBack()`에 물리면 직전 탭 문서로 돌아가고, 홈에서 한 번 더 누르면 앱을 나가는 쪽이 자연스럽다 — 이 처리(히스토리를 탈지,
+탭 화면에서는 바로 종료할지)는 네이티브 결정이다.
+

@@ -141,10 +141,12 @@ describe('useWordLearning', () => {
 
 function renderRoute(routes: Record<string, Reply | Reply[]>, token: string | null = 'acc') {
   const server = fakeServer(routes)
-  const onLeave = vi.fn()
-  render(<WordLearningRoute apiBase="http://api" onLeave={onLeave} deps={deps(server.fetchImpl, token)} />)
-  return { ...server, onLeave }
+  // 탭 바 자리 표시 — 어느 단계에서 그려지는지만 본다 (탭 바 자체는 `ui/TabBar.test.tsx`)
+  render(<WordLearningRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl, token)} />)
+  return server
 }
+
+const tabBar = () => screen.queryByRole('navigation', { name: '탭 바' })
 
 describe('WordLearningRoute', () => {
   it('W-1은 레벨별로 묶고 첫 세트만 추천으로 강조하며, 행은 버튼이다', async () => {
@@ -156,6 +158,19 @@ describe('WordLearningRoute', () => {
     expect(first).toHaveClass('word-set-row--recommended')
     const second = within(screen.getByRole('region', { name: '레벨 2' })).getByRole('button', { name: /인사말/ })
     expect(second).not.toHaveTextContent('추천')
+  })
+
+  it('탭 바는 W-1 목록에서만 서고, 카드·문항에 들어가면 사라진다 (KAN-252, KAN-147)', async () => {
+    renderRoute(happyRoutes())
+    const row = await screen.findByRole('button', { name: /먹을 것/ })
+    expect(tabBar()).not.toBeNull()
+    fireEvent.click(row)
+    expect(await screen.findByText('정구지')).toBeInTheDocument()
+    expect(tabBar()).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '다음 카드' }))
+    fireEvent.click(screen.getByRole('button', { name: '문제 풀기' }))
+    expect(await screen.findByRole('radiogroup', { name: '부추를 사투리로?' })).toBeInTheDocument()
+    expect(tabBar()).toBeNull()
   })
 
   it('W-2는 표준어와 사투리를 보이고 마지막 카드에서만 [문제 풀기]다', async () => {
@@ -173,16 +188,17 @@ describe('WordLearningRoute', () => {
   it('목록 실패면 [다시 시도]가 목록을 다시 부른다', async () => {
     const { calls } = renderRoute({ '/word-sets': ['network', ok(SETS)] })
     expect(await screen.findByRole('alert')).toHaveTextContent('네트워크 오류')
+    expect(tabBar()).toBeNull() // 막다른 곳엔 유일한 버튼 (KAN-191)
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     expect(await screen.findByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
     expect(calls).toHaveLength(2)
   })
 
-  it('빈 목록이면 안내와 [학습 종류로]만 있다', async () => {
-    const { onLeave } = renderRoute({ '/word-sets': ok({ contentVersion: 'v1', sets: [] }) })
+  it('빈 목록이면 안내와 탭 바만 있다 — 탭 바가 출구다 (KAN-252)', async () => {
+    renderRoute({ '/word-sets': ok({ contentVersion: 'v1', sets: [] }) })
     expect(await screen.findByText('아직 준비 중인 세트예요')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '학습 종류로' }))
-    expect(onLeave).toHaveBeenCalledTimes(1)
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    expect(tabBar()).not.toBeNull()
   })
 
   it('카드 로드 실패면 [다시 시도]가 같은 세트를 다시 부른다', async () => {
@@ -201,11 +217,11 @@ describe('WordLearningRoute', () => {
     expect(await screen.findByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
   })
 
-  it('CLIENT_NOT_SIGNED_IN이면 로그인 안내와 [학습 종류로]다 (네트워크 없이)', async () => {
-    const { onLeave, calls } = renderRoute(happyRoutes(), null)
+  it('CLIENT_NOT_SIGNED_IN이면 로그인 안내와 탭 바다 (네트워크 없이)', async () => {
+    const { calls } = renderRoute(happyRoutes(), null)
     expect(await screen.findByRole('alert')).toHaveTextContent('로그인하면 단어 학습을 할 수 있어요')
-    fireEvent.click(screen.getByRole('button', { name: '학습 종류로' }))
-    expect(onLeave).toHaveBeenCalledTimes(1)
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    expect(tabBar()).not.toBeNull()
     expect(calls).toHaveLength(0)
   })
 
@@ -215,17 +231,17 @@ describe('WordLearningRoute', () => {
     setTimeout(() => (token = 'acc-late'), 300)
     const server = fakeServer(happyRoutes())
     // getToken을 주입하지 않는다 — 기본 공급(브리지 대기)을 타야 한다
-    render(<WordLearningRoute apiBase="http://api" onLeave={vi.fn()} deps={{ fetchImpl: server.fetchImpl, refreshToken: async () => false }} />)
+    render(<WordLearningRoute apiBase="http://api" deps={{ fetchImpl: server.fetchImpl, refreshToken: async () => false }} />)
 
     expect(await screen.findByRole('button', { name: /먹을 것/ }, { timeout: 2_000 })).toBeInTheDocument()
     expect(screen.queryByText('로그인하면 단어 학습을 할 수 있어요')).toBeNull()
     expect(server.calls[0].headers.Authorization).toBe('Bearer acc-late')
   })
 
-  it('UNAUTHENTICATED면 오류 문구 그대로와 [학습 종류로]다', async () => {
+  it('UNAUTHENTICATED면 오류 문구 그대로와 탭 바다', async () => {
     renderRoute({ '/word-sets': { status: 401, body: {} } })
     expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 만료됐어요. 다시 로그인해 주세요')
-    expect(screen.getByRole('button', { name: '학습 종류로' })).toBeInTheDocument()
+    expect(tabBar()).not.toBeNull()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
   })
 
@@ -298,7 +314,8 @@ describe('WordLearningRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: '문제 풀기' }))
     fireEvent.click(await screen.findByRole('radio', { name: '정구지' }))
     fireEvent.click(screen.getByRole('button', { name: '제출' }))
-    expect(await screen.findByRole('button', { name: '학습 종류로' })).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 만료됐어요. 다시 로그인해 주세요')
+    expect(tabBar()).not.toBeNull()
   })
 })
 

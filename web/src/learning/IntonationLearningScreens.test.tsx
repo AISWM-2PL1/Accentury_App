@@ -70,11 +70,12 @@ function deps(fetchImpl: FetchLike, token: string | null = 'acc'): WordApiDeps {
 }
 
 function renderRoute(routes: Record<string, Reply | Reply[]>, token: string | null = 'acc', strict = false) {
-  const onLeave = vi.fn()
-  const route = <IntonationLearningRoute apiBase="http://api" onLeave={onLeave} deps={deps(fakeServer(routes), token)} />
+  // 탭 바 자리 표시 — 어느 단계에서 그려지는지만 본다 (탭 바 자체는 `ui/TabBar.test.tsx`)
+  const route = <IntonationLearningRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(fakeServer(routes), token)} />
   render(strict ? <StrictMode>{route}</StrictMode> : route)
-  return { onLeave }
 }
+
+const tabBar = () => screen.queryByRole('navigation', { name: '탭 바' })
 
 /** 화면 안의 버튼 이름 목록 — 출구가 정확히 하나인지 볼 때 쓴다 */
 const buttonNames = () => screen.queryAllByRole('button').map((b) => b.textContent)
@@ -97,9 +98,10 @@ afterEach(() => {
 
 describe('A-1 코스 목록', () => {
   it('로딩 중엔 버튼이 없다', () => {
-    render(<IntonationLearningRoute apiBase="http://api" onLeave={vi.fn()} deps={deps(() => new Promise(() => {}))} />)
+    render(<IntonationLearningRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(() => new Promise(() => {}))} />)
     expect(screen.getByText('불러오는 중이에요')).toBeInTheDocument()
     expect(buttonNames()).toEqual([])
+    expect(tabBar()).toBeNull()
   })
 
   it('레벨별로 묶고 추천은 1개만 강조, 완료 표시는 가볍게', async () => {
@@ -115,6 +117,14 @@ describe('A-1 코스 목록', () => {
     expect(recommended[0]).toHaveTextContent('인사')
     expect(screen.getByRole('button', { name: /코스 k1/ })).toHaveTextContent('0/2장')
     expect(screen.getByRole('button', { name: /코스 k2/ })).toHaveTextContent('완료')
+    expect(tabBar()).not.toBeNull()
+  })
+
+  it('탭 바는 A-1 목록에서만 서고, 코스를 열어 카드(A-2)에 들어가면 사라진다 (KAN-252, KAN-147)', async () => {
+    renderRoute({ '/intonation-courses': ok(LIST), '/intonation-courses/k1': ok(COURSE) })
+    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
+    expect(await screen.findByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
+    expect(tabBar()).toBeNull()
   })
 
   it('추천이 없으면 아무것도 강조하지 않는다 (임시 첫 코스 추천을 쓰지 않는다)', async () => {
@@ -123,34 +133,34 @@ describe('A-1 코스 목록', () => {
     expect(document.querySelectorAll('.word-set-row--recommended')).toHaveLength(0)
   })
 
-  it('빈 목록 → 「아직 준비 중인 코스예요」 + [학습 종류로] 하나', async () => {
-    const { onLeave } = renderRoute({ '/intonation-courses': ok({ contentVersion: 'v1', courses: [] }) })
+  it('빈 목록 → 「아직 준비 중인 코스예요」 + 탭 바, 화면 버튼은 없다 (KAN-252)', async () => {
+    renderRoute({ '/intonation-courses': ok({ contentVersion: 'v1', courses: [] }) })
     expect(await screen.findByText('아직 준비 중인 코스예요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['학습 종류로'])
-    fireEvent.click(screen.getByRole('button', { name: '학습 종류로' }))
-    expect(onLeave).toHaveBeenCalledTimes(1)
+    expect(buttonNames()).toEqual([])
+    expect(tabBar()).not.toBeNull()
   })
 
   it('목록 실패 → [다시 시도] 하나, 누르면 다시 받는다', async () => {
     renderRoute({ '/intonation-courses': [fail(500, 'INTERNAL', '잠시 후 다시 시도해 주세요', false), ok(LIST)] })
     expect(await screen.findByText('잠시 후 다시 시도해 주세요')).toBeInTheDocument()
     expect(buttonNames()).toEqual(['다시 시도'])
+    expect(tabBar()).toBeNull() // 막다른 곳엔 유일한 버튼 (KAN-191)
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
   })
 
-  it('로그인 없음(CLIENT_NOT_SIGNED_IN) → 안내 + [학습 종류로] 하나', async () => {
-    const { onLeave } = renderRoute({ '/intonation-courses': ok(LIST) }, null)
+  it('로그인 없음(CLIENT_NOT_SIGNED_IN) → 안내 + 탭 바가 출구 (KAN-252)', async () => {
+    renderRoute({ '/intonation-courses': ok(LIST) }, null)
     expect(await screen.findByText('로그인하면 억양 학습을 할 수 있어요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['학습 종류로'])
-    fireEvent.click(screen.getByRole('button', { name: '학습 종류로' }))
-    expect(onLeave).toHaveBeenCalledTimes(1)
+    expect(buttonNames()).toEqual([])
+    expect(tabBar()).not.toBeNull()
   })
 
-  it('UNAUTHENTICATED(갱신 실패) → 문구 그대로 + [학습 종류로] 하나', async () => {
+  it('UNAUTHENTICATED(갱신 실패) → 문구 그대로 + 탭 바', async () => {
     renderRoute({ '/intonation-courses': { status: 401, body: {} } })
     expect(await screen.findByText('로그인이 만료됐어요. 다시 로그인해 주세요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['학습 종류로'])
+    expect(buttonNames()).toEqual([])
+    expect(tabBar()).not.toBeNull()
   })
 })
 
@@ -360,7 +370,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
       if (path.endsWith('/intonation-courses')) listCalls()
       return hold?.(path) ?? server(input, init)
     }
-    const view = render(<IntonationLearningRoute apiBase="http://api" onLeave={vi.fn()} deps={deps(fetchImpl)} />)
+    const view = render(<IntonationLearningRoute apiBase="http://api" deps={deps(fetchImpl)} />)
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: /코스 k1/ }))
     await act(async () => {})

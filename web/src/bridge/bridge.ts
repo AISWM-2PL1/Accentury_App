@@ -137,6 +137,12 @@ export interface AccenturyBridge {
    * [getSessionToken]과 같은 이유로 optional이다
    */
   startIntonationRecording?(payloadJson: string): void
+  /**
+   * 하단 탭 바의 [설정] → 네이티브가 기존 설정 화면을 띄운다 (KAN-252). 인자도 회신도 없다 — 설정은 네이티브
+   * 화면이라 웹이 알 결과가 없다. 웹은 메서드 유무로 탭을 그릴지 가른다([canOpenSettings]). [getSessionToken]과
+   * 같은 이유로 optional이다
+   */
+  openSettings?(): void
 }
 
 /**
@@ -305,6 +311,8 @@ declare global {
  *
  * KAN-253의 `startIntonationRecording`·`onIntonationRecorded`도 추가라 2를 유지한다. 모르는 앱에서는 [다시 말해 보기]가 비활성이다.
  * 같은 티켓 5단계의 payload `itemNumber`·`totalItems`도 릴리스 전 계약에 넣은 필드라 2를 유지한다.
+ *
+ * KAN-252의 `openSettings`도 추가라 2를 유지한다. 모르는 앱에서는 탭 바에 [설정] 탭이 없다 — 앱의 기존 톱니가 그대로 남아 있다.
  */
 export const REQUIRED_BRIDGE_VERSION = 2
 
@@ -662,6 +670,24 @@ export function startIntonationRecording(start: IntonationRecordingStart): boole
  */
 export function canStartIntonationRecording(): boolean {
   return typeof window.AccenturyBridge?.startIntonationRecording === 'function'
+}
+
+/**
+ * 네이티브 설정 화면을 연다 (KAN-252). 반환 규칙은 [showInterstitialAd]와 같다 — 메서드가 없으면 false.
+ */
+export function openSettings(): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.openSettings !== 'function') return false
+  bridge.openSettings()
+  return true
+}
+
+/**
+ * [openSettings]를 부를 수 있는 실행인가. 탭 바가 [설정] 탭을 그릴지 정한다 — 누르면 아무 일도 없는 탭을
+ * 세우지 않으려고 미리 본다 ([canStartIntonationRecording]과 같은 판정).
+ */
+export function canOpenSettings(): boolean {
+  return typeof window.AccenturyBridge?.openSettings === 'function'
 }
 
 /**
