@@ -60,6 +60,8 @@ import com.accentury.app.ui.components.Haptic
  *   `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (webview-bridge.md §11)
  * @param onStartIntonationRecording 억양 학습 녹음 호출(카드 진입 자동·[다시 말해 보기]) (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·
  *   `onIntonationRecorded` 회신은 창구 너머가 한다 (webview-bridge.md §12). 기본값은 학습을 모르는 테스트 하네스용이다
+ * @param onOpenSettings 탭 바의 [설정] (KAN-252). 어느 설정 화면을 덮을지는 창구 너머(AuthGate·AnonymousFlow)가
+ *   정한다 (webview-bridge.md §13). 기본값은 [onStartIntonationRecording]과 같은 이유다
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -80,6 +82,7 @@ class AccenturyBridge(
     private val accessToken: () -> String,
     private val onRefreshAccessToken: () -> Unit,
     private val onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
+    private val onOpenSettings: () -> Unit = {},
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -360,6 +363,17 @@ class AccenturyBridge(
                 return@postToMain
             }
             onStartIntonationRecording(start)
+        }
+    }
+
+    /**
+     * 탭 바의 [설정] → 네이티브 설정 화면 (KAN-252, §13). 인자·반환·회신이 없다 — 웹은 문서를 옮기지 않고 기다리지도
+     * 않는다. 화면을 띄우는 호출이라 [haptic]과 같은 꼴로 메인 스레드에 넘긴 뒤 그 시점의 origin으로 판정한다(§5).
+     */
+    @JavascriptInterface
+    fun openSettings() {
+        postToMain {
+            if (isCurrentUrlAllowed()) onOpenSettings()
         }
     }
 }
