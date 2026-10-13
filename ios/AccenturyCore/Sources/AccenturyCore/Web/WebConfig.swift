@@ -53,12 +53,16 @@ public struct TestEntry: Equatable, Sendable {
 ///   쿼리의 `?c=`를 `session/campaign.ts`로 읽고 `navigation/entryUrl.ts`가 화면을 옮겨도 그
 ///   값을 보존한다. 앱이 값을 해석하지 않고 그대로 넘기는 자리라, 링크에서 실려 온 유입 경로가
 ///   세션까지 이어진다.
+/// - Parameter home: 인트로 대신 홈 탭(`screen=home`)으로 연다 (KAN-252). 로그인 빌드의 첫 문서만 켠다 — 재응시·앱 링크처럼
+///   인트로로 가야 하는 경로는 호출자가 끈다. `testEntry`가 있으면 무시한다: 테스트 진입 URL은 그대로여야 한다.
+///   안드로이드 `buildWebUrl(home =)`의 이식본이다
 public func buildWebUrl(
     base: String,
     appVersionName: String,
     testEntry: TestEntry? = nil,
     bridgeVersion: Int = bridgeContractVersion,
-    campaignToken: String? = nil
+    campaignToken: String? = nil,
+    home: Bool = false
 ) -> String {
     let separator: Character = base.contains("?") ? "&" : "?"
     var query = "bridge=\(bridgeVersion)&app=\(encodeQueryValue(appVersionName))"
@@ -67,11 +71,81 @@ public func buildWebUrl(
         query += "&testVersion=\(encodeQueryValue(testEntry.testVersion))"
         query += "&voiceSet=\(testEntry.voiceSet)"
         query += "&sessionId=\(encodeQueryValue(testEntry.sessionId))"
+    } else if home {
+        query += "&screen=\(homeScreen)"
     }
     if let campaignToken {
         query += "&c=\(encodeQueryValue(campaignToken))"
     }
     return "\(base)\(separator)\(query)"
+}
+
+/// 홈 탭의 `screen` 값 (KAN-252). 웹 `TabScreen`의 'home'과 같다.
+private let homeScreen = "home"
+
+/// 뒤로가기가 홈으로 돌리는 탭 화면 (KAN-252). 홈 자신은 빠진다 — 홈에서의 뒤로는 아무 일도 없다.
+private let backToHomeScreens: Set<Substring> = ["intonation", "words", "translate"]
+
+/// 홈 문서로 옮길 때 지우는 레벨테스트 값. 웹 `buildTabUrl`이 지우는 것과 같다.
+private let testQueryKeys: Set<Substring> = ["sessionId", "testVersion", "voiceSet"]
+
+/// 뒤로가기의 목적지 (KAN-252, 로그인 빌드). 홈 문서 URL이면 그리로 옮기고, nil이면 아무것도 하지 않는다.
+/// 안드로이드 `webBackTarget`의 이식본이다 — 판정 표가 같아야 두 앱의 뒤로가 같은 곳으로 간다.
+///
+/// iOS에는 시스템 뒤로 버튼이 없어 화면 왼쪽 가장자리 스와이프가 이 판정을 부른다(`TestFlowView`). 안드로이드에서 null이
+/// "가로채지 않아 앱이 닫힌다"인 자리가 여기서는 "스와이프를 무시한다"다.
+///
+/// 홈으로 돌리는 것은 **탭 화면**(억양·단어·번역기)과 **시작을 누르기 전의 인트로**뿐이다. 홈 자신·테스트 진행·결과는
+/// 그대로 둔다 — 테스트 중 뒤로가기로 응시가 끊기지 않게 한 KAN-191·KAN-147 규칙을 건드리지 않는다.
+/// 인트로는 `screen`이 없는 문서인데, `startRequested`가 서면 시작 게이트(권한·점검·세션)가 진행 중이라 마찬가지로 둔다.
+///
+/// 목적지는 웹 탭 이동(`buildTabUrl`)과 같은 결과다 — `screen`만 home으로 바꾸고 레벨테스트 값을 지우며 나머지(`bridge`·
+/// `app`·`c`)는 보존한다. 판정을 URL 문자열 → 행동의 순수 함수로 둔 이유는 WebKit 없이 표로 검증하려는 것이다.
+public func webBackTarget(currentUrl: String?, startRequested: Bool) -> String? {
+    guard let currentUrl else { return nil }
+    let (base, params) = splitDocumentUrl(currentUrl)
+    let goHome: Bool
+    if let screen = screenParam(params) {
+        goHome = backToHomeScreens.contains(screen)
+    } else {
+        goHome = !startRequested
+    }
+    guard goHome else { return nil }
+    let kept = params.filter { param in
+        let key = queryKey(param)
+        return key != "screen" && !testQueryKeys.contains(key)
+    }
+    return "\(base)?" + (kept.map(String.init) + ["screen=\(homeScreen)"]).joined(separator: "&")
+}
+
+/// 로그인 빌드에서 WebView 위 설정 톱니를 세울 문서인가 (KAN-252, 2026-10-13 사용자 결정). 안드로이드 `showsSettingsGear`의
+/// 이식본이다. 레벨 테스트 웹 화면 — 인트로(`screen` 없음)와 진행(`screen=test`) — 만 true다. 이 화면들엔 탭 바가 없어
+/// 설정으로 갈 길이 톱니뿐이다. 탭 화면(home·intonation·words·translate)과 결과(`screen=result`)는 탭 바의 [설정]이 있어 false다.
+/// 문서를 아직 모르면(nil) false — 로그인 빌드의 첫 문서는 홈이라 톱니가 없는 쪽이 맞다.
+/// 녹음 오버레이·시작 게이트처럼 네이티브가 WebView를 덮는 경우는 URL로 알 수 없어 호출자(`TestFlowView`)가 따로 거른다.
+public func showsSettingsGear(_ currentUrl: String?) -> Bool {
+    guard let currentUrl else { return false }
+    let screen = screenParam(splitDocumentUrl(currentUrl).params)
+    return screen == nil || screen == "test"
+}
+
+/// 문서 URL을 fragment를 뗀 뒤 `?` 앞(base)과 `&`로 나눈 쿼리 조각으로 가른다. 빈 조각은 버린다(안드로이드와 같다).
+private func splitDocumentUrl(_ url: String) -> (base: Substring, params: [Substring]) {
+    let document = url.prefix { $0 != "#" }
+    guard let mark = document.firstIndex(of: "?") else { return (document, []) }
+    return (document[..<mark], document[document.index(after: mark)...].split(separator: "&"))
+}
+
+/// 쿼리 조각의 키(`=` 앞).
+private func queryKey(_ param: Substring) -> Substring {
+    param.prefix { $0 != "=" }
+}
+
+/// 첫 `screen` 조각의 값. 없으면 nil, `=`가 없으면 빈 값이다(안드로이드 `substringAfter('=', "")`와 같다).
+private func screenParam(_ params: [Substring]) -> Substring? {
+    guard let param = params.first(where: { queryKey($0) == "screen" }) else { return nil }
+    guard let equals = param.firstIndex(of: "=") else { return "" }
+    return param[param.index(after: equals)...]
 }
 
 /// 값에 든 `&`·`=`·공백이 쿼리 구조를 깨뜨리지 않게 한다. 앱 버전은 물론 서버가 발급하는

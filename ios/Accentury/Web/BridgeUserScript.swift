@@ -155,7 +155,8 @@ enum BridgeUserScript {
             haptic: function(t){ post("haptic", String(t)); },
             getAccessToken: function(){ return accessToken; },
             refreshAccessToken: function(){ post("refreshAccessToken"); },
-            startIntonationRecording: function(json){ post("startIntonationRecording", String(json)); }
+            startIntonationRecording: function(json){ post("startIntonationRecording", String(json)); },
+            openSettings: function(){ post("openSettings"); }
           });
         })();
         """
