@@ -101,6 +101,20 @@ fun webBackTarget(currentUrl: String?, startRequested: Boolean): String? {
 }
 
 /**
+ * 로그인 빌드에서 WebView 위 설정 톱니를 세울 문서인가 (KAN-252, 2026-10-13 사용자 결정). 레벨 테스트 웹 화면 —
+ * 인트로(`screen` 없음)와 진행(`screen=test`) — 만 true다. 이 화면들엔 탭 바가 없어 설정으로 갈 길이 톱니뿐이다.
+ * 탭 화면(home·intonation·words·translate)과 결과(`screen=result`)는 탭 바의 [설정]이 있어 false다.
+ * 문서를 아직 모르면(null) false — 로그인 빌드의 첫 문서는 홈이라 톱니가 없는 쪽이 맞다.
+ * 녹음 오버레이·시작 게이트처럼 네이티브가 WebView를 덮는 경우는 URL로 알 수 없어 호출자(`TestFlow`)가 따로 거른다.
+ */
+fun showsSettingsGear(currentUrl: String?): Boolean {
+    if (currentUrl == null) return false
+    val params = currentUrl.substringBefore('#').substringAfter('?', "").split('&')
+    val screen = params.firstOrNull { it.substringBefore('=') == "screen" }?.substringAfter('=', "")
+    return screen == null || screen == "test"
+}
+
+/**
  * 값에 든 `&`·`=`·공백이 쿼리 구조를 깨뜨리지 않게 한다. 앱 버전은 물론 서버가 발급하는
  * testVersion·sessionId도 형식을 앱이 정하지 않으므로 전부 거쳐 간다.
  */

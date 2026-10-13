@@ -143,6 +143,7 @@ import com.accentury.app.web.WebViewHost
 import com.accentury.app.web.appLinkOrigins
 import com.accentury.app.web.buildWebUrl
 import com.accentury.app.web.parseAppLink
+import com.accentury.app.web.showsSettingsGear
 import com.accentury.app.web.webBackTarget
 import com.accentury.app.web.webOrigin
 import java.util.concurrent.atomic.AtomicReference
@@ -430,7 +431,8 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
  * @param onOpenSettings 웹 위 톱니나 탭 바의 [설정](브리지 `openSettings`, KAN-252)을 눌렀다 — 설정 화면은 호출자가
  *   이 위에 덮는다 (KAN-247)
  * @param tabBarEntry 웹 하단 탭 바로 들어가는 빌드인가 (KAN-252, 로그인 빌드). 켜면 첫 문서가 홈(`screen=home`)이고,
- *   톱니를 그리지 않으며(설정은 탭 바가 연다), 탭 화면·시작 전 인트로의 시스템 뒤로가기가 홈으로 간다([webBackTarget]).
+ *   톱니는 레벨 테스트 웹 화면(인트로·진행)에만 세우며([showsSettingsGear], 나머지는 탭 바가 설정을 연다),
+ *   탭 화면·시작 전 인트로의 시스템 뒤로가기가 홈으로 간다([webBackTarget]).
  *   끄면(익명 빌드) 예전 그대로 인트로 시작·톱니·뒤로 = 앱 종료다
  */
 @Composable
@@ -571,7 +573,7 @@ private fun TestFlow(
     // 결과를 웹에 넣으려면 evaluateJavascript를 부를 인스턴스가 필요하다.
     // 로드 실패 화면·재시도 구간에는 WebView가 아예 없으므로 nullable이다.
     var webView by remember { mutableStateOf<WebView?>(null) }
-    // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
+    // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
     var webUrl by remember { mutableStateOf<String?>(null) }
 
     /*
@@ -1241,9 +1243,11 @@ private fun TestFlow(
             }
 
             /*
-             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 익명 빌드는 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
              * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
-             * 계속 돈다(설정은 TestFlow를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+             * 계속 돈다(설정은 TestFlow를 덮을 뿐 내리지 않는다).
+             * 로그인 빌드(탭 바)는 레벨 테스트 웹 화면(인트로·진행)에서만 선다 (KAN-252, 2026-10-13 사용자 결정).
+             * 탭 바가 없는 화면에만 설정 출구가 필요하고, 녹음 화면(레벨 테스트 VOICE·억양 학습)에서는 빼기로 했다. 시작 게이트 세 칸·문항 권한이 WebView를
              * 덮는 동안은 숨긴다. 조건은 위 `when`의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
              * 녹음 오버레이 뒤에 그려 그 위에 선다. 녹음 화면 본문은 위 64dp부터라 톱니(8~56dp)와 겹치지 않는다.
              * 시스템 바 여백은 Scaffold의 innerPadding이 이미 뺐다.
@@ -1253,9 +1257,13 @@ private fun TestFlow(
                 phase is TestFlowPhase.NeedsPermission ||
                 retestRegionPending ||
                 (intonationStart != null && !intonationMicOk)
-            // 탭 바 빌드는 톱니를 그리지 않는다 — 설정은 탭 바의 [설정]이 연다 (KAN-252, webview-bridge §13). 녹음 화면 위
-            // 톱니(2026-10-03 팀장 요청)도 함께 사라진다.
-            if (!tabBarEntry && !nativeCovering) {
+            // 탭 바 빌드의 탭 화면·결과는 탭 바의 [설정]이 설정을 연다 (KAN-252, webview-bridge §13).
+            val gearVisible = if (tabBarEntry) {
+                showsSettingsGear(webUrl) && overlayStart == null && intonationStart == null
+            } else {
+                true
+            }
+            if (gearVisible && !nativeCovering) {
                 SettingsGearButton(
                     onClick = onOpenSettings,
                     modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
