@@ -10,7 +10,7 @@ import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
 import { START_FAILED_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE } from './intro/introText'
-import { getSessionToken, isBridgeCompatible, isStandaloneWeb } from './bridge/bridge'
+import { getSessionToken, isBridgeCompatible, isStandaloneWeb, requestMicPermission } from './bridge/bridge'
 import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, type TabScreen } from './navigation/entryUrl'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
@@ -181,13 +181,17 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
 
   /*
    * `?screen=home` — 앱 홈 (KAN-252). 앱이 처음 여는 화면이고, 레벨 테스트로 들어가는 버튼 하나뿐이다.
-   * 누르면 기존 인트로로 간다 — 인트로가 동의·마이크 게이트를 이미 갖고 있어 홈이 그 일을 겹쳐 하지 않는다.
+   * 누르면 인트로 [시작하기]와 같은 브리지 `requestMicPermission`을 부른다 — 홈이 이미 테스트 진입 화면이라
+   * 인트로를 한 번 더 거치면 중복이다(2026-10-13 사용자 결정). 이후 권한·목소리 점검·세션 생성·테스트 문서
+   * 재로드는 네이티브가 한다. 브리지가 받지 않는 구버전 앱만 예전처럼 인트로로 보낸다. 웹 단독 시작 게이트는
+   * 옮기지 않는다 — 홈은 앱 안에서만 쓰인다. 응시 시작 계측(`referral_test_started`)은 테스트 문서 진입에서
+   * 세므로 여기서 따로 보내지 않는다.
    * 테스트를 했는지는 보지 않는다(2026-10-13 결정: 전후 판정 없음).
    */
   if (params.get('screen') === 'home') {
     return (
       <>
-        <HomeScreen onStartTest={() => goToIntro(navigate)} />
+        <HomeScreen onStartTest={() => requestMicPermission() || goToIntro(navigate)} />
         {tabBar('home')}
       </>
     )

@@ -354,12 +354,28 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
   const tabBar = () => screen.queryByRole('navigation', { name: '주 메뉴' })
   const queryOf = (url: unknown) => new URLSearchParams(String(url).split('?')[1] ?? '')
 
-  it('?screen=home이면 홈과 탭 바(홈 강조), [레벨 테스트 시작]은 앱 표식을 남긴 채 인트로로', () => {
-    setSearch(`${APP}&screen=home&c=kko_share`)
+  it('?screen=home이면 홈과 탭 바(홈 강조), [레벨 테스트 시작]은 인트로 없이 브리지 requestMicPermission을 한 번 부른다', () => {
+    setSearch(`${APP}&screen=home`)
+    const requestMicPermission = vi.fn()
+    window.AccenturyBridge = {
+      requestMicPermission,
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+    }
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
     expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '홈' })).toHaveAttribute('aria-current', 'page')
+
+    fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
+    expect(requestMicPermission).toHaveBeenCalledTimes(1)
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('홈 [레벨 테스트 시작] — 브리지가 없으면(구버전 앱) 앱 표식을 남긴 채 인트로로', () => {
+    setSearch(`${APP}&screen=home&c=kko_share`)
+    const navigate = vi.fn()
+    render(<App navigate={navigate} />)
 
     fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
     const next = queryOf(navigate.mock.calls[0][0])

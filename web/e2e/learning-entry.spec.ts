@@ -73,8 +73,8 @@ async function stubServer(page: Page): Promise<void> {
 }
 
 /**
- * 앱 WebView 흉내 — 결과 조회용 세션 토큰과 학습용 계정 토큰을 같이 준다. `openSettings`는 부른 횟수만 센다
- * (네이티브가 설정 화면을 띄우는 자리다). 문서를 다시 로드하면 새로 심기므로 횟수는 문서마다 0부터다.
+ * 앱 WebView 흉내 — 결과 조회용 세션 토큰과 학습용 계정 토큰을 같이 준다. `openSettings`·`requestMicPermission`은
+ * 부른 횟수만 센다(네이티브가 설정 화면을 띄우고, 테스트 시작 게이트를 여는 자리다). 문서를 다시 로드하면 새로 심기므로 횟수는 문서마다 0부터다.
  */
 async function asApp(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -85,6 +85,10 @@ async function asApp(page: Page): Promise<void> {
       getAccessToken: () => 'e2e-access-token',
       openSettings: () => {
         bridge.settingsCalls += 1
+      },
+      micCalls: 0,
+      requestMicPermission: () => {
+        bridge.micCalls += 1
       },
     }
     Object.assign(window, { AccenturyBridge: bridge })
@@ -168,13 +172,19 @@ test('앱 홈 - 탭 바로 억양 → 단어 → 번역기 → 홈을 돌고, �
   await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
   expectAppMarkers(page, 'home')
 
-  // 홈의 [레벨 테스트 시작]은 기존 인트로로 — 인트로에는 탭 바가 없다
+  // 홈의 [레벨 테스트 시작]은 인트로를 거치지 않고 인트로 [시작하기]와 같은 브리지 호출로 바로 시작한다
+  // (2026-10-13 사용자 결정). 이후 테스트 문서 재로드는 네이티브 몫이라 이 문서는 홈 그대로다.
   await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { AccenturyBridge: { micCalls: number } }).AccenturyBridge.micCalls))
+    .toBe(1)
+  expectAppMarkers(page, 'home')
+  await expect(page.getByRole('button', { name: '내 억양 테스트하기', exact: true })).toHaveCount(0)
+
+  // 인트로(재응시·앱 링크 진입)에는 탭 바가 없다
+  await page.goto('/?bridge=2&app=1.0')
   await expect(page.getByRole('button', { name: '내 억양 테스트하기', exact: true })).toBeVisible()
   await expect(tabBar(page)).toHaveCount(0)
-  const params = new URL(page.url()).searchParams
-  expect(params.get('screen')).toBeNull()
-  expect(params.get('bridge')).toBe('2')
 })
 
 test('설정 탭 - 문서를 옮기지 않고 window.AccenturyBridge.openSettings를 한 번 부른다', async ({ page }) => {
