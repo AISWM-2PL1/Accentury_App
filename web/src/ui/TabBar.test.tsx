@@ -21,10 +21,10 @@ const tabNames = () =>
     .map((b) => b.textContent)
 
 describe('TabBar — 하단 탭 바 (KAN-252)', () => {
-  it('순서는 홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정이고, 지금 탭만 aria-current="page"다', () => {
+  it('순서는 단어 학습 · 억양 학습 · 홈 · 사투리 번역기 · 설정이고, 지금 탭만 aria-current="page"다', () => {
     withBridge(vi.fn())
     render(<TabBar current="words" onSelect={vi.fn()} />)
-    expect(tabNames()).toEqual(['홈', '억양 학습', '단어 학습', '사투리 번역기', '설정'])
+    expect(tabNames()).toEqual(['단어 학습', '억양 학습', '홈', '사투리 번역기', '설정'])
     expect(screen.getByRole('button', { name: '단어 학습' })).toHaveAttribute('aria-current', 'page')
     for (const name of ['홈', '억양 학습', '사투리 번역기', '설정']) {
       expect(screen.getByRole('button', { name })).not.toHaveAttribute('aria-current')
@@ -52,6 +52,6 @@ describe('TabBar — 하단 탭 바 (KAN-252)', () => {
   it('canOpenSettings가 false면(메서드를 모르는 앱) 설정 탭을 그리지 않는다', () => {
     withBridge()
     render(<TabBar current="home" onSelect={vi.fn()} />)
-    expect(tabNames()).toEqual(['홈', '억양 학습', '단어 학습', '사투리 번역기'])
+    expect(tabNames()).toEqual(['단어 학습', '억양 학습', '홈', '사투리 번역기'])
   })
 })
