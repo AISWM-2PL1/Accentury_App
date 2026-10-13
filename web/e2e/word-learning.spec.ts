@@ -153,14 +153,12 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
   await expectSetList(page)
 })
 
-test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내와 탭 바가 출구, 홈 탭은 앱 실행 그대로 홈 (KAN-252)', async ({ page }) => {
+// 탭 바는 계정 로그인 상태에서만 선다(PR #33 리뷰 P1) — 토큰이 없으면 안내만이다. 로그인 빌드는 토큰이 늘 있고 익명 빌드는
+// 탭 바가 없어 이 화면에 오지 않는다.
+test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내만, 탭 바는 없다 (KAN-252, PR #33 리뷰 P1)', async ({ page }) => {
   await openWords(page, { token: '' })
   await expect(page.getByText('로그인하면 단어 학습을 할 수 있어요', { exact: true })).toBeVisible()
-  await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('button', { name: '홈', exact: true }).click()
-  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
-  const params = new URL(page.url()).searchParams
-  expect(params.get('screen')).toBe('home')
-  expect(params.get('bridge')).toBe('2')
+  await expect(page.getByRole('navigation', { name: '주 메뉴' })).toHaveCount(0)
 })
 
 test('401 - 브리지로 토큰을 갱신한 뒤 같은 요청을 다시 보내 목록이 뜬다', async ({ page, request }) => {

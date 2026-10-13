@@ -128,6 +128,27 @@ test('앱 결과 화면 - 공유 아래 [이 등급에 맞는 억양 학습 시�
   expect(new URL(page.url()).searchParams.get('sessionId')).toBeNull()
 })
 
+test('익명 빌드 결과 화면 - 앱 안이라도 계정 토큰이 없으면 탭 바·학습 버튼이 없고 [다시 테스트하기]는 그대로다 (PR #33 리뷰 P1)', async ({ page }) => {
+  await stubServer(page)
+  // 익명 빌드 WebView 흉내 — 브리지·bridge=2는 있고 getAccessToken은 빈 값이다(계정 클라이언트 없음, webview-bridge §11)
+  await page.addInitScript(() => {
+    Object.assign(window, {
+      AccenturyBridge: {
+        getContractVersion: () => 2,
+        getSessionToken: () => 'e2e-session-token',
+        getAccessToken: () => '',
+        requestMicPermission: () => {},
+      },
+    })
+  })
+  await page.goto('/?bridge=2&app=1.0&screen=result&sessionId=s_e2e')
+
+  await expect(page.getByRole('button', { name: '친구에게 공유하기', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 테스트하기', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: LEARN_BUTTON, exact: true })).toHaveCount(0)
+  await expect(tabBar(page)).toHaveCount(0)
+})
+
 test('웹 단독 결과 화면 - 억양 학습 버튼도 탭 바도 없다 (2026-10-13 사용자 결정)', async ({ page }) => {
   await stubServer(page)
   // 웹 단독 결과는 이 탭의 세션 저장소 토큰으로 조회한다 (`session/webSession.ts`)

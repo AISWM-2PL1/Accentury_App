@@ -10,7 +10,14 @@ import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
 import { START_FAILED_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE } from './intro/introText'
-import { getSessionToken, isBridgeCompatible, isStandaloneWeb, requestMicPermission } from './bridge/bridge'
+import {
+  getAccessToken,
+  getSessionToken,
+  isBridgeCompatible,
+  isStandaloneWeb,
+  requestMicPermission,
+  waitForAccessToken,
+} from './bridge/bridge'
 import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, type TabScreen } from './navigation/entryUrl'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
@@ -172,12 +179,12 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
   }
 
   /*
-   * 하단 탭 바 (KAN-252, 2026-10-13 사용자 결정). **앱 안에서만** 세운다 — 웹 단독(브라우저)은 공유 링크로 들어와
-   * 테스트 한 판을 하는 실행이라 탭이 없고, 시작도 기존 인트로 그대로다. 학습은 로그인 필수라 브라우저에서는
-   * 탭을 눌러도 갈 곳이 없다. 어느 화면에서 그릴지(목록 단계만)는 각 화면이 정한다.
+   * 하단 탭 바 (KAN-252, 2026-10-13 사용자 결정). **앱 안 + 계정 로그인 상태에서만** 선다([useAccountTabs]) — 웹 단독
+   * (브라우저)은 공유 링크로 들어와 테스트 한 판을 하는 실행이고, 익명 빌드는 학습(로그인 필수)으로 갈 곳이 없다.
+   * 웹 단독이면 아예 그리지 않는다. 어느 화면에서 그릴지(목록 단계만)는 각 화면이 정한다.
    */
   const tabBar = (current?: TabScreen) =>
-    standalone ? undefined : <TabBar current={current} onSelect={(tab) => goToTab(tab, navigate)} />
+    standalone ? undefined : <AccountTabBar current={current} navigate={navigate} />
 
   /*
    * `?screen=home` — 앱 홈 (KAN-252). 앱이 처음 여는 화면이고, 레벨 테스트로 들어가는 버튼 하나뿐이다.
@@ -613,11 +620,13 @@ function ResultRoute({
     : undefined
 
   /*
-   * [이 등급에 맞는 억양 학습 시작] (KAN-252)은 앱 안에서만 준다 — `storePlatform`의 반대편이다. 학습은
+   * [이 등급에 맞는 억양 학습 시작] (KAN-252)은 앱 안 + 계정 로그인 상태에서만 준다([useAccountTabs], 탭 바와 같은 판정 —
+   * 익명 빌드에서는 학습이 로그인 안내로 막힌다, PR #33 리뷰 P1) — `storePlatform`의 반대편이다. 학습은
    * 로그인 필수(2026-10-04)라 웹 단독 실행에서 A-1을 열면 로그인 안내에서 막힌다. 웹에서는 스토어 URL이
    * 나오면 그쪽으로 잇는다 (2026-10-13 사용자 결정, 후속).
    */
-  const onStartLearning = standalone ? undefined : () => goToTab('intonation', navigate)
+  const accountTabs = useAccountTabs()
+  const onStartLearning = standalone || !accountTabs ? undefined : () => goToTab('intonation', navigate)
 
   /*
    * 결과 화면은 앱 안이면 탭 바를 세운다 (KAN-252). 테스트가 끝난 자리라 진행 중 이탈 규칙(KAN-147)에 걸리지
@@ -707,7 +716,7 @@ function ResultRoute({
         onFeedbackOpen={() => track({ name: 'feedback_opened' })}
         onFeedbackSubmitted={(rating) => track({ name: 'feedback_submitted', rating })}
       />
-      {!standalone && <TabBar onSelect={(tab) => goToTab(tab, navigate)} />}
+      {!standalone && <AccountTabBar navigate={navigate} />}
     </>
   )
 }
@@ -820,4 +829,37 @@ function UpdateRequiredScreen() {
       <p className="type-label">새로운 테스트를 이용하려면 스토어에서 최신 버전으로 업데이트해 주세요.</p>
     </main>
   )
+}
+
+/**
+ * 탭 바·학습 진입(결과의 [억양 학습 시작])을 보일까 (KAN-252, PR #33 리뷰 P1). **앱 안 + 계정 로그인 상태**일 때만이다.
+ * 익명 빌드(현재 기본 빌드)의 WebView도 브리지·`bridge=2`를 가져 `standalone`만으로는 갈리지 않는다 — 그대로 두면 익명 결과
+ * 화면에 탭 바가 서고, 학습 탭은 로그인 안내로 막히고, 설정 탭이 톱니와 겹친다.
+ *
+ * 판정은 기존 브리지 `getAccessToken()`(KAN-255, webview-bridge §11)이다. 새 브리지 메서드·쿼리를 두지 않는다. 두 앱 모두 저장소의
+ * Access를 만료와 무관하게 돌려주고(Android `currentAccessToken` = `store.read()?.accessToken`, iOS `readAccessToken` = Keychain
+ * `store.read()?.accessToken`), 익명 빌드(계정 클라이언트 없음)·로그아웃(저장소 비움)·allowlist 밖 문서면 `""` → null이다. 그래서
+ * "값이 있다"가 곧 "로그인 상태"다. 만료 여부는 학습 API가 401 → 갱신으로 따로 처리한다.
+ *
+ * iOS 첫 문서는 Keychain 비동기 읽기가 끝나야 토큰이 밀리므로(§11 iOS 「토큰 읽기」) 처음에 없으면 [waitForAccessToken]으로
+ * 잠깐 더 기다린다. 브리지에 메서드가 없으면(브라우저·구버전 앱) 기다리지 않고 false다.
+ */
+function useAccountTabs(): boolean {
+  const [signedIn, setSignedIn] = useState(() => getAccessToken() !== null)
+  useEffect(() => {
+    if (signedIn) return
+    let alive = true
+    void waitForAccessToken().then((token) => {
+      if (alive && token !== null) setSignedIn(true)
+    })
+    return () => {
+      alive = false
+    }
+  }, [signedIn])
+  return signedIn
+}
+
+/** 하단 탭 바를 [useAccountTabs] 판정으로 세운다 (KAN-252). 홈·번역기·학습 목록·결과가 모두 이것 하나를 쓴다. */
+function AccountTabBar({ current, navigate }: { current?: TabScreen; navigate: Navigate }) {
+  return useAccountTabs() ? <TabBar current={current} onSelect={(tab) => goToTab(tab, navigate)} /> : null
 }

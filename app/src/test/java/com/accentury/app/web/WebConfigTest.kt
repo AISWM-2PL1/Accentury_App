@@ -269,6 +269,27 @@ class WebConfigTest {
         )
     }
 
+    // --- startsAtHome: 첫 문서 홈 판정 (KAN-252, PR #33 리뷰 P1) ---
+
+    @Test
+    fun `일반 실행은 홈, 코드 없는 링크와 무효 코드 링크는 인트로다`() {
+        val allowed = setOf("https://accentury.app")
+        fun entered(url: String?) = parseAppLink(url, allowed) != null
+
+        assertTrue(startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered(null)))
+        assertFalse(startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered("https://accentury.app/t")))
+        assertFalse(
+            startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered("https://accentury.app/t?c=kko%20share")),
+        )
+        assertFalse(startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered("https://accentury.app/t?c=kko_share")))
+    }
+
+    @Test
+    fun `재응시와 익명 빌드는 홈이 아니다`() {
+        assertFalse(startsAtHome(tabBarEntry = true, introRequested = true, appLinkEntered = false))
+        assertFalse(startsAtHome(tabBarEntry = false, introRequested = false, appLinkEntered = false))
+    }
+
     // --- webBackTarget: 시스템 뒤로가기 판정 (KAN-252) ---
 
     private val app = "https://web.example.com/?bridge=2&app=1.0"

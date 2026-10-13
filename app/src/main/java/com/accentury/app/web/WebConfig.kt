@@ -78,6 +78,19 @@ private val BACK_TO_HOME_SCREENS = setOf("intonation", "words", "translate")
 private val TEST_QUERY_KEYS = setOf("sessionId", "testVersion", "voiceSet")
 
 /**
+ * 첫 문서를 홈(`screen=home`)으로 열까 (KAN-252). 세 조건을 다 넘어야 홈이다 — 탭 바 빌드(로그인 빌드)이고, 재응시가 인트로를
+ * 요청하지 않았고, **앱 링크로 들어오지 않았다.** 앱 링크는 계측 코드가 없거나 무효여도(campaignToken null) 링크로 친다 —
+ * 공유 링크를 누른 사람은 테스트를 하러 온 것이라 예전처럼 인트로다 (PR #33 리뷰 P1). 그래서 campaignToken이 아니라
+ * 링크를 인정했다는 사실([parseAppLink]가 null이 아님)을 본다.
+ *
+ * 앱이 떠 있을 때 링크를 받아도 같은 판정이다 — 값이 바뀌면 진입 URL 문자열이 바뀌어 WebViewHost가 다시 로드하고 인트로가
+ * 선다(코드가 바뀐 링크의 KAN-32 리로드와 같은 결과). LaunchedEffect로 introRequested를 세우지 않고 파생식으로 두는 이유는
+ * 이중 로드다 — 첫 컴포지션에 홈을 한 번 로드한 뒤 인트로로 다시 로드하게 된다.
+ */
+fun startsAtHome(tabBarEntry: Boolean, introRequested: Boolean, appLinkEntered: Boolean): Boolean =
+    tabBarEntry && !introRequested && !appLinkEntered
+
+/**
  * 시스템 뒤로가기의 목적지 (KAN-252, 로그인 빌드). 홈 문서 URL이면 그리로 옮기고, null이면 가로채지 않는다 —
  * 가로채지 않으면 예전처럼 앱이 닫힌다.
  *

@@ -272,6 +272,23 @@ final class WebConfigTests: XCTestCase {
         )
     }
 
+    // MARK: - startsAtHome: 첫 문서 홈 판정 (KAN-252, PR #33 리뷰 P1)
+
+    func test일반_실행은_홈이고_코드_없는_링크와_무효_코드_링크는_인트로다() {
+        let allowed: Set<String> = ["https://accentury.app"]
+        func entered(_ url: String?) -> Bool { parseAppLink(url, allowedOrigins: allowed) != nil }
+
+        XCTAssertTrue(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered(nil)))
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered("https://accentury.app/t")))
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered("https://accentury.app/t?c=kko%20share")))
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered("https://accentury.app/t?c=kko_share")))
+    }
+
+    func test재응시와_익명_빌드는_홈이_아니다() {
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: true, appLinkEntered: false))
+        XCTAssertFalse(startsAtHome(tabBarEntry: false, introRequested: false, appLinkEntered: false))
+    }
+
     // MARK: - webBackTarget: 뒤로가기 판정 (KAN-252)
 
     private let app = "https://web.example.com/?bridge=2&app=1.0"
