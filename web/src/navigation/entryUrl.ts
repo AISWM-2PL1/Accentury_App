@@ -75,6 +75,19 @@ export function buildIntonationUrl(search: string): string {
   return toQuery(params)
 }
 
+/**
+ * 학습 종류 선택 L-1 (`?screen=learn`, KAN-252). 앱 홈의 [학습] 카드와 A-1·W-1의 [학습 종류로]가 오는 자리다.
+ * 남기고 지우는 규칙은 [buildWordsUrl]과 같다 — L-1에서 고르면 곧장 그 두 화면으로 넘어가기 때문이다
+ */
+export function buildLearnUrl(search: string): string {
+  const params = new URLSearchParams(search)
+  params.set('screen', 'learn')
+  params.delete('sessionId')
+  params.delete('testVersion')
+  params.delete('voiceSet')
+  return toQuery(params)
+}
+
 /** 인트로 — 화면 지정만 걷어낸다 */
 export function buildIntroUrl(search: string): string {
   const params = new URLSearchParams(search)

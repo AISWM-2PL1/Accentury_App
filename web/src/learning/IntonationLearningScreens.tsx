@@ -23,7 +23,7 @@ import { feedbackComment, formatDelta, scoreDelta, syllableMarks, type SyllableM
 
 export interface IntonationLearningRouteProps {
   apiBase: string
-  /** [학습 종류로]. ponytail: L-1(학습 종류 선택)이 아직 없어 App이 인트로로 보낸다 — L-1 생기면 교체 */
+  /** [학습 종류로] — App이 학습 종류 선택 L-1(`?screen=learn`, KAN-252)로 보낸다 */
   onLeave: () => void
   /** 테스트 주입용 (fetch·토큰 대체) */
   deps?: WordApiDeps

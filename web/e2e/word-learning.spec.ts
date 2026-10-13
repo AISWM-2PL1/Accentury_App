@@ -153,10 +153,14 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
   await expectSetList(page)
 })
 
-test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내와 [학습 종류로]', async ({ page }) => {
+test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내와 [학습 종류로], 누르면 앱 실행 그대로 L-1 (KAN-252)', async ({ page }) => {
   await openWords(page, { token: '' })
   await expect(page.getByText('로그인하면 단어 학습을 할 수 있어요', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '학습 종류로', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '학습 종류로', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '어떤 학습을 할까요?' })).toBeVisible()
+  const params = new URL(page.url()).searchParams
+  expect(params.get('screen')).toBe('learn')
+  expect(params.get('bridge')).toBe('2')
 })
 
 test('401 - 브리지로 토큰을 갱신한 뒤 같은 요청을 다시 보내 목록이 뜬다', async ({ page, request }) => {
