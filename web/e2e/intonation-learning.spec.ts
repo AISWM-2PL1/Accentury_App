@@ -286,7 +286,7 @@ test('목록 조회 실패 - 출구는 [다시 시도] 하나, 누르면 목록�
   await expectCourseList(page)
 })
 
-test('빈 목록 - 「아직 준비 중인 코스예요」와 [학습 종류로] 하나', async ({ page, request }) => {
+test('빈 목록 - 「아직 준비 중인 코스예요」와 탭 바, 화면 버튼은 없다 (KAN-252)', async ({ page, request }) => {
   await page.route(
     (url) => url.pathname === LIST_PATH,
     (route) => route.fulfill({ json: { contentVersion: 'in-e2e', courses: [] } }),
@@ -294,8 +294,8 @@ test('빈 목록 - 「아직 준비 중인 코스예요」와 [학습 종류로]
   await openIntonation(page, { token: await loginWithFakeIdp(request) })
 
   await expect(page.getByText('아직 준비 중인 코스예요', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button')).toHaveCount(1)
-  await expect(page.getByRole('button', { name: '학습 종류로', exact: true })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('button')).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: '주 메뉴' })).toBeVisible()
 })
 
 test('카드 로드 실패 - 500은 [다시 시도]로 다시 불러 A-2, 404는 [코스 목록으로]', async ({ page, request }) => {
@@ -339,13 +339,13 @@ test('카드 로드 실패 - 500은 [다시 시도]로 다시 불러 A-2, 404는
   await expectCourseList(page)
 })
 
-test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내와 [학습 종류로], 누르면 앱 실행 그대로 L-1 (KAN-252)', async ({ page }) => {
+test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내와 탭 바가 출구, 홈 탭은 앱 실행 그대로 홈 (KAN-252)', async ({ page }) => {
   await openIntonation(page, { token: '' })
   await expect(page.getByText('로그인하면 억양 학습을 할 수 있어요', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '학습 종류로', exact: true }).click()
-  await expect(page.getByRole('heading', { level: 1, name: '어떤 학습을 할까요?' })).toBeVisible()
+  await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('button', { name: '홈', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
   const params = new URL(page.url()).searchParams
-  expect(params.get('screen')).toBe('learn')
+  expect(params.get('screen')).toBe('home')
   expect(params.get('bridge')).toBe('2')
 })
 

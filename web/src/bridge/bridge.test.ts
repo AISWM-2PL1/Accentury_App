@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   appBridgeVersion,
+  canOpenSettings,
   getAccessToken,
   getSessionToken,
   haptic,
@@ -11,6 +12,7 @@ import {
   isStandaloneWeb,
   logAnalyticsEvent,
   openExternalUrl,
+  openSettings,
   readAdConsent,
   refreshAccessToken,
   REQUIRED_BRIDGE_VERSION,
@@ -211,6 +213,25 @@ describe('억양 학습 녹음 (KAN-253)', () => {
 
     uninstall()
     expect(window.AccenturyWeb).toBeUndefined()
+  })
+})
+
+describe('openSettings — 네이티브 설정 화면 (KAN-252)', () => {
+  it('메서드가 없는 앱·브라우저면 false이고 canOpenSettings도 false다', () => {
+    expect(canOpenSettings()).toBe(false)
+    expect(openSettings()).toBe(false)
+    window.AccenturyBridge = fakeBridge()
+    expect(canOpenSettings()).toBe(false)
+    expect(openSettings()).toBe(false)
+  })
+
+  it('있으면 인자 없이 한 번 부르고 true', () => {
+    const fn = vi.fn()
+    window.AccenturyBridge = fakeBridge({ openSettings: fn })
+    expect(canOpenSettings()).toBe(true)
+    expect(openSettings()).toBe(true)
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith()
   })
 })
 

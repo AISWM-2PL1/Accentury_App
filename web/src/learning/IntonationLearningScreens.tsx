@@ -23,13 +23,17 @@ import { feedbackComment, formatDelta, scoreDelta, syllableMarks, type SyllableM
 
 export interface IntonationLearningRouteProps {
   apiBase: string
-  /** [학습 종류로] — App이 학습 종류 선택 L-1(`?screen=learn`, KAN-252)로 보낸다 */
-  onLeave: () => void
+  /**
+   * 하단 탭 바 (KAN-252). App이 앱 안에서만 넘긴다. 목록 단계(목록·빈 목록·로그인 안내)에서만 그린다 —
+   * 카드·녹음·퀴즈·완료처럼 진행 중인 화면에는 이탈 버튼을 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가
+   * 유일한 출구다 (예전 [학습 종류로] 자리)
+   */
+  tabBar?: ReactNode
   /** 테스트 주입용 (fetch·토큰 대체) */
   deps?: WordApiDeps
 }
 
-export function IntonationLearningRoute({ apiBase, onLeave, deps }: IntonationLearningRouteProps) {
+export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLearningRouteProps) {
   const learning = useIntonationLearning(apiBase, deps)
   const { view } = learning
 
@@ -41,9 +45,19 @@ export function IntonationLearningRoute({ apiBase, onLeave, deps }: IntonationLe
         </main>
       )
     case 'error':
-      return <IntonationErrorScreen view={view} onLeave={onLeave} onBackToList={learning.backToList} />
+      return (
+        <>
+          <IntonationErrorScreen view={view} onBackToList={learning.backToList} />
+          {errorExit(view) === 'leave' && tabBar}
+        </>
+      )
     case 'list':
-      return <IntonationCourseListScreen courses={view.courses} onOpen={learning.openCourse} onLeave={onLeave} />
+      return (
+        <>
+          <IntonationCourseListScreen courses={view.courses} onOpen={learning.openCourse} />
+          {tabBar}
+        </>
+      )
     case 'card':
       return (
         <IntonationCardScreen
@@ -100,19 +114,16 @@ const SIGN_IN_MESSAGE = '로그인하면 억양 학습을 할 수 있어요'
 
 function IntonationErrorScreen({
   view,
-  onLeave,
   onBackToList,
 }: {
   view: Extract<IntonationLearningView, { screen: 'error' }>
-  onLeave: () => void
   onBackToList: () => void
 }) {
   const exit = errorExit(view)
   const message = view.error.code === CLIENT_NOT_SIGNED_IN ? SIGN_IN_MESSAGE : view.error.message
+  // 'leave'(로그인 안내)는 버튼이 없다 — 라우트가 탭 바를 출구로 세운다 (KAN-252)
   const action =
-    exit === 'leave' ? (
-      <Button onClick={onLeave}>학습 종류로</Button>
-    ) : exit === 'retry' ? (
+    exit === 'leave' ? undefined : exit === 'retry' ? (
       <Button onClick={view.retry}>다시 시도</Button>
     ) : (
       <Button onClick={onBackToList}>코스 목록으로</Button>
@@ -129,16 +140,15 @@ function IntonationErrorScreen({
 export function IntonationCourseListScreen({
   courses,
   onOpen,
-  onLeave,
 }: {
   courses: IntonationCourseSummary[]
   onOpen: (courseId: string) => void
-  onLeave: () => void
 }) {
   if (courses.length === 0) {
+    // 출구는 라우트가 세우는 탭 바다 (KAN-252, 예전 [학습 종류로] 자리)
     return (
       <main className="screen">
-        <StatusBlock tone="waiting" message="아직 준비 중인 코스예요" action={<Button onClick={onLeave}>학습 종류로</Button>} />
+        <StatusBlock tone="waiting" message="아직 준비 중인 코스예요" />
       </main>
     )
   }

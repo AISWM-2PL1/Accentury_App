@@ -335,36 +335,95 @@ describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
     expect(screen.getByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
   })
 
-  it('로그인 안 됐으면 안내 뒤 [학습 종류로]가 앱 표식을 남긴 채 L-1로 보낸다 (KAN-252)', async () => {
+  it('로그인 안 됐으면 안내와 탭 바 — 탭이 앱 표식을 남긴 채 다른 탭으로 보낸다 (KAN-252)', async () => {
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
     expect(await screen.findByText('로그인하면 단어 학습을 할 수 있어요')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '학습 종류로' }))
+    expect(screen.getByRole('button', { name: '단어 학습' })).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByRole('button', { name: '홈' }))
     expect(navigate).toHaveBeenCalledTimes(1)
     const next = new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '')
-    expect(next.get('screen')).toBe('learn')
+    expect(next.get('screen')).toBe('home')
     expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
   })
 })
 
-describe('App — 학습 종류 선택 L-1 진입 쿼리 (KAN-252)', () => {
-  it('?screen=learn이면 L-1을 그리고, 각 행이 앱 표식을 남긴 채 A-1·W-1로 보낸다', () => {
-    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=learn`)
+describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
+  const APP = `?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0`
+  const tabBar = () => screen.queryByRole('navigation', { name: '주 메뉴' })
+  const queryOf = (url: unknown) => new URLSearchParams(String(url).split('?')[1] ?? '')
+
+  it('?screen=home이면 홈과 탭 바(홈 강조), [레벨 테스트 시작]은 앱 표식을 남긴 채 인트로로', () => {
+    setSearch(`${APP}&screen=home&c=kko_share`)
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
-    expect(screen.getByRole('heading', { name: '어떤 학습을 할까요?' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '홈' })).toHaveAttribute('aria-current', 'page')
 
-    fireEvent.click(screen.getByRole('button', { name: /^억양 학습/ }))
-    fireEvent.click(screen.getByRole('button', { name: /^단어 학습/ }))
+    fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
+    const next = queryOf(navigate.mock.calls[0][0])
+    expect(next.get('screen')).toBeNull()
+    expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+    expect(next.get('app')).toBe('1.0')
+    expect(next.get('c')).toBe('kko_share')
+  })
 
-    const [toIntonation, toWords] = navigate.mock.calls.map(([url]) => new URLSearchParams(String(url).split('?')[1]))
-    expect(toIntonation.get('screen')).toBe('intonation')
-    expect(toWords.get('screen')).toBe('words')
-    for (const next of [toIntonation, toWords]) {
-      expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
-      expect(next.get('app')).toBe('1.0')
+  it('탭 네 곳이 각 화면 쿼리로 보내고 bridge·app·c를 남긴다', () => {
+    setSearch(`${APP}&screen=home&c=kko_share`)
+    const navigate = vi.fn()
+    render(<App navigate={navigate} />)
+    for (const name of ['홈', '억양 학습', '단어 학습', '사투리 번역기']) fireEvent.click(screen.getByRole('button', { name }))
+    const nexts = navigate.mock.calls.map(([url]) => queryOf(url))
+    expect(nexts.map((n) => n.get('screen'))).toEqual(['home', 'intonation', 'words', 'translate'])
+    for (const n of nexts) {
+      expect(n.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+      expect(n.get('app')).toBe('1.0')
+      expect(n.get('c')).toBe('kko_share')
     }
+  })
+
+  it('?screen=translate면 「준비 중」과 탭 바(번역기 강조)만, 서버를 부르지 않는다', () => {
+    setSearch(`${APP}&screen=translate`)
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    render(<App navigate={vi.fn()} />)
+    expect(screen.getByRole('heading', { level: 1, name: '사투리 번역기' })).toBeInTheDocument()
+    expect(screen.getByText('준비 중이에요')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '사투리 번역기' })).toHaveAttribute('aria-current', 'page')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('설정 탭은 브리지에 openSettings가 있을 때만 서고, 누르면 그것을 부른다', () => {
+    setSearch(`${APP}&screen=home`)
+    const openSettings = vi.fn()
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      openSettings,
+    }
+    const navigate = vi.fn()
+    render(<App navigate={navigate} />)
+    fireEvent.click(screen.getByRole('button', { name: '설정' }))
+    expect(openSettings).toHaveBeenCalledTimes(1)
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('웹 단독(브리지·bridge 쿼리 없음)이면 홈·번역기에도 탭 바가 없다', () => {
+    for (const screenName of ['home', 'translate']) {
+      setSearch(`?screen=${screenName}`)
+      const view = render(<App navigate={vi.fn()} />)
+      expect(tabBar()).toBeNull()
+      view.unmount()
+    }
+  })
+
+  it('인트로(앱 안)에는 탭 바가 없다 — 테스트 진입 쪽 화면이다', () => {
+    setSearch(APP)
+    render(<App navigate={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(tabBar()).toBeNull()
   })
 })
 
@@ -1282,6 +1341,23 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     expect(next.get('sessionId')).toBeNull()
   })
 
+  it('앱 안 결과 화면에는 탭 바가 서고 어느 탭도 강조하지 않는다 (KAN-252)', async () => {
+    setSearch(RESULT_SEARCH)
+    stubBridgeWithToken()
+    stubResultFetch()
+    const navigate = vi.fn()
+
+    render(<App navigate={navigate} />)
+    await screen.findByRole('heading', { name: '명예주민' })
+    const nav = screen.getByRole('navigation', { name: '주 메뉴' })
+    expect(nav.querySelectorAll('[aria-current]')).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: '홈' }))
+    const next = new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '')
+    expect(next.get('screen')).toBe('home')
+    expect(next.get('sessionId')).toBeNull()
+    expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+  })
+
   /*
    * 진행 기록 삭제 (KAN-198). KAN-99가 "삭제 시점은 결과 화면"이라 적어 두고 배선하지 않아
    * 응시마다 키가 하나씩 쌓이던 자리다.
@@ -1535,6 +1611,7 @@ describe('App — 웹 단독 결과 화면 (KAN-31 2단계)', () => {
 
     await screen.findByRole('button', { name: '친구에게 공유하기' })
     expect(screen.queryByRole('button', { name: '이 등급에 맞는 억양 학습 시작' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: '주 메뉴' })).not.toBeInTheDocument() // 탭 바도 앱 안에서만
   })
 
   it('안드로이드 브라우저에서는 [앱 다운로드]가 플레이스토어를 가리킨다', async () => {

@@ -1911,3 +1911,71 @@ a.btn {
   bottom: auto;
   padding-bottom: var(--space-4);
 }
+
+/*
+ * 하단 탭 바 (KAN-252). 앱 안의 목록 화면에만 선다 (`ui/TabBar.tsx` 머리 주석).
+ *
+ * 바닥에 고정한다 — 목록이 길어 스크롤해도 다른 탭으로 가는 길이 화면 밖으로 나가지 않게. 위 경계는 종이 테두리와
+ * 같은 잉크 1.5px 한 줄이고 그림자는 없다: 바닥에 붙은 띠라 떠 있는 종이가 아니다.
+ *
+ * 안전 영역을 더한다. 지금 viewport에 `viewport-fit=cover`가 없어 값이 0이지만(결과 푸터 주석), 그걸 켜는 날
+ * 홈 인디케이터에 깔리는 첫 요소가 바닥 고정인 이 띠다.
+ */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom));
+  border-top: 1.5px solid var(--color-border);
+  background: var(--color-background);
+}
+
+.tab-bar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-muted-foreground);
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+/* 지금 여기 — 포인트 컬러의 자리다 (tokens.css `--color-point`). 색만으로 가르지 않게 라벨 굵기도 올린다 */
+.tab-bar__item[aria-current='page'] {
+  color: var(--color-point);
+}
+
+.tab-bar__item[aria-current='page'] .tab-bar__label {
+  font-weight: var(--weight-medium);
+}
+
+.tab-bar__item:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+.tab-bar__label {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-normal);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+/*
+ * 탭 바가 선 화면은 본문 아래에 탭 바 높이만큼 더 띄운다 — 마지막 행·버튼이 띠 밑에 깔리지 않게.
+ * 높이 = 위아래 여백 + 칸 최소 높이 + 안전 영역이다(위 `.tab-bar`와 같은 값). 화면마다 클래스를 다는 대신
+ * `:has`로 한 곳에서 건다 — 탭 바를 세울지 정하는 쪽이 여백까지 챙길 필요가 없게.
+ */
+body:has(.tab-bar) main {
+  padding-bottom: calc(var(--space-8) + var(--touch-target-min) + 2 * var(--space-2) + env(safe-area-inset-bottom));
+}
