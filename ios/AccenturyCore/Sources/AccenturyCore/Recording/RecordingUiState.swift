@@ -85,7 +85,8 @@ public enum RecordingUiState: Equatable, Sendable {
 public enum RecordingPurpose: Equatable, Sendable {
 
     /// 레벨테스트 음성 문항 (KAN-100). 화면 모양은 KAN-253 전과 같다.
-    case levelTest(itemNumber: Int, totalItems: Int)
+    /// `emotion`은 대사 위 감정 칩의 재료다 (KAN-283) — 칩을 그릴지는 ``emotionCue(_:)``가 가른다.
+    case levelTest(itemNumber: Int, totalItems: Int, emotion: String? = nil)
 
     /// 억양 학습 카드 (KAN-253, webview-bridge.md §12). 표준어 줄은 nil이면 생략.
     /// 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「카드 진행률」)를 그린다.

@@ -16,3 +16,10 @@ public func promptCaption(questionIndex: Int, totalQuestions: Int) -> String {
     }
     return "이 문장을 읽어주세요"
 }
+
+/// 대사 위 감정 칩 문구 (KAN-283). 정의의 emotion이 없거나 공백뿐이면 nil — 칩 없이 지금 화면 그대로다.
+/// "  느낌으로 말해주세요!"처럼 빈 자리가 남은 칩은 없는 것보다 나쁘다.
+public func emotionCue(_ emotion: String?) -> String? {
+    guard let trimmed = emotion?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+    return "\(trimmed) 느낌으로 말해주세요!"
+}
