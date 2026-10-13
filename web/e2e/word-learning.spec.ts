@@ -191,3 +191,23 @@ test('목록 조회 실패 - [다시 시도]로 다시 불러 목록이 뜬다',
   await retry.click()
   await expectSetList(page)
 })
+
+test('W-2 오른쪽 위 ✕ - 누르면 W-1 목록으로 돌아가고 탭 바가 다시 선다 (KAN-252, 2026-10-13 사용자 결정)', async ({
+  page,
+  request,
+}) => {
+  await openWords(page, { token: await loginWithFakeIdp(request) })
+  await expectSetList(page)
+  const tabBar = page.getByRole('navigation', { name: '주 메뉴' })
+  await expect(tabBar).toBeVisible()
+
+  await page.locator('.word-set-row').first().click()
+  await expect(page.getByRole('progressbar')).toBeVisible()
+  // 학습 중엔 탭 바가 숨고 ✕가 유일한 출구다
+  await expect(tabBar).toBeHidden()
+  await page.getByRole('button', { name: '닫기', exact: true }).click()
+
+  await expectSetList(page)
+  await expect(tabBar).toBeVisible()
+  await expect(page.getByRole('button', { name: '닫기', exact: true })).toBeHidden()
+})

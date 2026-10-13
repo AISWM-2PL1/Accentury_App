@@ -9,7 +9,7 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { canStartIntonationRecording } from '../bridge/bridge'
 import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
-import { Button, ProgressIndicator, StatusBlock } from '../ui'
+import { Button, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckSmallIcon } from '../ui/icons'
 import { TextHero } from '../ui/TextHero'
 import { CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
@@ -25,8 +25,9 @@ export interface IntonationLearningRouteProps {
   apiBase: string
   /**
    * 하단 탭 바 (KAN-252). App이 앱 안에서만 넘긴다. 목록 단계(목록·빈 목록·로그인 안내)에서만 그린다 —
-   * 카드·녹음·퀴즈·완료처럼 진행 중인 화면에는 이탈 버튼을 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가
-   * 유일한 출구다 (예전 [학습 종류로] 자리)
+   * 카드·대기·결과처럼 코스 안 화면에는 탭 바를 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가
+   * 유일한 출구다 (예전 [학습 종류로] 자리). 코스 안 화면의 공통 출구는 오른쪽 위 ✕(코스 목록으로)다 — 네이티브
+   * 녹음 화면 ✕와 같은 뜻이고, 화면 안 [코스 목록으로]·[결과 목록으로]는 그대로 둔다 (2026-10-13 사용자 결정)
    */
   tabBar?: ReactNode
   /** 테스트 주입용 (fetch·토큰 대체) */
@@ -36,6 +37,8 @@ export interface IntonationLearningRouteProps {
 export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLearningRouteProps) {
   const learning = useIntonationLearning(apiBase, deps)
   const { view } = learning
+  // backToList가 폴링·deadline 타이머를 전부 끊고 목록을 다시 받는다 — 화면 안 [코스 목록으로]와 같은 경로라 늦은 채점 응답은 버려진다
+  const close = <CloseButton onClick={learning.backToList} />
 
   switch (view.screen) {
     case 'loading':
@@ -60,49 +63,74 @@ export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLea
       )
     case 'card':
       return (
-        <IntonationCardScreen
-          key={view.index}
-          course={view.course}
-          index={view.index}
-          onBackToList={view.revisit ? learning.backToSummary : learning.backToList}
-          backLabel={view.revisit ? '결과 목록으로' : '코스 목록으로'}
-        />
+        <>
+          <IntonationCardScreen
+            key={view.index}
+            course={view.course}
+            index={view.index}
+            onBackToList={view.revisit ? learning.backToSummary : learning.backToList}
+            backLabel={view.revisit ? '결과 목록으로' : '코스 목록으로'}
+          />
+          {close}
+        </>
       )
     case 'waiting':
-      return <IntonationWaitingScreen />
+      // 정상 대기엔 화면 안 버튼이 없어 ✕가 유일한 화면 안 출구다
+      return (
+        <>
+          <IntonationWaitingScreen />
+          {close}
+        </>
+      )
     case 'summary':
       return (
-        <IntonationSummaryScreen
-          course={view.course}
-          results={learning.results}
-          onOpen={learning.openDetail}
-          onBackToList={learning.backToList}
-        />
+        <>
+          <IntonationSummaryScreen
+            course={view.course}
+            results={learning.results}
+            onOpen={learning.openDetail}
+            onBackToList={learning.backToList}
+          />
+          {close}
+        </>
       )
     case 'detail': {
       const result = learning.results[view.course.cards[view.index]?.cardId ?? '']
       if (result === undefined) return null // 회신이 온 카드만 목록 행이 된다
-      if (result.outcome === 'processing') return <IntonationWaitingScreen key={result.attemptId} />
+      if (result.outcome === 'processing') {
+        return (
+          <>
+            <IntonationWaitingScreen key={result.attemptId} />
+            {close}
+          </>
+        )
+      }
       if (result.outcome === 'completed') {
         return (
-          <IntonationFeedbackScreen
-            course={view.course}
-            index={view.index}
-            result={result}
-            onBackToSummary={learning.backToSummary}
-            onRetry={learning.rerecord}
-          />
+          <>
+            <IntonationFeedbackScreen
+              course={view.course}
+              index={view.index}
+              result={result}
+              onBackToSummary={learning.backToSummary}
+              onRetry={learning.rerecord}
+            />
+            {close}
+          </>
         )
       }
       return (
-        <IntonationRetryScreen
-          course={view.course}
-          index={view.index}
-          reason={result.outcome}
-          onRetry={learning.retryPolling}
-          onRerecord={learning.rerecord}
-          onBackToSummary={learning.backToSummary}
-        />
+        <>
+          <IntonationRetryScreen
+            course={view.course}
+            index={view.index}
+            reason={result.outcome}
+            onRetry={learning.retryPolling}
+            onRerecord={learning.rerecord}
+            onBackToSummary={learning.backToSummary}
+          />
+          {close}
+        </>
       )
     }
   }
@@ -261,7 +289,7 @@ export function IntonationCardScreen({
 
 // ── A-4 분석 대기 ─────────────────────────────────────────────────────────
 // 폴링은 훅이 한다. 이 화면은 마운트 뒤 경과 시간으로 단계·안심 문구만 그린다 — 상세의 대기는 attemptId를 key로 받아
-// [다시 시도]마다 새로 마운트돼 폴링 예산과 같이 0부터 센다. 정상 대기엔 버튼이 없다(이탈은 시스템 뒤로가기, KAN-253).
+// [다시 시도]마다 새로 마운트돼 폴링 예산과 같이 0부터 센다. 정상 대기엔 화면 안 버튼이 없다(이탈은 라우트가 세우는 ✕·시스템 뒤로가기, KAN-253·KAN-252).
 // 마지막 회신 뒤 코스 전체 대기와 분석 중 행 상세 대기가 같은 화면이다
 
 export function IntonationWaitingScreen() {

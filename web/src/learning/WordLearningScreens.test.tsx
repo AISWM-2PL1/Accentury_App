@@ -135,6 +135,43 @@ describe('useWordLearning', () => {
     expect(server.calls.filter((c) => c.path.endsWith('/word-sets'))).toHaveLength(2)
     expect(server.calls.map((c) => `${c.method} ${c.path}`)).toContain('POST /v0/learning/word-attempts/a1/complete')
   })
+  it('제출 중 ✕로 나갔다가 같은 세트를 다시 풀면, 옛 시도의 늦은 정오는 새 시도 첫 문항에 붙지 않는다 (KAN-252)', async () => {
+    const server = fakeServer({
+      ...happyRoutes(),
+      '/word-sets/s1/attempts': [ok(ATTEMPT, 201), ok({ ...ATTEMPT, attemptId: 'a2' }, 201)],
+    })
+    // 첫 시도(a1)의 답안 응답만 붙잡아 둔다
+    let releaseLate: () => void = () => {}
+    const gate = new Promise<void>((resolve) => (releaseLate = resolve))
+    const fetchImpl: FetchLike = async (input, init) => {
+      if (new URL(input).pathname.includes('/word-attempts/a1/items/')) await gate
+      return server.fetchImpl(input, init)
+    }
+    const { result } = renderHook(() => useWordLearning('http://api', deps(fetchImpl)))
+    const view = () => result.current.view
+
+    const toQuiz = async (attemptId: string) => {
+      act(() => result.current.openSet('s1'))
+      await waitFor(() => expect(view().screen).toBe('cards'))
+      act(() => result.current.nextCard())
+      act(() => result.current.startQuiz())
+      await waitFor(() => expect(view()).toMatchObject({ screen: 'quiz', attemptId, index: 0 }))
+    }
+
+    await waitFor(() => expect(view().screen).toBe('list'))
+    await toQuiz('a1')
+    let late: Promise<void> = Promise.resolve()
+    act(() => {
+      late = result.current.submit('i1a', 'k1')
+    })
+    act(() => result.current.backToList())
+    await waitFor(() => expect(view().screen).toBe('list'))
+    await toQuiz('a2')
+
+    releaseLate()
+    await act(() => late)
+    expect(view()).toMatchObject({ screen: 'quiz', attemptId: 'a2', index: 0, result: null })
+  })
 })
 
 // ── 라우트 (화면 결선) ───────────────────────────────────────────────────
@@ -316,6 +353,28 @@ describe('WordLearningRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: '제출' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 만료됐어요. 다시 로그인해 주세요')
     expect(tabBar()).not.toBeNull()
+  })
+  it('카드·퀴즈엔 오른쪽 위 ✕(닫기)가 있고 누르면 W-1과 탭 바로 돌아간다, 목록·완료엔 없다 (KAN-252)', async () => {
+    renderRoute(happyRoutes())
+    const close = () => screen.queryByRole('button', { name: '닫기' })
+    fireEvent.click(await screen.findByRole('button', { name: /먹을 것/ }))
+    expect(await screen.findByText('정구지')).toBeInTheDocument()
+    expect(close()).not.toBeNull()
+    fireEvent.click(close()!)
+    expect(await screen.findByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
+    expect(close()).toBeNull()
+    expect(tabBar()).not.toBeNull()
+
+    await clickStartQuiz()
+    expect(await screen.findByRole('radiogroup', { name: '부추를 사투리로?' })).toBeInTheDocument()
+    fireEvent.click(close()!)
+    expect(await screen.findByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
+    expect(tabBar()).not.toBeNull()
+
+    await clickStartQuiz()
+    await answerAllAndShowResult()
+    expect(await screen.findByRole('heading', { name: '세트 완료' })).toBeInTheDocument()
+    expect(close()).toBeNull()
   })
 })
 

@@ -78,7 +78,7 @@ function renderRoute(routes: Record<string, Reply | Reply[]>, token: string | nu
 const tabBar = () => screen.queryByRole('navigation', { name: '탭 바' })
 
 /** 화면 안의 버튼 이름 목록 — 출구가 정확히 하나인지 볼 때 쓴다 */
-const buttonNames = () => screen.queryAllByRole('button').map((b) => b.textContent)
+const buttonNames = () => screen.queryAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
 
 function withBridge(startIntonationRecording?: (payload: string) => void) {
   window.AccenturyBridge = {
@@ -254,7 +254,7 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     await reply('c2', 'la_2')
     expect(await screen.findByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
     expect(screen.getByText('평균 76점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['1번 문항80점', '2번 문항72점', '코스 목록으로'])
+    expect(buttonNames()).toEqual(['1번 문항80점', '2번 문항72점', '코스 목록으로', '닫기'])
     expect(start).toHaveBeenCalledTimes(2)
   })
 
@@ -294,7 +294,7 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     renderRoute(ROUTES)
     fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     await screen.findByRole('heading', { name: '안녕하능교' })
-    expect(buttonNames()).toEqual(['다시 말해 보기', '코스 목록으로'])
+    expect(buttonNames()).toEqual(['다시 말해 보기', '코스 목록으로', '닫기'])
 
     fireEvent.click(screen.getByRole('button', { name: '다시 말해 보기' }))
     expect(start).toHaveBeenCalledTimes(2)
@@ -395,7 +395,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(screen.getByText('분석 중이에요')).toBeInTheDocument()
     expect(stageOf('곡선 추출')).toBe('current')
     expect(stageOf('점수 계산')).toBe('todo')
-    expect(buttonNames()).toEqual([])
+    expect(buttonNames()).toEqual(['닫기']) // 화면 안 버튼은 없고 라우트의 ✕만 (KAN-252)
     expect(calls).toEqual(['/v0/learning/intonation-attempts/la_1', '/v0/learning/intonation-attempts/la_2'])
 
     await advance(20_000)
@@ -429,7 +429,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     fireEvent.click(row('1번 문항'))
     expect(screen.getByText('억양 점수')).toBeInTheDocument()
     expect(screen.getByText('80점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['결과 목록으로', '다시 시도'])
+    expect(buttonNames()).toEqual(['결과 목록으로', '다시 시도', '닫기'])
     fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
   })
@@ -446,7 +446,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(JSON.parse(start.mock.calls[2][0]).cardId).toBe('c1')
     // 회신 없이 닫아도 막히지 않게 복귀 모드 A-2의 출구는 [결과 목록으로]
     expect(screen.getByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다시 말해 보기', '결과 목록으로'])
+    expect(buttonNames()).toEqual(['다시 말해 보기', '결과 목록으로', '닫기'])
 
     await act(async () => {})
     act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_3' })))
@@ -481,7 +481,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(screen.getByText('평균 80점')).toBeInTheDocument()
     fireEvent.click(row('2번 문항'))
     expect(screen.getByText(message)).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다시 녹음', '결과 목록으로'])
+    expect(buttonNames()).toEqual(['다시 녹음', '결과 목록으로', '닫기'])
     expect(screen.queryByText('밥 뭇나') !== null).toBe(showsLine)
 
     fireEvent.click(screen.getByRole('button', { name: '다시 녹음' }))
@@ -505,7 +505,7 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
 
     fireEvent.click(row('2번 문항'))
     expect(screen.getByText('분석이 예상보다 오래 걸리고 있어요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다시 시도', '결과 목록으로'])
+    expect(buttonNames()).toEqual(['다시 시도', '결과 목록으로', '닫기'])
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     await act(async () => {})
     expect(calls).toHaveLength(before + 1)
@@ -632,6 +632,28 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     const before = calls.length
     await advance(30_000)
     expect(calls).toHaveLength(before)
+  })
+
+  it('A-2 오른쪽 위 ✕ → A-1 코스 목록, 뒤 폴링도 멈춘다 (KAN-252, 2026-10-13 사용자 결정)', async () => {
+    const { calls, listCalls } = await toEnd({ la_1: processing('la_1') }, vi.fn(), 1)
+    expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+    await act(async () => {})
+    expect(screen.getByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '닫기' })).toBeNull()
+    expect(listCalls).toHaveBeenCalledTimes(2)
+    const before = calls.length
+    await advance(30_000)
+    expect(calls).toHaveLength(before)
+  })
+
+  it('결과 목록 오른쪽 위 ✕ → A-1 코스 목록 ([코스 목록으로]와 같은 곳, KAN-252)', async () => {
+    const { listCalls } = await toEnd({ la_1: completed('la_1'), la_2: completed('la_2', 72) })
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+    await act(async () => {})
+    expect(screen.getByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
+    expect(listCalls).toHaveBeenCalledTimes(2)
   })
 })
 

@@ -1979,3 +1979,38 @@ a.btn {
 body:has(.tab-bar) main {
   padding-bottom: calc(var(--space-8) + var(--touch-target-min) + 2 * var(--space-2) + env(safe-area-inset-bottom));
 }
+
+/*
+ * 닫기 ✕ (KAN-252, `ui/CloseButton`). 네이티브 억양 녹음 ✕와 같은 자리(오른쪽 위, 가장자리에서 space-2)·같은
+ * 모양(크림 원 + 잉크 그림)이다. 위쪽은 상단 안전 영역만큼 더 내린다 — 노치·상태 표시줄 밑에 깔리지 않게.
+ */
+.close-button {
+  position: fixed;
+  top: calc(var(--space-2) + env(safe-area-inset-top));
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-background);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.close-button:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * ✕가 선 화면은 본문을 ✕ 아래에서 시작한다 — 진척도 막대가 ✕ 밑에 깔리지 않게. 앱 안 기본 64px은 이미 충분하고
+ * (8 + 48 + 8), 브라우저 실행의 24px(`data-runtime='browser'`)이나 안전 영역이 있는 기기에서만 늘어난다.
+ * 탭 바 여백처럼 `:has`로 한 곳에서 건다.
+ */
+body:has(.close-button) main {
+  padding-top: max(var(--screen-padding-top), calc(2 * var(--space-2) + var(--touch-target-min) + env(safe-area-inset-top)));
+}
