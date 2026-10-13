@@ -253,6 +253,23 @@ test('회신 없음(녹음 화면에서 뒤로가기) - 일시정지 A-2가 그�
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
 })
 
+test('A-2 오른쪽 위 ✕ - 누르면 A-1 코스 목록으로 돌아가고 탭 바가 다시 선다 (KAN-252, 2026-10-13 사용자 결정)', async ({
+  page,
+  request,
+}) => {
+  await openIntonation(page, { token: await loginWithFakeIdp(request) })
+  const tabBar = page.getByRole('navigation', { name: '주 메뉴' })
+  await expectCourseList(page)
+  await expect(tabBar).toBeVisible()
+  await openFirstCourse(page)
+  await expect(tabBar).toBeHidden()
+
+  await page.getByRole('button', { name: '닫기', exact: true }).click()
+  await expectCourseList(page)
+  await expect(tabBar).toBeVisible()
+  await expect(page.getByRole('button', { name: '닫기', exact: true })).toBeHidden()
+})
+
 test('다른 카드의 늦은 회신은 무시하고 지금 카드의 회신만 받는다', async ({ page, request }) => {
   await stubAttempts(page, ['PROCESSING'])
   await openIntonation(page, { token: await loginWithFakeIdp(request) })
@@ -497,7 +514,8 @@ test('실패 출구 - 오독·조용함·분석 실패 행은 「다시 녹음 �
     await expect(page.getByText(message, { exact: true })).toBeVisible()
     // 오독·조용함만 무엇을 다시 말할지 대사를 다시 보인다
     await expect(page.getByText(cards[i].prompt, { exact: true })).toHaveCount(showsLine ? 1 : 0)
-    await expect(page.getByRole('button')).toHaveCount(2)
+    // [다시 녹음]·[결과 목록으로] + 라우트의 ✕(코스 목록으로, KAN-252)
+    await expect(page.getByRole('button')).toHaveCount(3)
     if (i < exits.length - 1) {
       await page.getByRole('button', { name: '결과 목록으로', exact: true }).click()
       continue

@@ -6,7 +6,7 @@
  */
 
 import { useState, type ReactNode } from 'react'
-import { Button, ChoiceList, ProgressIndicator, StatusBlock } from '../ui'
+import { Button, ChoiceList, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckIcon, CrossIcon } from '../ui/icons'
 import { useChoiceIdempotencyKey } from '../net/useChoiceIdempotencyKey'
 import { CLIENT_NOT_SIGNED_IN, type WordAnswerResult, type WordApiDeps, type WordAttemptResult, type WordItem, type WordSet, type WordSetSummary } from './wordApi'
@@ -18,8 +18,9 @@ export interface WordLearningRouteProps {
   apiBase: string
   /**
    * 하단 탭 바 (KAN-252). App이 앱 안에서만 넘긴다. 목록 단계(목록·빈 목록·로그인 안내)에서만 그린다 —
-   * 카드·녹음·퀴즈·완료처럼 진행 중인 화면에는 이탈 버튼을 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가
-   * 유일한 출구다 (예전 [학습 종류로] 자리)
+   * 카드·퀴즈·완료처럼 진행 중인 화면에는 탭 바를 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가
+   * 유일한 출구다 (예전 [학습 종류로] 자리). 카드·퀴즈의 출구는 오른쪽 위 ✕(세트 목록으로)다 — 학습은 이탈
+   * 허용이라 끝까지 가야만 나갈 수 있으면 안 된다 (2026-10-13 사용자 결정, 억양 녹음 ✕와 같은 뜻)
    */
   tabBar?: ReactNode
   /** 테스트 주입용 (fetch·토큰 대체) */
@@ -53,20 +54,27 @@ export function WordLearningRoute({ apiBase, tabBar, deps }: WordLearningRoutePr
       )
     case 'cards':
       return (
-        <WordCardScreen set={view.set} index={view.index} onNext={learning.nextCard} onStartQuiz={learning.startQuiz} />
+        <>
+          <WordCardScreen set={view.set} index={view.index} onNext={learning.nextCard} onStartQuiz={learning.startQuiz} />
+          <CloseButton onClick={learning.backToList} />
+        </>
       )
     case 'quiz':
+      // 제출 중에 눌러도 그냥 목록으로 간다 — 늦게 온 응답은 훅의 attemptId 가드가 버린다 (useWordLearning `submit`)
       return (
-        <WordQuizScreen
-          // 문항이 바뀌면 고른 답·멱등 키·오류 문구를 전부 새로 시작한다
-          key={view.set.items[view.index].itemId}
-          item={view.set.items[view.index]}
-          itemNumber={view.index + 1}
-          totalItems={view.set.items.length}
-          result={view.result}
-          submit={learning.submit}
-          onNext={learning.nextItem}
-        />
+        <>
+          <WordQuizScreen
+            // 문항이 바뀌면 고른 답·멱등 키·오류 문구를 전부 새로 시작한다
+            key={view.set.items[view.index].itemId}
+            item={view.set.items[view.index]}
+            itemNumber={view.index + 1}
+            totalItems={view.set.items.length}
+            result={view.result}
+            submit={learning.submit}
+            onNext={learning.nextItem}
+          />
+          <CloseButton onClick={learning.backToList} />
+        </>
       )
     case 'complete':
       return <WordSetCompleteScreen result={view.result} onBackToList={learning.backToList} />

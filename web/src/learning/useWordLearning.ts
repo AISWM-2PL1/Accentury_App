@@ -111,11 +111,18 @@ export function useWordLearning(apiBase: string, deps: WordApiDeps = {}) {
       )
       // 정오가 정해지는 순간 한 번 (KAN-258 — 결과가 정해지는 순간의 success·error)
       haptic(result.correct ? 'success' : 'error')
-      setView((v) => (v.screen === 'quiz' && v.index === index ? { ...v, result } : v))
+      // 같은 시도·같은 문항일 때만 반영한다. 제출 중 ✕로 목록에 나갔다가 같은 세트를 다시 풀기 시작하면
+      // 화면은 quiz·index 0으로 같아 보여도 시도가 다르다 — 옛 시도의 늦은 정오가 새 문항에 붙으면 안 된다 (KAN-252)
+      setView((v) => (v.screen === 'quiz' && v.attemptId === attemptId && v.index === index ? { ...v, result } : v))
     } catch (error: unknown) {
       const e = toError(error)
       if (isSignInCode(e.code) || (e.code ?? '').startsWith('LEARNING_ATTEMPT_')) {
-        setView({ screen: 'error', error: e, retry: backToList, fromList: false })
+        // 이미 ✕로 이 시도를 떠났으면 목록을 오류로 덮지 않는다 (KAN-252)
+        setView((v) =>
+          v.screen === 'quiz' && v.attemptId === attemptId
+            ? { screen: 'error', error: e, retry: backToList, fromList: false }
+            : v,
+        )
         return
       }
       throw e
