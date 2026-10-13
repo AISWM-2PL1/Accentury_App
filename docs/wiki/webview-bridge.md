@@ -728,7 +728,7 @@ Android 3단계와 같은 규칙을 옮겼다. 판정 함수는 Core(`AccenturyC
 | `Web/BridgeUserScript.swift` | 객체 리터럴에 `openSettings: function(){ post("openSettings"); }` |
 | `Web/WebViewHost.swift` | `onOpenSettings` 전달, `didStartProvisionalNavigation`·`didCommit`에서 `onPageStarted(webView.url)`로 현재 문서 URL을 상위에 알림(뒤로·톱니 판정용), 왼쪽 가장자리 `UIScreenEdgePanGestureRecognizer`(60pt 이상 끌고 놓으면 `onEdgeSwipeBack`, `edgeSwipeEnabled`로 켜고 끔) |
 | `TestFlow/TestFlowView.swift` `tabBarEntry`·`covered` | 로그인 빌드(`AuthGateView` SignedIn)만 `true` — 톱니는 `showsSettingsGear(currentWebUrl)`이고 녹음 오버레이(VOICE 녹음·제출, 억양 학습) 위에서 숨김. 스와이프는 `webBackTarget` 대상이 있을 때만 그 URL을 `load`. 억양 녹음·설정·음성 저장 동의가 덮으면(`covered`) 인식기를 끈다. 익명 빌드(`AnonymousFlowView`)는 `false`라 인트로 시작·톱니 유지·스와이프 없음 |
-| `TestFlow/TestFlowModel.swift` | `webUrl`이 `home: tabBarEntry && !introRequested && campaignToken == nil`을 넘김. 재응시 성공(`.replaced`)이 `introRequested`를 세움 — `UserDefaults`(`test_flow_intro_requested`)에 적어 복원을 넘기고, 관문 이탈 때 `clearSavedState`가 함께 지운다 |
+| `TestFlow/TestFlowModel.swift` | `webUrl`이 `home: tabBarEntry && !introRequested && campaignToken == nil`을 넘김. 재응시 성공(`.replaced`)이 `introRequested`를 세움 — `UserDefaults`(`test_flow_intro_requested`)에 적어 시스템 종료 뒤 장면 복원을 넘기고, 관문 이탈 때와 **새 실행**(`@SceneStorage` 복원 표시 없음, `init(restoresSavedState: false)`) 때 `clearSavedState`가 함께 지운다 — 앱을 새로 열면 Android `rememberSaveable`처럼 홈부터다(4단계 보완, ios-port.md §3 「새 실행은 홈부터」) |
 | `AccenturyCore/Web/WebConfig.swift` | `buildWebUrl(home:)`, `webBackTarget(currentUrl:startRequested:)`, `showsSettingsGear(_:)` — 안드로이드 `WebConfig.kt`의 이식본, 테스트도 `WebConfigTests.swift`에 1:1 |
 
 **iOS의 뒤로는 왼쪽 가장자리 스와이프다.** iOS에는 시스템 뒤로 버튼이 없어 Android 시스템 뒤로가기 자리를 이 몸짓이 맡는다.

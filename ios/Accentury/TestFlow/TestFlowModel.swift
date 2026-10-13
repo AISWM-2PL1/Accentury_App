@@ -16,6 +16,15 @@ import Foundation
 /// Compose의 `rememberSaveable`은 OS가 들고 있는 봉투(Bundle)에 값을 넣어 프로세스 사망까지
 /// 넘겨준다. iOS에는 그 자리가 없어서 직접 `UserDefaults`에 적는다. 무엇을 적는지는
 /// 두 컨트롤러의 `saved()`가 정하고(각각 JSON 한 줄), 이 클래스는 그 문자열을 나르기만 한다.
+///
+/// ## 새 실행은 저장을 버린다 (KAN-252 4단계 보완)
+///
+/// 봉투는 **시스템이 죽인 프로세스를 되살릴 때만** 돌아온다 — 사용자가 앱을 새로 실행하면 비어 있어 홈부터다(지라 AC 「로그인
+/// 뒤 첫 화면이 홈」). `UserDefaults`는 그 구분 없이 남아, 테스트를 마치거나 도중에 앱을 끈 뒤 다시 열면 지난 테스트·결과가
+/// 열렸다. 그래서 "이번 실행이 복원인가"를 ``init(restoresSavedState:defaults:sessionClient:isMicGranted:onProfileIncomplete:anonymousConsent:tabBarEntry:)``가
+/// 받아, 아니면 저장분을 먼저 지운다. 그 표시는 화면이 SwiftUI `@SceneStorage`로 든다(``TestFlowView/sceneRestorationKey``).
+/// 값 자체를 장면 저장소로 옮기지 않은 이유는 세션 토큰이다 — 애플은 장면 저장소에 민감한 값을 두지 말라고 한다.
+/// https://developer.apple.com/documentation/swiftui/restoring-your-app-s-state-with-swiftui
 /*
  * 업로드가 뒷받침하지 않는 붙들기를 걷는 상한 (KAN-146). 안드로이드
  * `MainActivity.ORPHANED_SUBMIT_TIMEOUT_MS`(2_000L)와 같은 값이고, iOS 타이머 API가 초 단위
@@ -94,8 +103,8 @@ final class TestFlowModel: ObservableObject {
      * 첫 문서를 홈이 아니라 인트로로 열어야 하는가 (KAN-252). 홈 시작은 ``tabBarEntry`` 빌드의 **앱을 연 첫 문서**에만 해당한다.
      * 재응시는 "새 세션을 든 채 인트로로 돌아가는" 흐름이라(``startRetest()``) 거기서 세운다 — 세우지 않으면 재응시가 홈으로
      * 떨어진다. 앱 링크(``campaignToken``)도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다. 진입 URL 문자열이 곧
-     * 로드라(``WebViewHost``) 이 값이 바뀌는 순간이 곧 리로드다. ``startRequested``와 같이 `UserDefaults`에 적어 복원을 넘긴다 —
-     * 사라지면 재응시 직후 복원에서 인트로 대신 홈이 뜬다.
+     * 로드라(``WebViewHost``) 이 값이 바뀌는 순간이 곧 리로드다. ``startRequested``와 같이 `UserDefaults`에 적어 시스템 종료 뒤
+     * 장면 복원을 넘긴다 — 사라지면 재응시 직후 복원에서 인트로 대신 홈이 뜬다. 새 실행에서는 다른 저장분과 함께 지워진다(타입 주석).
      */
     @Published private(set) var introRequested: Bool {
         didSet { defaults.set(introRequested, forKey: Self.introRequestedKey) }
@@ -201,7 +210,10 @@ final class TestFlowModel: ObservableObject {
     ///     지역(아직 없을 때, 동의와 무관, 설치당 1회) → 점검 → 세션이 되고, 세션 생성 body에 동의 버전·지역을 싣는다.
     ///     nil이 계정 모드다.
     ///   - tabBarEntry: 홈으로 시작하는 로그인 빌드인가 (KAN-252, ``tabBarEntry``).
+    ///   - restoresSavedState: 이번 실행이 시스템 종료 뒤 장면 복원인가 (KAN-252 4단계 보완). false면 저장분을 지우고 새로 시작한다 —
+    ///     안드로이드에서 새 실행의 `rememberSaveable`이 비어 있는 것과 같은 결과다. 기본값 true는 단위 테스트가 쓰는 예전 의미다.
     init(
+        restoresSavedState: Bool = true,
         defaults: UserDefaults = .standard,
         sessionClient: SessionClient? = TestFlowModel.defaultSessionClient(),
         isMicGranted: @escaping () -> Bool = { MicPermission.currentStatus().granted },
@@ -215,6 +227,12 @@ final class TestFlowModel: ObservableObject {
         self.isMicGranted = isMicGranted
         self.onProfileIncomplete = onProfileIncomplete
         self.anonymousConsent = anonymousConsent
+
+        /*
+         * 새 실행이면 지난 실행의 흐름·세션·진입 상태를 읽기 전에 버린다 (KAN-252 4단계 보완). 이 갈래가 곧 마이그레이션이다 —
+         * 업데이트 전 빌드가 남긴 키도 업데이트 뒤 첫 실행(장면 복원 표시가 없다)에서 함께 지워진다.
+         */
+        if !restoresSavedState { Self.clearSavedState(in: defaults) }
 
         let flow = TestFlowController.restored(from: defaults.string(forKey: Self.flowStorageKey) ?? "")
             ?? TestFlowController()
