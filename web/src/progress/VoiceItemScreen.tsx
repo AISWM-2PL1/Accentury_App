@@ -132,6 +132,8 @@ export function VoiceItemScreen({
       maxDurationMs: item.maxDurationMs,
       // 네이티브 녹음 화면의 가이드 레인이 그릴 정적 곡선 (KAN-102). 정의 그대로 전달한다.
       guideF0: item.guideF0,
+      // 말투 감정 (KAN-283). 정의에 없으면 키를 아예 빼서 KAN-282 전 payload와 같게 둔다.
+      ...(item.emotion !== undefined && { emotion: item.emotion }),
     })
 
   /*

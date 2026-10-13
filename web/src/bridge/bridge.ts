@@ -197,6 +197,10 @@ export interface SharePayload {
  * @property guideF0 상단 레인에 그릴 정적 가이드 곡선 (KAN-102). 정의가 든 그대로 가공 없이
  *   건넨다 — 곡선을 어떻게 그릴지는 전부 네이티브 사정이라, 여기서 요약하면 렌더링 규칙이
  *   바뀔 때마다 계약도 같이 흔들린다. 필드 추가는 하위호환이라 계약 버전 1을 유지한다 (§5)
+ * @property emotion 말투 감정 (KAN-283, 예: "부탁하는"). 정의 값을 가공 없이 건네고, 정의에
+ *   없으면 키 자체를 보내지 않는다(빈 문자열은 그대로 — 표시 여부 판정은 네이티브 몫).
+ *   「~ 느낌으로 말해주세요!」 문구는 네이티브가 붙인다. 모르는 필드는 구버전 네이티브가 무시하는
+ *   하위호환 추가라 KAN-102 guideF0 선례대로 계약 버전을 올리지 않는다
  */
 export interface VoiceItemStart {
   itemId: string
@@ -205,6 +209,7 @@ export interface VoiceItemStart {
   totalItems: number
   maxDurationMs: number
   guideF0: GuideF0
+  emotion?: string
 }
 
 /**
