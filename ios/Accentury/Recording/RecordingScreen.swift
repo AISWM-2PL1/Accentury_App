@@ -198,13 +198,9 @@ struct RecordingScreen: View {
 
     // MARK: - 하단
 
-    private var promptCardCaption: String? {
+    private var promptCardCaption: String {
         switch purpose {
         case let .levelTest(itemNumber, totalItems, _):
-            // 칩이 있으면 「이 문장을 읽어주세요」 자리를 칩이 대신해 캡션은 번호 접두만 남는다 (KAN-283, 2026-10-14)
-            if promptCardCue != nil {
-                return promptCaptionPrefix(questionIndex: itemNumber, totalQuestions: totalItems)
-            }
             return promptCaption(questionIndex: itemNumber, totalQuestions: totalItems)
         case .intonationLearning:
             return promptCaption(questionIndex: 0, totalQuestions: 0)

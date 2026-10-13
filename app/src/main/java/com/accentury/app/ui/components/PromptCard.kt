@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,14 +39,15 @@ import com.accentury.app.ui.theme.accenturyColors
  *
  * [cue]는 위 원칙의 예외로 다시 둔 알약 칩이다 (KAN-283, 사용자 결정 2026-10-14). 감정 지시
  * ("부탁하는 느낌으로 말해주세요!")는 읽기 전에 말투를 먼저 정해야 쓸모가 있어서, 캡션처럼
- * 흐린 한 줄이 아니라 강조로 둔다. 면이 하나 더 생기는 비용보다 대사를 다 읽고 나서야
+ * 흐린 한 줄이 아니라 대사 위에 강조로 둔다. 면이 하나 더 생기는 비용보다 대사를 다 읽고 나서야
  * 말투를 알게 되는 비용이 크다고 봤다. null이면 그리지 않는다.
  *
- * 칩은 캡션 줄의 「이 문장을 읽어주세요」 자리에 들어간다 — 읽기 안내 문구 자리를 감정 안내가
- * 대신한다 (사용자 결정 2026-10-14 에뮬 확인). 처음엔 캡션 아래 따로 한 줄을 뒀는데, 읽기 안내와
- * 감정 안내가 두 줄로 겹쳐 대사 위가 무거웠다. 그래서 [cue]가 있으면 [caption]은 번호 접두
- * ("1 / 7 ·", 번호를 모르면 null)만 받고, 칩이 그 옆에 붙는다. [cue]가 없으면 [caption]은 지금처럼
- * 캡션 한 줄 전체다.
+ * 칩이 있으면 카드 맨 위에 칩 하나만 두고 [caption]은 그리지 않는다 — 칩이 캡션 자리를 대신한다
+ * (사용자 결정 2026-10-14 에뮬 확인). 처음엔 캡션 아래 따로 한 줄을 뒀더니 읽기 안내와 감정 안내가
+ * 두 줄로 겹쳐 대사 위가 무거웠고, 캡션 줄에 「1 / 7 ·」 번호만 남겨 칩을 붙여 봤더니 그 번호는 카드
+ * 위 진행 표시(「1 / 7 · 음성」)와 같은 말을 한 번 더 했다. 그리고 칩이 있을 때만 카드 위 여백을
+ * [Spacing.x2]만큼 줄인다 — 알약은 제 안쪽 여백까지 면이라 캡션 글자보다 위가 떠 보여서, 칩·대사를
+ * 함께 8 올렸다. [cue]가 없으면 지금처럼 캡션 한 줄과 기본 여백이다.
  *
  * [supporting]은 아트보드에 없다. 대사 아래 한 줄을 더 두면 카드가 "읽을 문장"과 "읽는 법"
  * 둘을 함께 내미는데, 그 둘의 글자 크기 차이(26 대 14)만으로는 어느 쪽을 소리 내야 하는지가
@@ -56,7 +56,7 @@ import com.accentury.app.ui.theme.accenturyColors
  */
 @Composable
 fun PromptCard(
-    caption: String?,
+    caption: String,
     prompt: String,
     modifier: Modifier = Modifier,
     supporting: String? = null,
@@ -73,42 +73,30 @@ fun PromptCard(
             .clip(shape)
             .background(colors.promptCardStart)
             .border(CARD_BORDER, MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(Dimens.promptCardPadding),
+            .padding(
+                start = Dimens.promptCardPadding,
+                end = Dimens.promptCardPadding,
+                bottom = Dimens.promptCardPadding,
+                top = if (cue != null) Dimens.promptCardPadding - Spacing.x2 else Dimens.promptCardPadding,
+            ),
         verticalArrangement = Arrangement.spacedBy(Spacing.x2, Alignment.CenterVertically),
     ) {
-        if (cue == null) {
-            if (caption != null) {
-                Text(
-                    caption,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.onPromptCardMuted,
-                )
-            }
+        if (cue != null) {
+            Text(
+                cue,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onTertiary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.full))
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .padding(horizontal = Spacing.x3, vertical = Spacing.x1),
+            )
         } else {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.x1),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (caption != null) {
-                    Text(
-                        caption,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.onPromptCardMuted,
-                        softWrap = false,
-                    )
-                }
-                Text(
-                    cue,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onTertiary,
-                    // 칩이 남은 폭만 쓰게 한다 - 긴 문구는 칩 안에서 줄을 바꾸고, 짧으면 글자만큼만 차지한다
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .clip(RoundedCornerShape(Radius.full))
-                        .background(MaterialTheme.colorScheme.tertiary)
-                        .padding(horizontal = Spacing.x3, vertical = Spacing.x1),
-                )
-            }
+            Text(
+                caption,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onPromptCardMuted,
+            )
         }
         Text(
             prompt,
