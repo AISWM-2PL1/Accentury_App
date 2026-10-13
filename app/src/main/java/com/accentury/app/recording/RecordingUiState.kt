@@ -54,8 +54,11 @@ sealed interface RecordingPurpose {
     /** 확인 단계에 [내 녹음 듣기]를 두는가 — 학습에만 (2026-10-12 착수 결정). */
     val offersPlayback: Boolean
 
-    /** 레벨테스트 음성 문항 (KAN-100). 화면 모양은 KAN-253 전과 같다. */
-    data class LevelTest(val itemNumber: Int, val totalItems: Int) : RecordingPurpose {
+    /**
+     * 레벨테스트 음성 문항 (KAN-100). 화면 모양은 KAN-253 전과 같다.
+     * [emotion]은 대사 위 감정 칩의 재료다 (KAN-283) — 칩을 그릴지는 `emotionCue`가 가른다.
+     */
+    data class LevelTest(val itemNumber: Int, val totalItems: Int, val emotion: String? = null) : RecordingPurpose {
         override val offersPlayback get() = false
     }
 

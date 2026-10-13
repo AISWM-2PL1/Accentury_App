@@ -24,6 +24,9 @@ private val json = Json { ignoreUnknownKeys = true }
  * @property guideF0 상단 레인에 그릴 정적 가이드 곡선 (KAN-102). 필드 추가는 하위호환이라
  *   계약 버전을 올리지 않았고(§5), 그래서 이 필드를 모르는 구버전 웹의 payload도 유효하다 —
  *   없으면 가이드 레인만 비운 채 녹음은 그대로 진행한다.
+ * @property emotion 문항의 감정 지시어(예: "부탁하는") (KAN-283). 정의 값 그대로 오고, 정의에
+ *   없으면 키가 없다. guideF0와 같은 이유로 계약 버전을 안 올렸다. 빈 문자열도 그대로 받고,
+ *   칩을 그릴지는 화면 쪽 `emotionCue`가 가른다.
  */
 @Serializable
 data class VoiceItemStart(
@@ -33,6 +36,7 @@ data class VoiceItemStart(
     val totalItems: Int,
     val maxDurationMs: Long,
     val guideF0: GuideF0? = null,
+    val emotion: String? = null,
 )
 
 /**
@@ -70,6 +74,9 @@ data class GuideF0(
  * 다시 파싱한다. 곡선은 없어도 녹음은 성립하는데, guideF0의 내용은 웹 빌드가 아니라 서버가
  * 발행한 정의(KAN-17 산출물)에서 오므로, 여기서 payload째 거부하면 정의 데이터 한 줄이
  * 문항 진행 전체를 막게 되기 때문이다.
+ *
+ * emotion도 같은 대우다 (KAN-283) — 칩 한 줄이 없어도 녹음은 성립하고, 값은 역시 서버가
+ * 발행한 정의에서 온다.
  */
 fun parseVoiceItemStart(payloadJson: String): VoiceItemStart? {
     val start = decodeTolerantOfGuide(payloadJson, VoiceItemStart.serializer()) ?: return null
@@ -83,19 +90,29 @@ fun parseVoiceItemStart(payloadJson: String): VoiceItemStart? {
 }
 
 /**
- * 전체 파싱을 먼저 시도하고, 실패하면 guideF0만 떼어낸 뒤 한 번 더 시도한다.
- * 억양 학습 녹음 payload(KAN-253, [parseIntonationRecordingStart])도 같은 곡선 관용 규칙을 쓴다.
+ * 전체 파싱을 먼저 시도하고, 실패하면 버려도 되는 선택 필드(guideF0, emotion)를 떼어낸 뒤 다시 시도한다.
+ * 하나만 떼는 조합을 먼저 시도하는 이유: 불량 필드 하나 때문에 멀쩡한 다른 선택 필드까지 잃지 않게 (KAN-283).
+ * 억양 학습 녹음 payload(KAN-253, [parseIntonationRecordingStart])도 같은 규칙을 쓴다 — emotion 키가 없으니 영향 없다.
  */
 internal fun <T> decodeTolerantOfGuide(payloadJson: String, serializer: KSerializer<T>): T? {
     try {
         return json.decodeFromString(serializer, payloadJson)
     } catch (_: Exception) {
-        // guideF0만 불량일 수 있다 — 아래에서 곡선을 버리고 구제를 시도한다.
+        // 선택 필드만 불량일 수 있다 — 아래에서 그 필드를 버리고 구제를 시도한다.
     }
-    return try {
-        val stripped = JsonObject(json.parseToJsonElement(payloadJson).jsonObject.filterKeys { it != "guideF0" })
-        json.decodeFromJsonElement(serializer, stripped)
+    val payload = try {
+        json.parseToJsonElement(payloadJson).jsonObject
     } catch (_: Exception) {
-        null
+        return null
     }
+    for (drop in DROPPABLE_KEY_SETS) {
+        try {
+            return json.decodeFromJsonElement(serializer, JsonObject(payload.filterKeys { it !in drop }))
+        } catch (_: Exception) {
+            // 다음 조합으로
+        }
+    }
+    return null
 }
+
+private val DROPPABLE_KEY_SETS = listOf(setOf("guideF0"), setOf("emotion"), setOf("guideF0", "emotion"))

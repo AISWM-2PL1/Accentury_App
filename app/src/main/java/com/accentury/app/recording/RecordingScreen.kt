@@ -233,6 +233,8 @@ fun RecordingScreen(
                 prompt = questionText,
                 // 억양 학습의 표준어 원문 (KAN-253). null이면 그 줄을 그리지 않는다 (§12).
                 supporting = (purpose as? RecordingPurpose.IntonationLearning)?.standard?.let { "표준어 · $it" },
+                // 레벨테스트 감정 칩 (KAN-283). 억양 학습은 emotion이 없어 칩도 없다.
+                cue = (purpose as? RecordingPurpose.LevelTest)?.let { emotionCue(it.emotion) },
             )
 
             Spacer(modifier = Modifier.height(Spacing.x6))
@@ -319,6 +321,13 @@ internal fun promptCaption(questionIndex: Int, totalQuestions: Int): String =
     } else {
         "이 문장을 읽어주세요"
     }
+
+/**
+ * 대사 위 감정 칩 문구 (KAN-283). 정의의 emotion이 없거나 공백뿐이면 null — 칩 없이 지금 화면 그대로다.
+ * "  느낌으로 말해주세요!"처럼 빈 자리가 남은 칩은 없는 것보다 나쁘다.
+ */
+internal fun emotionCue(emotion: String?): String? =
+    emotion?.trim()?.takeIf { it.isNotEmpty() }?.let { "$it 느낌으로 말해주세요!" }
 
 /** 대기. 누를 것 하나와 그 아래 캡션 한 줄이다 (아트보드 ②) */
 @Composable

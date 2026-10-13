@@ -1,6 +1,7 @@
 package com.accentury.app.recording
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -22,5 +23,18 @@ class PromptCaptionTest {
         assertEquals("이 문장을 읽어주세요", promptCaption(0, 0))
         assertEquals("이 문장을 읽어주세요", promptCaption(3, 0))
         assertEquals("이 문장을 읽어주세요", promptCaption(0, 10))
+    }
+
+    @Test
+    fun `감정 칩 - emotion이 있으면 앞뒤 공백을 걷고 문구를 붙인다 (KAN-283)`() {
+        assertEquals("부탁하는 느낌으로 말해주세요!", emotionCue("부탁하는"))
+        assertEquals("다급한 느낌으로 말해주세요!", emotionCue("  다급한 "))
+    }
+
+    @Test
+    fun `감정 칩 - null·빈 문자열·공백뿐이면 칩 없음 (KAN-283)`() {
+        assertNull(emotionCue(null))
+        assertNull(emotionCue(""))
+        assertNull(emotionCue("  "))
     }
 }

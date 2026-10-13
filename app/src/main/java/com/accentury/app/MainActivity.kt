@@ -1321,7 +1321,7 @@ private fun RecordingOverlay(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         RecordingScreen(
             questionText = start.prompt,
-            purpose = RecordingPurpose.LevelTest(start.itemNumber, start.totalItems),
+            purpose = RecordingPurpose.LevelTest(start.itemNumber, start.totalItems, start.emotion),
             onNext = onSubmit,
             guideF0 = start.guideF0,
             submitting = submitting,
