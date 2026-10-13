@@ -37,8 +37,21 @@ struct TestFlowView: View {
     /// 안드로이드에서 설정 화면의 BackHandler가 먼저 받는 자리다.
     private let covered: Bool
 
-    /// - Parameter anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
+    /*
+     * "이번 실행이 시스템 종료 뒤 장면 복원인가" 표시의 `@SceneStorage` 키 (KAN-252 4단계 보완). 호출자(``AuthGateView``의
+     * 로그인 화면·``AnonymousFlowView``)가 이 키로 들고 처음 나타날 때 true로 세운다. 장면 저장소는 시스템이 프로세스를 죽였다
+     * 되살릴 때 돌아오고, 사용자가 장면을 버리면(앱 전환기에서 쓸어 올려 종료) 함께 버려진다 — 안드로이드 `rememberSaveable`
+     * 봉투와 같은 수명이라, 이 표시가 없으면 새 실행으로 보고 저장해 둔 응시를 버린다(``TestFlowModel`` 타입 주석).
+     * 호출자가 드는 이유는 시점이다 — 장면 저장소는 `body`에서만 읽히는데 모델은 이 화면의 `init`에서 만들어진다.
+     * https://developer.apple.com/documentation/swiftui/scenestorage
+     */
+    static let sceneRestorationKey = "TestFlowView.restorable"
+
+    /// - Parameters:
+    ///   - anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
+    ///   - restoresSavedState: 장면 복원 표시(``sceneRestorationKey``)의 지금 값. 모델이 처음 만들어질 때만 쓰인다
     init(
+        restoresSavedState: Bool,
         anonymousConsent: AnonymousVoiceConsentStore? = nil,
         tabBarEntry: Bool,
         covered: Bool = false,
@@ -50,8 +63,10 @@ struct TestFlowView: View {
         // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
         _model = StateObject(
             wrappedValue: anonymousConsent.map {
-                TestFlowModel(onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry)
-            } ?? TestFlowModel(tabBarEntry: tabBarEntry)
+                TestFlowModel(
+                    restoresSavedState: restoresSavedState, onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry
+                )
+            } ?? TestFlowModel(restoresSavedState: restoresSavedState, tabBarEntry: tabBarEntry)
         )
     }
 

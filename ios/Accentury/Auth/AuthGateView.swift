@@ -73,6 +73,8 @@ private struct SignedInScreen: View {
     let gate: AuthGateController
 
     @State private var settingsOpen = false
+    /// 장면 복원 표시 (KAN-252 4단계 보완, ``TestFlowView/sceneRestorationKey``).
+    @SceneStorage(TestFlowView.sceneRestorationKey) private var restorable = false
 
     /// 음성 저장 선택 동의 (KAN-270). 설정 화면과 같은 이유로 TestFlowView 위에 덮는다. 로그인·추가 정보를 마친 미동의
     /// 계정에 한 번만 — 건너뛰어도 다시 띄우지 않는다(팀 결정 2026-10-06). 표시 기록은 계정 id별 로컬 플래그이고,
@@ -92,12 +94,14 @@ private struct SignedInScreen: View {
         ZStack {
             // 하단 탭 바 진입 (KAN-252) — 홈으로 시작하고, 설정은 탭 바가 열며, 탭 화면의 가장자리 스와이프는 홈이다.
             TestFlowView(
+                restoresSavedState: restorable,
                 tabBarEntry: true,
                 covered: settingsOpen || consentShown,
                 onOpenSettings: { settingsOpen = true }
             )
                 // 덮인 동안 스크린 리더가 아래 웹 화면으로 내려가지 않게 한다.
                 .accessibilityHidden(settingsOpen || consentShown)
+                .onAppear { restorable = true }
             if consentShown {
                 VoiceConsentScreen(
                     onConsent: {
@@ -161,12 +165,20 @@ struct AnonymousFlowView: View {
 
     @StateObject private var consentStore = AnonymousVoiceConsentStore()
     @State private var settingsOpen = false
+    /// 장면 복원 표시 (KAN-252 4단계 보완, ``TestFlowView/sceneRestorationKey``). 익명 빌드도 새 실행은 인트로부터다.
+    @SceneStorage(TestFlowView.sceneRestorationKey) private var restorable = false
 
     var body: some View {
         ZStack {
             // 학습이 로그인 필수라 이 빌드는 인트로로 시작한다 — 탭 바가 보이지 않으니 톱니를 남긴다 (KAN-252).
-            TestFlowView(anonymousConsent: consentStore, tabBarEntry: false, onOpenSettings: { settingsOpen = true })
+            TestFlowView(
+                restoresSavedState: restorable,
+                anonymousConsent: consentStore,
+                tabBarEntry: false,
+                onOpenSettings: { settingsOpen = true }
+            )
                 .accessibilityHidden(settingsOpen)
+                .onAppear { restorable = true }
             if settingsOpen {
                 AnonymousSettingsScreen(
                     consented: consentStore.consented(),

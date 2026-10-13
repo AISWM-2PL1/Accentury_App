@@ -94,6 +94,7 @@
 		D9B4B12CAA8445E94A026C6E /* VoiceCheckModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920EDC35F3B069BC5960F487 /* VoiceCheckModel.swift */; };
 		DCB418DD0F4121BCC857E26C /* TrackingAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293545799DC01E2B38E62A9F /* TrackingAuthorization.swift */; };
 		E1222128CC32A2AE5817FA25 /* FirebaseEventSink.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A40932C982FF73FB3DC8DB /* FirebaseEventSink.swift */; };
+		EA2927CCBCB44E8420F6AF6F /* TestFlowModelRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1ED6C522962A3B98906F21 /* TestFlowModelRestoreTests.swift */; };
 		EA2AD6CC5E227A113595DC9B /* GuideCurveCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54D6ABD705F2CA4791966C17 /* GuideCurveCache.swift */; };
 		EB7701FE9320B539BCCD3D68 /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239A8CDAFBDA77AF28814D7D /* KeychainTokenStore.swift */; };
 		EF16FA13AAC3F86EF5455E0D /* MicPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB797E81992F94828EE83D32 /* MicPermission.swift */; };
@@ -178,6 +179,7 @@
 		704F02B2845DB68F35EE0A01 /* RecordingFileLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingFileLifecycleTests.swift; sourceTree = "<group>"; };
 		710CF5D06B7D559FE6C6CA94 /* PcmSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PcmSources.swift; sourceTree = "<group>"; };
 		773A982B19B83B94B4234083 /* ProgressIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressIndicator.swift; sourceTree = "<group>"; };
+		7A1ED6C522962A3B98906F21 /* TestFlowModelRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFlowModelRestoreTests.swift; sourceTree = "<group>"; };
 		8743BCD3EE6871AFE9C2DF64 /* TestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDoubles.swift; sourceTree = "<group>"; };
 		8952B5195BCA192384C5AFA5 /* TopViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopViewController.swift; sourceTree = "<group>"; };
 		8DAD9E3E8FFB486638338FD9 /* UploadStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadStatusBar.swift; sourceTree = "<group>"; };
@@ -374,6 +376,7 @@
 				1A9274FF9A22FC4F50EB082D /* ResultSharerTests.swift */,
 				681A5FBD0FA4004ED8476F0E /* TestFlowModelAppLinkTests.swift */,
 				4461448F6642231A520477E0 /* TestFlowModelAuthTests.swift */,
+				7A1ED6C522962A3B98906F21 /* TestFlowModelRestoreTests.swift */,
 				3D026A48BD81029111245DD7 /* UploadModelTests.swift */,
 				4DEE86D46BCC8F6213F670EA /* VoiceCheckModelTests.swift */,
 				4F992496097E1162874666B6 /* WebViewHostPolicyTests.swift */,
@@ -805,6 +808,7 @@
 				32DF4843F5A8DA80C8385721 /* TestDoubles.swift in Sources */,
 				97CB15FF57602CFA42081683 /* TestFlowModelAppLinkTests.swift in Sources */,
 				7D2B187086CB6E1844AC4131 /* TestFlowModelAuthTests.swift in Sources */,
+				EA2927CCBCB44E8420F6AF6F /* TestFlowModelRestoreTests.swift in Sources */,
 				D65BC773E51A667EA5370B97 /* UploadModelTests.swift in Sources */,
 				33EC80CA45D4C12AC521A7C3 /* VoiceCheckModelTests.swift in Sources */,
 				BF78AD13B4C7F9B0F49C0A59 /* WebViewHostPolicyTests.swift in Sources */,
