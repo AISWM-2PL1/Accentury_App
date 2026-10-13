@@ -95,14 +95,16 @@ struct IntonationRecordingOverlay: View {
 }
 
 /// 억양 학습 화면(권한 게이트 포함)의 닫기 — 안드로이드 `BackHandler(onBack = intonation::close)` 자리 (KAN-253, §12).
-/// iOS에는 시스템 뒤로가기가 없어 왼쪽 위 닫기 버튼과 왼쪽 가장자리 스와이프 둘로 같은 일을 한다. 회신은 없다.
+/// iOS에는 시스템 뒤로가기가 없어 닫기 버튼과 왼쪽 가장자리 스와이프 둘로 같은 일을 한다. 회신은 없다.
+/// 닫기 ✕는 오른쪽 위다 — 안드로이드 `IntonationCloseButton`의 이식본(KAN-252, 2026-10-13 사용자 결정). 모양은 설정 톱니
+/// (``SettingsGearButton``)와 같고, 안드로이드 뒤로가기처럼 제출 중에도 늘 선다(진행 중 업로드는 `close`가 버린다).
 struct IntonationCloseChrome<Content: View>: View {
 
     let onClose: () -> Void
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .topTrailing) {
             content()
             Button(action: onClose) {
                 Image(systemName: "xmark")

@@ -131,6 +131,7 @@ import com.accentury.app.upload.UploadState
 import com.accentury.app.upload.UploadStatusBar
 import com.accentury.app.upload.UploadViewModel
 import com.accentury.app.bridge.intonationRecordedDeliveryJs
+import com.accentury.app.learning.IntonationCloseButton
 import com.accentury.app.learning.IntonationRecordingOverlay
 import com.accentury.app.learning.IntonationRecordingViewModel
 import com.accentury.app.learning.IntonationUploadClient
@@ -1098,6 +1099,11 @@ private fun TestFlow(
                             )
                         }
                     }
+                    // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close, 권한 화면에서도 같다.
+                    IntonationCloseButton(
+                        onClick = intonation::close,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
+                    )
                 }
 
                 // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던
