@@ -715,9 +715,11 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | `MainActivity.kt` 설정 화면 | 기존 `onOpenSettings`(settingsOpen = true) 그대로 — SignedIn은 `SettingsScreen`, 익명은 `AnonymousSettingsScreen` |
 | `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)`, 톱니 판정 `showsSettingsGear(url)`(`screen` 없음·`test`면 true) |
 
-**시작 URL 상태.** `home = tabBarEntry && !introRequested && campaignToken == null`. 재응시 성공(`RetestOutcome.Replaced`)이
-`introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다). 앱 링크로 들어오면(`c`가 있으면)
-예전처럼 인트로다. 테스트 진입 URL은 `home`을 보지 않는다. 진입 URL 문자열이 곧 로드라, 이 셋 말고는 홈 ↔ 인트로 리로드가 생기지 않는다.
+**시작 URL 상태.** `home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLink != null)`(`web/WebConfig.kt`). 재응시
+성공(`RetestOutcome.Replaced`)이 `introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다).
+**앱 링크로 들어오면 인트로다** — `c`가 없거나 무효여도(`campaignToken` null) `parseAppLink`가 링크로 인정했으면 링크다(PR #33 리뷰 P1).
+앱이 떠 있을 때 링크가 오면 `appLink` 값이 바뀌어 진입 URL이 바뀌고 다시 로드돼 인트로가 선다(KAN-32의 코드 변경 리로드와 같다).
+파생식이라 LaunchedEffect로 상태를 세우는 이중 로드가 없다. 테스트 진입 URL은 `home`을 보지 않는다.
 
 ### iOS 구현 (4단계 완료)
 
@@ -729,8 +731,8 @@ Android 3단계와 같은 규칙을 옮겼다. 판정 함수는 Core(`AccenturyC
 | `Web/BridgeUserScript.swift` | 객체 리터럴에 `openSettings: function(){ post("openSettings"); }` |
 | `Web/WebViewHost.swift` | `onOpenSettings` 전달, `didStartProvisionalNavigation`·`didCommit`에서 `onPageStarted(webView.url)`로 현재 문서 URL을 상위에 알림(뒤로·톱니 판정용), 왼쪽 가장자리 `UIScreenEdgePanGestureRecognizer`(60pt 이상 끌고 놓으면 `onEdgeSwipeBack`, `edgeSwipeEnabled`로 켜고 끔) |
 | `TestFlow/TestFlowView.swift` `tabBarEntry`·`covered` | 로그인 빌드(`AuthGateView` SignedIn)만 `true` — 톱니는 `showsSettingsGear(currentWebUrl)`이고 녹음 오버레이(VOICE 녹음·제출, 억양 학습) 위에서 숨김. 스와이프는 `webBackTarget` 대상이 있을 때만 그 URL을 `load`. 억양 녹음·설정·음성 저장 동의가 덮으면(`covered`) 인식기를 끈다. 익명 빌드(`AnonymousFlowView`)는 `false`라 인트로 시작·톱니 유지·스와이프 없음 |
-| `TestFlow/TestFlowModel.swift` | `webUrl`이 `home: tabBarEntry && !introRequested && campaignToken == nil`을 넘김. 재응시 성공(`.replaced`)이 `introRequested`를 세움 — `UserDefaults`(`test_flow_intro_requested`)에 적어 시스템 종료 뒤 장면 복원을 넘기고, 관문 이탈 때와 **새 실행**(`@SceneStorage` 복원 표시 없음, `init(restoresSavedState: false)`) 때 `clearSavedState`가 함께 지운다 — 앱을 새로 열면 Android `rememberSaveable`처럼 홈부터다(4단계 보완, ios-port.md §3 「새 실행은 홈부터」) |
-| `AccenturyCore/Web/WebConfig.swift` | `buildWebUrl(home:)`, `webBackTarget(currentUrl:startRequested:)`, `showsSettingsGear(_:)` — 안드로이드 `WebConfig.kt`의 이식본, 테스트도 `WebConfigTests.swift`에 1:1 |
+| `TestFlow/TestFlowModel.swift` | `webUrl`이 `home: startsAtHome(tabBarEntry:introRequested:appLinkEntered:)`를 넘김. `appLinkEntered`는 `applyAppLink`가 링크를 인정하면(코드 없음·무효 포함) 서고 `UserDefaults`(`test_flow_app_link_entered`)에 적힌다 — 새 실행의 `clearSavedState`가 먼저 지우고 링크는 그 뒤 `onContinueUserActivity`로 오므로 새 링크를 지우지 않는다(PR #33 리뷰 P1). 재응시 성공(`.replaced`)이 `introRequested`를 세움 — `UserDefaults`(`test_flow_intro_requested`)에 적어 시스템 종료 뒤 장면 복원을 넘기고, 관문 이탈 때와 **새 실행**(`@SceneStorage` 복원 표시 없음, `init(restoresSavedState: false)`) 때 `clearSavedState`가 함께 지운다 — 앱을 새로 열면 Android `rememberSaveable`처럼 홈부터다(4단계 보완, ios-port.md §3 「새 실행은 홈부터」) |
+| `AccenturyCore/Web/WebConfig.swift` | `buildWebUrl(home:)`, `startsAtHome(tabBarEntry:introRequested:appLinkEntered:)`, `webBackTarget(currentUrl:startRequested:)`, `showsSettingsGear(_:)` — 안드로이드 `WebConfig.kt`의 이식본, 테스트도 `WebConfigTests.swift`에 1:1 |
 
 **iOS의 뒤로는 왼쪽 가장자리 스와이프다.** iOS에는 시스템 뒤로 버튼이 없어 Android 시스템 뒤로가기 자리를 이 몸짓이 맡는다.
 판정 표는 Android와 같고, 대상이 없을 때(홈·테스트 진행·결과) Android는 앱이 닫히지만 iOS는 아무 일도 없다.
@@ -738,8 +740,14 @@ Android 3단계와 같은 규칙을 옮겼다. 판정 함수는 Core(`AccenturyC
 
 ### 앱 시작 URL (3·4단계)
 
-앱은 WebView를 **`?bridge=<보유 버전>&app=<앱 버전>&screen=home`**으로 연다(지금은 `screen` 없이 인트로). 탭 이동은 웹이
-`location.href` 대입으로 문서를 다시 로드하므로 **WebView 히스토리가 탭마다 한 칸씩 쌓인다.** 시스템 뒤로가기를 WebView
-`goBack()`에 물리면 직전 탭 문서로 돌아가고, 홈에서 한 번 더 누르면 앱을 나가는 쪽이 자연스럽다 — 이 처리(히스토리를 탈지,
-탭 화면에서는 바로 종료할지)는 네이티브 결정이다.
+로그인 빌드는 WebView를 **`?bridge=<보유 버전>&app=<앱 버전>&screen=home`**으로 연다. 재응시 뒤와 **앱 링크 진입**은 `screen` 없는
+인트로이고(위 「시작 URL 상태」), 익명 빌드는 늘 인트로다. 탭 이동은 웹이 `location.href` 대입으로 문서를 다시 로드하지만 뒤로가기는
+WebView 히스토리(`goBack()`)를 타지 않는다 — 판정 함수 `webBackTarget`이 정한 홈 문서로 옮기고, 대상이 없으면 Android는 앱 종료·iOS는
+무시다(위 Android·iOS 구현 절). 학습 화면 안의 이탈은 웹 우상단 ✕(목록으로)와 네이티브 억양 녹음 ✕(코스 목록으로)가 맡는다(ux-ui.md
+「앱 진입 구조」).
+
+**탭 바는 계정 로그인 상태에서만 선다**(PR #33 리뷰 P1). 웹은 탭 바·결과의 학습 진입을 `getAccessToken()`(§11)에 값이 있을 때만 그린다
+(`web/src/App.tsx` `useAccountTabs`) — 익명 빌드 WebView도 브리지·`bridge=2`를 가져 「앱 안」만으로는 갈리지 않기 때문이다. 새 메서드·쿼리는
+없다. 두 앱 모두 저장소의 Access를 만료와 무관하게 주고 익명 빌드·로그아웃이면 `""`라 「값이 있다 = 로그인 상태」다. iOS 첫 문서는
+Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으로 잠깐 더 기다렸다가 탭 바를 세운다.
 
