@@ -7,7 +7,7 @@ import { VoiceItemScreen } from './VoiceItemScreen'
 import type { VoiceItem } from './testDefinition'
 
 /** 더미 확정본의 음성 문항 모양 그대로 (KAN-102 가이드 곡선 포함) */
-function voiceItem(): VoiceItem {
+function voiceItem(extra: Partial<VoiceItem> = {}): VoiceItem {
   return {
     itemId: 'v1',
     seq: 1,
@@ -15,6 +15,7 @@ function voiceItem(): VoiceItem {
     prompt: '"밥 뭇나?"를 평소 말투로 읽어 주세요',
     maxDurationMs: 10_000,
     guideF0: { unit: 'semitone', frameIntervalMs: 10, values: [0, 1] },
+    ...extra,
   }
 }
 
@@ -30,14 +31,18 @@ function stubBridge() {
 }
 
 function renderScreen(
-  extra: { retest?: RetestControl; probeSession?: () => Promise<'ALIVE' | 'EXPIRED'> } = {},
+  extra: {
+    retest?: RetestControl
+    probeSession?: () => Promise<'ALIVE' | 'EXPIRED'>
+    item?: VoiceItem
+  } = {},
 ) {
   const capture = createFakeCapture()
   const upload = vi.fn(async () => ({ analysisJobId: 'job-1' }))
   const onWebUploaded = vi.fn<(result: ItemResult) => void>()
   const { unmount } = render(
     <VoiceItemScreen
-      item={voiceItem()}
+      item={extra.item ?? voiceItem()}
       itemNumber={1}
       totalItems={7}
       webRecording={{ upload, capture: capture.factory }}
@@ -200,5 +205,30 @@ describe('앱 대기 푸터의 세션 만료 출구 (KAN-237)', () => {
     expect(await screen.findByRole('button', { name: '녹음 화면 다시 열기' })).toBeEnabled()
     expect(screen.queryByText('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.')).not.toBeInTheDocument()
     expect(startVoiceItem).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('말투 감정 전달 (KAN-283)', () => {
+  it('정의에 emotion이 있으면 가공 없이 페이로드에 싣는다', () => {
+    const startVoiceItem = stubBridge()
+    renderScreen({ item: voiceItem({ emotion: '부탁하는' }) })
+
+    expect(JSON.parse(startVoiceItem.mock.calls[0][0]).emotion).toBe('부탁하는')
+  })
+
+  it('빈 문자열도 그대로 넘긴다 — 표시 여부 판정은 네이티브 몫', () => {
+    const startVoiceItem = stubBridge()
+    renderScreen({ item: voiceItem({ emotion: '' }) })
+
+    const payload = JSON.parse(startVoiceItem.mock.calls[0][0])
+    expect('emotion' in payload).toBe(true)
+    expect(payload.emotion).toBe('')
+  })
+
+  it('정의에 emotion이 없으면 키 자체를 보내지 않는다 (KAN-282 전 정의와 같은 페이로드)', () => {
+    const startVoiceItem = stubBridge()
+    renderScreen()
+
+    expect('emotion' in JSON.parse(startVoiceItem.mock.calls[0][0])).toBe(false)
   })
 })

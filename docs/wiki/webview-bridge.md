@@ -43,7 +43,7 @@
 | `getContractVersion(): number` | KAN-97 | 앱이 보유한 계약 버전. 동기 반환 | 스큐 협상 이전 앱으로 본다 |
 | `getSessionToken(): string` | KAN-13 | 어휘 답안 제출의 `Authorization` 헤더에 실을 토큰. 동기 반환. origin이 allowlist 밖이면 빈 문자열 | 빈 값은 `null`로 정규화 → 제출 불가 |
 | `requestMicPermission()` | KAN-98 | 네이티브 마이크 권한 게이트를 연다 | 웹이 직접 `getUserMedia` |
-| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0}` | 웹 녹음기(`WebVoiceRecorder`) |
+| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0, emotion?}`. `emotion`(KAN-283)은 정의 VOICE 문항의 말투 감정 문자열(예: "부탁하는")을 가공 없이 — 정의에 없으면 키가 없다, 빈 문자열은 그대로 온다. 「~ 느낌으로 말해주세요!」 문구와 빈 값 처리는 네이티브 몫. 하위호환 추가라 계약 버전 그대로 | 웹 녹음기(`WebVoiceRecorder`) |
 | `startRetest()` | KAN-34 | 이전 세션·결과를 버리고 새 세션으로 인트로 리로드. **인자 없음** — 폐기할 토큰은 네이티브가 들고 있다 | 쿼리를 걷어내고 인트로로 (`goToIntro`) |
 | `startRetestAfterFailure()` | KAN-248 | 실패 출구의 재응시. `startRetest`와 같되 **보상형 광고만 건너뛴다**. 인자도 회신 규칙 차이도 없다 (§8.6) | `startRetest()` — 구버전 앱에서는 광고가 떠도 감수. 그것도 없으면 `goToIntro` |
 | `shareResult(payloadJson)` | KAN-30 | 카카오 피드 템플릿으로 공유. payload = `{imageUrl, text, webTestUrl}` — 점수·세션 id·등급 코드 없음 | `navigator.share` → 링크 복사 |

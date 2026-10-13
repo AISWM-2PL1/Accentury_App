@@ -62,6 +62,24 @@ describe('fetchTestDefinition — 정상 응답', () => {
 
     expect(fetchImpl.mock.calls[0][0]).toBe('http://localhost:8080/v0/tests/gn%2F2026%2008?voiceSet=7')
   })
+
+  it('immutable 캐시를 그대로 쓰지 않고 ETag로 재검증한다 (KAN-283 — 제자리 수정된 정의를 받게)', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => response({}))
+
+    await fetchTestDefinition('http://localhost:8080', TEST_VERSION, VOICE_SET, fetchImpl)
+
+    expect(fetchImpl.mock.calls[0][1]?.cache).toBe('no-cache')
+  })
+
+  it('VOICE 문항의 emotion은 형태 검사를 그대로 통과한다 (KAN-283)', async () => {
+    const withEmotion = definition()
+    withEmotion.items[0] = { ...withEmotion.items[0], emotion: '다급한' } as TestDefinition['items'][number]
+    const fetchImpl = vi.fn<FetchLike>(async () => response({ json: async () => withEmotion }))
+
+    const result = await fetchTestDefinition('http://localhost:8080', TEST_VERSION, VOICE_SET, fetchImpl)
+
+    expect(result.items[0]).toMatchObject({ type: 'VOICE', emotion: '다급한' })
+  })
 })
 
 describe('fetchTestDefinition — 비정상 응답은 명확한 Error다', () => {

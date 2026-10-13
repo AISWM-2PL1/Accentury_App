@@ -61,6 +61,12 @@ export interface VoiceItem extends TestItemBase {
   /** 최대 녹음 길이 (ms). 서버가 전 문항 공통 상수로 채워 내려준다 */
   maxDurationMs: number
   guideF0: GuideF0
+  /**
+   * 말투 감정 (KAN-283, 예: "부탁하는"·"다급한"). VOICE 문항에만 있는 선택 필드다 — KAN-282 전
+   * 정의나 서버가 값을 넣지 않은 문항에서는 없을 수 있다. 「~ 느낌으로 말해주세요!」 문구는
+   * 네이티브 녹음 화면이 붙이므로 여기엔 값만 담긴다
+   */
+  emotion?: string
 }
 
 /** 어휘 문항. 유형별 필드 소유 규칙에 따라 `choices`만 갖는다 */
