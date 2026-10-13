@@ -172,6 +172,38 @@ describe('useWordLearning', () => {
     await act(() => late)
     expect(view()).toMatchObject({ screen: 'quiz', attemptId: 'a2', index: 0, result: null })
   })
+
+  it('제출 중 ✕로 목록에 나간 뒤 늦게 온 시도 오류(LEARNING_ATTEMPT_*)는 목록을 오류 화면으로 덮지 않는다 (KAN-252)', async () => {
+    const server = fakeServer({
+      ...happyRoutes(),
+      '/items/i1/answer': fail(409, 'LEARNING_ATTEMPT_CLOSED', '이미 끝난 시도예요', false),
+    })
+    let releaseLate: () => void = () => {}
+    const gate = new Promise<void>((resolve) => (releaseLate = resolve))
+    const fetchImpl: FetchLike = async (input, init) => {
+      if (new URL(input).pathname.includes('/items/i1/answer')) await gate
+      return server.fetchImpl(input, init)
+    }
+    const { result } = renderHook(() => useWordLearning('http://api', deps(fetchImpl)))
+    const view = () => result.current.view
+
+    await waitFor(() => expect(view().screen).toBe('list'))
+    act(() => result.current.openSet('s1'))
+    await waitFor(() => expect(view().screen).toBe('cards'))
+    act(() => result.current.nextCard())
+    act(() => result.current.startQuiz())
+    await waitFor(() => expect(view()).toMatchObject({ screen: 'quiz', attemptId: 'a1' }))
+    let late: Promise<void> = Promise.resolve()
+    act(() => {
+      late = result.current.submit('i1a', 'k1')
+    })
+    act(() => result.current.backToList())
+    await waitFor(() => expect(view().screen).toBe('list'))
+
+    releaseLate()
+    await act(() => late)
+    expect(view().screen).toBe('list')
+  })
 })
 
 // ── 라우트 (화면 결선) ───────────────────────────────────────────────────
