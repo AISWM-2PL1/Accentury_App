@@ -21,6 +21,13 @@ final class PromptCaptionTests: XCTestCase {
         XCTAssertEqual("이 문장을 읽어주세요", promptCaption(questionIndex: 0, totalQuestions: 10))
     }
 
+    func test번호_접두_번호를_알면_가운데점까지_모르면_nil_KAN283() {
+        XCTAssertEqual("1 / 7 ·", promptCaptionPrefix(questionIndex: 1, totalQuestions: 7))
+        XCTAssertNil(promptCaptionPrefix(questionIndex: 0, totalQuestions: 0))
+        XCTAssertNil(promptCaptionPrefix(questionIndex: 3, totalQuestions: 0))
+        XCTAssertNil(promptCaptionPrefix(questionIndex: 0, totalQuestions: 10))
+    }
+
     func test감정_칩_emotion이_있으면_앞뒤_공백을_걷고_문구를_붙인다_KAN283() {
         XCTAssertEqual("부탁하는 느낌으로 말해주세요!", emotionCue("부탁하는"))
         XCTAssertEqual("다급한 느낌으로 말해주세요!", emotionCue("  다급한 "))
