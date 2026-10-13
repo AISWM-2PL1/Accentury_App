@@ -312,6 +312,28 @@ class WebConfigTest {
         assertNull(webBackTarget(null, startRequested = false))
     }
 
+    // --- webTabUrl: 탭 문서 조립 — 억양 녹음 ✕의 목적지 (KAN-252, 2026-10-13) ---
+
+    @Test
+    fun `탭 문서는 screen만 바꾼다`() {
+        assertEquals("$app&screen=intonation", webTabUrl("$app&screen=intonation", "intonation"))
+        assertEquals("$app&screen=intonation", webTabUrl(home, "intonation"))
+        assertEquals("$app&screen=intonation", webTabUrl(app, "intonation"))
+    }
+
+    @Test
+    fun `탭 문서는 레벨테스트 값을 지우고 계측 코드는 남기며 fragment를 뗀다`() {
+        assertEquals(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=intonation",
+            webTabUrl("$app&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1&c=abc#x", "intonation"),
+        )
+    }
+
+    @Test
+    fun `문서가 아직 없으면 탭 문서도 없다`() {
+        assertNull(webTabUrl(null, "intonation"))
+    }
+
     // --- showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13) ---
 
     @Test

@@ -96,8 +96,21 @@ fun webBackTarget(currentUrl: String?, startRequested: Boolean): String? {
     val screen = params.firstOrNull { it.substringBefore('=') == "screen" }?.substringAfter('=', "")
     val goHome = if (screen == null) !startRequested else screen in BACK_TO_HOME_SCREENS
     if (!goHome) return null
+    return webTabUrl(currentUrl, HOME_SCREEN)
+}
+
+/**
+ * 현재 문서를 탭 [screen] 문서로 옮긴 URL (KAN-252). 웹 탭 이동(`buildTabUrl`)과 같은 쿼리 규칙이다 — `screen`만 바꾸고
+ * 레벨테스트 값을 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다. [webBackTarget](홈)과 억양 녹음 ✕
+ * (억양 탭, 2026-10-13 사용자 결정)가 같이 쓴다. 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
+ */
+fun webTabUrl(currentUrl: String?, screen: String): String? {
+    if (currentUrl == null) return null
+    val withoutFragment = currentUrl.substringBefore('#')
+    val base = withoutFragment.substringBefore('?')
+    val params = withoutFragment.substringAfter('?', "").split('&').filter { it.isNotEmpty() }
     val kept = params.filter { it.substringBefore('=').let { key -> key != "screen" && key !in TEST_QUERY_KEYS } }
-    return "$base?" + (kept + "screen=$HOME_SCREEN").joinToString("&")
+    return "$base?" + (kept + "screen=$screen").joinToString("&")
 }
 
 /**
