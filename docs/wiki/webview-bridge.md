@@ -687,7 +687,19 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 ### 네이티브가 지킬 것 (3단계 Android 완료 · 4단계 iOS)
 
 - **기존 설정 화면 오버레이를 재사용한다.** 지금 WebView 위 톱니가 여는 그 화면(계정·로그아웃·약관 등)을 그대로 띄운다. 새 화면을 만들지 않는다.
-- **WebView 위 톱니를 걷는다.** 설정으로 가는 길은 탭 바 하나로 모은다 — 둘 다 있으면 같은 곳으로 가는 버튼이 두 개다. 단 이 메서드를 구현한 빌드에서만 걷는다(구버전 웹을 받는 경우는 없다 — 웹은 원격 배포라 늘 최신이다).
+- **WebView 위 톱니는 레벨 테스트 웹 화면에만 남긴다** (2026-10-13 사용자 결정). 탭 바가 있는 화면에서는 설정으로 가는 길을 탭 바 하나로 모은다 — 둘 다 있으면 같은 곳으로 가는 버튼이 두 개다. 탭 바가 없는 인트로·테스트 진행에서는 톱니가 유일한 설정 출구라 남긴다. 단 이 메서드를 구현한 빌드(로그인 빌드)에서만 이렇게 한다(구버전 웹을 받는 경우는 없다 — 웹은 원격 배포라 늘 최신이다).
+
+  | 화면 | 판정 | 톱니 |
+  |---|---|---|
+  | 인트로 | 현재 문서에 `screen` 없음 | 보임 |
+  | 테스트 진행 | `screen=test` | 보임 |
+  | 탭 화면 | `screen=home`·`intonation`·`words`·`translate` | 숨김 (탭 바 [설정]) |
+  | 결과 | `screen=result` | 숨김 (탭 바 [설정]) |
+  | 레벨 테스트 VOICE 문항 녹음·제출 | 네이티브 녹음 오버레이 | 숨김 |
+  | 억양 학습 녹음 | 네이티브 녹음 오버레이 | 숨김 |
+  | 시작 게이트·문항 권한·지역 화면 | 네이티브가 WebView를 덮음 | 숨김 (예전과 같음) |
+
+  익명 빌드(탭 바 없음)는 예전 그대로다 — 웹 화면과 녹음 화면에서 톱니가 선다(녹음 화면은 2026-10-03 팀장 요청).
 - **메인 스레드에서 연다.** Android `@JavascriptInterface`는 JS 스레드에서 불리므로 `postToMain`으로 넘긴다. iOS 메시지 핸들러는 이미 메인이지만 디스패처의 다른 화면 전환과 같은 경로를 탄다.
 - origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
 - 설정 화면을 닫으면 WebView의 그 문서(탭 화면)로 그대로 돌아온다 — 웹은 회신을 기다리지 않으므로 다시 그릴 것이 없다.
@@ -697,10 +709,10 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | 자리 | 내용 |
 |---|---|
 | `web/AccenturyBridge.kt` `openSettings()` | `postToMain` → `isCurrentUrlAllowed`면 `onOpenSettings`. `haptic`·`refreshAccessToken`과 같은 꼴 |
-| `web/WebViewHost.kt` | `onOpenSettings` 전달, `onPageStarted(url)`로 현재 문서 URL을 상위에 알림(뒤로가기 판정용) |
-| `MainActivity.kt` `TestFlow(tabBarEntry)` | 로그인 빌드(AuthGate SignedIn)만 `true` — 홈 시작·톱니 제거·탭 뒤로가기. 익명 빌드(AnonymousFlow)는 `false`라 인트로 시작·톱니 유지 |
+| `web/WebViewHost.kt` | `onOpenSettings` 전달, `onPageStarted(url)`로 현재 문서 URL을 상위에 알림(뒤로가기·톱니 판정용) |
+| `MainActivity.kt` `TestFlow(tabBarEntry)` | 로그인 빌드(AuthGate SignedIn)만 `true` — 홈 시작·톱니는 인트로·테스트 진행에만(녹음 오버레이 위 제외)·탭 뒤로가기. 익명 빌드(AnonymousFlow)는 `false`라 인트로 시작·톱니 유지 |
 | `MainActivity.kt` 설정 화면 | 기존 `onOpenSettings`(settingsOpen = true) 그대로 — SignedIn은 `SettingsScreen`, 익명은 `AnonymousSettingsScreen` |
-| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)` |
+| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)`, 톱니 판정 `showsSettingsGear(url)`(`screen` 없음·`test`면 true) |
 
 **시작 URL 상태.** `home = tabBarEntry && !introRequested && campaignToken == null`. 재응시 성공(`RetestOutcome.Replaced`)이
 `introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다). 앱 링크로 들어오면(`c`가 있으면)

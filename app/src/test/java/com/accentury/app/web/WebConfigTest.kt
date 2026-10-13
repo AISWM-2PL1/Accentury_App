@@ -311,4 +311,24 @@ class WebConfigTest {
     fun `문서가 아직 없으면 가로채지 않는다`() {
         assertNull(webBackTarget(null, startRequested = false))
     }
+
+    // --- showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13) ---
+
+    @Test
+    fun `톱니는 인트로와 테스트 진행에서만 선다`() {
+        assertTrue(showsSettingsGear(app))
+        assertTrue(showsSettingsGear("$app&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1"))
+    }
+
+    @Test
+    fun `탭 화면과 결과에서는 톱니가 없다`() {
+        listOf("home", "intonation", "words", "translate", "result").forEach { screen ->
+            assertFalse(screen, showsSettingsGear("$app&screen=$screen"))
+        }
+    }
+
+    @Test
+    fun `문서가 아직 없으면 톱니가 없다`() {
+        assertFalse(showsSettingsGear(null))
+    }
 }
