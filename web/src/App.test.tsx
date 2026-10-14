@@ -434,13 +434,14 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     }
   })
 
-  it('?screen=translate면 「준비 중」과 탭 바(번역기 강조)만, 서버를 부르지 않는다', () => {
+  it('?screen=translate면 번역기(KAN-256)와 탭 바(번역기 강조), [바꾸기] 전에는 서버를 부르지 않는다', () => {
     setSearch(`${APP}&screen=translate`)
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
     render(<App navigate={vi.fn()} />)
     expect(screen.getByRole('heading', { level: 1, name: '사투리 번역기' })).toBeInTheDocument()
-    expect(screen.getByText('준비 중이에요')).toBeInTheDocument()
+    expect(screen.getByLabelText('표준어 문장')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '바꾸기' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '사투리 번역기' })).toHaveAttribute('aria-current', 'page')
     expect(fetchSpy).not.toHaveBeenCalled()
   })

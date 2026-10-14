@@ -24,10 +24,11 @@ import { TestFlowScreen } from './progress/TestFlowScreen'
 import type { RegionCode } from './region/regions'
 import { RegionSelectScreen } from './region/RegionSelectScreen'
 import { ResultScreen } from './result/ResultScreen'
-import { Button, StatusBlock, TabBar } from './ui'
+import { Button, TabBar } from './ui'
 import { useRetest } from './result/useRetest'
 import { readCampaignToken, sanitizeCampaignToken } from './session/campaign'
 import { shareResult } from './share/shareResult'
+import { TranslatorScreen } from './translator/TranslatorScreen'
 import { VoiceCheckScreen } from './voicecheck/VoiceCheckScreen'
 import {
   createWebSession,
@@ -205,19 +206,12 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
   }
 
   /*
-   * `?screen=translate` — 사투리 번역기 탭 (KAN-252). 이번 티켓은 「준비 중」 자리만 둔다 — 번역 화면과
-   * 서버 API(KAN-266) 호출은 다음 티켓이다.
+   * `?screen=translate` — 사투리 번역기 탭 (KAN-252 진입, KAN-256 화면). 입력·대기·결과·오류를 문서 재로드
+   * 없이 화면 안에서 바꾼다(`translator/TranslatorScreen`). 탭 바는 모든 상태에서 서고, 계정 토큰이 없으면
+   * `useAccountTabs`가 그리지 않는다 — 그때 [바꾸기]는 로그인 안내로 끝난다(ux-ui 「사투리 번역기 화면」 절).
    */
   if (params.get('screen') === 'translate') {
-    return (
-      <>
-        <main className="screen">
-          <h1 className="type-title">사투리 번역기</h1>
-          <StatusBlock tone="waiting" message="준비 중이에요" />
-        </main>
-        {tabBar('translate')}
-      </>
-    )
+    return <TranslatorScreen apiBase={API_BASE} tabBar={tabBar('translate')} />
   }
 
   /*
