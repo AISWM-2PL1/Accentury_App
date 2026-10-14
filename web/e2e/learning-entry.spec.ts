@@ -186,7 +186,8 @@ test('앱 홈 - 탭 바로 억양 → 단어 → 번역기 → 홈을 돌고, �
 
   await tab(page, '사투리 번역기').click()
   await expect(page.getByRole('heading', { level: 1, name: '사투리 번역기' })).toBeVisible()
-  await expect(page.getByText('준비 중이에요', { exact: true })).toBeVisible()
+  // 「준비 중이에요」 자리는 KAN-256 2단계에서 T-1 입력 화면으로 바뀌었다 (화면 자체는 translator 스펙)
+  await expect(page.getByLabel('표준어 문장')).toBeVisible()
   expectAppMarkers(page, 'translate')
 
   await tab(page, '홈').click()
