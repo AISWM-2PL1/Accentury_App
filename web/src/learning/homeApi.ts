@@ -71,7 +71,9 @@ function isLearningHome(v: unknown): v is LearningHome {
   if (v.levelTest !== null && !isLevelTest(v.levelTest)) return false
   if (!isStringOrNull(v.recommendedCourseId) || !isStringOrNull(v.recommendedSetId)) return false
   if (v.streak === undefined) return true
-  return hasFields(v.streak, { currentDays: 'number', attendedToday: 'boolean' }) && isStringOrNull(v.streak.lastAttendedDate)
+  if (!hasFields(v.streak, { currentDays: 'number', attendedToday: 'boolean' }) || !isStringOrNull(v.streak.lastAttendedDate)) return false
+  // 0 이상 정수만 — 화면이 「-1일 연속 출석」 같은 음수·소수를 그리지 않게 (Codex 리뷰 P2)
+  return Number.isSafeInteger(v.streak.currentDays) && (v.streak.currentDays as number) >= 0
 }
 
 // ── 표시 ─────────────────────────────────────────────────────────────

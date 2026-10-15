@@ -441,6 +441,25 @@ describe('App — 홈 등급 카드·출석 (KAN-287)', () => {
     expect(screen.queryByText(/출석/)).toBeNull()
   })
 
+  it('levelTestTaken true인데 levelTest null이면 등급 카드 없이 기존 홈 + 출석', async () => {
+    stubHome(200, { ...BEFORE_TEST, levelTestTaken: true })
+    const { container } = render(<App navigate={vi.fn()} />)
+    expect(await screen.findByText('오늘 학습하면 출석이 시작돼요')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
+    expect(container.querySelector('.home-tier')).toBeNull()
+  })
+
+  it('응시일 파싱이 안 되면 응시일 줄만 빠지고 등급 카드·버튼은 그대로', async () => {
+    stubHome(200, { ...AFTER_TEST, levelTest: { ...AFTER_TEST.levelTest, completedAt: 'not-a-date' } })
+    const { container } = render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('heading', { level: 1, name: '경남 토박이' })).toBeInTheDocument()
+    expect(container.querySelector('.home-tier')).not.toBeNull()
+    expect(screen.queryByText(/응시/)).toBeNull()
+    expect(screen.getByRole('button', { name: '억양 학습 시작' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
+  })
+
   it('응답 전에도 [레벨 테스트 시작]이 이미 있다', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
     render(<App navigate={vi.fn()} />)

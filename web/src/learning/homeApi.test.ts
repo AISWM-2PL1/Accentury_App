@@ -96,6 +96,8 @@ describe('GET /v0/learning/home', () => {
     ['tier 필드 누락', { ...AFTER_TEST, levelTest: { ...AFTER_TEST.levelTest, tier: { code: 'HONORARY', name: '명예주민', rank: 4 } } }],
     ['levelTestTaken 누락', { ...BEFORE_TEST, levelTestTaken: undefined }],
     ['streak 모양 깨짐', { ...AFTER_TEST, streak: { currentDays: '3', attendedToday: false, lastAttendedDate: null } }],
+    ['출석 일수 음수', { ...AFTER_TEST, streak: { currentDays: -1, attendedToday: false, lastAttendedDate: null } }],
+    ['출석 일수 소수', { ...AFTER_TEST, streak: { currentDays: 1.5, attendedToday: false, lastAttendedDate: null } }],
   ])('모양이 어긋나면(%s) 재시도 불가 오류', async (_name, broken) => {
     const error = await fetchLearningHome(API, deps(async () => jsonResponse(200, broken))).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(WordLearningError)
