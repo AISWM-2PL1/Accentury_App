@@ -343,6 +343,111 @@ describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
   })
 })
 
+describe('App — 홈 등급 카드·출석 (KAN-287)', () => {
+  const HOME = `?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=home`
+  const queryOf = (url: unknown) => new URLSearchParams(String(url).split('?')[1] ?? '')
+  let requestMicPermission: ReturnType<typeof vi.fn>
+
+  const BEFORE_TEST = {
+    levelTestTaken: false,
+    levelTest: null,
+    recommendedCourseId: null,
+    recommendedSetId: null,
+    streak: { currentDays: 0, attendedToday: false, lastAttendedDate: null },
+  }
+  const AFTER_TEST = {
+    levelTestTaken: true,
+    levelTest: {
+      testVersion: 'tv-1',
+      scoreVersion: 'sv-0.3',
+      tier: { code: 'NATIVE', name: '경남 토박이', rank: 1, of: 5 },
+      completedAt: '2026-10-14T03:00:00Z',
+    },
+    recommendedCourseId: 'ic-01',
+    recommendedSetId: 'ws-01',
+    streak: { currentDays: 3, attendedToday: false, lastAttendedDate: '2026-10-14' },
+  }
+
+  function stubHome(status: number, body: unknown) {
+    const fetchStub = vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => body }))
+    vi.stubGlobal('fetch', fetchStub)
+    return fetchStub
+  }
+
+  beforeEach(() => {
+    setSearch(HOME)
+    requestMicPermission = vi.fn()
+    window.AccenturyBridge = {
+      requestMicPermission,
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+      getAccessToken: () => 'acc',
+    }
+  })
+
+  it('테스트 전이면 기존 홈 그대로 + 0일 출석 빈 상태 문구', async () => {
+    stubHome(200, BEFORE_TEST)
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByText('오늘 학습하면 출석이 시작돼요')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
+  })
+
+  it('테스트 후면 등급 카드·KST 응시일·출석, [억양 학습 시작]은 억양 탭으로, [다시 테스트하기]는 브리지로', async () => {
+    const fetchStub = stubHome(200, AFTER_TEST)
+    const navigate = vi.fn()
+    const { container } = render(<App navigate={navigate} />)
+
+    expect(await screen.findByRole('heading', { level: 1, name: '경남 토박이' })).toBeInTheDocument()
+    expect(String((fetchStub.mock.calls[0] as unknown[])[0])).toMatch(/\/v0\/learning\/home$/)
+    expect(screen.getByText('2026년 10월 14일 응시')).toBeInTheDocument()
+    expect(screen.getByText('3일 연속 출석 중 · 오늘 학습하면 4일')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '레벨 테스트 시작' })).toBeNull()
+    expect(container.querySelectorAll('.btn--primary')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: '억양 학습 시작' }))
+    expect(queryOf(navigate.mock.calls[0][0]).get('screen')).toBe('intonation')
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+    expect(requestMicPermission).toHaveBeenCalledTimes(1)
+  })
+
+  it('오늘 출석했으면 「N일 연속 출석 중이에요」', async () => {
+    stubHome(200, { ...AFTER_TEST, streak: { currentDays: 5, attendedToday: true, lastAttendedDate: '2026-10-15' } })
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByText('5일 연속 출석 중이에요')).toBeInTheDocument()
+  })
+
+  it('streak 없는 응답(KAN-286 미배포 서버)이면 출석 영역이 없다', async () => {
+    const { streak: _streak, ...withoutStreak } = AFTER_TEST
+    stubHome(200, withoutStreak)
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('heading', { level: 1, name: '경남 토박이' })).toBeInTheDocument()
+    expect(screen.queryByText(/출석/)).toBeNull()
+  })
+
+  it.each([
+    ['네트워크 실패', () => vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('offline'))))],
+    ['503', () => stubHome(503, { code: 'SERVICE_UNAVAILABLE', message: '잠시 후', retryable: true })],
+  ])('조회 실패(%s)면 응답 전과 같은 홈과 탭 바, 오류 표시 없음', async (_name, stub) => {
+    stub()
+    render(<App navigate={vi.fn()} />)
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: '주 메뉴' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/출석/)).toBeNull()
+  })
+
+  it('응답 전에도 [레벨 테스트 시작]이 이미 있다', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    render(<App navigate={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
+  })
+})
+
 describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
   const APP = `?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0`
   const tabBar = () => screen.queryByRole('navigation', { name: '주 메뉴' })
@@ -355,6 +460,8 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       getContractVersion: () => REQUIRED_BRIDGE_VERSION,
       getAccessToken: () => 'acc',
     }
+    // 홈은 마운트 때 `GET /v0/learning/home`을 부른다(KAN-287). 여기 테스트는 응답 전·실패 모양만 보므로 실패로 흉내 낸다
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('offline'))))
   })
 
   it('앱 안이라도 계정 토큰이 없으면(익명 빌드) 홈·번역기에 탭 바가 없다 (PR #33 리뷰 P1)', () => {

@@ -6,6 +6,7 @@ import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
 import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
+import { fetchLearningHome, formatKstDate, type HomeStreak, type LearningHome } from './learning/homeApi'
 import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
@@ -23,7 +24,7 @@ import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progres
 import { TestFlowScreen } from './progress/TestFlowScreen'
 import type { RegionCode } from './region/regions'
 import { RegionSelectScreen } from './region/RegionSelectScreen'
-import { ResultScreen } from './result/ResultScreen'
+import { ResultScreen, TierCharacter } from './result/ResultScreen'
 import { Button, TabBar } from './ui'
 import { useRetest } from './result/useRetest'
 import { readCampaignToken, sanitizeCampaignToken } from './session/campaign'
@@ -194,12 +195,17 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
    * 재로드는 네이티브가 한다. 브리지가 받지 않는 구버전 앱만 예전처럼 인트로로 보낸다. 웹 단독 시작 게이트는
    * 옮기지 않는다 — 홈은 앱 안에서만 쓰인다. 응시 시작 계측(`referral_test_started`)은 테스트 문서 진입에서
    * 세므로 여기서 따로 보내지 않는다.
-   * 테스트를 했는지는 보지 않는다(2026-10-13 결정: 전후 판정 없음).
+   * 테스트 후면 등급 카드·[억양 학습 시작]을, 응답에 `streak`가 있으면 연속 출석을 더한다(KAN-287, 2026-10-15 팀 결정 —
+   * ux-ui 「홈 카드 (KAN-287)」 절). 판정은 `GET /v0/learning/home` 응답이고 [HomeScreen]이 조회한다.
    */
   if (params.get('screen') === 'home') {
     return (
       <>
-        <HomeScreen onStartTest={() => requestMicPermission() || goToIntro(navigate)} />
+        <HomeScreen
+          apiBase={API_BASE}
+          onStartTest={() => requestMicPermission() || goToIntro(navigate)}
+          onStartLearning={() => goToTab('intonation', navigate)}
+        />
         {tabBar('home')}
       </>
     )
@@ -787,21 +793,81 @@ function assignHref(url: string, options?: { replace?: boolean }): void {
 }
 
 /**
- * 앱 홈 (KAN-252). 제목·한 줄 설명·레벨 테스트 진입 버튼 하나다. 버튼은 화면 가운데 본문 아래에 둔다 —
- * 하단은 탭 바 자리라 주버튼을 바닥에 붙이면 두 띠가 겹쳐 보인다.
+ * 앱 홈 (KAN-252, 등급 카드·출석은 KAN-287). 버튼은 화면 가운데 본문 아래에 둔다 — 하단은 탭 바 자리라 주버튼을
+ * 바닥에 붙이면 두 띠가 겹쳐 보인다.
+ *
+ * 응답 전에는 테스트 전 홈(제목·설명·[레벨 테스트 시작])을 먼저 그린다. 홈은 앱이 처음 여는 화면이라 로딩 화면을
+ * 두면 [레벨 테스트 시작]과 탭 바가 API를 기다리게 된다. 응답이 오면 테스트 후 카드·출석으로 채운다.
+ *
+ * 조회 실패(401 포함 어떤 오류든)는 조용히 삼키고 응답 전 모양으로 남는다. 홈 카드는 덧붙인 정보라, 막다른
+ * [다시 시도] 화면이나 오류 문구보다 테스트 진입과 탭 바가 그대로 있는 편이 낫다(ux-ui 「홈 카드」 절).
  */
-function HomeScreen({ onStartTest }: { onStartTest: () => void }) {
+function HomeScreen({
+  apiBase,
+  onStartTest,
+  onStartLearning,
+}: {
+  apiBase: string
+  onStartTest: () => void
+  onStartLearning: () => void
+}) {
+  const [home, setHome] = useState<LearningHome | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetchLearningHome(apiBase).then(
+      (result) => {
+        if (alive) setHome(result)
+      },
+      () => {},
+    )
+    return () => {
+      alive = false
+    }
+  }, [apiBase])
+
+  const levelTest = home?.levelTest ?? null
+  const streak = home?.streak
+  const tested = levelTest === null ? '' : formatKstDate(levelTest.completedAt)
+
   return (
     <main className="screen">
       <div className="screen__body">
-        <h1 className="type-title">내 사투리 레벨 테스트</h1>
-        <p className="type-body">억양과 단어로 내 사투리 등급을 알아봐요</p>
-        <Button onClick={onStartTest} style={{ width: '100%' }}>
-          레벨 테스트 시작
-        </Button>
+        {levelTest === null ? (
+          <>
+            <h1 className="type-title">내 사투리 레벨 테스트</h1>
+            <p className="type-body">억양과 단어로 내 사투리 등급을 알아봐요</p>
+            <Button onClick={onStartTest} style={{ width: '100%' }}>
+              레벨 테스트 시작
+            </Button>
+          </>
+        ) : (
+          <>
+            <section className="card home-tier" aria-labelledby="home-tier-name">
+              <TierCharacter code={levelTest.tier.code} name={levelTest.tier.name} className="illustration--home" />
+              <h1 id="home-tier-name" className="type-title">
+                {levelTest.tier.name}
+              </h1>
+              {tested !== '' && <p className="type-label">{tested} 응시</p>}
+            </section>
+            <Button onClick={onStartLearning} style={{ width: '100%' }}>
+              억양 학습 시작
+            </Button>
+            <Button variant="text" onClick={onStartTest}>
+              다시 테스트하기
+            </Button>
+          </>
+        )}
+        {streak !== undefined && <p className="home-streak type-body">{streakText(streak)}</p>}
       </div>
     </main>
   )
+}
+
+/** 홈 출석 문구 (KAN-287). 끊겼거나 오늘 아직이어도 탓하지 않고 다음 한 걸음만 말한다(ux-ui 카피 톤) */
+function streakText({ currentDays, attendedToday }: HomeStreak): string {
+  if (currentDays === 0) return '오늘 학습하면 출석이 시작돼요'
+  if (attendedToday) return `${currentDays}일 연속 출석 중이에요`
+  return `${currentDays}일 연속 출석 중 · 오늘 학습하면 ${currentDays + 1}일`
 }
 
 /** 신버전 웹 + 구버전 앱 조합에서만 보이는 화면. 비난 없는 카피 톤(ux-ui.md)을 지킨다. */

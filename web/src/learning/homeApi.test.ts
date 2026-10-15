@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
-import { fetchLearningHome } from './homeApi'
+import { fetchLearningHome, formatKstDate } from './homeApi'
 import { WordLearningError, type WordApiDeps } from './wordApi'
 
 const API = 'http://localhost:8080/'
@@ -101,5 +101,15 @@ describe('GET /v0/learning/home', () => {
     expect(error).toBeInstanceOf(WordLearningError)
     expect((error as WordLearningError).code).toBeNull()
     expect((error as WordLearningError).retryable).toBe(false)
+  })
+})
+
+describe('formatKstDate (KAN-287 2단계)', () => {
+  it('UTC 15시 이후는 KST로 다음 날이다', () => {
+    expect(formatKstDate('2026-10-14T15:30:00Z')).toBe('2026년 10월 15일')
+  })
+
+  it('파싱 안 되는 문자열은 빈 문자열', () => {
+    expect(formatKstDate('not-a-date')).toBe('')
   })
 })
