@@ -430,8 +430,10 @@ export function ResultScreen({
  * `.tier-character__image`의 크림 2px halo다.
  * 라이트에서는 halo가 배경과 같은 크림이라 보이지 않는다 — 지금 넣어 두는 이유는 다크가
  * 오는 날 이 화면을 다시 열지 않기 위해서다.
+ *
+ * 홈 등급 카드(KAN-287)도 이 함수를 쓴다. `className`은 슬롯 높이 클래스만 바꾼다 — 홈은 카드 안이라 `illustration--home`으로 줄인다.
  */
-function TierCharacter({ code, name }: { code: string; name: string }) {
+export function TierCharacter({ code, name, className = 'illustration--result' }: { code: string; name: string; className?: string }) {
   const src = tierImageFor(code)
   // 로딩 실패는 렌더 중에 알 수 없다 — onError가 뜬 뒤에야 폴백으로 바꾼다.
   const [failed, setFailed] = useState(false)
@@ -442,7 +444,7 @@ function TierCharacter({ code, name }: { code: string; name: string }) {
   }, [src])
 
   return (
-    <div className="illustration illustration--result">
+    <div className={`illustration ${className}`}>
       {src !== undefined && !failed ? (
         <img
           className="tier-character__image"

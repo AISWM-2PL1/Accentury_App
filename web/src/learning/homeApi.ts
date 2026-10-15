@@ -73,3 +73,18 @@ function isLearningHome(v: unknown): v is LearningHome {
   if (v.streak === undefined) return true
   return hasFields(v.streak, { currentDays: 'number', attendedToday: 'boolean' }) && isStringOrNull(v.streak.lastAttendedDate)
 }
+
+// ── 표시 ─────────────────────────────────────────────────────────────
+
+const KST_DATE = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'long' })
+
+/**
+ * 응시일 표시 (KAN-287 2단계) — ISO Instant를 KST 날짜 「2026년 10월 14일」로. 기기 시간대와 무관하게 KST로 고정한다
+ * (출석 날짜 `lastAttendedDate`도 KST라 둘이 어긋나지 않게).
+ * 파싱이 안 되면 빈 문자열 — `format`은 Invalid Date에 RangeError를 던지므로 먼저 거른다. 화면은 빈 문자열이면 응시일 줄을 뺀다.
+ * 근거: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat/format
+ */
+export function formatKstDate(iso: string): string {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : KST_DATE.format(date)
+}
