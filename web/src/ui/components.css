@@ -446,6 +446,25 @@
   box-shadow: var(--shadow-card);
 }
 
+/* ── 홈 카드 (KAN-287) ── */
+
+/* 등급 캐릭터·등급명·응시일을 세로로 쌓는다. 시안 없음(KAN-279 미반영) — 기존 카드·토큰만 쓴다 */
+.home-tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 결과 화면(240)보다 작게 — 카드 안에 버튼 두 개와 출석 줄까지 한 화면에 들어오게 */
+.illustration--home {
+  height: 160px;
+}
+
+.home-streak {
+  color: var(--color-muted-foreground);
+}
+
 /*
  * 숫자 두 칸. `1fr 1fr`이라 문항 수와 예상 시간이 정확히 반씩 갖는다 — flex로 두면 글자 수가
  * 많은 쪽이 더 넓어져 가운데 선이 카드 가운데에서 벗어난다.

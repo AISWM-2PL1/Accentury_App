@@ -73,6 +73,20 @@ async function stubServer(page: Page): Promise<void> {
 }
 
 /**
+ * 홈 상태(`GET /v0/learning/home`, KAN-287)를 가로챈다. [stubServer]에 넣지 않는 이유는 홈을 여는 테스트마다
+ * 응답을 따로 골라야 해서다. 숫자를 주면 그 상태 코드의 오류 봉투로 답한다.
+ */
+async function stubHome(page: Page, reply: object | number): Promise<void> {
+  await page.route(
+    (url) => url.pathname === '/v0/learning/home',
+    (route) =>
+      typeof reply === 'number'
+        ? route.fulfill({ status: reply, json: { code: 'INTERNAL', message: '잠시 뒤 다시', retryable: true } })
+        : route.fulfill({ json: reply }),
+  )
+}
+
+/**
  * 앱 WebView 흉내 — 결과 조회용 세션 토큰과 학습용 계정 토큰을 같이 준다. `openSettings`·`requestMicPermission`은
  * 부른 횟수만 센다(네이티브가 설정 화면을 띄우고, 테스트 시작 게이트를 여는 자리다). 문서를 다시 로드하면 새로 심기므로 횟수는 문서마다 0부터다.
  */
@@ -97,6 +111,9 @@ async function asApp(page: Page): Promise<void> {
 
 const tabBar = (page: Page) => page.getByRole('navigation', { name: '주 메뉴' })
 const tab = (page: Page, name: string) => tabBar(page).getByRole('button', { name, exact: true })
+
+const micCalls = (page: Page) =>
+  page.evaluate(() => (window as unknown as { AccenturyBridge: { micCalls: number } }).AccenturyBridge.micCalls)
 
 /** 다시 열린 문서가 앱 표식을 그대로 싣고 있는지 */
 function expectAppMarkers(page: Page, screen: string): void {
@@ -167,6 +184,7 @@ test('웹 단독 결과 화면 - 억양 학습 버튼도 탭 바도 없다 (2026
 
 test('앱 홈 - 탭 바로 억양 → 단어 → 번역기 → 홈을 돌고, 매 문서가 앱 실행 그대로다', async ({ page }) => {
   await stubServer(page)
+  await stubHome(page, 503)
   await asApp(page)
   await page.goto('/?bridge=2&app=1.0&screen=home')
 
@@ -209,8 +227,72 @@ test('앱 홈 - 탭 바로 억양 → 단어 → 번역기 → 홈을 돌고, �
   await expect(tabBar(page)).toHaveCount(0)
 })
 
+test('KAN-287 홈 테스트 후 - 등급 카드·KST 응시일·출석 문구가 서고, [억양 학습 시작]은 A-1로, [다시 테스트하기]는 브리지로 간다', async ({ page }) => {
+  await stubServer(page)
+  await stubHome(page, {
+    levelTestTaken: true,
+    levelTest: { testVersion: RESULT_BODY.testVersion, scoreVersion: RESULT_BODY.scoreVersion, tier: RESULT_BODY.tier, completedAt: '2026-10-13T16:00:00Z' },
+    recommendedCourseId: 'k1',
+    recommendedSetId: 's1',
+    streak: { currentDays: 3, attendedToday: false, lastAttendedDate: '2026-10-13' },
+  })
+  await asApp(page)
+  await page.goto('/?bridge=2&app=1.0&screen=home')
+
+  const card = page.getByRole('region', { name: '명예주민' })
+  await expect(card.getByRole('heading', { level: 1, name: '명예주민' })).toBeVisible()
+  await expect(card.getByRole('img', { name: '명예주민' })).toBeVisible()
+  // UTC 16:00은 KST 다음 날 01:00 — 실브라우저 Intl에서도 날짜가 넘어간다
+  await expect(card.locator('p.type-label')).toHaveText('2026년 10월 14일 응시')
+  await expect(page.locator('p.home-streak')).toHaveText('3일 연속 출석 중 · 오늘 학습하면 4일')
+  await expect(page.locator('.btn--primary')).toHaveCount(1)
+  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toHaveCount(0)
+  await expect(tab(page, '홈')).toHaveAttribute('aria-current', 'page')
+
+  await page.getByRole('button', { name: '억양 학습 시작', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '억양 학습' })).toBeVisible()
+  expectAppMarkers(page, 'intonation')
+
+  await tab(page, '홈').click()
+  await page.getByRole('button', { name: '다시 테스트하기', exact: true }).click()
+  await expect.poll(() => micCalls(page)).toBe(1)
+  expectAppMarkers(page, 'home')
+})
+
+test('KAN-287 홈 테스트 전 - streak 키가 없는 구서버 응답이면 기존 홈 그대로, 출석 문구가 없다', async ({ page }) => {
+  await stubServer(page)
+  await stubHome(page, { levelTestTaken: false, levelTest: null, recommendedCourseId: null, recommendedSetId: null })
+  await asApp(page)
+  const home = page.waitForResponse((r) => new URL(r.url()).pathname === '/v0/learning/home')
+  await page.goto('/?bridge=2&app=1.0&screen=home')
+  await home
+
+  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '레벨 테스트 시작', exact: true })).toBeVisible()
+  await expect(page.locator('.home-streak')).toHaveCount(0)
+  await expect(tabBar(page)).toBeVisible()
+})
+
+test('KAN-287 홈 조회 실패 - 503 봉투면 카드만 숨기고 기존 홈·탭 바가 남아 [레벨 테스트 시작]이 동작한다', async ({ page }) => {
+  await stubServer(page)
+  await stubHome(page, 503)
+  await asApp(page)
+  const home = page.waitForResponse((r) => new URL(r.url()).pathname === '/v0/learning/home')
+  await page.goto('/?bridge=2&app=1.0&screen=home')
+  await home
+
+  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
+  await expect(tabBar(page)).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.locator('.home-tier')).toHaveCount(0)
+
+  await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
+  await expect.poll(() => micCalls(page)).toBe(1)
+})
+
 test('설정 탭 - 문서를 옮기지 않고 window.AccenturyBridge.openSettings를 한 번 부른다', async ({ page }) => {
   await stubServer(page)
+  await stubHome(page, 503)
   await asApp(page)
   await page.goto('/?bridge=2&app=1.0&screen=home')
 
