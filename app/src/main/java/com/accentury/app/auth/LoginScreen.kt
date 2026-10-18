@@ -4,27 +4,20 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,13 +31,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accentury.app.R
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
+import com.accentury.app.ui.components.PaperFailureScreen
+import com.accentury.app.ui.components.PaperScreen
+import com.accentury.app.ui.components.PaperSpinner
+import com.accentury.app.ui.components.PaperWaitingScreen
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
@@ -79,65 +76,45 @@ fun LoginScreen(
     // 로그인 SDK는 Activity 위에 자기 화면을 띄운다. 이 화면은 늘 MainActivity 안에서 돈다.
     val activity = checkNotNull(LocalActivity.current)
 
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        // 키 작은 화면에서는 히어로와 버튼이 겹치지 않고 스크롤된다 — 최소 높이만 화면에 맞추고 넘치면 늘어난다.
-        BoxWithConstraints {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .heightIn(min = maxHeight)
-                    .padding(start = Spacing.x6, end = Spacing.x6, top = Dimens.screenPaddingTop, bottom = Spacing.x8),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // 히어로는 아래 묶음 위 남은 칸의 세로 가운데에 선다 (2026-09-28 팀장 결정) — 웹 `.screen__body`의
-                // justify-content center와 같은 규칙이다. 인트로와 픽셀 단위로 맞추던 고정 오프셋은 카드가 없는 이 화면에서
-                // 히어로를 위로 치우치게 해 걷어냈다. 위아래 가중치가 같아서 어느 화면 높이에서도 가운데다.
-                Spacer(Modifier.weight(1f))
-                IntroHero()
-                Spacer(Modifier.weight(1f).heightIn(min = Spacing.x6))
-
-                // 아래 묶음 — 웹 인트로의 CTA·안내 자리. 실패 안내·대기 표시는 버튼 바로 위에 붙는다.
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.x4),
-                ) {
-                    val shown = state.idpError ?: error
-                    when {
-                        // 설정이 하나도 없는 빌드 — 가짜 IdP도 꺼져 있으면 누를 것이 없다. 사용자에게는 업데이트 안내다.
-                        providers.isEmpty() -> AuthFailureBlock(AuthFailure(AuthFailureReason.Unsupported), verb = "로그인")
-                        shown != null -> AuthFailureBlock(shown, verb = "로그인")
-                        // 서버 로그인까지 도는 동안 버튼은 흐려지고 여기서 기다림을 알린다.
-                        state.inFlight -> CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    }
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.x3),
-                    ) {
-                        providers.forEach { provider ->
-                            AccenturyButton(
-                                text = "${providerLabel(provider)}로 계속하기",
-                                onClick = {
-                                    scope.launch {
-                                        state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                variant = ButtonVariant.Secondary,
-                                enabled = state.buttonsEnabled,
-                                leading = { IdpLogo(provider) },
-                            )
+    // 시안 03·04 배치 (KAN-288 디자인 3): 워드마크 앱바, 왼쪽 정렬 히어로, 동의 줄 → 로그인 버튼 → 실패 안내 순.
+    // 동의를 버튼 위로 올린 것은 버튼이 동의 전에는 눌리지 않기 때문이다 — 막힌 버튼보다 막은 이유가 먼저 보여야 한다.
+    PaperScreen(modifier = modifier) {
+        Spacer(Modifier.height(Spacing.x8))
+        IntroHero()
+        Spacer(Modifier.height(Spacing.x6))
+        ConsentRow(
+            checked = state.consented,
+            onCheckedChange = { state.consented = it },
+            onOpenPrivacy = onOpenPrivacy,
+        )
+        Spacer(Modifier.height(Spacing.x3))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.x3),
+        ) {
+            providers.forEach { provider ->
+                AccenturyButton(
+                    text = "${providerLabel(provider)}로 계속하기",
+                    onClick = {
+                        scope.launch {
+                            state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
                         }
-                    }
-
-                    ConsentRow(
-                        checked = state.consented,
-                        onCheckedChange = { state.consented = it },
-                        onOpenPrivacy = onOpenPrivacy,
-                    )
-                }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = ButtonVariant.Secondary,
+                    enabled = state.buttonsEnabled,
+                    leading = { IdpLogo(provider) },
+                )
             }
+        }
+        Spacer(Modifier.height(Spacing.x4))
+        val shown = state.idpError ?: error
+        when {
+            // 설정이 하나도 없는 빌드 — 가짜 IdP도 꺼져 있으면 누를 것이 없다. 사용자에게는 업데이트 안내다.
+            providers.isEmpty() -> AuthFailureBlock(AuthFailure(AuthFailureReason.Unsupported), verb = "로그인")
+            shown != null -> AuthFailureBlock(shown, verb = "로그인")
+            // 서버 로그인까지 도는 동안 버튼은 흐려지고 여기서 기다림을 알린다.
+            state.inFlight -> PaperSpinner(modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 }
@@ -149,21 +126,16 @@ fun LoginScreen(
 private val CssLineHeight = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.None)
 
 /**
- * 웹 인트로의 상단 블록을 그대로 옮겼다 (KAN-224, `web/src/intro/IntroScreen.tsx` `.intro-hero`) — 앱 첫 화면이
- * 테스트 인트로와 같은 얼굴이어야 한다. 워드마크는 브랜드 표기라 평문이고, 화면 이름은 두 줄 히어로 하나만
- * heading이다(웹 h1). 밑줄은 장식이라 의미론이 없다.
+ * 웹 인트로의 상단 블록을 옮겼다 (KAN-224, `web/src/intro/IntroScreen.tsx` `.intro-hero`) — 앱 첫 화면이
+ * 테스트 인트로와 같은 얼굴이어야 한다. 디자인 3(KAN-288)에서 왼쪽 정렬이 됐고 워드마크는 앱바로 올라갔다.
+ * 화면 이름은 두 줄 히어로 하나만 heading이다(웹 h1). 밑줄은 장식이라 의미론이 없다.
  */
 @Composable
 private fun IntroHero() {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.x2),
-    ) {
-        Text("Accentury", style = MaterialTheme.typography.titleMedium.copy(lineHeightStyle = CssLineHeight), color = MaterialTheme.colorScheme.onBackground)
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
         // 밑줄 폭 = 제목 글자 폭 (웹 `.intro-heading`이 글자 폭으로 줄고 svg가 width 100%).
         Column(
             modifier = Modifier.width(IntrinsicSize.Max),
-            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.x1),
         ) {
             Text(
@@ -171,7 +143,6 @@ private fun IntroHero() {
                 // text-intro-hero 56 · leading-tight 1.15 — 네이티브 타입 슬롯에 없는 웹 전용 크기라 여기서만 덮는다
                 style = MaterialTheme.typography.displayLarge.copy(fontSize = 56.sp, lineHeight = 64.sp, lineHeightStyle = CssLineHeight),
                 color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() },
             )
             // 웹 svg viewBox 0 0 200 12, `M 4 3.5 Q 100 13.5 196 3.5`, preserveAspectRatio none + non-scaling-stroke:
@@ -190,7 +161,6 @@ private fun IntroHero() {
             "내 목소리로 확인하는 사투리 억양",
             style = MaterialTheme.typography.bodyMedium.copy(lineHeightStyle = CssLineHeight),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
         )
     }
 }
@@ -217,9 +187,11 @@ private fun ConsentRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, onO
                     checkmarkColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             )
+            // 시안 HIG 수정: 라벨 13/20 잉크
             Text(
                 "개인정보 수집·이용 동의 (필수)",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal),
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(start = Spacing.x2),
             )
         }
@@ -264,44 +236,35 @@ internal fun AuthFailureBlock(
     modifier: Modifier = Modifier,
     action: (@Composable () -> Unit)? = null,
 ) {
-    val (message, detail) = when (failure.reason) {
-        AuthFailureReason.Retry -> "${verb}하지 못했어요" to "네트워크를 확인하고 다시 시도해 주세요"
-        AuthFailureReason.RetryLater -> "${verb}하지 못했어요" to "잠시 뒤에 다시 시도해 주세요"
-        AuthFailureReason.RateLimited -> "잠시 뒤에 ${verb}할 수 있어요" to (
-            failure.retryAfterSeconds?.let { "접속이 몰리고 있어요 · ${it}초 뒤에 다시 눌러 주세요" }
-                ?: "접속이 몰리고 있어요 · 잠시 뒤에 다시 눌러 주세요"
-            )
-        AuthFailureReason.UnderAge -> "만 14세 이상만 가입할 수 있어요" to null
-        AuthFailureReason.Unsupported -> "지금은 ${verb}할 수 없어요" to "앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요"
-    }
+    val (message, detail) = authFailureCopy(failure, verb)
     StatusBlock(tone = StatusTone.Error, message = message, detail = detail, modifier = modifier, action = action)
+}
+
+/** [AuthFailureBlock]과 시작 확인 실패 화면이 같은 문구를 쓴다 — (문구, 부연) */
+private fun authFailureCopy(failure: AuthFailure, verb: String): Pair<String, String?> = when (failure.reason) {
+    AuthFailureReason.Retry -> "${verb}하지 못했어요" to "네트워크를 확인하고 다시 시도해 주세요"
+    AuthFailureReason.RetryLater -> "${verb}하지 못했어요" to "잠시 뒤에 다시 시도해 주세요"
+    AuthFailureReason.RateLimited -> "잠시 뒤에 ${verb}할 수 있어요" to (
+        failure.retryAfterSeconds?.let { "접속이 몰리고 있어요 · ${it}초 뒤에 다시 눌러 주세요" }
+            ?: "접속이 몰리고 있어요 · 잠시 뒤에 다시 눌러 주세요"
+        )
+    AuthFailureReason.UnderAge -> "만 14세 이상만 가입할 수 있어요" to null
+    AuthFailureReason.Unsupported -> "지금은 ${verb}할 수 없어요" to "앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요"
 }
 
 /**
  * 시작 확인 화면 (KAN-224). 첫 확인은 스플래시가 가리므로 이 화면의 대기 표시는 [다시 시도] 뒤에만 보인다.
  * 확인이 판정 없이 끝나면([AuthGateState.CheckFailed]) 토큰은 그대로 둔 채 다시 시도만 준다 —
- * 망이 잠깐 끊긴 사용자를 로그인 화면으로 보내면 멀쩡한 로그인을 버리게 한다.
+ * 망이 잠깐 끊긴 사용자를 로그인 화면으로 보내면 멀쩡한 로그인을 버리게 한다. 배치는 시안 02·06b (KAN-288).
  *
  * @param failure null이면 확인 중이다
  */
 @Composable
 fun AuthCheckScreen(failure: AuthFailure?, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(Spacing.x4),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x3, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (failure == null) {
-                StatusBlock(tone = StatusTone.Waiting, message = "로그인 정보를 확인하고 있어요")
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            } else {
-                AuthFailureBlock(
-                    failure = failure,
-                    verb = "연결",
-                    action = { AccenturyButton(text = "다시 시도", onClick = onRetry, variant = ButtonVariant.Secondary) },
-                )
-            }
-        }
+    if (failure == null) {
+        PaperWaitingScreen(title = "로그인 정보를 확인하고 있어요", modifier = modifier)
+    } else {
+        val (message, detail) = authFailureCopy(failure, verb = "연결")
+        PaperFailureScreen(title = message, detail = detail, buttonLabel = "다시 시도", onButtonClick = onRetry, modifier = modifier)
     }
 }

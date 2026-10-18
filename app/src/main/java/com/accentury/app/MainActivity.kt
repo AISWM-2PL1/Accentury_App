@@ -9,24 +9,23 @@ import android.os.Bundle
 import android.provider.Settings
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -45,15 +44,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -61,35 +61,22 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.accentury.app.audio.AudioQuality
-import com.accentury.app.audio.QualityStatus
-import com.accentury.app.audio.WavWriter
 import com.accentury.app.ads.AdsController
-import com.accentury.app.bridge.VoiceItemStart
-import com.accentury.app.bridge.accessTokenRefreshedDeliveryJs
-import com.accentury.app.bridge.adDismissedRetestFailure
-import com.accentury.app.bridge.itemResultDeliveryJs
-import com.accentury.app.bridge.retestFailedDeliveryJs
-import com.accentury.app.bridge.retestFailurePayload
-import com.accentury.app.permission.MicPermissionController
-import com.accentury.app.permission.MicPermissionState
-import com.accentury.app.recording.RecordingPurpose
-import com.accentury.app.recording.RecordingScreen
-import com.accentury.app.audio.RecordingEngine
-import com.accentury.app.audio.defaultPcmSource
-import com.accentury.app.recording.RecordingViewModel
-import com.accentury.app.recording.VoiceCheckScreen
-import com.accentury.app.recording.VoiceCheckViewModel
 import com.accentury.app.analytics.EventParam
 import com.accentury.app.analytics.EventSink
 import com.accentury.app.analytics.RecordingEvents
 import com.accentury.app.analytics.ShareEvents
+import com.accentury.app.analytics.channelParam
 import com.accentury.app.analytics.crashIfRequested
 import com.accentury.app.analytics.create
 import com.accentury.app.analytics.log
-import com.accentury.app.analytics.channelParam
-import com.accentury.app.auth.AnonymousSettingsScreen
+import com.accentury.app.audio.AudioQuality
+import com.accentury.app.audio.QualityStatus
+import com.accentury.app.audio.RecordingEngine
+import com.accentury.app.audio.WavWriter
+import com.accentury.app.audio.defaultPcmSource
 import com.accentury.app.auth.AnonymousRegionScreen
+import com.accentury.app.auth.AnonymousSettingsScreen
 import com.accentury.app.auth.AnonymousVoiceConsentStore
 import com.accentury.app.auth.AuthCheckScreen
 import com.accentury.app.auth.AuthGateController
@@ -102,8 +89,8 @@ import com.accentury.app.auth.PRIVACY_POLICY_VERSION
 import com.accentury.app.auth.ProfileScreen
 import com.accentury.app.auth.SettingsGearButton
 import com.accentury.app.auth.SettingsScreen
-import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
+import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VoiceConsentScreen
 import com.accentury.app.auth.anonymousVoiceConsentVersion
 import com.accentury.app.auth.configuredProviders
@@ -111,32 +98,47 @@ import com.accentury.app.auth.idpSignInFor
 import com.accentury.app.auth.needsAnonymousRegion
 import com.accentury.app.auth.shouldPromptVoiceConsent
 import com.accentury.app.auth.visibleProviders
-import com.accentury.app.share.ResultSharer
-import com.accentury.app.session.OkHttpSessionClient
-import com.accentury.app.session.createWithConsentFallback
-import com.accentury.app.session.RetestOutcome
-import com.accentury.app.session.SessionGateController
-import com.accentury.app.session.SessionGateScreen
-import com.accentury.app.session.sessionCreationClient
-import com.accentury.app.testflow.TestFlowController
-import com.accentury.app.testflow.continuesFrom
-import com.accentury.app.testflow.TestFlowPhase
-import com.accentury.app.ui.components.AccenturyButton
-import com.accentury.app.ui.components.HeroIcon
-import com.accentury.app.ui.theme.AccenturyTheme
-import com.accentury.app.ui.theme.Radius
-import com.accentury.app.ui.theme.Spacing
-import com.accentury.app.upload.UploadRequest
-import com.accentury.app.upload.UploadState
-import com.accentury.app.upload.UploadStatusBar
-import com.accentury.app.upload.UploadViewModel
+import com.accentury.app.bridge.VoiceItemStart
+import com.accentury.app.bridge.accessTokenRefreshedDeliveryJs
+import com.accentury.app.bridge.adDismissedRetestFailure
 import com.accentury.app.bridge.intonationRecordedDeliveryJs
+import com.accentury.app.bridge.itemResultDeliveryJs
+import com.accentury.app.bridge.retestFailedDeliveryJs
+import com.accentury.app.bridge.retestFailurePayload
 import com.accentury.app.learning.IntonationCloseButton
 import com.accentury.app.learning.IntonationRecordingOverlay
 import com.accentury.app.learning.IntonationRecordingViewModel
 import com.accentury.app.learning.IntonationUploadClient
 import com.accentury.app.learning.IntonationUploadState
-import androidx.activity.compose.BackHandler
+import com.accentury.app.permission.MicPermissionController
+import com.accentury.app.permission.MicPermissionState
+import com.accentury.app.recording.RecordingPurpose
+import com.accentury.app.recording.RecordingScreen
+import com.accentury.app.recording.RecordingViewModel
+import com.accentury.app.recording.VoiceCheckScreen
+import com.accentury.app.recording.VoiceCheckViewModel
+import com.accentury.app.session.OkHttpSessionClient
+import com.accentury.app.session.RetestOutcome
+import com.accentury.app.session.SessionGateController
+import com.accentury.app.session.SessionGateScreen
+import com.accentury.app.session.createWithConsentFallback
+import com.accentury.app.session.sessionCreationClient
+import com.accentury.app.share.ResultSharer
+import com.accentury.app.testflow.TestFlowController
+import com.accentury.app.testflow.TestFlowPhase
+import com.accentury.app.testflow.continuesFrom
+import com.accentury.app.ui.components.AccenturyButton
+import com.accentury.app.ui.components.HeroIcon
+import com.accentury.app.ui.components.PaperLead
+import com.accentury.app.ui.components.PaperScreen
+import com.accentury.app.ui.components.PaperTitle
+import com.accentury.app.ui.theme.AccenturyTheme
+import com.accentury.app.ui.theme.LightPoint
+import com.accentury.app.ui.theme.LightPrimaryDim
+import com.accentury.app.ui.theme.Spacing
+import com.accentury.app.upload.UploadRequest
+import com.accentury.app.upload.UploadState
+import com.accentury.app.upload.UploadViewModel
 import com.accentury.app.web.AppLinkEntry
 import com.accentury.app.web.ExternalBrowser
 import com.accentury.app.web.TestEntry
@@ -610,8 +612,8 @@ private fun TestFlow(
      * 녹음을 새로 해야 풀리는 실패를 걷고 그 문항의 녹음 화면을 다시 연다 (KAN-147, B안).
      *
      * 서버가 녹음 자체를 거절한 건(rerecord)만 여기로 온다 - 그것만이 재전송으로 풀리지 않아
-     * 복구 경로가 재녹음 하나뿐이다. 전송 실패는 [재시도]가 계속 서 있고, 그 외 서버 거절은
-     * 서버 문구를 단 실패 행으로 상태 바에 그대로 남는다.
+     * 복구 경로가 재녹음 하나뿐이다. 전송 실패·그 외 서버 거절은 화면에 알리지 않고(KAN-288, 상태 바 제거)
+     * 웹 대기 화면의 [녹음 화면 다시 열기]로 풀린다.
      *
      * 웹은 네이티브 쪽 실패를 통지받지 않으므로(브리지 표면 최소 원칙) 그 문항의 대기 화면에
      * 그대로 멈춰 있다 - 여기서 화면을 다시 열어도 진행을 앞지르지 않는 근거다.
@@ -1285,14 +1287,16 @@ private fun TestFlow(
             }
         }
 
-        // 세션 전에는 올라간 것도, 실패한 것도 없다 — 상태 바가 설 이유 자체가 없는 구간이다.
-        if (uploadViewModel != null) {
-            UploadStatusBar(
-                uploads = uploads,
-                labelOf = uploadViewModel::labelOf,
-                onRetry = uploadViewModel::retry,
-            )
-        }
+        /*
+         * 업로드 상태 바는 두지 않는다 (KAN-288, 디자인 3 Figma 수정 fix-upload·fix-upload2). 레벨 테스트 진행 중에는
+         * 「업로드 중」도 「업로드 실패」도 화면에 알리지 않는다 — 업로드는 백그라운드 일이고, 진행 중 화면에 실패 줄이
+         * 끼면 문항을 푸는 사용자가 멈춘다. 이 앱의 업로드는 레벨 테스트 세션 것뿐이라 바가 설 다른 자리도 없다.
+         *
+         * 실패는 사라지지 않고 이렇게 풀린다. 녹음 자체가 거절된 것(rerecord)은 위 이펙트가 그 문항의 녹음 화면을 다시
+         * 연다. 전송 실패·그 밖의 거절은 결과가 웹에 가지 않으므로 웹이 그 문항의 대기 화면에 남고, 거기의
+         * [녹음 화면 다시 열기]가 새 녹음을 올린다(앞 시도는 onRecordingFinished가 밀어내 폐기 — 문항당 시도 1개).
+         * 세션이 만료됐으면 같은 버튼의 생존 확인이 [다시 테스트하기]로 바꾼다(KAN-237).
+         */
     }
 }
 
@@ -1424,11 +1428,10 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 }
 
 /**
- * 게이트 화면. 녹음 오버레이와 같은 이유로 [Surface]가 아래 WebView를 가린다.
+ * 게이트 화면. 녹음 오버레이와 같은 이유로 크림 화면이 아래 WebView를 가린다.
  *
- * 배치는 시안(`prototype/src/app/App.tsx` MicScreen)을 따른다 — 히어로 아이콘, 카피,
- * 안심 문구 카드, 바닥의 주버튼. 권한을 묻는 화면이라 "무엇을 왜 가져가는지"가 카드에
- * 먼저 보이고 버튼이 마지막에 오는 순서가 중요하다.
+ * 배치는 시안 09를 따른다 (KAN-288 디자인 3) — 점선 표식 안의 마이크, 왼쪽 정렬 제목·부연, 무엇에 쓰는지 세 줄,
+ * 바닥의 주버튼. 권한을 묻는 화면이라 "무엇을 왜 가져가는지"가 먼저 보이고 버튼이 마지막에 오는 순서가 중요하다.
  */
 @Composable
 private fun GateScreen(
@@ -1438,84 +1441,56 @@ private fun GateScreen(
     onButtonClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(Spacing.x6),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.x6, Alignment.CenterVertically),
-            ) {
-                // 마이크 선화. 잉크 한 색이라 아래 녹음 버튼 안의 아이콘과 같은 그림이다 -
-                // "이 앱이 쓰는 것"과 "지금 허락을 구하는 것"이 같다는 게 그림으로 읽힌다.
-                // 설명을 달지 않는 것은 바로 아래 제목이 이미 마이크 이야기를 하기 때문이다.
-                HeroIcon(painter = painterResource(R.drawable.outline_mic_24))
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.x2),
-                ) {
-                    Text(
-                        headline,
-                        style = MaterialTheme.typography.headlineMedium,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        supporting,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-
-                AssuranceCard()
-            }
-
-            AccenturyButton(
-                text = buttonLabel,
-                onClick = onButtonClick,
-                modifier = Modifier.fillMaxWidth(),
+    PaperScreen(
+        modifier = modifier,
+        footer = { AccenturyButton(text = buttonLabel, onClick = onButtonClick, modifier = Modifier.fillMaxWidth()) },
+    ) {
+        Spacer(Modifier.weight(1f))
+        // 마이크 선화. 아래 녹음 버튼 안의 아이콘과 같은 그림이다 - "이 앱이 쓰는 것"과 "지금 허락을 구하는 것"이
+        // 같다는 게 그림으로 읽힌다. 설명을 달지 않는 것은 바로 아래 제목이 이미 마이크 이야기를 하기 때문이다.
+        HeroIcon {
+            Icon(
+                painter = painterResource(R.drawable.outline_mic_24),
+                contentDescription = null,
+                tint = LightPoint,
+                modifier = Modifier.size(32.dp),
             )
         }
+        Spacer(Modifier.height(Spacing.x6))
+        PaperTitle(headline)
+        Spacer(Modifier.height(Spacing.x3))
+        PaperLead(supporting)
+        Spacer(Modifier.height(Spacing.x4))
+        AssuranceList()
+        Spacer(Modifier.weight(1f))
     }
 }
 
 /**
- * 마이크를 왜 달라는지 세 줄로 답하는 카드 (시안). 권한 요청 앞에서 사용자가 실제로 궁금해하는
- * 것은 "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다.
+ * 마이크를 왜 달라는지 세 줄로 답한다 (시안 `.steps`). 권한 요청 앞에서 사용자가 실제로 궁금해하는 것은
+ * "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다. 줄 사이는 그림자색 점선이다.
  */
 @Composable
-private fun AssuranceCard() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.xl))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Radius.xl))
-            .padding(Spacing.x4),
-        verticalArrangement = Arrangement.spacedBy(Spacing.x3),
-    ) {
+private fun AssuranceList() {
+    Column {
         ASSURANCES.forEach { text ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.x3),
-            ) {
-                /*
-                 * 줄머리는 잉크 점 하나다 (KAN-161 4단계). 📊·🏆·🔒였는데, 잉크 한 색 화면에서
-                 * 이모지는 색을 가진 유일한 물건이라 세 줄이 그림 밖으로 튀었다 (정본 §7).
-                 * 그림을 잉크 선화 셋으로 바꾸려면 자산이 필요한데, 이 세 줄이 나르는 정보는
-                 * 전부 글에 있어서 그림이 없어도 잃는 것이 없다 - 점은 목록이라는 표시만 한다.
-                 */
-                Box(
-                    modifier = Modifier
-                        .size(ASSURANCE_BULLET)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                )
-                Text(text, style = MaterialTheme.typography.bodyMedium)
-            }
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .drawBehind {
+                        val y = size.height - 0.5.dp.toPx()
+                        drawLine(
+                            color = LightPrimaryDim,
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                        )
+                    }
+                    .padding(vertical = Spacing.x3),
+            )
         }
     }
 }
@@ -1526,6 +1501,3 @@ private val ASSURANCES = listOf(
     // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
     "음성은 따로 동의한 경우에만 보관",
 )
-
-/** 안심 문구 줄머리 점 */
-private val ASSURANCE_BULLET = 6.dp

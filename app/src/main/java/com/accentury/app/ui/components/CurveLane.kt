@@ -62,7 +62,8 @@ internal fun CurveLaneGroup(
             .fillMaxWidth()
             .clip(shape)
             .background(colors.curveLaneSurface)
-            .border(GROUP_BORDER, colors.curveLaneBorder, shape),
+            // 디자인 3 `.curve-wrap`: 레인 상자 선은 그림자색이다 — 잉크 선이면 곡선보다 상자가 먼저 보였다 (KAN-288)
+            .border(GROUP_BORDER, colors.primaryDim, shape),
         content = content,
     )
 }

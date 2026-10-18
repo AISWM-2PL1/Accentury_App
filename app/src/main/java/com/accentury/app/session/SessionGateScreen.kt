@@ -1,21 +1,14 @@
 package com.accentury.app.session
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.accentury.app.ui.components.AccenturyButton
+import com.accentury.app.ui.components.PaperFailureScreen
+import com.accentury.app.ui.components.PaperWaitingScreen
 import com.accentury.app.ui.components.StatusBlock
-import com.accentury.app.ui.components.StatusTone
-import com.accentury.app.ui.theme.Spacing
 import kotlinx.coroutines.ensureActive
 
 /**
@@ -107,14 +100,7 @@ fun SessionGateScreen(
  */
 @Composable
 private fun PreparingScreen() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.x3, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("테스트를 준비하고 있어요", style = MaterialTheme.typography.titleMedium)
-        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-    }
+    PaperWaitingScreen(title = "테스트를 준비하고 있어요")
 }
 
 /**
@@ -152,21 +138,10 @@ private fun FailureScreen(
     }
     val unsupported = state.reason == SessionFailureReason.Unsupported
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(Spacing.x4),
-        verticalArrangement = Arrangement.spacedBy(Spacing.x3, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        StatusBlock(
-            tone = StatusTone.Error,
-            message = message,
-            detail = detail,
-            action = {
-                AccenturyButton(
-                    text = if (unsupported) "처음으로" else "다시 시도",
-                    onClick = if (unsupported) onBackToIntro else onRetry,
-                )
-            },
-        )
-    }
+    PaperFailureScreen(
+        title = message,
+        detail = detail,
+        buttonLabel = if (unsupported) "처음으로" else "다시 시도",
+        onButtonClick = if (unsupported) onBackToIntro else onRetry,
+    )
 }

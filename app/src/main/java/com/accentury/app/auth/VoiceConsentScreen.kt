@@ -4,16 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,10 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
+import com.accentury.app.ui.components.PaperScreen
+import com.accentury.app.ui.components.PaperTitle
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
@@ -68,20 +64,44 @@ fun VoiceConsentScreen(
     var submitting by remember { mutableStateOf(false) }
     var failed by rememberSaveable { mutableStateOf(false) }
 
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = Spacing.x6, end = Spacing.x6, top = Dimens.screenPaddingTop, bottom = Spacing.x8),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x6),
-        ) {
-            Text(
-                VOICE_CONSENT_TITLE,
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.semantics { heading() },
+    // 시안 11 배치 (KAN-288): 본문은 스크롤, 두 버튼과 안내 한 줄은 바닥 고정. 체크는 기본 해제이고 체크 전 주 버튼은
+    // 비활성 모양(그림자색 면)이다. [건너뛰기]는 시안 HIG 수정대로 보조 버튼 모양으로 올렸다 — 텍스트 링크면 "동의
+    // 안 함"이 주 버튼과 같은 자리의 선택지로 읽히지 않는다. 문구는 현재 앱 문구를 유지한다.
+    PaperScreen(
+        modifier = modifier,
+        footer = {
+            AccenturyButton(
+                text = "동의하고 계속",
+                onClick = {
+                    // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(리뷰 P2-2, iOS는 동기라 해당 없음).
+                    submitting = true
+                    scope.launch {
+                        try {
+                            failed = !onConsent()
+                        } finally {
+                            submitting = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = checked && !submitting,
             )
-            Text(VOICE_CONSENT_LEAD, style = MaterialTheme.typography.bodyLarge)
+            AccenturyButton(
+                text = "건너뛰기",
+                onClick = onSkip,
+                modifier = Modifier.fillMaxWidth(),
+                variant = ButtonVariant.Secondary,
+            )
+            Text(
+                VOICE_CONSENT_FOOTNOTE,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.x4)) {
+            PaperTitle(VOICE_CONSENT_TITLE)
+            Text(VOICE_CONSENT_LEAD, style = MaterialTheme.typography.bodyMedium)
 
             // 줄 전체가 체크박스 하나로 읽히고 눌린다 (LoginScreen ConsentRow와 같은 구성).
             Row(
@@ -125,34 +145,6 @@ fun VoiceConsentScreen(
             }
 
             if (failed) StatusBlock(tone = StatusTone.Error, message = "잠시 후 다시 시도해 주세요")
-
-            AccenturyButton(
-                text = "동의하고 계속",
-                onClick = {
-                    // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(리뷰 P2-2, iOS는 동기라 해당 없음).
-                    submitting = true
-                    scope.launch {
-                        try {
-                            failed = !onConsent()
-                        } finally {
-                            submitting = false
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = checked && !submitting,
-            )
-            AccenturyButton(
-                text = "건너뛰기",
-                onClick = onSkip,
-                modifier = Modifier.fillMaxWidth(),
-                variant = ButtonVariant.Text,
-            )
-            Text(
-                VOICE_CONSENT_FOOTNOTE,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

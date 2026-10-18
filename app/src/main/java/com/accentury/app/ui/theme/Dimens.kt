@@ -20,11 +20,15 @@ object Spacing {
     val x8 = 32.dp
 }
 
+/**
+ * 반경 4/6/10 세 단계 (KAN-288 디자인 3). 오려 낸 종이라 모서리를 크게 굴리지 않는다 — 시안 `--radius-sm/md/lg`.
+ * [xl]은 대사 카드가 쓰던 이름이라 남기고 [lg]와 같은 10이다(카드·시트 반경).
+ */
 object Radius {
-    val sm = 12.dp
-    val md = 16.dp
-    val lg = 18.dp
-    val xl = 24.dp
+    val sm = 4.dp
+    val md = 6.dp
+    val lg = 10.dp
+    val xl = 10.dp
 
     /** 완전한 원. 배지·원형 버튼처럼 모서리를 끝까지 굴리는 자리 */
     val full = 9999.dp
@@ -42,7 +46,7 @@ object Dimens {
      * 닿는 최소선이라면 이 값은 시안이 "이 화면에서 누를 것"에 준 크기다.
      * 보조 버튼은 [touchTargetMin] 그대로다 - 둘의 무게 차이가 크기로도 읽힌다.
      */
-    val controlHeightLg = 56.dp
+    val controlHeightLg = 50.dp
 
     /** 대사 카드 최소 높이. 문항 길이가 달라도 카드가 들썩이지 않게 고정한다 */
     val promptCardMinHeight = 152.dp
@@ -83,14 +87,14 @@ object Dimens {
     val screenPaddingTop = 64.dp
 
     /**
-     * 오프셋 종이 그림자가 어긋난 거리 (정본 §5). 카드·버튼·원형 아이콘이 모두 이 값만큼
+     * 오프셋 종이 그림자가 어긋난 거리 (정본 §5, 디자인 3에서 3·4 → 4·5 — 시안 `4px 5px 0`). 카드·버튼·원형 아이콘이 모두 이 값만큼
      * 오른쪽·아래로 그림자를 깐다.
      *
      * 눌림도 이 값을 쓴다: 그림자가 사라지고 본체가 정확히 이만큼 내려가 그림자 자리를 덮는다.
      * 그리는 쪽과 내려가는 쪽이 다른 값을 쓰면 종이가 바닥에 닿지 않고 어긋난 채로 멈춘다.
      */
-    val paperShadowX = 3.dp
-    val paperShadowY = 4.dp
+    val paperShadowX = 4.dp
+    val paperShadowY = 5.dp
 }
 
 /**

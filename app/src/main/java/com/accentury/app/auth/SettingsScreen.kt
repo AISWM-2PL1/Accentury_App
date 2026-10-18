@@ -2,27 +2,29 @@ package com.accentury.app.auth
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,17 +34,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import com.accentury.app.R
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
+import com.accentury.app.ui.components.PaperScreen
+import com.accentury.app.ui.components.PaperTitle
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
+import com.accentury.app.ui.components.paperShadow
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPoint
+import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
+import com.accentury.app.ui.theme.accenturyColors
 import kotlinx.coroutines.launch
 
 /**
@@ -121,31 +135,27 @@ fun SettingsScreen(
 
     BackHandler(onBack = onClose)
 
-    // 색을 명시한다 — Surface 기본값(surface)이면 아래 WebView 배경(#f3ecd9)과 어긋난다 (RecordingOverlay와 같은 이유).
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.x6, vertical = Spacing.x4),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x6),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "설정",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-                AccenturyButton(text = "닫기", onClick = onClose, variant = ButtonVariant.Text, enabled = !busy)
-            }
+    // 시안 49 배치 (KAN-288 디자인 3): 앱바 오른쪽 48dp 닫기 ✕, Jua 제목, 실선으로 갈린 계정 줄, 바닥 고정 [로그아웃].
+    // 배경 크림은 아래 WebView 배경(#f3ecd9)과 같다 (RecordingOverlay와 같은 이유).
+    PaperScreen(
+        modifier = modifier,
+        onClose = onClose,
+        closeEnabled = !busy,
+        footer = {
+            AccenturyButton(
+                text = "로그아웃",
+                onClick = { confirming = true },
+                modifier = Modifier.fillMaxWidth(),
+                variant = ButtonVariant.Secondary,
+                enabled = !busy,
+            )
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.x6)) {
+            PaperTitle("설정")
 
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
-                Text(
-                    "계정",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.semantics { heading() },
-                )
+            Column {
+                GroupLabel("계정")
                 // 추가 정보 화면을 지나 SignedIn이면 이름·이메일은 늘 있다. 서버 값이 비어 오는 경우만 대비한다.
                 AccountRow("이름", user.name ?: "-")
                 AccountRow("이메일", user.email ?: "-")
@@ -157,6 +167,7 @@ fun SettingsScreen(
                         withdrawFailed = false
                         confirmingWithdraw = true
                     },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
                     variant = ButtonVariant.Text,
                     enabled = !busy,
                 )
@@ -168,107 +179,144 @@ fun SettingsScreen(
                 onReload = onReloadVoiceConsent,
                 onOpenPrivacy = onOpenPrivacy,
             )
-
-            AccenturyButton(
-                text = "로그아웃",
-                onClick = { confirming = true },
-                modifier = Modifier.fillMaxWidth(),
-                variant = ButtonVariant.Secondary,
-                enabled = !busy,
-            )
         }
     }
 
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { if (!leaving) confirming = false },
-            title = { Text("로그아웃할까요?", style = MaterialTheme.typography.titleMedium) },
-            text = { Text("다시 쓰려면 로그인해야 해요", style = MaterialTheme.typography.bodyMedium) },
-            confirmButton = {
-                AccenturyButton(
-                    text = "로그아웃",
-                    onClick = {
-                        scope.launch {
-                            leaving = true
-                            try {
-                                onLogout()
-                            } finally {
-                                leaving = false
-                                confirming = false
-                            }
-                        }
-                    },
-                    variant = ButtonVariant.Text,
-                    enabled = !leaving,
-                )
+        ConfirmDialog(
+            title = "로그아웃할까요?",
+            onDismiss = { if (!leaving) confirming = false },
+            confirmLabel = "로그아웃",
+            onConfirm = {
+                scope.launch {
+                    leaving = true
+                    try {
+                        onLogout()
+                    } finally {
+                        leaving = false
+                        confirming = false
+                    }
+                }
             },
-            dismissButton = {
-                AccenturyButton(
-                    text = "취소",
-                    onClick = { confirming = false },
-                    variant = ButtonVariant.Text,
-                    enabled = !leaving,
-                )
-            },
-            // 종이 면 그대로 — 기본 surfaceContainerHigh는 Papercut 팔레트 밖의 색이다.
-            containerColor = MaterialTheme.colorScheme.background,
-        )
+            busy = leaving,
+        ) {
+            Text("다시 쓰려면 로그인해야 해요", style = MaterialTheme.typography.bodyMedium)
+        }
     }
 
     /*
      * 탈퇴 확인 창 (KAN-251). 문구는 개인정보처리방침의 말("탈퇴하시면 지체 없이 파기합니다")과 맞춘다.
-     * [탈퇴]는 로그아웃 확인 창과 같은 Text 버튼이다 — 팔레트의 destructive도 잉크라 따로 칠할 색이 없다
-     * (design-tokens.md, 오류는 색이 아니라 문구로 가른다).
+     * [탈퇴]는 벽돌 외곽선 확인 버튼이다 (KAN-288 시안 HIG 수정) — 벽돌 채움이면 주 버튼과 같은 무게라 "눌러도 되는
+     * 쪽"으로 읽히고, 잉크 텍스트 버튼이면 [취소]와 구별되지 않았다. 시안 문구 「계정 삭제」 대신 현재 문구를 유지한다.
      */
     if (confirmingWithdraw) {
-        AlertDialog(
-            onDismissRequest = { if (!withdrawing) confirmingWithdraw = false },
-            title = { Text("회원 탈퇴할까요?", style = MaterialTheme.typography.titleMedium) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
-                    Text(
-                        "계정 정보(이메일·이름 등)는 탈퇴하면 지체 없이 파기해요\n" +
-                            "테스트 결과는 계정과 분리돼 익명으로 남아요\n" +
-                            "탈퇴하면 되돌릴 수 없어요",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    // 실패는 로그인 상태 그대로다 — 창을 닫지 않고 여기서 알려 같은 자리에서 다시 누르게 한다.
-                    if (withdrawFailed) {
-                        StatusBlock(tone = StatusTone.Error, message = "탈퇴되지 않았어요 · 네트워크를 확인하고 다시 시도해 주세요")
+        ConfirmDialog(
+            title = "회원 탈퇴할까요?",
+            onDismiss = { if (!withdrawing) confirmingWithdraw = false },
+            confirmLabel = if (withdrawing) "탈퇴하는 중" else "탈퇴",
+            onConfirm = {
+                // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(설정 토글과 같은 이유).
+                withdrawing = true
+                withdrawFailed = false
+                scope.launch {
+                    try {
+                        // 탈퇴되면 게이트가 SignedOut이 되어 이 화면째 내려간다.
+                        withdrawFailed = onWithdraw() is WithdrawOutcome.Failed
+                    } finally {
+                        withdrawing = false
                     }
                 }
             },
-            confirmButton = {
+            busy = withdrawing,
+        ) {
+            Text(
+                "계정 정보(이메일·이름 등)는 탈퇴하면 지체 없이 파기해요\n" +
+                    "테스트 결과는 계정과 분리돼 익명으로 남아요\n" +
+                    "탈퇴하면 되돌릴 수 없어요",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            // 실패는 로그인 상태 그대로다 — 창을 닫지 않고 여기서 알려 같은 자리에서 다시 누르게 한다.
+            if (withdrawFailed) {
+                StatusBlock(tone = StatusTone.Error, message = "탈퇴되지 않았어요 · 네트워크를 확인하고 다시 시도해 주세요")
+            }
+        }
+    }
+}
+
+/**
+ * 확인 창 (시안 50·50b, KAN-288). 설정 화면 위에 반투명 잉크 막을 깔고 종이 한 장을 띄운다 — 확인은 벽돌 외곽선,
+ * 취소는 보조 버튼. AlertDialog는 막 색(시스템 dim)과 버튼 배치를 시안대로 바꿀 수 없어 Dialog 위에 직접 그린다.
+ * 막 밖을 누르거나 뒤로 가기를 하면 [onDismiss] — AlertDialog와 같다.
+ *
+ * 막 색만 팔레트의 유일한 알파 값이다 — 시안 HIG 수정이 rgba(28,26,23,0.45)로 못박았다. 불투명 그림자색 막이면
+ * 뒤의 설정 화면이 사라져 "어디서 뜬 창인지"가 안 보였다.
+ */
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    busy: Boolean,
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // 시스템 dim을 끄고 막을 직접 칠한다 — 둘 다 두면 막이 두 겹이 된다.
+        (LocalView.current.parent as? DialogWindowProvider)?.window?.let { window ->
+            SideEffect { window.setDimAmount(0f) }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DIALOG_SCRIM)
+                .clickable(interactionSource = null, indication = null, onClick = onDismiss)
+                .padding(Spacing.x4),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .paperShadow(MaterialTheme.colorScheme.onSurfaceVariant, Radius.lg)
+                    .clip(RoundedCornerShape(Radius.lg))
+                    .background(MaterialTheme.colorScheme.background)
+                    .border(1.dp, MaterialTheme.colorScheme.onBackground, RoundedCornerShape(Radius.lg))
+                    // 종이 안을 눌러도 창이 닫히지 않게 막의 클릭을 여기서 끊는다
+                    .clickable(interactionSource = null, indication = null, onClick = {})
+                    .padding(horizontal = Spacing.x4, vertical = Spacing.x6),
+                verticalArrangement = Arrangement.spacedBy(Spacing.x4),
+            ) {
+                PaperTitle(title)
+                body()
                 AccenturyButton(
-                    text = if (withdrawing) "탈퇴하는 중" else "탈퇴",
-                    onClick = {
-                        // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(설정 토글과 같은 이유).
-                        withdrawing = true
-                        withdrawFailed = false
-                        scope.launch {
-                            try {
-                                // 탈퇴되면 게이트가 SignedOut이 되어 이 화면째 내려간다.
-                                withdrawFailed = onWithdraw() is WithdrawOutcome.Failed
-                            } finally {
-                                withdrawing = false
-                            }
-                        }
-                    },
-                    variant = ButtonVariant.Text,
-                    enabled = !withdrawing,
+                    text = confirmLabel,
+                    onClick = onConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = ButtonVariant.Destructive,
+                    enabled = !busy,
                 )
-            },
-            dismissButton = {
                 AccenturyButton(
                     text = "취소",
-                    onClick = { confirmingWithdraw = false },
-                    variant = ButtonVariant.Text,
-                    enabled = !withdrawing,
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = ButtonVariant.Secondary,
+                    enabled = !busy,
                 )
-            },
-            containerColor = MaterialTheme.colorScheme.background,
-        )
+            }
+        }
     }
+}
+
+/** rgba(28,26,23,0.45) — 잉크 45% */
+private val DIALOG_SCRIM = Color(0x731C1A17)
+
+/** 설정 묶음 이름 (시안 `.group-label`) */
+@Composable
+private fun GroupLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(bottom = Spacing.x2).semantics { heading() },
+    )
 }
 
 /**
@@ -298,12 +346,7 @@ private fun VoiceConsentSection(
     var reloading by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
-        Text(
-            "개인정보",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.semantics { heading() },
-        )
+        GroupLabel("개인정보")
         if (consented == null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(VOICE_CONSENT_SETTING_LABEL, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
@@ -346,7 +389,20 @@ private fun VoiceConsentSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(VOICE_CONSENT_SETTING_LABEL, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Switch(checked = checked, onCheckedChange = null, enabled = pending == null)
+                // 시안 `.switch`: 켜짐은 벽돌 트랙·크림 손잡이, 꺼짐은 크림 트랙·잉크 테두리·잉크 손잡이
+                Switch(
+                    checked = checked,
+                    onCheckedChange = null,
+                    enabled = pending == null,
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = LightPoint,
+                        checkedThumbColor = MaterialTheme.colorScheme.background,
+                        checkedBorderColor = LightPoint,
+                        uncheckedTrackColor = MaterialTheme.colorScheme.background,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onBackground,
+                        uncheckedBorderColor = MaterialTheme.colorScheme.onBackground,
+                    ),
+                )
             }
             if (failed) StatusBlock(tone = StatusTone.Error, message = "바꾸지 못했어요 · 잠시 후 다시 시도해 주세요")
         }
@@ -373,22 +429,9 @@ fun AnonymousSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onClose)
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.x6, vertical = Spacing.x4),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x6),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "설정",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-                AccenturyButton(text = "닫기", onClick = onClose, variant = ButtonVariant.Text)
-            }
+    PaperScreen(modifier = modifier, onClose = onClose) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.x6)) {
+            PaperTitle("설정")
             // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다.
             VoiceConsentSection(
                 consented = consented,
@@ -401,15 +444,22 @@ fun AnonymousSettingsScreen(
     }
 }
 
+/** 계정 한 줄 — 아래 그림자색 실선 (시안 `.account-row`) */
 @Composable
 private fun AccountRow(label: String, value: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.x4)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(0.35f),
-        )
-        Text(value, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(0.65f))
+    Column {
+        Row(
+            modifier = Modifier.padding(vertical = Spacing.x3),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.x4),
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(0.35f),
+            )
+            Text(value, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(0.65f))
+        }
+        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.accenturyColors.primaryDim)
     }
 }

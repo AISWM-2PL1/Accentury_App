@@ -3,14 +3,9 @@ package com.accentury.app.auth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,7 +18,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ChoiceButton
-import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.components.PaperScreen
 import com.accentury.app.ui.theme.Spacing
 
 /**
@@ -51,14 +46,9 @@ internal val REGION_DISPLAY_ORDER = listOf(
 fun AnonymousRegionScreen(onDone: (String) -> Unit, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableStateOf<Region?>(null) }
 
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = Spacing.x6, end = Spacing.x6, top = Dimens.screenPaddingTop, bottom = Spacing.x8),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x6),
-        ) {
+    // 시안 배치 (KAN-288 디자인 3): 워드마크 앱바 아래 왼쪽 정렬 본문
+    PaperScreen(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.x6)) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.x2)) {
                 Text(
                     "어느 지역 말씨가 몸에 배어 있나요?",

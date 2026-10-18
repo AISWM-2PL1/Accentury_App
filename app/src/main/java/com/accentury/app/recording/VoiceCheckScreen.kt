@@ -4,13 +4,10 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -33,10 +30,14 @@ import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.CurveLane
 import com.accentury.app.ui.components.CurveLaneGroup
 import com.accentury.app.ui.components.CurveLaneVariant
+import com.accentury.app.ui.components.PaperLead
+import com.accentury.app.ui.components.PaperScreen
+import com.accentury.app.ui.components.PaperTitle
 import com.accentury.app.ui.components.PromptCard
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 import kotlin.math.log10
@@ -94,63 +95,10 @@ fun VoiceCheckScreen(
 
     // 색을 명시한다 - Surface 기본값은 surface(카드 흰색)라, 그대로 두면 이 화면만 흰 배경이 되어
     // 바로 앞뒤 화면(background #f3ecd9)과 어긋난다 (세션 게이트·녹음 오버레이와 같은 이유).
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(Spacing.x4),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                "목소리를 확인할게요",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(Spacing.x2))
-            Text(
-                "아래 말을 편하게 해 주세요",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.x4))
-            // 문항 화면과 같은 카드다 - 여기서 말한 방식 그대로 문항에서도 말하면 된다는 뜻이 된다.
-            // 캡션에서 이모지를 걷었다 (KAN-161 4단계). 잉크 한 색 화면에서 이모지는 색을
-            // 가진 유일한 물건이라, 종이에 붙은 스티커처럼 그림 밖으로 튄다 (정본 §7).
-            PromptCard(caption = "목소리 점검", prompt = "안녕하세요")
-
-            Spacer(modifier = Modifier.height(Spacing.x4))
-            /*
-             * 레인은 하나다. 점검에는 따라 할 가이드가 없으므로(자기 목소리만 재는 자리)
-             * 빈 가이드 레인을 함께 세우면 사용자는 없는 곡선을 찾게 된다.
-             * 중심이 잠기기 전에는 빈 레인이 정상이다 - 임시 축으로 그려 두면 축이 잠기는 순간
-             * 곡선 전체가 한 번 점프한다 ([userCurveDisplayPoints] 참고).
-             */
-            // 레인 하나여도 상자는 문항 화면과 같다 - 테두리·모서리는 상자가 갖는다.
-            CurveLaneGroup {
-                CurveLane(
-                    label = "내 억양",
-                    segments = segments,
-                    variant = CurveLaneVariant.User,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.x4))
-            InputLevelBar(level = (state as? VoiceCheckState.Listening)?.level ?: 0.0)
-
-            Spacer(modifier = Modifier.height(Spacing.x4))
-            val failed = state is VoiceCheckState.TimedOut || state is VoiceCheckState.Failed
-            StatusBlock(
-                // 실패에만 Error를 준다 - 그래야 스크린 리더가 스스로 읽는다(StatusBlock 주석).
-                // 듣는 중 문구는 청크마다 바뀌므로 읽어 주면 소음이 된다.
-                tone = if (failed) StatusTone.Error else StatusTone.Waiting,
-                message = statusMessage(state),
-                // 시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 - "잡히지 않았어요"만으로는
-                // 다음에 무엇을 다르게 해야 하는지 알 수 없다.
-                detail = (state as? VoiceCheckState.TimedOut)?.let { hintMessage(it.hint) },
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
+    // 시안 13 배치 (KAN-288 디자인 3): 왼쪽 정렬 제목, 본문 스크롤, 바닥에 [다음]·[다시 시도]와 안내 한 줄.
+    PaperScreen(
+        modifier = modifier,
+        footer = {
             when (val s = state) {
                 is VoiceCheckState.Ready -> AccenturyButton(
                     text = "다음",
@@ -168,16 +116,54 @@ fun VoiceCheckScreen(
                 // 누를 것을 주면 말하기를 멈추고 그걸 누른다.
                 is VoiceCheckState.Listening -> Unit
             }
-
-            Spacer(modifier = Modifier.height(Spacing.x4))
             Text(
                 "이 소리는 저장하거나 보내지 않아요",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            Spacer(modifier = Modifier.height(Spacing.x8))
+        },
+    ) {
+        PaperTitle("목소리를 확인할게요")
+        Spacer(modifier = Modifier.height(Spacing.x2))
+        PaperLead("아래 말을 편하게 해 주세요")
+
+        Spacer(modifier = Modifier.height(Spacing.x4))
+        // 문항 화면과 같은 카드다 - 여기서 말한 방식 그대로 문항에서도 말하면 된다는 뜻이 된다.
+        // 캡션에서 이모지를 걷었다 (KAN-161 4단계). 잉크 한 색 화면에서 이모지는 색을
+        // 가진 유일한 물건이라, 종이에 붙은 스티커처럼 그림 밖으로 튄다 (정본 §7).
+        PromptCard(caption = "목소리 점검", prompt = "안녕하세요")
+
+        Spacer(modifier = Modifier.height(Spacing.x4))
+        /*
+         * 레인은 하나다. 점검에는 따라 할 가이드가 없으므로(자기 목소리만 재는 자리)
+         * 빈 가이드 레인을 함께 세우면 사용자는 없는 곡선을 찾게 된다.
+         * 중심이 잠기기 전에는 빈 레인이 정상이다 - 임시 축으로 그려 두면 축이 잠기는 순간
+         * 곡선 전체가 한 번 점프한다 ([userCurveDisplayPoints] 참고).
+         */
+        // 레인 하나여도 상자는 문항 화면과 같다 - 테두리·모서리는 상자가 갖는다.
+        CurveLaneGroup {
+            CurveLane(
+                label = "내 억양",
+                segments = segments,
+                variant = CurveLaneVariant.User,
+            )
         }
+
+        Spacer(modifier = Modifier.height(Spacing.x4))
+        InputLevelBar(level = (state as? VoiceCheckState.Listening)?.level ?: 0.0)
+
+        Spacer(modifier = Modifier.height(Spacing.x4))
+        val failed = state is VoiceCheckState.TimedOut || state is VoiceCheckState.Failed
+        StatusBlock(
+            // 실패에만 Error를 준다 - 그래야 스크린 리더가 스스로 읽는다(StatusBlock 주석).
+            // 듣는 중 문구는 청크마다 바뀌므로 읽어 주면 소음이 된다.
+            tone = if (failed) StatusTone.Error else StatusTone.Waiting,
+            message = statusMessage(state),
+            // 시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 - "잡히지 않았어요"만으로는
+            // 다음에 무엇을 다르게 해야 하는지 알 수 없다.
+            detail = (state as? VoiceCheckState.TimedOut)?.let { hintMessage(it.hint) },
+        )
     }
 }
 
@@ -223,7 +209,8 @@ private fun InputLevelBar(level: Double) {
                 .fillMaxWidth(fraction)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(Radius.full))
-                .background(MaterialTheme.colorScheme.primary),
+                // 채움은 벽돌 (디자인 3 `.progress i`) — 지금 들어오는 소리가 화면의 "지금 여기"다
+                .background(LightPoint),
         )
         // 눈금은 채움 위에 그린다 - 채움이 눈금을 넘어선 순간에도 선이 보여야 통과가 읽힌다.
         Box(modifier = Modifier.fillMaxWidth(threshold), contentAlignment = Alignment.CenterEnd) {
