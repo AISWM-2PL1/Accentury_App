@@ -1998,6 +1998,20 @@ a.btn {
   padding-bottom: var(--space-4);
 }
 
+/* 앱 홈 카드 (KAN-288, 시안 31) — 제목·설명·버튼을 종이 한 장에 */
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-4);
+}
+
+.home-card__lead {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted-foreground);
+}
+
 /*
  * 하단 탭 바 (KAN-252). 앱 안의 목록 화면에만 선다 (`ui/TabBar.tsx` 머리 주석).
  *

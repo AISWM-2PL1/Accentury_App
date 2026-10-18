@@ -101,8 +101,8 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
   const wrongSeen: string[][] = []
   for (;;) {
     const prompt = (await page.locator('#word-prompt').textContent())?.trim() ?? ''
-    // 보기 글자는 label의 첫 span이다 — 제출 뒤엔 「정답」/「내 답」 표시가 뒤에 붙는다 (ChoiceList)
-    const chosenText = (await page.locator('.choice-list label').first().locator(':scope > span').first().textContent())?.trim() ?? ''
+    // 보기 글자는 .choice__text다 — 앞에 번호 상자(KAN-288), 제출 뒤엔 「정답」/「내 답」 표시가 붙는다 (ChoiceList)
+    const chosenText = (await page.locator('.choice-list label').first().locator('.choice__text').textContent())?.trim() ?? ''
     await page.getByRole('radiogroup').getByRole('radio').first().check({ force: true })
     await page.getByRole('button', { name: '제출', exact: true }).click()
 
@@ -115,7 +115,7 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
     await expect(verdict.locator('.word-verdict__explanation')).not.toBeEmpty()
     items += 1
     const correctText =
-      (await page.locator('.choice-list label.choice--correct').locator(':scope > span').first().textContent())?.trim() ?? ''
+      (await page.locator('.choice-list label.choice--correct').locator('.choice__text').textContent())?.trim() ?? ''
     if ((await label.textContent()) === '정답') {
       correct += 1
       expect(correctText).toBe(chosenText)

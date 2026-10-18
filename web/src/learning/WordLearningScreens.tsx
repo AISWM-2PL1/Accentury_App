@@ -150,10 +150,19 @@ export function WordSetListScreen({
                 className={`word-set-row${recommended ? ' word-set-row--recommended' : ''}`}
                 onClick={() => onOpen(set.setId)}
               >
-                <span className="type-body word-set-row__title">{set.title}</span>
-                <span className="type-caption word-set-row__meta">
-                  {recommended && <span className="word-set-row__badge">추천</span>}
-                  카드 {set.cardCount}장
+                {/* 디자인 3 (KAN-288, 시안 `.course`): 번호 · 제목+메타 · ↗. 번호와 화살표는 눈으로만 읽는다 */}
+                <span className="word-set-row__number" aria-hidden="true">
+                  {String(set.seq).padStart(2, '0')}
+                </span>
+                <span className="word-set-row__body">
+                  <span className="word-set-row__title">{set.title}</span>
+                  <span className="type-caption word-set-row__meta">
+                    {recommended && <span className="word-set-row__badge">추천</span>}
+                    카드 {set.cardCount}장
+                  </span>
+                </span>
+                <span className="word-set-row__arrow" aria-hidden="true">
+                  ↗
                 </span>
               </button>
             )

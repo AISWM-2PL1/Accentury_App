@@ -201,13 +201,22 @@ export function IntonationCourseListScreen({
               className={`word-set-row${course.recommended ? ' word-set-row--recommended' : ''}`}
               onClick={() => onOpen(course.courseId)}
             >
-              <span className="intonation-row__text">
-                <span className="type-body">{course.title}</span>
-                {course.topic !== null && <span className="type-caption intonation-row__topic">{course.topic}</span>}
+              {/* 디자인 3 (KAN-288, 시안 `.course`): 번호 · 제목+주제+메타 · ↗ (단어 학습 세트 행과 같은 틀) */}
+              <span className="word-set-row__number" aria-hidden="true">
+                {String(course.seq).padStart(2, '0')}
               </span>
-              <span className="type-caption word-set-row__meta">
-                {course.recommended && <span className="word-set-row__badge">추천</span>}
-                {course.completed ? '완료' : `${course.completedCardCount}/${course.cardCount}장`}
+              <span className="word-set-row__body">
+                <span className="intonation-row__text">
+                  <span className="word-set-row__title">{course.title}</span>
+                  {course.topic !== null && <span className="type-caption intonation-row__topic">{course.topic}</span>}
+                </span>
+                <span className="type-caption word-set-row__meta">
+                  {course.recommended && <span className="word-set-row__badge">추천</span>}
+                  {course.completed ? '완료' : `${course.completedCardCount}/${course.cardCount}장`}
+                </span>
+              </span>
+              <span className="word-set-row__arrow" aria-hidden="true">
+                ↗
               </span>
             </button>
           ))}
@@ -489,12 +498,16 @@ export function IntonationFeedbackScreen({
         </p>
       )}
 
-      {/* 점수와 무관하게 Primary는 결과 목록 복귀다 — 재도전은 보조로만 권한다 (5단계) */}
+      {/*
+        점수와 무관하게 Primary는 결과 목록 복귀다 — 재도전은 보조로만 권한다 (5단계). 2026-10-12 에뮬 확인 뒤
+        다시 시도를 벽돌로 칠했던 것을 디자인 3(KAN-288, 시안 38)에서 되돌렸다 — 주버튼이 벽돌이 되면서 벽돌 면이
+        둘이면 어느 쪽이 주 행동인지 흐려진다.
+      */}
       <div className="item-screen__footer intonation-footer">
         <Button className="intonation-footer__back" onClick={onBackToSummary} style={{ width: '100%' }}>
           결과 목록으로
         </Button>
-        <Button className="intonation-footer__retry" onClick={onRetry} style={{ width: '100%' }}>
+        <Button variant="secondary" className="intonation-footer__retry" onClick={onRetry} style={{ width: '100%' }}>
           다시 시도
         </Button>
       </div>
