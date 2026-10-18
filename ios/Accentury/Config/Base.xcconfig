@@ -97,6 +97,12 @@ FAKE_IDP = NO
 // 안드로이드 `-PloginEnabled=true`(local.properties `loginEnabled=true`) 자리다. `xcodebuild ... LOGIN_ENABLED=YES`도 된다.
 LOGIN_ENABLED = NO
 
+// App Store Connect 앱 레코드의 숫자 Apple ID (KAN-288). 업데이트 필요 화면의 [업데이트하기]가
+// `https://apps.apple.com/app/id<값>`을 연다(AccenturyCore `appStoreProductUrl`). **빈 값이 정상**이다 — 게시 전이라
+// 상품 페이지가 없고, 비어 있으면 그 버튼이 숨어 예전 [처음으로]·[다시 시도]만 남는다. 앱 레코드의 「앱 정보 › Apple ID」
+// 숫자를 여기 적는다(비밀값이 아니라 레포에 둬도 된다). Local.xcconfig·명령줄로도 덮인다.
+APP_STORE_ID =
+
 // 여기서 Local.xcconfig를 한 번 읽는 이유는 ACCENTURY_TEAM_ID 하나 때문이다 — Release도
 // 팀 ID는 필요하다. WEB_URL·API_BASE_URL 오버라이드는 이 지점이 아니라 Debug.xcconfig 끝의
 // 두 번째 `#include?`가 담당한다. Release의 URL은 이 include '뒤'에 놓여 있어(Release.xcconfig)

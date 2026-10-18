@@ -90,6 +90,8 @@ private struct FailureScreen: View {
     let onRetry: () -> Void
     let onBackToIntro: () -> Void
 
+    @Environment(\.openURL) private var openURL
+
     /// 남은 대기 시간(초). 서버가 알려준 값에서 1초씩 줄어든다.
     @State private var remaining: Int64 = 0
 
@@ -99,14 +101,24 @@ private struct FailureScreen: View {
         VStack(spacing: Papercut.space3) {
             StatusBlock(tone: .error, message: message, detail: detail) {
                 VStack(spacing: Papercut.space2) {
-                    if !isUnsupported {
-                        AccenturyButton(text: retryLabel, enabled: remaining <= 0, action: onRetry)
+                    /*
+                     * 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15, 안드로이드 8ccde12): 주 버튼 [업데이트하기]가 App Store를
+                     * 열고, 예전 [처음으로] 동작은 [나중에]로 남는다 — 지금 업데이트하지 않는 사람도 인트로로 돌아갈 길이 있어야
+                     * 갇히지 않는다. 상품 페이지가 아직 없는 빌드(`APP_STORE_ID` 빈 값)는 예전 [처음으로] 하나 그대로다.
+                     */
+                    if isUnsupported, let storeURL = AppConfig.appStoreURL {
+                        AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
+                        AccenturyButton(text: "나중에", variant: .text, action: onBackToIntro)
+                    } else {
+                        if !isUnsupported {
+                            AccenturyButton(text: retryLabel, enabled: remaining <= 0, action: onRetry)
+                        }
+                        AccenturyButton(
+                            text: "처음으로",
+                            variant: isUnsupported ? .primary : .text,
+                            action: onBackToIntro
+                        )
                     }
-                    AccenturyButton(
-                        text: "처음으로",
-                        variant: isUnsupported ? .primary : .text,
-                        action: onBackToIntro
-                    )
                 }
             }
         }

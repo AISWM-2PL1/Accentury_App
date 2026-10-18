@@ -1,3 +1,4 @@
+import AccenturyCore
 import Foundation
 
 /// 빌드 구성이 정한 주소를 앱 코드에 넘겨주는 한 곳.
@@ -60,6 +61,10 @@ enum AppConfig {
     /// 기기에 둔다(``AccenturyCore/AnonymousVoiceConsentStore``). 값의 사슬은 Config/Base.xcconfig의 `LOGIN_ENABLED`
     /// → Info-*.plist → 여기다.
     static let loginEnabled: Bool = value(for: "LOGIN_ENABLED", in: Bundle.main.infoDictionary) == "YES"
+
+    /// 업데이트 필요 화면의 [업데이트하기]가 열 상품 페이지 (KAN-288). **nil이 정상 상태다** — 게시 전이라 Base.xcconfig의
+    /// `APP_STORE_ID`가 비어 있고, 그러면 화면이 그 버튼을 세우지 않는다. 값의 사슬은 Base.xcconfig → Info-*.plist → 여기다.
+    static let appStoreURL: URL? = appStoreProductUrl(appStoreId: value(for: "APP_STORE_ID", in: Bundle.main.infoDictionary))
 
     /// 웹에 스큐 협상용으로 알리는 앱 버전 (`CFBundleShortVersionString` = MARKETING_VERSION).
     static let appVersionName: String = value(for: "CFBundleShortVersionString", in: Bundle.main.infoDictionary) ?? "0"
