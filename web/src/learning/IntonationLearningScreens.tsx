@@ -498,16 +498,13 @@ export function IntonationFeedbackScreen({
         </p>
       )}
 
-      {/*
-        점수와 무관하게 Primary는 결과 목록 복귀다 — 재도전은 보조로만 권한다 (5단계). 2026-10-12 에뮬 확인 뒤
-        다시 시도를 벽돌로 칠했던 것을 디자인 3(KAN-288, 시안 38)에서 되돌렸다 — 주버튼이 벽돌이 되면서 벽돌 면이
-        둘이면 어느 쪽이 주 행동인지 흐려진다.
-      */}
+      {/* 점수와 무관하게 Primary는 결과 목록 복귀다 — 재도전은 보조로만 권한다 (5단계). 색은 2026-10-12 사용자 지정
+          (목록 복귀 배경색, 다시 시도 벽돌)이고 디자인 3에서도 유지한다 (KAN-288, 2026-10-18 결정) — learning.css */}
       <div className="item-screen__footer intonation-footer">
         <Button className="intonation-footer__back" onClick={onBackToSummary} style={{ width: '100%' }}>
           결과 목록으로
         </Button>
-        <Button variant="secondary" className="intonation-footer__retry" onClick={onRetry} style={{ width: '100%' }}>
+        <Button className="intonation-footer__retry" onClick={onRetry} style={{ width: '100%' }}>
           다시 시도
         </Button>
       </div>
