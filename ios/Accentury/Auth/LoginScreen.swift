@@ -53,12 +53,13 @@ struct LoginScreen: View {
                     }
                 }
                 .padding(.horizontal, Papercut.space6)
-                .padding(.top, Papercut.screenPaddingTop)
+                .padding(.top, Papercut.space2)
                 .padding(.bottom, Papercut.space8)
                 .frame(minHeight: geometry.size.height)
             }
         }
-        .background(Papercut.cream.ignoresSafeArea())
+        // 워드마크 앱바 (KAN-288 디자인 3). 위 8 + 앱바 48 + 8 = 예전 위 여백 64라 본문 시작 높이는 그대로다.
+        .paperAppBar()
     }
 
     @ViewBuilder
@@ -268,6 +269,20 @@ struct AuthCheckScreen: View {
     let onRetry: () -> Void
 
     var body: some View {
+        // 런치 화면 얼굴에는 앱바를 얹지 않는다 — 런치 화면과 이어 붙이는 것이 목적이라 줄 하나만 달라도 번쩍인다.
+        if failure == nil, showsLaunchFace {
+            ZStack {
+                Papercut.cream.ignoresSafeArea()
+                // Info-*.plist UILaunchScreen의 UIImageName과 같은 자산이다.
+                Image("LaunchIcon").accessibilityHidden(true)
+            }
+        } else {
+            checkContent.paperAppBar()
+        }
+    }
+
+    /// 확인 실패·[다시 시도] 뒤 대기 — 워드마크 앱바 아래에 선다 (KAN-288 디자인 3, 안드로이드 `AuthCheckScreen`)
+    private var checkContent: some View {
         ZStack {
             Papercut.cream.ignoresSafeArea()
             if let failure {
@@ -275,9 +290,6 @@ struct AuthCheckScreen: View {
                     AccenturyButton(text: "다시 시도", variant: .secondary, action: onRetry)
                 }
                 .padding(Papercut.space4)
-            } else if showsLaunchFace {
-                // Info-*.plist UILaunchScreen의 UIImageName과 같은 자산이다.
-                Image("LaunchIcon").accessibilityHidden(true)
             } else {
                 VStack(spacing: Papercut.space3) {
                     StatusBlock(tone: .waiting, message: "로그인 정보를 확인하고 있어요")

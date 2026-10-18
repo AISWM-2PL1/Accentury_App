@@ -107,7 +107,7 @@ public actor UploadManager {
 
     // MARK: - 읽기
 
-    /// 지금 상태를 넣은 순서대로. 상태 바(``summarize(_:)``)가 그대로 받는 모양이다.
+    /// 지금 상태를 넣은 순서대로.
     public var entries: [UploadEntry] {
         order.compactMap { id in states[id].map { UploadEntry(attemptId: id, state: $0) } }
     }

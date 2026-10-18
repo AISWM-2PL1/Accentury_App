@@ -12,14 +12,9 @@ import WebKit
 /// ``TestFlowModel``(→ Core ``AccenturyCore/TestFlowController``)이 정하고, 여기는 SwiftUI
 /// 결선만 한다.
 ///
-/// ## 세로 배치
-///
-/// 업로드 상태 바는 오버레이가 아니라 화면 **아래**를 나눠 갖는다 (안드로이드의 `Column`) —
-/// 녹음 중에도 실패한 업로드의 재시도 통로가 가려지지 않아야 한다.
-///
 /// ## 종이색은 화면 끝까지 간다
 ///
-/// 내용(WebView·오버레이·상태 바)은 안전 영역 **안쪽**에 그대로 두고, 배경만
+/// 내용(WebView·오버레이)은 안전 영역 **안쪽**에 그대로 두고, 배경만
 /// `ignoresSafeArea()`로 상태 바·홈 인디케이터 자리까지 넓힌다 — 자세한 이유는 `body`의 주석.
 struct TestFlowView: View {
 
@@ -244,15 +239,11 @@ struct TestFlowView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // 세션 전에는 올라간 것도, 실패한 것도 없다 — 상태 바가 설 이유 자체가 없는 구간이다.
-            if model.session != nil {
-                UploadStatusBar(
-                    entries: uploads.entries,
-                    labelOf: { uploads.labelOf($0) },
-                    onRetry: { uploads.retry($0) }
-                )
-            }
+            /*
+             * 업로드 상태 바는 없다 (KAN-288 디자인 3, Figma 수정 fix-upload — 레벨 테스트 진행 중에는 업로드 중·실패를
+             * 알리지 않는다. 안드로이드 3단계와 같다). 재전송으로 풀리는 실패는 웹 대기 화면의 [다시 보내기]가 받는다
+             * (`onUploadFailed`·`retryUpload`, webview-bridge.md §14).
+             */
         }
         /*
          * 종이색을 화면 끝까지 민다.

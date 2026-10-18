@@ -154,6 +154,8 @@ struct PermissionGateView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(Papercut.space6)
+        // 워드마크 앱바 (KAN-288 디자인 3). 허용된 뒤의 빈 칸(`.granted`)에는 얹지 않는다 — 곧 걷히는 자리다.
+        .paperAppBar()
     }
 
     private var heroIcon: some View {

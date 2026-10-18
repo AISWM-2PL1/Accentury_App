@@ -64,6 +64,11 @@ struct RecordingScreen: View {
     /// 풀려야 해서 둔 자리다. nil이면 아래 상태별 하단 그대로다.
     var footerOverride: AnyView?
 
+    /// 앱바 오른쪽 ✕ (KAN-288, 2026-10-18 사용자 결정 — KAN-147이 없앤 출구를 레벨 테스트에 되살림). 확인 창과 그 뒤
+    /// 정리는 호출자가 한다. nil이면 ✕가 없다 — 억양 학습은 자기 ✕를 화면 위에 따로 얹는다(``IntonationCloseChrome``).
+    /// 제출을 기다리는 동안은 비활성이다: 그 시도는 이미 업로드로 넘어가 여기서 되돌릴 것이 없다(안드로이드와 같다).
+    var onClose: (() -> Void)?
+
     /// quality는 검토 상태에만 있고 화면이 넘어가는 즉시 되감기므로 호출자가 나중에 되물을 수
     /// 없다. 브리지 계약(KAN-89)이 qualityStatus를 요구해서 여기서 함께 넘긴다.
     let onNext: (_ attemptId: String, _ durationMs: Int64, _ quality: QualityStatus) -> Void
@@ -75,6 +80,10 @@ struct RecordingScreen: View {
          * 런타임을 오가도 첫 요소가 같은 높이에서 시작한다.
          */
         VStack(spacing: 0) {
+            // 워드마크 앱바 (KAN-288 디자인 3). 8 + 48 + 8 = 예전 위 여백 64와 같아 본문 시작 높이는 그대로고,
+            // 오른쪽 끝(본문 여백 24 안)에 ✕가 선다. 익명 빌드의 설정 톱니는 호출자가 그 왼쪽으로 비켜 세운다.
+            PaperAppBar(onClose: onClose, closeEnabled: !submitting)
+            Spacer().frame(height: Papercut.space2)
             /*
              * 본문은 스크롤하고 하단(타이머·녹음 버튼)은 고정이다. 글꼴을 크게 키운 기기에서
              * 대사 카드와 곡선이 자라면 녹음 버튼이 화면 밖으로 밀리는데, 이 화면에서 버튼이
@@ -124,7 +133,7 @@ struct RecordingScreen: View {
             .frame(maxWidth: .infinity)
             .padding(.top, Papercut.space4)
         }
-        .padding(.top, Papercut.screenPaddingTop)
+        .padding(.top, Papercut.space2)
         .padding(.horizontal, Papercut.space6)
         .padding(.bottom, Papercut.space8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

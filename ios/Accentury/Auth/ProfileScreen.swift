@@ -87,10 +87,11 @@ struct ProfileScreen: View {
                 }
             }
             .padding(.horizontal, Papercut.space6)
-            .padding(.top, Papercut.screenPaddingTop)
+            .padding(.top, Papercut.space2)
             .padding(.bottom, Papercut.space8)
         }
-        .background(Papercut.cream.ignoresSafeArea())
+        // 워드마크 앱바 (KAN-288 디자인 3). 위 8 + 앱바 48 + 8 = 예전 위 여백 64라 본문 시작 높이는 그대로다.
+        .paperAppBar()
         .sheet(isPresented: $pickingDate) {
             BirthDatePicker(initial: form.birthDate) { form.birthDate = $0 }
         }
