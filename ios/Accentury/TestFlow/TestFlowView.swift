@@ -234,7 +234,10 @@ struct TestFlowView: View {
                  */
                 if gearVisible, !nativeCovering {
                     SettingsGearButton(action: onOpenSettings)
-                        .padding(Papercut.space2)
+                        // 레벨 테스트 녹음 화면은 앱바 오른쪽 끝(본문 여백 24 안)에 ✕가 선다 (KAN-288) — 익명 빌드의 톱니는
+                        // 그 바로 왼쪽으로 비켜 선다(안드로이드와 같다). 겹치면 위에 그린 톱니가 ✕를 가린다.
+                        .padding(.top, Papercut.space2)
+                        .padding(.trailing, overlayStart != nil ? Papercut.space6 + Papercut.touchTargetMin : Papercut.space2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
@@ -554,6 +557,17 @@ struct TestFlowView: View {
                 },
                 onSubmit: { attemptId, durationMs, quality in
                     submitRecording(start: start, attemptId: attemptId, durationMs: durationMs, quality: quality)
+                },
+                /*
+                 * ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정). 안드로이드와 같은 되감기다: 녹음 중단·PCM과 업로드 바이트
+                 * 폐기(FR-DP-02), 그리고 세션 실패 [처음으로]와 같은 인트로 되감기(``TestFlowModel/onTestQuit()``).
+                 * 업로드 폐기는 세션이 비면 `.task(id:)`의 `bind(to: nil)`도 하지만, 그 사이에 끝난 업로드가 결과로 실려
+                 * 나가지 않게 여기서 바로 놓는다(안드로이드 `uploadViewModel.clearAll()` 자리).
+                 */
+                onQuit: {
+                    guard model.onTestQuit() else { return }
+                    recording.reset()
+                    uploads.teardown()
                 }
             )
         }
@@ -892,6 +906,11 @@ private struct RecordingOverlay: View {
 
     let onSubmit: (_ attemptId: String, _ durationMs: Int64, _ quality: QualityStatus) -> Void
 
+    /// 확인 창에서 [그만두기]를 골랐다 (KAN-288). 정리는 호출자가 한다
+    let onQuit: () -> Void
+
+    @State private var confirmingQuit = false
+
     var body: some View {
         RecordingScreen(
             questionText: start.prompt,
@@ -904,8 +923,19 @@ private struct RecordingOverlay: View {
             centerHz: centerHz,
             model: recording,
             onRetake: onRetake,
+            onClose: { confirmingQuit = true },
             onNext: onSubmit
         )
+        /*
+         * 확인 창 (KAN-288, 시안 17~20). 설정의 로그아웃·탈퇴 확인과 같은 시스템 알림이다 — iOS 쪽 확인 창은 아직 디자인 3
+         * 종이 창(안드로이드 `ConfirmDialog`)으로 옮기지 않았다. 머무는 쪽 [계속하기]가 취소 역할이라 바깥을 눌러도 머문다.
+         */
+        .alert("테스트를 그만둘까요?", isPresented: $confirmingQuit) {
+            Button("계속하기", role: .cancel) {}
+            Button("그만두기", action: onQuit)
+        } message: {
+            Text("그만두면 처음부터 다시 시작해야 해요")
+        }
         // 화면이 걷히면 마이크를 놓는다. 되감기 판정(`continuesFrom`)은 상위가 하지만, 오버레이
         // 자체가 사라지는 경우(웹으로 돌아감)는 여기서도 한 번 더 막는다 — 상위의 페이즈 변화가
         // 오지 않는 경로(뷰 재구성)에서도 마이크는 반드시 닫혀야 한다.

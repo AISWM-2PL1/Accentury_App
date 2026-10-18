@@ -1126,6 +1126,32 @@ final class TestFlowControllerTests: XCTestCase {
         return restored
     }
 
+    // MARK: - KAN-288 녹음 화면 ✕ [그만두기]는 응시 전체를 버린다
+
+    func testQuitReturnsToWebAndDropsEarlierPendingAttempts() {
+        let controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(itemId: "item_1"), micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+        controller.onStartVoiceItem(voiceItem(itemId: "item_2", number: 2), micGranted: true)
+
+        XCTAssertTrue(controller.onTestQuit())
+
+        XCTAssertEqual(.web, controller.phase)
+        XCTAssertTrue(controller.onUploadsChanged(["at_1": .done(analysisJobId: "job_1")]).isEmpty)
+    }
+
+    func testQuitIsRefusedWhileSubmitting() {
+        let controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(), micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+        let before = controller.phase
+        guard case .submitting = before else { return XCTFail("제출 대기여야 한다: \(before)") }
+
+        XCTAssertFalse(controller.onTestQuit())
+
+        XCTAssertEqual(before, controller.phase)
+    }
+
     private func voiceItem(itemId: String = "item_1", number: Int = 1) -> VoiceItemStart {
         VoiceItemStart(
             itemId: itemId,
