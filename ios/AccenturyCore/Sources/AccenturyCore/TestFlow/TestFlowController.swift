@@ -516,6 +516,21 @@ public final class TestFlowController {
         return delivered
     }
 
+    /// 웹에 알릴 업로드 실패 — 결과를 기다리는 시도 중 같은 바이트를 다시 보내면 풀리는 것만 (KAN-288, 안드로이드
+    /// `failedUploads`의 이식본).
+    ///
+    /// 웹은 그 문항의 대기 화면에 「전송 실패」와 [다시 보내기]를 그리고, 누르면 `retryUpload`로 이 attemptId를
+    /// 돌려준다. 재녹음 거절(rerecord)과 재시도 불가 실패(세션 만료·시도 상한)는 빠진다 — 앞의 것은
+    /// ``onUploadGivenUp(attemptId:micGranted:message:missingItems:)``이 녹음 화면을 다시 열고, 뒤의 것은 웹 대기 화면의
+    /// 생존 확인이 [다시 테스트하기]로 바꾼다. 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이
+    /// 기다리는 문항이 아니라 뺀다.
+    public func failedUploads(_ uploads: [String: UploadState]) -> [UploadFailed] {
+        pendingAttempts.compactMap { attempt in
+            guard case .failed(let failure)? = uploads[attempt.meta.attemptId], failure.retryable else { return nil }
+            return UploadFailed(itemId: attempt.meta.itemId, attemptId: attempt.meta.attemptId)
+        }
+    }
+
     /// 결과 주입이 끝났다 — 웹이 ``onUploadsChanged(_:)``가 돌려준 결과를 받아 다음 문항으로
     /// 넘어갔다는 뜻이다 (KAN-146). 이제 붙들고 있던 화면을 놓는다.
     ///

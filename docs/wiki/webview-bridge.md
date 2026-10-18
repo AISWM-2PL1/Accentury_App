@@ -56,7 +56,7 @@
 | `getAccessToken(): string` | KAN-255 | 계정 Access 토큰. 단어 학습 API(`/v0/learning/word-*`)의 `Authorization`에 싣는다. 동기 반환. 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열 (§11). Android: `AccenturyBridge.getAccessToken` ← `MainActivity` TestFlow의 `currentAccessToken()`. iOS: `BridgeUserScript`의 문서 변수 `accessToken` ← `WebViewCoordinator.pushAccessToken` ← `TestFlowView`의 `readAccessToken` | 빈 값은 `null`로 정규화 → 네트워크 전에 `CLIENT_NOT_SIGNED_IN` |
 | `refreshAccessToken()` | KAN-255 | 계정 토큰 갱신 요청. **fire-and-forget** — 결과는 `onAccessTokenRefreshed`로 온다 (§11). Android: `AccenturyBridge.refreshAccessToken` → `MainActivity` TestFlow의 `refreshAccessToken()`. iOS: `BridgeDispatcher` `case "refreshAccessToken"` → `WebViewCoordinator.refreshAccessTokenForWeb` → `TestFlowView`의 `refreshAccessToken` | 래퍼 `refreshAccessToken()`이 즉시 false → `UNAUTHENTICATED` |
 | `startIntonationRecording(payloadJson)` | KAN-253 | 억양 학습 카드 진입(코스 열기·[다음 카드] 직후 웹이 자동 1회)과 일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면(A-3). payload = `{cardId, prompt, standard, maxDurationMs, guideF0, itemNumber, totalItems}`. 업로드까지 네이티브가 하고 성공하면 `onIntonationRecorded`로 회신 (§12) | 래퍼 false — 자동 호출은 조용히 넘어가고 A-2가 그대로 보인다. 웹은 `canStartIntonationRecording()`이 false면 [다시 말해 보기]를 비활성으로 그리고 「앱에서 녹음할 수 있어요」 — 웹 녹음기 폴백 없음 |
-| `retryUpload(attemptId)` | KAN-288 | 음성 문항 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 재전송. 인자는 `onUploadFailed`로 받은 attemptId 그대로. **회신 없음** — 성공하면 `onItemResult`, 또 실패하면 `onUploadFailed` (§14). Android만 구현 | 래퍼 false. 웹은 `canRetryUpload()`가 false면 `onUploadFailed` 수신 지점도 걸지 않고 「전송 실패」 줄을 그리지 않는다 — 예전 대기 화면 그대로 |
+| `retryUpload(attemptId)` | KAN-288 | 음성 문항 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 재전송. 인자는 `onUploadFailed`로 받은 attemptId 그대로. **회신 없음** — 성공하면 `onItemResult`, 또 실패하면 `onUploadFailed` (§14). Android: `AccenturyBridge.retryUpload` → `uploadViewModel.retry`. iOS: `BridgeUserScript`의 `retryUpload` → `BridgeDispatcher` `case "retryUpload"` → `TestFlowView`의 `uploads.retry` | 래퍼 false. 웹은 `canRetryUpload()`가 false면 `onUploadFailed` 수신 지점도 걸지 않고 「전송 실패」 줄을 그리지 않는다 — 예전 대기 화면 그대로 |
 | `openSettings()` | KAN-252 | 하단 탭 바의 [설정] → 네이티브의 기존 설정 화면을 띄운다. **인자도 반환도 회신도 없다** (§13) | 래퍼 false. 웹은 `canOpenSettings()`가 false면 [설정] 탭을 그리지 않는다 — 구버전 앱은 WebView 위 톱니가 그대로 남아 있다 |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
@@ -755,8 +755,10 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 
 ## 14. 업로드 재전송 (KAN-288 6단계)
 
-계약 버전은 2 그대로다 — 메서드 `retryUpload` 하나와 수신 슬롯 `onUploadFailed` 하나를 **추가**만 했다(§1). Android만 구현했고
-iOS는 아직 업로드 상태 바(녹음 화면 아래 [재시도])를 쓰므로 둘 다 없다 — 웹은 메서드 유무로 갈라 iOS·브라우저에서는 예전 화면이다.
+계약 버전은 2 그대로다 — 메서드 `retryUpload` 하나와 수신 슬롯 `onUploadFailed` 하나를 **추가**만 했다(§1). Android(6단계)·iOS(7단계)
+모두 구현했다. 웹은 메서드 유무(`canRetryUpload()` = `typeof window.AccenturyBridge?.retryUpload === 'function'`)로 가르므로 브라우저·구버전
+앱에서는 예전 화면이다. iOS는 브리지 객체 자체를 JS 심(`BridgeUserScript`)으로 심으므로 그 객체에 `retryUpload`를 더한 것이 곧 감지 경로다 —
+웹 코드는 바뀌지 않았다. iOS도 같은 단계에서 업로드 상태 바(`UploadStatusBar`)를 걷어냈다.
 
 **왜 생겼나.** 디자인 3 이식(KAN-288 3단계)에서 Android 레벨 테스트 중 업로드 상태 바(「업로드 중 N건」·「업로드 실패 [재시도]」)를
 걷어냈다(Figma 수정 fix-upload — 문항 진행 중에는 업로드를 알리지 않는다). 그 [재시도]가 녹음을 그대로 두고 다시 보내는 유일한
@@ -787,3 +789,7 @@ iOS는 아직 업로드 상태 바(녹음 화면 아래 [재시도])를 쓰므�
 | `app/.../bridge/UploadFailedDelivery.kt` | `UploadFailed`·`uploadFailedDeliveryJs` |
 | `app/.../testflow/TestFlowController.kt` | `failedUploads(uploads)` — 대기 시도 중 재전송 가능한 실패만 |
 | `app/.../web/AccenturyBridge.kt` · `WebViewHost.kt` · `MainActivity.kt` | `retryUpload` → `uploadViewModel.retry`, 결과 전달 이펙트에서 실패 회신 |
+| `ios/AccenturyCore/.../Bridge/UploadFailedDelivery.swift` | `UploadFailed`·`uploadFailedDeliveryJs` (안드로이드와 같은 주입 모양) |
+| `ios/AccenturyCore/.../TestFlow/TestFlowController.swift` | `failedUploads(_:)` — 대기 시도 중 재전송 가능한 실패만 |
+| `ios/Accentury/Web/BridgeUserScript.swift` · `AccenturyBridge.swift` · `WebViewHost.swift` | 심의 `retryUpload` → `postMessage` → `BridgeDispatcher`(origin·빈 값 거름) → `onRetryUpload` |
+| `ios/Accentury/TestFlow/TestFlowView.swift` | `onRetryUpload` → `uploads.retry`, `deliverResults()`(업로드 목록 변경·WebView 재생성 때 돈다)에서 실패 회신 |

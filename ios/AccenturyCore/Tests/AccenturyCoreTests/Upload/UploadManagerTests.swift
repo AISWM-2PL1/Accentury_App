@@ -245,6 +245,33 @@ final class UploadManagerTests: XCTestCase {
         }
     }
 
+    /*
+     * 대기 화면의 [다시 보내기]는 그 문항 하나만 다시 보낸다 (KAN-288, 안드로이드 UploadManagerTest와 같은 주장). 다른 문항의
+     * 실패까지 함께 보내면 사용자가 누르지 않은 업로드가 나가고, 그 문항의 대기 화면은 영문도 모른 채 실패 표시를 잃는다.
+     */
+    func testretry는_그_시도만_재전송하고_다른_실패는_그대로_둔다() async {
+        await withManager { fake, manager in
+            await manager.enqueue(requestOf("at-1"))
+            await manager.enqueue(requestOf("at-2"))
+            await awaitCall(fake, "at-1")
+            await awaitCall(fake, "at-2")
+            await fake.respond("at-1", transportError())
+            await fake.respond("at-2", transportError())
+            await awaitState(manager, "at-1", transportFailed)
+            await awaitState(manager, "at-2", transportFailed)
+
+            await manager.retry("at-2")
+            await awaitCall(fake, "at-2", count: 2)
+
+            let calls1 = await fake.callsFor("at-1")
+            XCTAssertEqual(1, calls1)
+            let state1 = await manager.state(of: "at-1")
+            XCTAssertEqual(transportFailed, state1)
+            let state2 = await manager.state(of: "at-2")
+            XCTAssertEqual(.inFlight, state2)
+        }
+    }
+
     func testretry는_같은_멱등_키와_같은_바이트로_재전송한다() async {
         await withManager { fake, manager in
             let original = requestOf("at-1")

@@ -31,6 +31,7 @@ final class AccenturyBridgeTests: XCTestCase {
         var refreshAccessTokenCalls = 0
         var intonationStarts: [IntonationRecordingStart] = []
         var openSettingsCalls = 0
+        var retriedUploads: [String] = []
     }
 
     private func makeDispatcher(
@@ -51,7 +52,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onHaptic: { sink.haptics.append($0) },
             onRefreshAccessToken: { sink.refreshAccessTokenCalls += 1 },
             onStartIntonationRecording: { sink.intonationStarts.append($0) },
-            onOpenSettings: { sink.openSettingsCalls += 1 }
+            onOpenSettings: { sink.openSettingsCalls += 1 },
+            onRetryUpload: { sink.retriedUploads.append($0) }
         )
     }
 
@@ -594,6 +596,26 @@ final class AccenturyBridgeTests: XCTestCase {
         dispatcher.handle(method: "startIntonationRecording", payload: nil)
         dispatcher.handle(method: "startIntonationRecording", payload: ["cardId": "card_1"])
         XCTAssertTrue(sink.intonationStarts.isEmpty)
+    }
+
+    // MARK: retryUpload (KAN-288, 안드로이드 AccenturyBridgeTest와 같은 세 주장)
+
+    func testRetryUploadPassesTheAttemptIdThrough() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(method: "retryUpload", payload: "at_1")
+        XCTAssertEqual(["at_1"], sink.retriedUploads)
+    }
+
+    func testRetryUploadIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false }).handle(method: "retryUpload", payload: "at_1")
+        XCTAssertEqual([], sink.retriedUploads)
+    }
+
+    func testBlankAttemptIdIsDropped() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(method: "retryUpload", payload: " ")
+        XCTAssertEqual([], sink.retriedUploads)
     }
 
     // MARK: openSettings (KAN-252)
