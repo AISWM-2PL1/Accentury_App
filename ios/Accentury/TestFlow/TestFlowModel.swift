@@ -354,6 +354,20 @@ final class TestFlowModel: ObservableObject {
         syncFlow()
     }
 
+    /// 녹음 화면 ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정). 안드로이드 RecordingOverlay `onQuit`의 자리다 — 컨트롤러가
+    /// 응시를 버리면(``AccenturyCore/TestFlowController/onTestQuit()``) 세션 실패 [처음으로]와 같은 ``backToIntro()``로 되감는다:
+    /// 세션을 버리고(서버 폐기는 다음 생성이 이전 토큰을 실어 한다, KAN-107) `startRequested`가 내려가 진입 URL이 인트로
+    /// (탭 바 빌드는 홈)로 다시 로드된다. 웹에 따로 알리는 브리지는 없다 — 문서가 통째로 다시 서므로 알릴 상대가 남지 않는다.
+    ///
+    /// - Returns: 받아들였는가. 제출을 기다리는 중이면 false이고 아무것도 바뀌지 않는다.
+    @discardableResult
+    func onTestQuit() -> Bool {
+        guard flow.onTestQuit() else { return false }
+        syncFlow()
+        backToIntro()
+        return true
+    }
+
     /// 시작 게이트를 인트로 앞으로 되감는다. 세션 게이트 실패 화면의 [처음으로]와, 프로필 미완료로 추가 정보 화면에
     /// 다녀오는 경우(KAN-224, ``leaveForProfile()``)가 같은 되감기를 쓴다.
     func backToIntro() {
