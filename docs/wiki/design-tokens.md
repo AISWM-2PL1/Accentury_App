@@ -180,7 +180,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `control-height-choice` | 54dp | 선택지 한 칸 (KAN-288). 글 한 줄 + 위아래 여백 |
 | `text-tab-label` | 12dp | 하단 탭 바 라벨·선택지 번호 상자. 최소 글자 11 규칙 위의 값 (KAN-288 디자인 검수 HIG-A) |
 | `prompt-card-min-height` | 152dp | 대사 카드 (문항 길이가 달라도 카드 크기 고정) |
-| `screen-padding-top` | 64dp (브라우저 24dp) | 화면 위쪽 여백. 좌우 24·아래 32와 다른 값이고, 첫 요소를 내려 그림·제목이 세로 가운데에 앉게 한다. **웹 4화면·네이티브 녹음 화면 반영 완료** (`Dimens.screenPaddingTop`). 브라우저 단독 실행에서만 24로 내린다 — 근거는 §7 KAN-199 |
+| `screen-padding-top` | 64dp (= 앱바 56 + 8) | 화면 위쪽 여백. 좌우 24·아래 32와 다른 값이고, 첫 요소를 내려 그림·제목이 세로 가운데에 앉게 한다. **웹 4화면·네이티브 녹음 화면 반영 완료** (`Dimens.screenPaddingTop`). 디자인 3(KAN-288)부터 웹은 그 자리를 고정 워드마크 앱바(`--app-bar-height` 56, `ui/AppBar`)가 채우고, 브라우저에서 24로 내리던 분기(§7 KAN-199)는 걷었다 — 앱바 아래로 본문이 들어가면 안 돼서다 |
 | `content-max-width` | 320dp | 본문 최대 폭. 넓은 화면에서 한 줄이 길어져 읽기 힘들어지는 것을 막는다 |
 | `opacity-disabled` | 0.6 | 비활성·제출 중 요소 |
 | `prompt-card-padding` | 24dp | 대사·질문 카드 안쪽 여백 |

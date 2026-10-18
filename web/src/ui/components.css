@@ -353,7 +353,7 @@
 }
 
 /*
- * 인트로의 워드마크 + 히어로 + 부제. 셋은 제목에 딸린 줄이라 **한 덩어리로 읽혀야 한다**.
+ * 인트로의 히어로 + 부제. 제목에 딸린 줄이라 **한 덩어리로 읽혀야 한다** (워드마크는 KAN-288부터 앱바에 있다).
  *
  * 히어로는 192px 슬롯 밖에 있다(대기 화면은 `.illustration--waiting`에 그대로 둔다). 슬롯은
  * 그림이 뜨기 전후로 아래가 오르내리지 않게 높이를 미리 잡아 두는 자리인데, 글자에는 늦게
@@ -374,11 +374,6 @@
 
 .intro-screen .screen__body {
   gap: var(--space-4);
-}
-
-.intro-wordmark {
-  color: var(--color-foreground);
-  font-weight: var(--weight-normal);
 }
 
 .intro-heading {
@@ -2112,13 +2107,43 @@ body:has(.tab-bar) main {
 }
 
 /*
- * 닫기 ✕ (KAN-252, `ui/CloseButton`). 네이티브 억양 녹음 ✕와 같은 자리(오른쪽 위, 가장자리에서 space-2)·같은
- * 모양(크림 원 + 잉크 그림)이다. 위쪽은 상단 안전 영역만큼 더 내린다 — 노치·상태 표시줄 밑에 깔리지 않게.
+ * 상단 워드마크 앱바 (KAN-288, `ui/AppBar`, 시안 `.appbar` padding 8 24·min-height 56, `.appbrand` Jua 20/23).
+ *
+ * 화면 위에 고정한다 — 본문이 길어 스크롤해도 띠가 남고, 본문은 `--screen-padding-top`(앱바 + 8)만큼 내려 시작한다.
+ * 크림 면이라 스크롤된 본문이 비치지 않는다. 쌓임은 시트(`z-index: 1`)와 같은 층이고 DOM에서 앞이라 시트가 덮는다.
+ * 상단 안전 영역을 더한다 — 지금은 두 앱이 WebView를 안전 영역 안에 두어 0이지만(`TestFlowView` 주석,
+ * Android `Scaffold` innerPadding), viewport-fit=cover를 켜는 날 상태 바 밑으로 들어가지 않게.
+ */
+.app-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: calc(var(--app-bar-height) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--space-6) 0;
+  background: var(--color-background);
+}
+
+.app-bar__brand {
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  font-weight: var(--weight-normal);
+  line-height: 23px;
+}
+
+/*
+ * 닫기 ✕ (KAN-252, `ui/CloseButton`). 네이티브 억양 녹음 ✕와 같은 모양(크림 원 + 잉크 그림)이다. 디자인 3(KAN-288)부터
+ * 앱바 오른쪽 끝에 앉는다 — 48×48(HIG 수정)을 앱바 56 안 세로 가운데에, 오른쪽은 네이티브 `PaperAppBar`와 같은 12.
+ * 앱바보다 DOM에서 뒤라 같은 층(`z-index: 1`)에서 위에 그려진다.
  */
 .close-button {
   position: fixed;
-  top: calc(var(--space-2) + env(safe-area-inset-top));
-  right: var(--space-2);
+  top: calc((var(--app-bar-height) - var(--touch-target-min)) / 2 + env(safe-area-inset-top));
+  right: var(--space-3);
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2135,13 +2160,4 @@ body:has(.tab-bar) main {
 .close-button:focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
-}
-
-/*
- * ✕가 선 화면은 본문을 ✕ 아래에서 시작한다 — 진척도 막대가 ✕ 밑에 깔리지 않게. 앱 안 기본 64px은 이미 충분하고
- * (8 + 48 + 8), 브라우저 실행의 24px(`data-runtime='browser'`)이나 안전 영역이 있는 기기에서만 늘어난다.
- * 탭 바 여백처럼 `:has`로 한 곳에서 건다.
- */
-body:has(.close-button) main {
-  padding-top: max(var(--screen-padding-top), calc(2 * var(--space-2) + var(--touch-target-min) + env(safe-area-inset-top)));
 }
