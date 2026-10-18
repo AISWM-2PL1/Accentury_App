@@ -188,6 +188,8 @@ struct TestFlowView: View {
                         intonation.open(start)
                     },
                     onOpenSettings: onOpenSettings,
+                    // 대기 화면의 [다시 보내기] (KAN-288, §14) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 결과 전달이 싣는다
+                    onRetryUpload: { uploads.retry($0) },
                     onPageStarted: { currentWebUrl = $0 },
                     /*
                      * 왼쪽 가장자리 스와이프 = 뒤로 (KAN-252). 안드로이드 시스템 뒤로가기(BackHandler)의 자리이고 대상과 판정은
@@ -658,8 +660,8 @@ struct TestFlowView: View {
     /// 녹음을 새로 해야 풀리는 실패를 걷고 그 문항의 녹음 화면을 다시 연다 (KAN-147, B안).
     ///
     /// 서버가 녹음 자체를 거절한 건(rerecord)만 여기로 온다 — 그것만이 재전송으로 풀리지 않아
-    /// 복구 경로가 재녹음 하나뿐이다. 전송 실패는 [재시도]가 계속 서 있고, 그 외 서버 거절은
-    /// 서버 문구를 단 실패 행으로 상태 바에 그대로 남는다.
+    /// 복구 경로가 재녹음 하나뿐이다. 재전송으로 풀리는 실패는 웹 대기 화면의 [다시 보내기]로 넘기고
+    /// (KAN-288, ``deliverResults()``), 그 밖의 거절은 웹 대기 화면의 [녹음 화면 다시 열기]로 풀린다.
     ///
     /// 폐기는 컨트롤러가 그 시도를 실제로 거둬갔을 때만 한다 — false는 이미 밀려났거나 모르는
     /// 시도라는 뜻이라, 그때 폐기하면 같은 키를 쓰는 다른 흐름의 상태를 건드릴 수 있다.
@@ -751,6 +753,16 @@ struct TestFlowView: View {
                 guard accepted else { return }
                 Task { @MainActor in model.onResultDelivered(attemptId: result.attemptId) }
             }
+        }
+        /*
+         * 재전송으로 풀리는 실패를 웹에 알린다 (KAN-288, webview-bridge.md §14). 웹은 그 문항의 대기 화면에 「전송 실패」와
+         * [다시 보내기]를 그린다 — 문항을 푸는 중에는 알리지 않는다는 결정(상태 바 제거)은 그대로다: 실패한 문항은 결과가 오지
+         * 않아 웹이 다음 문항으로 넘어가지 않으므로, 이 알림이 보이는 자리는 그 문항의 제출 대기뿐이다.
+         * 업로드 목록이 바뀔 때마다·WebView가 돌아올 때마다(이 함수의 두 호출처) 남은 실패를 다시 싣는다. 웹이 같은 실패를
+         * 거듭 받아도 같은 화면이라 무해하고, 수신 지점이 아직 없던 때 놓친 알림을 다시 채운다(안드로이드와 같다).
+         */
+        for failed in model.failedUploads() {
+            webView.evaluateJavaScript(uploadFailedDeliveryJs(failed), completionHandler: nil)
         }
     }
 

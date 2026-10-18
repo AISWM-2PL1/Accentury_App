@@ -621,6 +621,12 @@ final class TestFlowModel: ObservableObject {
         return delivered
     }
 
+    /// 웹에 알릴 재전송 가능한 실패 (KAN-288, webview-bridge.md §14). 판정은 Core
+    /// ``AccenturyCore/TestFlowController/failedUploads(_:)``가 하고, 주입은 화면 몫이다(``takeResultsForDelivery()``와 같은 이유).
+    func failedUploads() -> [UploadFailed] {
+        flow.failedUploads(uploads)
+    }
+
     /// 결과 주입이 끝났다 — 웹이 받아 다음 문항을 그리기 시작했다는 뜻이다 (KAN-146).
     func onResultDelivered(attemptId: String) {
         flow.onResultDelivered(attemptId: attemptId)

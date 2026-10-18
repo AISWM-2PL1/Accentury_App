@@ -73,6 +73,10 @@ struct BridgeDispatcher {
     /// (webview-bridge.md §13). 기본값은 ``onStartIntonationRecording``과 같은 이유다(안드로이드와 같다).
     var onOpenSettings: () -> Void = {}
 
+    /// 대기 화면의 [다시 보내기] (KAN-288, webview-bridge.md §14). 빈 값이 아닌 attemptId만 온다 — 그 시도가 지금 재전송할 수
+    /// 있는 실패인지는 창구 너머(`UploadManager.retry`)가 판정한다. 기본값은 ``onStartIntonationRecording``과 같은 이유다.
+    var onRetryUpload: (String) -> Void = { _ in }
+
     /// 메시지 한 건을 처리한다. 조건에 맞지 않으면 **조용히** 아무 일도 하지 않는다.
     ///
     /// 조용한 이유는 안드로이드와 같다: 웹은 신뢰 경계 밖이라 오류를 되돌려 줄 상대가 아니고,
@@ -227,6 +231,20 @@ struct BridgeDispatcher {
             // 탭 바의 [설정] → 네이티브 설정 화면 (KAN-252, §13). 인자·반환·회신이 없다 — 웹은 문서를 옮기지 않고 기다리지도
             // 않는다. 처리 시점 origin 판정은 위 guard가 이미 했다(안드로이드는 postToMain 뒤 같은 판정을 한다).
             onOpenSettings()
+
+        case "retryUpload":
+            /*
+             * 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 다시 보낸다 (KAN-288, §14).
+             * 녹음은 그대로 둔다 — 예전 업로드 상태 바의 [재시도]와 같은 일이다. 모르는 키·이미 성공했거나 재시도할 수 없는
+             * 실패는 `UploadManager.retry`가 무시하므로 여기서는 빈 값만 거른다(안드로이드와 같다). 회신은 없다: 성공하면
+             * `onItemResult`가, 다시 실패하면 `onUploadFailed`가 간다.
+             */
+            guard let attemptId = payload as? String else { return }
+            guard !attemptId.trimmingCharacters(in: .whitespaces).isEmpty else {
+                CrashReports.recordBridgeParseFailure("retryUpload")
+                return
+            }
+            onRetryUpload(attemptId)
 
         default:
             // 모르는 메서드. 신버전 웹이 구버전 앱에 보낸 호출일 수도 있고(메서드 추가는

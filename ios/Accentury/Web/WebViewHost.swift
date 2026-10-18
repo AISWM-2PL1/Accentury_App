@@ -218,6 +218,9 @@ struct WebViewHost: View {
     /// 탭 바의 [설정] (KAN-252). 메인 스레드로 온다.
     var onOpenSettings: () -> Void = {}
 
+    /// 대기 화면의 [다시 보내기] (KAN-288, webview-bridge.md §14). 빈 값이 아닌 attemptId가 메인 스레드로 온다.
+    var onRetryUpload: (String) -> Void = { _ in }
+
     /// 메인 프레임 문서가 바뀌었다 (KAN-252, 안드로이드 `onPageStarted` 자리) — 웹의 탭 이동은 `location.href` 대입이라 문서마다
     /// 온다. 상위가 뒤로가기·톱니를 문서의 `screen`으로 판정하는 데 쓴다 (``AccenturyCore/webBackTarget(currentUrl:startRequested:)``).
     var onPageStarted: (String?) -> Void = { _ in }
@@ -265,6 +268,7 @@ struct WebViewHost: View {
                     refreshAccessToken: refreshAccessToken,
                     onStartIntonationRecording: onStartIntonationRecording,
                     onOpenSettings: onOpenSettings,
+                    onRetryUpload: onRetryUpload,
                     onPageStarted: onPageStarted,
                     onEdgeSwipeBack: onEdgeSwipeBack,
                     edgeSwipeEnabled: edgeSwipeEnabled,
@@ -324,6 +328,7 @@ private struct WebViewRepresentable: UIViewRepresentable {
     let refreshAccessToken: () async -> RefreshOutcome?
     let onStartIntonationRecording: (IntonationRecordingStart) -> Void
     let onOpenSettings: () -> Void
+    let onRetryUpload: (String) -> Void
     let onPageStarted: (String?) -> Void
     let onEdgeSwipeBack: () -> Void
     let edgeSwipeEnabled: Bool
@@ -347,6 +352,7 @@ private struct WebViewRepresentable: UIViewRepresentable {
             refreshAccessToken: refreshAccessToken,
             onStartIntonationRecording: onStartIntonationRecording,
             onOpenSettings: onOpenSettings,
+            onRetryUpload: onRetryUpload,
             onPageStarted: onPageStarted,
             onEdgeSwipeBack: onEdgeSwipeBack
         )
@@ -563,6 +569,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
     private let refreshAccessToken: () async -> RefreshOutcome?
     private let onStartIntonationRecording: (IntonationRecordingStart) -> Void
     private let onOpenSettings: () -> Void
+    private let onRetryUpload: (String) -> Void
     private let onPageStarted: (String?) -> Void
     private let onEdgeSwipeBack: () -> Void
 
@@ -588,7 +595,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
             onHaptic: { HapticPlayer.play($0) },
             onRefreshAccessToken: { [weak self] in self?.refreshAccessTokenForWeb() },
             onStartIntonationRecording: { [weak self] in self?.onStartIntonationRecording($0) },
-            onOpenSettings: { [weak self] in self?.onOpenSettings() }
+            onOpenSettings: { [weak self] in self?.onOpenSettings() },
+            onRetryUpload: { [weak self] in self?.onRetryUpload($0) }
         )
     )
 
@@ -608,6 +616,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
         refreshAccessToken: @escaping () async -> RefreshOutcome?,
         onStartIntonationRecording: @escaping (IntonationRecordingStart) -> Void,
         onOpenSettings: @escaping () -> Void,
+        onRetryUpload: @escaping (String) -> Void,
         onPageStarted: @escaping (String?) -> Void,
         onEdgeSwipeBack: @escaping () -> Void
     ) {
@@ -626,6 +635,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
         self.refreshAccessToken = refreshAccessToken
         self.onStartIntonationRecording = onStartIntonationRecording
         self.onOpenSettings = onOpenSettings
+        self.onRetryUpload = onRetryUpload
         self.onPageStarted = onPageStarted
         self.onEdgeSwipeBack = onEdgeSwipeBack
         super.init()
