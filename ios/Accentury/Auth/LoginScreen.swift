@@ -268,6 +268,8 @@ struct AuthCheckScreen: View {
     let showsLaunchFace: Bool
     let onRetry: () -> Void
 
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         // 런치 화면 얼굴에는 앱바를 얹지 않는다 — 런치 화면과 이어 붙이는 것이 목적이라 줄 하나만 달라도 번쩍인다.
         if failure == nil, showsLaunchFace {
@@ -287,7 +289,16 @@ struct AuthCheckScreen: View {
             Papercut.cream.ignoresSafeArea()
             if let failure {
                 AuthFailureBlock(failure: failure, verb: "연결") {
-                    AccenturyButton(text: "다시 시도", variant: .secondary, action: onRetry)
+                    // 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15, 안드로이드 `AuthCheckScreen`) — [업데이트하기]가
+                    // App Store를 열고 지금까지의 [다시 시도]는 [나중에]로 남는다. 상품 페이지가 없는 빌드는 예전 그대로다.
+                    if failure.reason == .unsupported, let storeURL = AppConfig.appStoreURL {
+                        VStack(spacing: Papercut.space2) {
+                            AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
+                            AccenturyButton(text: "나중에", variant: .text, action: onRetry)
+                        }
+                    } else {
+                        AccenturyButton(text: "다시 시도", variant: .secondary, action: onRetry)
+                    }
                 }
                 .padding(Papercut.space4)
             } else {

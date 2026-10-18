@@ -143,6 +143,8 @@
 	     이 plist에도 있다 — 릴리스에서도 켤 수 있는 값이다(AppConfig.loginEnabled). -->
 	<key>LOGIN_ENABLED</key>
 	<string>$(LOGIN_ENABLED)</string>
+	<key>APP_STORE_ID</key>
+	<string>$(APP_STORE_ID)</string>
 
 	<!-- 광고 관련 동의 기본값을 끈다 (KAN-33). 웹에서 `allow_google_signals`·
 	     `allow_ad_personalization_signals`를 끈 것과 같은 요구이고, 안드로이드 매니페스트의
