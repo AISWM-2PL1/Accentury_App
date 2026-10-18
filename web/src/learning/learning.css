@@ -24,7 +24,8 @@
   gap: var(--space-3);
   min-height: var(--control-height-lg);
   padding: var(--space-3) var(--space-4);
-  border: 1.5px solid var(--color-control-border);
+  /* 고르지 않은 종이 행은 선택지(.choice)와 같은 흐린 잉크 1px (KAN-288) */
+  border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-md);
   background: var(--color-card);
   color: var(--color-foreground);
@@ -48,7 +49,8 @@
 
 /* 추천 1개만 강조 — 두께·그림자·「추천」 글자로 말한다 (색 하나에 기대지 않는다) */
 .word-set-row--recommended {
-  border-width: 2px;
+  /* 시안 `.course.featured`: 벽돌 1.5px + 종이 그림자 (KAN-288) */
+  border: 1.5px solid var(--color-point);
   box-shadow: var(--shadow-card);
 }
 
@@ -77,6 +79,7 @@
 
 .choice--correct {
   border-width: 2px;
+  border-color: var(--color-control-border);
 }
 
 .choice--wrong {
@@ -148,7 +151,7 @@
 
 .word-wrong__item {
   padding: var(--space-3) var(--space-4);
-  border: 1.5px solid var(--color-border);
+  border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-md);
 }
 
