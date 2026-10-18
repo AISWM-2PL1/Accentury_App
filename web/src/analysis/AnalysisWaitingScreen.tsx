@@ -50,7 +50,7 @@
  *
  * 같은 자리를 웹은 배너로 쓴다 ([AdSlot], `docs/wiki/ads-web-adsense.md` §5). 앱과 웹이
  * 겹치지 않는 이유는 둘의 게이트가 정반대라서다 — 전면 광고는 브리지가 있어야 나가고 배너는
- * 브리지가 없어야 그려지므로, 한 실행에서 둘이 같이 보이는 경로가 없다. 슬롯은 단계 표시 아래,
+ * 브리지가 없어야 그려지므로, 한 실행에서 둘이 같이 보이는 경로가 없다. 슬롯은 문항 목록 아래(디자인 3, KAN-288),
  * 기다리는 중(`waiting`)에만 선다: 오류·행동 요구 상태에서는 히어로 블록째 그리지 않으므로
  * 사용자가 무엇을 해야 하는지를 광고가 밀어내지 않는다.
  */
@@ -319,7 +319,7 @@ export function AnalysisWaitingScreen({
           />
         </div>
         <p className="type-caption analysis-progress__count" aria-hidden="true">
-          분석 중 {completed} / {totalItems}
+          {totalItems}문항 중 {completed}개 완료
         </p>
       </div>
 
@@ -341,7 +341,7 @@ export function AnalysisWaitingScreen({
               계단 일러스트를 걷어내고 글자를 세웠다 (KAN-178). 그림 자리를 그대로 쓰므로
               아래 제목·단계 목록은 있던 자리에 남는다.
             */}
-            <div className="illustration illustration--waiting">
+            <div className="illustration--waiting analysis-waiting__hero">
               <TextHero>분석 중입니다</TextHero>
             </div>
             {/*
@@ -354,19 +354,9 @@ export function AnalysisWaitingScreen({
               무엇이 진행 중인지(만드는 중 / 다 되어 넘어가는 중)를 갈아 끼운다. 히어로가
               `aria-hidden`이라 스크린 리더에는 이 제목 한 줄만 화면 이름으로 들어간다.
             */}
-            <h1 className="type-headline">
+            <h1 className="type-body analysis-waiting__lead">
               {status.kind === 'READY' ? '결과 화면으로 이동합니다' : '결과를 만들고 있어요'}
             </h1>
-            {/*
-              일시적 오류는 여기 부연으로만 알린다 - 문항 목록을 지우지 않는다.
-              서버가 혼잡을 알리면 같은 자리에 줄 안내를 건다 (KAN-272). 오류가 먼저인 이유는
-              지금 일어난 일이 더 급한 소식이라서다 - 오류가 가시면 다음 회차에 안내가 돌아온다.
-            */}
-            {status.kind === 'POLLING' && (
-              <p className="type-caption status-block__detail">
-                {lastError ?? (queueAhead !== null ? queueNotice(queueAhead) : '잠시만 기다려 주세요')}
-              </p>
-            )}
             <div className="analysis-steps">
               {ANALYSIS_STAGES.map((label, index) => {
                 const step = index + 1
@@ -398,12 +388,16 @@ export function AnalysisWaitingScreen({
               })}
             </div>
             {/*
-              브라우저 단독 실행의 배너 (KAN-197). 단계 표시 **아래**인 것이 요점이다 — 위에
-              두면 "분석 중입니다" 히어로와 진행 상태 사이를 광고가 가른다. 앱 WebView와 ID가
-              없는 빌드에서는 이 컴포넌트가 아무것도 그리지 않으므로 (`AdSlot`) 여기 있는 것만
-              으로 기존 화면이 달라지지 않는다.
+              일시적 오류는 여기 부연으로만 알린다 - 문항 목록을 지우지 않는다.
+              서버가 혼잡을 알리면 같은 자리에 줄 안내를 건다 (KAN-272). 오류가 먼저인 이유는
+              지금 일어난 일이 더 급한 소식이라서다 - 오류가 가시면 다음 회차에 안내가 돌아온다.
+              디자인 3 (KAN-288)에서 단계 목록 아래로 내려왔다 — 시안 순서는 제목 · 부제 · 단계 · 안내 · 문항 목록 · 광고.
             */}
-            {showBanner && <AdSlot />}
+            {status.kind === 'POLLING' && (
+              <p className="type-body status-block__detail">
+                {lastError ?? (queueAhead !== null ? queueNotice(queueAhead) : '잠시만 기다려 주세요')}
+              </p>
+            )}
           </div>
         )}
 
@@ -460,7 +454,10 @@ export function AnalysisWaitingScreen({
           {rows.map(({ item, itemNumber, status: analysis }) => (
             <li key={item.itemId} className="analysis-row">
               <span className="type-label analysis-row__name">{itemNumber}번 문항</span>
-              <span className="type-caption analysis-row__status">
+              <span className="type-label analysis-row__status">
+                {/* 상태를 글자 앞 기호로도 가른다 (디자인 3 시안 「✓ 완료」「◷ 분석 중」, KAN-288) — 읽는 것은 뒤 글자다 */}
+                {analysis?.status === 'COMPLETED' && <CheckSmallIcon />}
+                {analysis?.status === 'PROCESSING' && <span aria-hidden="true">◷</span>}
                 {analysis === null ? '확인 중' : STATUS_LABEL[analysis.status]}
                 {analysis?.quality !== null && analysis?.quality !== undefined && analysis.quality !== QUALITY_OK
                   ? ` · ${analysis.quality}`
@@ -478,6 +475,11 @@ export function AnalysisWaitingScreen({
             </li>
           ))}
         </ul>
+        {/*
+          배너는 문항 목록 아래, 화면 맨 끝이다 (디자인 3 시안 24, KAN-288). 단계 표시와 진행 상태 사이를
+          광고가 가르지 않는다는 KAN-197의 원칙은 그대로다 — 목록까지 다 읽은 뒤에 온다.
+        */}
+        {waiting && showBanner && <AdSlot />}
       </div>
     </main>
   )

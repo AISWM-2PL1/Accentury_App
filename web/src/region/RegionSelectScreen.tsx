@@ -76,7 +76,7 @@ export function RegionSelectScreen({ onDone }: RegionSelectScreenProps) {
   return (
     <main className="item-screen">
       <div>
-        <h1 id="region-title" className="type-title-sm">
+        <h1 id="region-title" className="type-title">
           출신 지역이 어디신가요?
         </h1>
         <p

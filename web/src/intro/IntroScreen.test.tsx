@@ -322,7 +322,7 @@ describe('IntroScreen — 맞춤형 광고 동의 (KAN-196)', () => {
     expect(settingsLink()).not.toBeInTheDocument()
   })
 
-  it('[맞춤형 광고 허용]은 granted를 네이티브에 쓰고 시트를 닫는다', () => {
+  it('[맞춤형 광고 받기]은 granted를 네이티브에 쓰고 시트를 닫는다', () => {
     const setAdConsent = vi.fn()
     window.AccenturyBridge = adBridge('unknown', setAdConsent)
     render(<IntroScreen requestWebPermission={permissionStub('granted')} />)

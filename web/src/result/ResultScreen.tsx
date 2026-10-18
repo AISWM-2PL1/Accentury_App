@@ -312,6 +312,12 @@ export function ResultScreen({
           문의가 들어왔을 때 이 두 값이 없으면 어떤 눈금으로 나온 등급인지 되짚을 수 없다
           (KAN-21의 sv-0.4 재보정처럼 정책은 바뀐다).
         */}
+        {/*
+          점수가 무엇에 대한 값인지 카드 바로 아래 한 줄로 밝힌다 (KAN-288 디자인 검수 HIG-B). 숫자만 있으면
+          시험 점수처럼 확정된 판정으로 읽히는데, 실제로는 토박이 녹음 분포와 견준 모델 추정이다.
+        */}
+        <p className="type-caption result-estimate">경남 토박이 녹음과 비교한 AI 추정치예요</p>
+
         <p className="type-caption result-version">
           {result.testVersion} · {result.scoreVersion}
         </p>
@@ -351,12 +357,9 @@ export function ResultScreen({
           누르는 두 번째 출구다 — 테두리 1.5px 하나가 그 어포던스를 준다. 그림자는 여전히
           주 버튼만 갖는다 (정본 §8: 떠 있는 종이가 둘이면 어느 쪽을 눌러야 할지 흐려진다).
 
-          그 두 번째 출구를 이 화면의 유일한 포인트색 — 점수 링·억양 곡선의 벽돌색 — 으로
-          칠한다 (사용자 결정 2026-09-15). 테두리까지 잉크로 두면 주버튼인 공유와 같은 목소리로
-          서서 재응시가 공유의 그림자처럼 읽히는데, 색이 갈리면 무게를 겨루지 않고도 다른 길이라는
-          것이 보인다. 글자체는 주버튼과 같은 제목 글자체(Jua)로 맞춘다. 값은
-          `.result-retest__button`에 있고, 전 화면 `.btn--secondary`를 고치지 않는 이유도
-          거기 적었다 — 대기·오류 화면의 재응시는 실패 복구용이라 눈에 띄면 안 된다.
+          디자인 3(KAN-288)에서 벽돌 채움(사용자 결정 2026-09-15)을 걷고 전 화면 보조 버튼 그대로 둔다 —
+          주버튼(공유)이 벽돌이 되면서 벽돌 면이 둘이면 화면당 주 행동 1개가 깨진다. 폭은
+          `.result-retest__button`에 있다.
         */}
         <RetestAction retest={retest} variant="secondary" className="result-retest__button" />
 

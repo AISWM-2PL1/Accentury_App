@@ -162,12 +162,24 @@
 }
 
 /*
- * 숫자 표기. 오른쪽 아래에 붙는다 - 왼쪽에서 차오르는 도트의 끝과 같은 쪽이라 눈이
- * 도트를 훑고 나온 자리에서 숫자를 만난다.
+ * 이름(왼쪽)과 숫자(오른쪽)가 도트 위 한 줄에 선다 (디자인 3 시안 `.card-progress`, KAN-288).
+ * 숫자가 오른쪽인 것은 그대로다 - 왼쪽에서 차오르는 도트의 끝과 같은 쪽이다.
  */
+.progress-indicator__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.progress-indicator__label {
+  color: var(--color-foreground);
+}
+
 .progress-indicator__count {
+  margin: 0;
   text-align: right;
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
 }
 
 /* ── 대기·오류 블록 ── */
@@ -665,22 +677,6 @@
  * 만드는데, 카드가 이미 배경과 같은 크림이라 그 면이 카드 안에 또 카드를 그린 것처럼 보였다.
  * "3 / 10 · 이 문장을 읽어주세요"처럼 자리와 할 일을 알리는 줄이라 흐린 잉크로 충분하다.
  */
-/* 연습지 위쪽의 접힌 자국 한 줄 (시안 `.practice-sheet:before`). 그라디언트 파선인 이유는
-   `.card__stats`의 WebKit 파선 주석과 같다 */
-.prompt-card::before {
-  content: '';
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-4);
-  right: var(--space-4);
-  height: 1px;
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--color-primary-dim) 0 4px,
-    transparent 4px 8px
-  );
-}
-
 .prompt-card__badge {
   align-self: flex-start;
   color: var(--color-prompt-card-muted);
@@ -772,6 +768,25 @@
   transition:
     box-shadow var(--duration-press) var(--ease-out),
     transform var(--duration-press) var(--ease-out);
+}
+
+/* 번호 상자 (디자인 3 시안 `.choice .letter`, KAN-288) — 흐린 잉크 1px 24×24, 글자는 최소 12px */
+.choice__number {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--color-muted-foreground);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-tab-label);
+  line-height: 1;
+}
+
+/* 글자가 남는 폭을 다 가져가 정오 표시·체크가 오른쪽 끝에 붙는다 */
+.choice__text {
+  flex: 1;
+  min-width: 0;
 }
 
 .choice--selected {
@@ -1075,6 +1090,12 @@
 }
 
 /* 정의·점수 버전 꼬리표. 사용자가 읽을 값이 아니라 문의를 되짚는 값이라 가장 약하게 둔다 */
+/* 점수 카드 아래 추정치 고지 (KAN-288 HIG-B) — 흐린 잉크 13px, 시안 26 */
+.result-estimate {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
 .result-version {
   color: var(--color-muted-foreground);
 }
@@ -1114,10 +1135,9 @@
 }
 
 .analysis-progress__bar {
-  height: var(--progress-bar-height);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-full);
-  background: var(--color-card);
+  /* 디자인 3 (KAN-288): 테두리 없는 4px 띠 — 남은 칸은 종이 그림자 면 (시안 `.progress`) */
+  height: 4px;
+  background: var(--color-primary-dim);
   overflow: hidden;
 }
 
@@ -1131,7 +1151,10 @@
 /* 숫자는 오른쪽 아래 — 왼쪽에서 차오르는 막대의 끝과 같은 쪽이라 눈이 막대를 훑고 나온
    자리에서 숫자를 만난다 (진행 도트의 표기와 같은 규칙) */
 .analysis-progress__count {
-  text-align: right;
+  /* 디자인 3 (KAN-288): 막대 위 왼쪽 한 줄 「7문항 중 6개 완료」 (시안 `.small-caption`) */
+  order: -1;
+  margin: 0;
+  text-align: left;
   color: var(--color-muted-foreground);
 }
 
@@ -1159,7 +1182,10 @@
 }
 
 .analysis-body--centered {
-  justify-content: center;
+  /* 디자인 3 (KAN-288): 가운데가 아니라 위에서부터 흐른다 — 시안은 막대 아래 여백 뒤 제목이 왼쪽 정렬로 선다.
+     클래스는 기다리는 분기 표식으로 남긴다 */
+  justify-content: flex-start;
+  padding-top: var(--space-8);
 }
 
 /*
@@ -1170,11 +1196,11 @@
 .analysis-waiting {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-6);
+  align-items: stretch;
+  gap: var(--space-3);
   width: 100%;
   max-width: var(--content-max-width);
-  text-align: center;
+  text-align: left;
 }
 
 /*
@@ -1186,20 +1212,37 @@
  * 폭을 280으로 묶는 이유: 세 칸이 화면 폭을 다 쓰면 동그라미 사이가 멀어져 "이어진 한 줄"이
  * 아니라 따로 놓인 표시 셋으로 보인다. 이어져 있어야 순서가 읽힌다.
  */
+/* 디자인 3 (KAN-288, 시안 `.screen-title` + `.lead`): 「분석 중입니다」는 왼쪽 정렬 제목 크기, 그 아래 진행 문장은 흐린 잉크 */
+.analysis-waiting__hero {
+  height: auto;
+}
+
+.analysis-waiting__hero .text-hero {
+  padding: 0;
+  font-size: var(--text-title);
+  text-align: left;
+}
+
+.analysis-waiting__lead {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
 .analysis-steps {
+  /* 디자인 3 (KAN-288, 시안 `.steps`): 세로 목록, 칸마다 아래 파선 */
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   width: 100%;
-  max-width: 280px;
+  margin: var(--space-4) 0;
 }
 
 .analysis-step {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  flex: 0 0 auto;
-  width: 72px;
+  gap: var(--space-3);
+  min-height: var(--touch-target-min);
+  padding: var(--space-3) 0;
+  border-bottom: 1px dashed var(--color-primary-dim);
 }
 
 /*
@@ -1212,29 +1255,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1.5px solid var(--color-primary);
+  flex-shrink: 0;
+  width: 29px;
+  height: 29px;
+  border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-full);
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: var(--text-tab-label);
   line-height: 1;
 }
 
 .analysis-step[data-state='todo'] .analysis-step__dot {
-  background: var(--color-card);
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
 }
 
 .analysis-step__label {
   color: var(--color-foreground);
-  white-space: nowrap;
+  font-size: var(--text-label);
 }
 
 .analysis-step[data-state='todo'] .analysis-step__label {
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
 }
 
 /*
@@ -1242,15 +1284,20 @@
  * 동그라미에 닿는다 — 닿지 않으면 세 칸이 이어진 한 줄로 보이지 않는다.
  * 지나온 구간은 잉크, 아직인 구간은 흐린 잉크다.
  */
+/* 지금 칸은 벽돌로 찬 동그라미, 지나온 칸은 ✓ — 색 말고 채움·글리프로도 갈린다 */
+.analysis-step[data-state='current'] .analysis-step__dot {
+  border-color: var(--color-point);
+  background: var(--color-point);
+  color: var(--color-point-foreground);
+}
+
 .analysis-step-line {
-  flex: 1 1 0;
-  height: 1px;
-  margin: 12px -16px 0;
-  background: var(--color-muted-foreground);
+  /* 디자인 3 (KAN-288): 세로 목록에서는 칸 사이 선 대신 칸 아래 파선이 구분한다 */
+  display: none;
 }
 
 .analysis-step-line[data-state='done'] {
-  background: var(--color-primary);
+  display: none;
 }
 
 /*
@@ -1296,11 +1343,10 @@
   /* 안에 보조 버튼(48)이 들어오는 줄이라 이미 이 높이지만, 버튼 없는 줄도 같은 높이여야
      목록이 들쭉날쭉해 보이지 않는다 */
   min-height: var(--touch-target-min);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-card);
-  color: var(--color-card-foreground);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  /* 디자인 3 (KAN-288, 시안 `.analysis-items .row`): 상자 대신 아래 파선 한 줄 */
+  padding: var(--space-3) 0;
+  border-bottom: 1px dashed var(--color-primary-dim);
+  color: var(--color-foreground);
 }
 
 /*
@@ -1323,9 +1369,13 @@
 /* 남는 폭을 먹으면서 필요하면 줄어든다. `min-width: 0`이 없으면 flex 자식의 기본
    `min-width: auto`가 min-content 아래로 못 줄어들게 막아 행이 넘친다 */
 .analysis-row__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
   flex: 1 1 auto;
   min-width: 0;
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
   text-align: right;
 }
 
@@ -1651,15 +1701,15 @@ a.btn {
   margin: 0;
 }
 
-/* 다시 열었을 때의 상태 한 줄. 흐린 잉크로 적어 고지 본문과 구분한다 */
+/* 다시 열었을 때의 상태 한 줄, 사업자·바꾸는 길 문단, iOS ATT 예고. 흐린 잉크로 적어 고지 본문(수집·영향)과 구분한다 */
+.ad-consent-muted,
 .ad-consent-current {
   color: var(--color-muted-foreground);
 }
 
 /*
- * 버튼 둘을 세로로 쌓는다. 가로로 나란히 두면 각 버튼이 반 폭이 되어 「맞춤형 광고 허용」
- * 여섯 자가 Jua 20px에서 두 줄로 갈린다. 주버튼이 위인 이유는 초점이 먼저 가는 자리이고
- * 엄지가 먼저 닿는 자리이기 때문이다 — 아래는 시트 가장자리라 오히려 닿기 어렵다.
+ * 버튼 둘을 세로로 쌓는다. 가로로 나란히 두면 각 버튼이 반 폭이 되어 「맞춤형 광고 받기」가
+ * 좁은 칸에서 두 줄로 갈린다. 둘 다 같은 보조 버튼이고(KAN-288 HIG-A) 초점이 먼저 가는 위가 받기다.
  */
 .ad-consent-actions {
   display: flex;
@@ -1870,78 +1920,36 @@ a.btn {
 }
 
 /*
- * 결과 화면의 재응시 버튼만 포인트색으로 채우고 Jua로 (사용자 결정 2026-09-15).
+ * 결과 화면 하단의 재응시 (디자인 3, KAN-288). 시안 26처럼 공유(주버튼) 아래의 온전한 보조 버튼 —
+ * 크림 면 + 잉크 1px 테두리, 폭은 공유와 같은 100%다.
  *
- * 결과를 다 본 사람에게 남은 출구는 공유와 재응시 둘이다. 주버튼인 공유가 잉크로 꽉 찬 종이라
- * 재응시를 테두리만 두른 선 버튼으로 두면 두 번째 출구가 첫 번째의 그림자처럼 읽힌다. 그래서
- * 이 화면에서 색이 하나뿐인 자리 — 점수 링·억양 곡선의 벽돌색(`--color-point`) — 를 빌려 면을
- * 통째로 채운다. 화면의 유일한 강조색이라 잉크와 무게를 겨루는 것이 아니라, 서로 다른 목소리로
- * 나란히 선 두 장의 종이가 된다.
+ * 예전(사용자 결정 2026-09-15)에는 이 버튼을 벽돌로 채워 공유와 "다른 목소리"로 세웠다. 그때는 주버튼이
+ * 잉크였는데, 디자인 3에서 주버튼이 벽돌이 되면서 벽돌 면이 둘이 되어 화면당 주 행동 1개(ux-ui.md
+ * Hick's law)가 깨졌다. 그래서 재응시는 테두리 보조로 내려간다 — 두 번째 출구라는 어포던스는 테두리가
+ * 준다 (KAN-161 3단계가 글자 버튼에서 보조로 올린 근거 그대로).
  *
- * 글자는 주버튼과 같은 크림(`--color-primary-foreground`)이다 — 사용자는 "흰색"이라고 했지만
- * 순백은 이 팔레트에 없는 색이고(정본 §2는 잉크·크림·종이 그림자·흐린 잉크 넷이 전부다), 크림
- * 이어야 벽돌 면이 종이에서 오려낸 자리로 읽힌다. 벽돌 위 크림은 대비 4.6:1이라 본문 크기
- * 기준 AA를 넘는다.
- *
- * 그림자는 주지 않는다. 채운 면이 됐다고 `--shadow-card`까지 얹으면 떠 있는 종이가 둘이 되어
- * 어느 쪽을 눌러야 하는지가 흐려진다 (`ux-ui.md`, `.btn--secondary`(64행) 주석). 떠 있는 종이는
- * 주버튼 하나다 — 색으로 나란히 서되 높이는 주버튼이 갖는다.
- *
- * 글자체도 주버튼과 같은 제목 글자체(Jua)로 맞추고, Jua는 굵기가 하나뿐이라 `.btn--primary`와
- * 같이 `--weight-normal` + 자간 0.02em을 쓴다.
- *
- * 전 화면 `.btn--secondary`가 아니라 결과 화면 한정인 이유: 대기·오류 화면의 재응시는 실패에서
- * 빠져나오는 복구 수단이라 눈에 띄면 안 된다 — 그 화면에서 색을 가져갈 자리는 [다시 시도]와 앱
- * 다운로드다.
- *
- * `.btn--secondary`(64행)와 특이도가 같으므로 파일 뒤쪽인 이 자리에 둬야 이긴다. 덮어쓰는 것은
- * 배경·테두리색·글자색뿐이고 테두리 굵기 1px·반경·눌림 transform은 그대로 상속한다.
- * 비활성(`.btn:disabled`)도 불투명도 0.6만 얹으므로 채운 벽돌이 흐린 벽돌로 남아 크림 배경과
- * 계속 갈린다 — 선 버튼일 때보다 오히려 형태가 또렷하다.
+ * 전 화면 `.btn--secondary`를 그대로 쓰므로 여기서는 폭만 정한다.
  */
 .result-retest__button {
-  background: var(--color-point);
-  border-color: var(--color-point);
-  color: var(--color-primary-foreground);
-
-  font-family: var(--font-display);
-  font-size: var(--text-body);
-  font-weight: var(--weight-normal);
-  letter-spacing: 0.02em;
+  width: 100%;
 }
 
 /*
- * 결과 화면 하단의 진입 자리 (KAN-211). 글자 버튼이라 `.btn--text`가 생김새를 다 정하고,
- * 여기서는 폭과 밑줄만 얹는다 — 위의 공유·재응시 버튼이 100%라 이 줄만 좁으면 가운데 뜬 것처럼
+ * 결과 화면 하단의 글자 버튼 둘 — 억양 학습 진입(KAN-252)과 후기(KAN-211). `.btn--text`가 생김새를
+ * 정하고 여기서는 폭과 밑줄만 얹는다 — 위의 공유·재응시 버튼이 100%라 이 줄만 좁으면 가운데 뜬 것처럼
  * 보인다.
  *
- * 밑줄은 이 버튼에만 긋는다 (사용자 요청 2026-09-15). 글자 버튼은 테두리도 배경도 없어 눌리는
- * 자리라는 것이 모양에 드러나지 않는데, 이 줄은 푸터 맨 아래 홀로 놓여 옆 버튼과 견줄 상대도
- * 없다. 그래서 `.text-link`의 관습을 그대로 빌려 밑줄 하나로 어포던스를 준다 — 값(offset
- * 0.2em, 한글 받침이 밑줄에 붙지 않게)도 거기에 맞추고 색은 글자색을 따른다. 테두리를 둘러
- * 보조 버튼으로 올리지 않는 이유는 `ResultScreen.tsx`의 이 자리 주석에 있다.
+ * 밑줄은 사용자 요청(2026-09-15)이다. 글자 버튼은 테두리도 배경도 없어 눌리는 자리라는 것이 모양에
+ * 드러나지 않아 `.text-link`의 관습(offset 0.2em, 한글 받침이 밑줄에 붙지 않게)을 빌린다.
  *
- * 글자체는 밑줄만으로 모자란 자리를 마저 메운다 (사용자 결정 2026-09-15). 본문 글자체로 두면
- * 이 줄이 바로 위 버전 표기나 보낸 뒤의 인사 한 줄과 같은 부류 — 읽는 글 — 로 묶여, 눌리는
- * 자리라는 것이 밑줄 하나에만 걸린다. 그래서 주버튼·등급명과 같은 Jua로 맞춰 푸터 안에서 같은
- * 목소리를 내되, 크기는 주버튼(20)보다 한 급 작은 본문 크기로 두어 주동작 자리는 넘보지 않는다.
- * Jua는 굵기가 하나뿐이라 `.btn--primary`와 같이 `--weight-normal` + 자간 0.02em을 쓴다.
- *
- * 색은 `.btn--text`가 주는 잉크(`--color-foreground`)를 그대로 쓴다 (사용자 결정
- * 2026-09-15). 포인트색은 재검사 버튼이 가져갔다 (위 `.result-retest__button`) — 벽돌색이
- * 푸터 안에서 둘로 나뉘면 이 화면의 유일한 강조색이라는 성질이 사라져 어느 쪽도 눈에 걸리지
- * 않는다. 후기는 잉크 글자 + 밑줄로 남는다. 밑줄색은 `currentColor`라 글자색을 저절로
- * 따라오므로 `text-decoration-color`를 따로 두지 않는다.
+ * 글자체는 디자인 3(KAN-288)에서 Jua 대신 본문 글자체로 내렸다 — Jua는 제목·대사·점수·등급만 쓴다
+ * (시안 `.btn.text`). 색은 `.btn--text`의 잉크 그대로다.
  */
 .result-feedback__open {
   width: 100%;
   text-decoration: underline;
   text-underline-offset: 0.2em;
-
-  font-family: var(--font-display);
-  font-size: var(--text-body);
-  font-weight: var(--weight-normal);
-  letter-spacing: 0.02em;
+  font-size: var(--text-label);
 }
 
 /* 보낸 뒤 버튼 자리에 남는 한 줄. 더 누를 것이 없다는 뜻이라 가장 약하게 둔다 */
