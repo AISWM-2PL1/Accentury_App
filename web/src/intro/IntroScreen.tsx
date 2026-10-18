@@ -141,10 +141,9 @@ export function IntroScreen({
   return (
     <main className="screen intro-screen">
       <div className="screen__body">
-        {/* 화면 이름은 큰 문장 하나이므로 `heading`은 히어로에만 주고,
-            브랜드 표기인 워드마크는 평문으로 남겨 h1이 둘로 갈리지 않게 한다. */}
+        {/* 화면 이름은 큰 문장 하나라 `heading`은 히어로에만 준다. 워드마크는 디자인 3(KAN-288, 시안 07)부터
+            히어로 안이 아니라 전 화면 공통 앱바(`ui/AppBar`)에 선다 — 둘 다 두면 첫 화면에 「Accentury」가 두 번이다. */}
         <div className="intro-hero">
-          <p className="type-title-sm intro-wordmark">Accentury</p>
           <div className="intro-heading">
             <TextHero heading>
               사투리
