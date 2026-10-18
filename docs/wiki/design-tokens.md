@@ -3,7 +3,7 @@
 Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·간격·모션·반경의 **단일 정본**이다.
 이 문서의 표가 원본이고, `Color.kt`·`Type.kt`·`tokens.css`는 그 값을 각 런타임 형태로 옮겨 적은 사본이다.
 
-- 티켓: KAN-148(구조) · **KAN-161**(Papercut 팔레트 교체)
+- 티켓: KAN-148(구조) · **KAN-161**(Papercut 팔레트 교체) · **KAN-288**(디자인 3 — 반경·그림자·버튼 위계, §7)
 - 설계 근거: `ux-ui.md` §2(설계 원칙)·§5(비주얼·모션·접근성 최소선)
 - 시안 출처
   - **Papercut** (현행) — Claude Code 아티팩트 「Accentury Papercut」, 정본은 그 안의 `build.mjs`
@@ -170,13 +170,15 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 
 | 토큰 | 값 | 용도 |
 |---|---|---|
-| `radius-sm` | 12dp | **지금 쓰는 곳이 없다** — 알약 배지가 캡션으로 바뀌면서 비었다 (§8) |
-| `radius-md` | 16dp | 버튼, 선택지, 곡선 레인 상자 |
-| `radius-lg` | 18dp | **지금 쓰는 곳이 없다** — 컷아웃 반경은 16과 24 둘뿐이다 (§8) |
-| `radius-xl` | 24dp | 대사·질문 카드, 결과 점수 카드 |
+| `radius-sm` | **4dp** | 칩·별점 칸·선택지 번호 상자 (KAN-288, 이전 12) |
+| `radius-md` | **6dp** | 버튼, 선택지, 입력 칸, 학습 목록 행 (KAN-288, 이전 16) |
+| `radius-lg` | **10dp** | 카드·대사 카드·시트 (KAN-288, 이전 18) |
+| `radius-xl` | **10dp** | `radius-lg`와 같은 값으로 접었다 — 디자인 3에 10보다 큰 종이 모서리가 없다 (KAN-288, 이전 24) |
 | `radius-full` | 9999 | 원형·캡슐 (녹음 버튼, 히어로 아이콘, 진행 도트) |
 | `touch-target-min` | **48dp** | 모든 탭 가능 요소의 최소 높이·너비 |
-| `control-height-lg` | 56dp | 주 버튼·선택지의 높이. 보조 버튼은 `touch-target-min` 그대로다 |
+| `control-height-lg` | **48dp** | 주 버튼 높이 (KAN-288, 이전 56). 보조 버튼과 같은 높이이고 위계는 면 색(벽돌/크림)이 말한다 |
+| `control-height-choice` | 54dp | 선택지 한 칸 (KAN-288). 글 한 줄 + 위아래 여백 |
+| `text-tab-label` | 12dp | 하단 탭 바 라벨·선택지 번호 상자. 최소 글자 11 규칙 위의 값 (KAN-288 디자인 검수 HIG-A) |
 | `prompt-card-min-height` | 152dp | 대사 카드 (문항 길이가 달라도 카드 크기 고정) |
 | `screen-padding-top` | 64dp (브라우저 24dp) | 화면 위쪽 여백. 좌우 24·아래 32와 다른 값이고, 첫 요소를 내려 그림·제목이 세로 가운데에 앉게 한다. **웹 4화면·네이티브 녹음 화면 반영 완료** (`Dimens.screenPaddingTop`). 브라우저 단독 실행에서만 24로 내린다 — 근거는 §7 KAN-199 |
 | `content-max-width` | 320dp | 본문 최대 폭. 넓은 화면에서 한 줄이 길어져 읽기 힘들어지는 것을 막는다 |
@@ -184,7 +186,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `prompt-card-padding` | 24dp | 대사·질문 카드 안쪽 여백 |
 | `progress-bar-height` | **8dp** | 막대 두께 (결과 점수 막대·입력 레벨 바·남은 시간 게이지). 12에서 내렸다 — §7 |
 | `progress-dot-height` | 8dp | 진행 도트 하나의 두께. 막대와 값은 같지만 뜻이 다르다 — 저쪽은 그릇, 이쪽은 칸 하나다 |
-| `paper-shadow-x` / `paper-shadow-y` | 3dp / 4dp | 오프셋 종이 그림자가 어긋난 거리. 눌림도 이 값만큼 내려간다 (§5) |
+| `paper-shadow-x` / `paper-shadow-y` | **4dp / 5dp** | 오프셋 종이 그림자가 어긋난 거리. 눌림도 이 값만큼 내려간다 (§5). KAN-288에서 3/4 → 4/5 |
 | `hero-icon-size` | 112dp | 인트로·권한 화면의 원형 아이콘 (w-28) |
 | `record-button-size` | 80dp | 원형 녹음 버튼 지름 (시안: w-20) |
 | `curve-lane-height` | 120dp | F0 곡선 레인 하나. 시안(72px)보다 키웠다 — 실제 기기에서는 아래가 비어 곡선이 납작했다 |
@@ -203,7 +205,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `duration-reveal` | 600ms | 결과 리빌 (§5가 허용한 예외) |
 
 **오프셋 종이 그림자** — 이 앱의 시각 정체성 (KAN-161). 기본 상태에서 오른쪽·아래로
-`paper-shadow-x` `paper-shadow-y`(3dp 4dp) 어긋난 자리에 `primary-dim` 단색 면이 깔려 종이
+`paper-shadow-x` `paper-shadow-y`(4dp 5dp, KAN-288 전 3dp 4dp) 어긋난 자리에 `primary-dim` 단색 면이 깔려 종이
 한 장이 떠 있는 것처럼 보이고, 누르면 그림자가 사라지면서 본체가 **정확히 그만큼** 내려가
 종이가 바닥에 닿는다. 전환은 `duration-press`.
 
@@ -214,7 +216,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 |---|---|---|
 | 그림자 | `box-shadow: var(--shadow-card)` | `Modifier.paperShadow(color, cornerRadius)` |
 | 눌림 | `:active`에서 `transform: translate(x, y)` + `box-shadow: none` | 본체에 `offset(x, y)` — 그림자를 덮는다 |
-| 자리 | transform·box-shadow 둘 다 레이아웃을 안 건드린다 | `paperShadow`가 `padding`으로 (3dp, 4dp)를 먼저 비운다 |
+| 자리 | transform·box-shadow 둘 다 레이아웃을 안 건드린다 | `paperShadow`가 `padding`으로 (4dp, 5dp)를 먼저 비운다 |
 
 두 런타임 모두 **총 차지 높이가 눌림 전후로 같다.** 높이가 같이 변하면 옆 요소가 밀려
 화면이 들썩인다. Material `elevation`과 CSS `filter: blur`는 사방으로 번지는 그림자라
@@ -229,10 +231,10 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 
 | 토큰 | 값 | 쓰는 곳 |
 |---|---|---|
-| `shadow-card` | `3px 4px 0 #cfc5aa` | 일반 카드 |
-| `shadow-prompt` | `3px 4px 0 #cfc5aa` | 대사·질문 카드 |
-| `shadow-hero` | `3px 4px 0 #cfc5aa` | 원형 히어로 아이콘 |
-| `shadow-choice` | `3px 4px 0 #cfc5aa` | 선택지 |
+| `shadow-card` | `4px 5px 0 #cfc5aa` | 일반 카드 |
+| `shadow-prompt` | `4px 5px 0 #cfc5aa` | 대사·질문 카드 |
+| `shadow-hero` | `4px 5px 0 #cfc5aa` | 원형 히어로 아이콘 |
+| `shadow-choice` | `4px 5px 0 #cfc5aa` | 선택지 |
 
 넷이 같은 값인 것은 미처리가 아니라 규칙이다. 종이 한 장의 두께는 카드든 버튼이든 같고,
 깊이로 위계를 만들려면 그림자가 아니라 크기·잉크 굵기를 쓴다.
@@ -478,6 +480,11 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 
 ### 컷아웃 카드
 
+> **KAN-288 디자인 3에서 바뀐 값 (웹 반영, 네이티브는 KAN-288 Android·iOS 단계).** 테두리는 1px로 내렸다 —
+> 카드는 1px 잉크, 대사·질문 카드는 1px 종이 그림자색(그림자가 윤곽을 맡는다), 고르지 않은 선택지·학습
+> 목록 행·별점 칸은 1px 흐린 잉크(`#6b6459`), 고른 선택지만 2px 잉크다. 반경은 10(카드·시트) / 6(버튼·선택지·
+> 입력·행) / 4(칩·번호 상자). 대사·질문 카드 위쪽 파선은 넣지 않는다(사용자 결정). 아래 문단은 KAN-161 당시 값이다.
+
 카드·선택지·버튼·곡선 레인 상자가 전부 같은 규칙을 쓴다: **`1.5px` 잉크 테두리 + 크림 면
 + 오프셋 그림자 한 겹.** 주 CTA와 선택된 선택지만 테두리가 `2px`다 — 두께가 "지금 이것"을
 뜻하는 유일한 자리다. 반경은 24(대사·질문 카드, 결과 점수 카드) / 16(버튼, 선택지, 곡선 레인
@@ -493,9 +500,17 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 
 | | 높이 | 테두리 | 면 | 그림자 | 라벨 |
 |---|---|---|---|---|---|
-| Primary | `control-height-lg` 56 | 2px 잉크 | 잉크 | 있음 | Jua `titleSmall` 20, 자간 0.02em, 크림 글자 |
-| Secondary | `touch-target-min` 48 | 1.5px 잉크 | 크림 | **없음** | `bodySmall` 15 / 500, 잉크 글자 |
+| Primary | `control-height-lg` 48 | 1px 벽돌 | **벽돌 `point`** | 있음 | 본문 `label` 14 / 500, 크림 글자 |
+| Secondary | `touch-target-min` 48 | 1px 잉크 | 크림 | **없음** | 본문 `label` 14 / 500, 잉크 글자 |
 | Text | `touch-target-min` 48 | 없음 | 없음 | 없음 | `label` 14, 잉크 글자 |
+
+위 표는 KAN-288 디자인 3 값이다 (웹 반영). 이전(KAN-161)에는 Primary가 56 높이·2px 잉크 테두리·잉크 면·Jua 20
+라벨, Secondary가 1.5px 잉크 테두리였다. 비활성 Primary는 종이 그림자 면 + 흐린 잉크 글자·테두리다.
+
+**화면당 주 행동은 벽돌 면 하나다 (KAN-288).** 주 버튼이 벽돌이 되면서, 예전에 "다른 목소리"로 벽돌을 빌려 쓰던
+보조 행동은 전부 Secondary·Text로 내렸다 — 결과 화면 [다시 테스트하기](이전 벽돌 채움, 2026-09-15),
+억양 학습 피드백 [다시 시도](이전 벽돌, 2026-10-12). 동의처럼 어느 쪽도 "다음 단계"가 아닌 두 선택지는 둘 다
+Secondary다 — 맞춤형 광고 시트 [맞춤형 광고 받기]·[일반 광고만 보기] (HIG-A).
 
 그림자는 주 버튼에만 있다. 그림자는 "떠 있다"는 뜻이라 화면에 떠 있는 종이가 둘이면 어느
 쪽을 눌러야 하는지가 흐려진다. 보조 버튼은 자리만 같게 비워 눌림 거리를 맞추고 그림자를
@@ -523,6 +538,10 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 버튼으로 읽힌다.
 
 ### 진척도
+
+> **KAN-288 디자인 3 (웹 반영):** 칸은 모서리 없는 띠, 지나온 칸·현재 칸은 벽돌, 남은 칸은 종이 그림자 면 + 1px 흐린
+> 잉크다. 이름(「문항 진행률」)과 "3 / 10"이 도트 **위** 한 줄에 선다 — 이름 왼쪽, 숫자 오른쪽(시안 `.card-progress`).
+> 둘 다 눈으로만 읽고 값은 progressbar 한 줄이 말하는 것은 그대로다. 아래 문단은 KAN-161 당시 값이다.
 
 도트 줄과 "3 / 10" 표기가 한 덩어리다. 둘이 떨어져 있으면 한쪽만 고쳐 어긋난다.
 막대 하나가 아니라 **문항 수만큼의 캡슐**이다 — 남은 문항을 세어 볼 수 있고, 칸 하나가
