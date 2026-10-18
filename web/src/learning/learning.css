@@ -263,8 +263,20 @@
   margin-top: var(--space-3);
 }
 
-/* A-5 하단 [결과 목록으로]·[다시 시도]와 A-6 [코스 목록으로]의 개별 색 규칙(2026-10-12)은 디자인 3에서 걷었다 —
-   주버튼이 벽돌이 되어 Button 변형(primary·secondary)이 위계를 그대로 말한다 (KAN-288) */
+/* A-5 하단 (2026-10-12 에뮬 확인 뒤 사용자 지정): 목록 복귀는 배경색 바탕에 잉크 테두리·글자, 다시 시도는 벽돌색.
+   디자인 3(KAN-288)에서 한때 걷었다가 2026-10-18 사용자 결정으로 되살렸다 — "화면당 벽돌 면 하나"의 예외
+   (design-tokens.md) */
+.intonation-footer__back {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.intonation-footer__retry {
+  /* 테두리까지 벽돌 — 결과 화면 [다시 테스트하기](.result-retest__button)와 같은 채운 벽돌 */
+  border-color: var(--color-point);
+  background: var(--color-point);
+  color: var(--color-point-foreground);
+}
 
 /* ── 억양 학습 결과 목록 (KAN-254 5단계) — 행은 .word-set-row를 그대로 쓴다 ── */
 
