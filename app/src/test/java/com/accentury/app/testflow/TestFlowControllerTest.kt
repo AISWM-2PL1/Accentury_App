@@ -2,6 +2,7 @@ package com.accentury.app.testflow
 
 import androidx.compose.runtime.saveable.SaverScope
 import com.accentury.app.audio.QualityStatus
+import com.accentury.app.bridge.UploadFailed
 import com.accentury.app.bridge.VoiceItemStart
 import com.accentury.app.upload.UploadState
 import org.junit.Assert.assertEquals
@@ -302,6 +303,31 @@ class TestFlowControllerTest {
         controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
 
         assertTrue(controller.onUploadsChanged(mapOf("at_1" to UploadState.InFlight)).isEmpty())
+    }
+
+    /*
+     * 웹에 알리는 실패는 재전송으로 풀리는 것뿐이다 (KAN-288 6단계). 재녹음 거절은 녹음 화면이 다시 열리고,
+     * 재시도 불가(세션 만료 등)는 [다시 보내기]가 소용없어 [다시 테스트하기] 경로가 푼다.
+     */
+    @Test
+    fun `웹에 알릴 실패는 기다리는 시도의 재전송 가능한 실패뿐이다`() {
+        val controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(), micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+
+        assertEquals(
+            listOf(UploadFailed(itemId = "item_1", attemptId = "at_1")),
+            controller.failedUploads(mapOf("at_1" to UploadState.Failed(retryable = true, message = "timeout"))),
+        )
+        assertTrue(controller.failedUploads(mapOf("at_1" to UploadState.Failed(retryable = false, message = "만료"))).isEmpty())
+        assertTrue(
+            controller.failedUploads(
+                mapOf("at_1" to UploadState.Failed(retryable = false, message = "짧음", rerecord = true)),
+            ).isEmpty(),
+        )
+        assertTrue(controller.failedUploads(mapOf("at_1" to UploadState.InFlight)).isEmpty())
+        // 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이 기다리는 문항이 아니다
+        assertTrue(controller.failedUploads(mapOf("at_x" to UploadState.Failed(retryable = true, message = "timeout"))).isEmpty())
     }
 
     @Test

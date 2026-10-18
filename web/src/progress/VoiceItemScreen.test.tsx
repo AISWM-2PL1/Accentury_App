@@ -232,3 +232,66 @@ describe('말투 감정 전달 (KAN-283)', () => {
     expect('emotion' in JSON.parse(startVoiceItem.mock.calls[0][0])).toBe(false)
   })
 })
+
+describe('대기 푸터의 전송 실패 · [다시 보내기] (KAN-288 6단계)', () => {
+  /** 재전송을 아는 앱. 돌려주는 spy가 retryUpload 호출을 받는다 */
+  function stubRetryBridge() {
+    stubBridge()
+    const retryUpload = vi.fn()
+    window.AccenturyBridge = { ...window.AccenturyBridge!, retryUpload }
+    return retryUpload
+  }
+
+  function failUpload(itemId: string, attemptId: string) {
+    act(() => window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId, attemptId })))
+  }
+
+  it('이 문항의 업로드가 실패하면 대기 문구 대신 「! 전송 실패」 줄과 [다시 보내기]를 세운다', () => {
+    stubRetryBridge()
+    renderScreen()
+
+    failUpload('v1', 'at_1')
+
+    expect(screen.getByRole('status')).toHaveTextContent('!전송 실패')
+    expect(screen.getByText('1번 문항')).toBeInTheDocument()
+    expect(screen.queryByText('잠시만요…')).not.toBeInTheDocument()
+    // 새로 녹음하는 길은 그대로 남는다
+    expect(screen.getByRole('button', { name: '녹음 화면 다시 열기' })).toBeInTheDocument()
+  })
+
+  it('[다시 보내기]는 받은 attemptId 그대로 브리지를 부르고 대기 문구로 돌아간다 — 녹음 화면은 다시 열지 않는다', () => {
+    const retryUpload = stubRetryBridge()
+    const startVoiceItem = window.AccenturyBridge!.startVoiceItem as ReturnType<typeof vi.fn>
+    renderScreen()
+    failUpload('v1', 'at_1')
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 보내기' }))
+
+    expect(retryUpload).toHaveBeenCalledWith('at_1')
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('잠시만요…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+
+    // 또 실패하면 다시 선다
+    failUpload('v1', 'at_1')
+    expect(screen.getByRole('button', { name: '다시 보내기' })).toBeInTheDocument()
+  })
+
+  it('다른 문항의 실패는 버린다', () => {
+    stubRetryBridge()
+    renderScreen()
+
+    failUpload('v2', 'at_2')
+
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+  })
+
+  it('재전송을 모르는 앱(iOS·구버전)에서는 수신 지점을 걸지 않아 예전 화면 그대로다', () => {
+    stubBridge()
+    renderScreen()
+
+    expect(window.AccenturyWeb?.onUploadFailed).toBeUndefined()
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+    expect(screen.getByText('잠시만요…')).toBeInTheDocument()
+  })
+})

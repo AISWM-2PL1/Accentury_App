@@ -1024,4 +1024,48 @@ class AccenturyBridgeTest {
         var allowedNow = true
         assertEquals(0, openSettings(urlAllowed = { allowedNow }, beforeDrain = { allowedNow = false }))
     }
+
+    /** retryUpload를 한 번 부르고 콜백이 받은 attemptId들을 돌려준다 (KAN-288 6단계). */
+    private fun retryUpload(attemptId: String, allowed: Boolean = true): List<String> {
+        val queue = FakeMainQueue()
+        val retried = mutableListOf<String>()
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = { allowed },
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
+            onRetryUpload = { retried += it },
+        )
+        bridge.retryUpload(attemptId)
+        queue.drain()
+        return retried
+    }
+
+    @Test
+    fun `다시 보내기는 받은 attemptId 그대로 재전송 콜백으로 간다`() {
+        assertEquals(listOf("at_1"), retryUpload("at_1"))
+    }
+
+    @Test
+    fun `allowlist 밖 origin에서는 재전송하지 않는다`() {
+        assertEquals(emptyList<String>(), retryUpload("at_1", allowed = false))
+    }
+
+    @Test
+    fun `빈 attemptId는 버린다`() {
+        assertEquals(emptyList<String>(), retryUpload(" "))
+    }
 }
