@@ -57,7 +57,7 @@ export function MicBlockedScreen({ reason, platform, onRetry }: MicBlockedScreen
         </div>
 
         <div>
-          <h1 className="type-title-sm">{copy.title}</h1>
+          <h1 className="type-title">{copy.title}</h1>
           <p
             className="type-body-sm"
             style={{ color: 'var(--color-muted-foreground)', marginTop: 'var(--space-2)' }}

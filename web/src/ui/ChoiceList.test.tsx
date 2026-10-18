@@ -37,7 +37,7 @@ describe('ChoiceList', () => {
     renderList()
     const group = screen.getByRole('radiogroup', { name: '문제' })
     expect(group).toHaveAttribute('aria-labelledby', 'q')
-    expect(screen.getAllByRole('radio').map((r) => r.closest('label')?.textContent)).toEqual(['쑥갓', '부추', '미나리'])
+    expect(screen.getAllByRole('radio').map((r) => r.closest('label')?.querySelector('.choice__text')?.textContent)).toEqual(['쑥갓', '부추', '미나리'])
   })
 
   it('고르면 onSelect에 choiceId를 넘긴다', () => {

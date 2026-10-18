@@ -198,28 +198,6 @@ export function FeedbackSheet({ open, onClose, submit, onSubmitted, initialState
               <p id={GUIDE_ID}>{FEEDBACK_GUIDE}</p>
             </div>
 
-            {/* 별점은 라디오 그룹이다 — 화살표 키 이동과 "5개 중 3번째" 안내를 브라우저가 그냥
-                준다. ★는 눈에만 보이고(`aria-hidden`), 소리로는 "3점"이 읽힌다 */}
-            <fieldset className="feedback-field" disabled={sending}>
-              <legend className="type-label">{FEEDBACK_RATING_LABEL}</legend>
-              <div className="feedback-rating">
-                {RATINGS.map((value) => (
-                  <label key={value} className="feedback-rating__star">
-                    <input
-                      className="sr-only"
-                      type="radio"
-                      name="rating"
-                      value={value}
-                      checked={rating === value}
-                      onChange={() => setRating(value)}
-                    />
-                    <span aria-hidden="true">{rating !== null && value <= rating ? '★' : '☆'}</span>
-                    <span className="sr-only">{value}점</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
             <div className="feedback-field">
               {/*
                 이름표를 따로 적지 않고 위 안내 문장을 `aria-labelledby`로 잇는다 — 그 문장이
@@ -241,6 +219,29 @@ export function FeedbackSheet({ open, onClose, submit, onSubmitted, initialState
               {/* 남은 글자가 아니라 쓴 글자를 센다 — 상한이 압박이 아니라 눈금으로 읽히게 */}
               <p className="type-caption feedback-counter">{`${body.length}/${FEEDBACK_BODY_MAX}`}</p>
             </div>
+
+            {/* 디자인 3 (KAN-288, 시안 28): 쓰는 칸이 먼저, 별점은 그 아래 선택 항목이다 */}
+            {/* 별점은 라디오 그룹이다 — 화살표 키 이동과 "5개 중 3번째" 안내를 브라우저가 그냥
+                준다. ★는 눈에만 보이고(`aria-hidden`), 소리로는 "3점"이 읽힌다 */}
+            <fieldset className="feedback-field" disabled={sending}>
+              <legend className="type-label">{FEEDBACK_RATING_LABEL}</legend>
+              <div className="feedback-rating">
+                {RATINGS.map((value) => (
+                  <label key={value} className="feedback-rating__star">
+                    <input
+                      className="sr-only"
+                      type="radio"
+                      name="rating"
+                      value={value}
+                      checked={rating === value}
+                      onChange={() => setRating(value)}
+                    />
+                    <span aria-hidden="true">{rating !== null && value <= rating ? '★' : '☆'}</span>
+                    <span className="sr-only">{value}점</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
             <div className="feedback-field">
               <label className="type-label" htmlFor="feedback-email">

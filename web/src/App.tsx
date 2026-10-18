@@ -885,7 +885,7 @@ function UpdateRequiredScreen() {
         textAlign: 'center',
       }}
     >
-      <h1 className="type-title-sm">앱 업데이트가 필요해요</h1>
+      <h1 className="type-title">앱 업데이트가 필요해요</h1>
       <p className="type-label">새로운 테스트를 이용하려면 스토어에서 최신 버전으로 업데이트해 주세요.</p>
     </main>
   )

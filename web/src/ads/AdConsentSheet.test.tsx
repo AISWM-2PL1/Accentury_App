@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { REQUIRED_BRIDGE_VERSION, type AccenturyBridge } from '../bridge/bridge'
 import { DEFAULT_PRIVACY_POLICY_URL } from '../legal/privacyPolicy'
 import { AdConsentSheet } from './AdConsentSheet'
-import { AD_CONSENT_ALLOW, AD_CONSENT_CURRENT, AD_CONSENT_DENY, AD_CONSENT_TITLE } from './adConsentText'
+import { AD_CONSENT_ALLOW, AD_CONSENT_CURRENT, AD_CONSENT_DENY, AD_CONSENT_IOS_ATT_NOTE, AD_CONSENT_TITLE } from './adConsentText'
 
 afterEach(() => {
   delete window.AccenturyBridge
@@ -59,7 +59,7 @@ describe('AdConsentSheet — 맞춤형 광고 동의 시트 (KAN-196)', () => {
     expect(screen.queryByText(/광고 식별자/)).not.toBeInTheDocument()
   })
 
-  it('[맞춤형 광고 허용]은 granted를 고른다', () => {
+  it('[맞춤형 광고 받기]은 granted를 고른다', () => {
     const onChoose = vi.fn()
     render(<AdConsentSheet current="unknown" onChoose={onChoose} />)
 
@@ -87,7 +87,7 @@ describe('AdConsentSheet — 맞춤형 광고 동의 시트 (KAN-196)', () => {
     expect(onChoose).not.toHaveBeenCalled()
   })
 
-  it('시트가 뜨면 초점이 시트 안(주버튼)에 있다', () => {
+  it('시트가 뜨면 초점이 시트 안(위 버튼)에 있다', () => {
     render(<AdConsentSheet current="unknown" onChoose={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: AD_CONSENT_ALLOW })).toHaveFocus()
@@ -120,5 +120,25 @@ describe('AdConsentSheet — 맞춤형 광고 동의 시트 (KAN-196)', () => {
 
     expect(open).toHaveBeenCalledWith(DEFAULT_PRIVACY_POLICY_URL)
     expect(prevented).toBe(true)
+  })
+
+  it('두 버튼은 같은 보조 버튼이다 — 한쪽으로 기울이지 않는다 (KAN-288 HIG-A)', () => {
+    render(<AdConsentSheet current="unknown" onChoose={vi.fn()} />)
+
+    for (const name of [AD_CONSENT_ALLOW, AD_CONSENT_DENY]) {
+      expect(screen.getByRole('button', { name })).toHaveClass('btn--secondary')
+    }
+  })
+
+  it.each([
+    ['admob', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', true],
+    ['admob', 'Mozilla/5.0 (Linux; Android 15)', false],
+    ['adsense', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', false],
+  ] as const)('ATT 예고는 앱(%s)·iOS에서만 붙는다 (%s)', (vendor, userAgent, shown) => {
+    const spy = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent)
+    render(<AdConsentSheet current="unknown" onChoose={vi.fn()} vendor={vendor} />)
+    spy.mockRestore()
+
+    expect(screen.queryByText(AD_CONSENT_IOS_ATT_NOTE) !== null).toBe(shown)
   })
 })

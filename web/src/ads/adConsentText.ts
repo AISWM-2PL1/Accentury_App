@@ -55,7 +55,18 @@ export const AD_CONSENT_CHANGE_HINT = '선택은 첫 화면 아래 「맞춤형 
 export const AD_CONSENT_DETAIL_LEAD = '자세한 내용은'
 export const AD_CONSENT_DETAIL_TAIL = '을 봐 주세요.'
 
-export const AD_CONSENT_ALLOW = '맞춤형 광고 허용'
+/**
+ * 「허용」을 뺐다 (KAN-288 디자인 검수 HIG-A). 두 버튼이 같은 무게의 보조 버튼이 되면서 한쪽만
+ * 「허용」이라는 승인 동사를 달면 그쪽이 정답처럼 읽힌다 — 둘 다 "무엇을 보게 되는지"로 말한다.
+ */
+export const AD_CONSENT_ALLOW = '맞춤형 광고 받기'
+
+/**
+ * iOS 앱에서만 붙는 한 줄 (KAN-288 HIG-A). [맞춤형 광고 받기] 직후 시스템 추적 허용(ATT) 창이 뜨는데
+ * (`ios/Accentury/Ads/AdsController.swift`), 앞에서 고른 직후 또 묻는 창이 예고 없이 뜨면 고장처럼 읽힌다.
+ */
+export const AD_CONSENT_IOS_ATT_NOTE = 'iOS에서는 다음에 시스템 추적 허용 창이 떠요'
+
 export const AD_CONSENT_DENY = '일반 광고만 보기'
 
 /** 인트로 하단, 방침 링크 옆의 철회·재동의 링크 */

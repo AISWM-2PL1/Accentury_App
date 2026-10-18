@@ -39,7 +39,7 @@ export function ChoiceList({ name, labelledBy, choices, selected, locked, onSele
     // 문제 문구가 곧 이 라디오 그룹의 이름이다 — 스크린 리더가 "그룹 진입"에서 문제를 읽는다
     <div className="choice-list" role="radiogroup" aria-labelledby={labelledBy}>
       {/* 정의의 choices 배열 순서 = 화면 순서. 정렬·섞기를 하지 않는 것이 요구사항이다 */}
-      {choices.map((choice) => {
+      {choices.map((choice, index) => {
         const checked = selected === choice.choiceId
         const mark = marks?.[choice.choiceId]
         const classes = [
@@ -65,7 +65,11 @@ export function ChoiceList({ name, labelledBy, choices, selected, locked, onSele
                 onSelect(choice.choiceId)
               }}
             />
-            <span>{choice.text}</span>
+            {/* 번호 상자 (디자인 3 시안 `.choice .letter`, KAN-288). 눈으로 짚는 자리라 읽히지 않는다 — 라디오 순서가 이미 말한다 */}
+            <span className="choice__number" aria-hidden="true">
+              {index + 1}
+            </span>
+            <span className="choice__text">{choice.text}</span>
             {/*
               고른 것을 색 말고도 알린다. 표식(라디오)을 눈에서 지우고 나면 선택/미선택의
               차이가 색상뿐인데, 두 상태의 명도 차이는 1.2 정도라 색각 이상에서는 구분이
