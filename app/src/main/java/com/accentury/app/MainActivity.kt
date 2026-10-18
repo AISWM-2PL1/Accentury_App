@@ -128,11 +128,13 @@ import com.accentury.app.testflow.TestFlowController
 import com.accentury.app.testflow.TestFlowPhase
 import com.accentury.app.testflow.continuesFrom
 import com.accentury.app.ui.components.AccenturyButton
+import com.accentury.app.ui.components.ConfirmDialog
 import com.accentury.app.ui.components.HeroIcon
 import com.accentury.app.ui.components.PaperLead
 import com.accentury.app.ui.components.PaperScreen
 import com.accentury.app.ui.components.PaperTitle
 import com.accentury.app.ui.theme.AccenturyTheme
+import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.LightPrimaryDim
 import com.accentury.app.ui.theme.Spacing
@@ -1254,6 +1256,20 @@ private fun TestFlow(
                                     .forEach(uploadViewModel::discard)
                             }
                         },
+                        /*
+                         * ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정). KAN-147 이전 업로드 바 [테스트 종료]가 쓰던
+                         * 되감기를 그대로 탄다: 녹음 중단·PCM과 업로드 바이트 폐기(FR-DP-02), 그리고 세션 실패 [처음으로]와
+                         * 같은 [resetStartGates] — 세션을 버리고(서버 폐기는 다음 생성이 이전 토큰을 실어 한다, KAN-107)
+                         * startRequested가 내려가 진입 URL이 인트로(탭 바 빌드는 홈)로 다시 로드된다. 웹에 따로 알리는
+                         * 브리지는 없다 — 문서가 통째로 다시 서므로 알릴 상대가 남지 않는다.
+                         */
+                        onQuit = {
+                            if (flow.onTestQuit()) {
+                                viewModel.reset()
+                                uploadViewModel.clearAll()
+                                resetStartGates()
+                            }
+                        },
                     )
                 }
             }
@@ -1282,7 +1298,12 @@ private fun TestFlow(
             if (gearVisible && !nativeCovering) {
                 SettingsGearButton(
                     onClick = onOpenSettings,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
+                    // 레벨 테스트 녹음 화면은 앱바 오른쪽 끝(본문 여백 24dp 안)에 ✕가 선다 (KAN-288) — 익명 빌드의 톱니는
+                    // 그 바로 왼쪽으로 비켜 선다. 겹치면 위에 그린 톱니가 ✕를 가린다.
+                    modifier = Modifier.align(Alignment.TopEnd).padding(
+                        top = Spacing.x2,
+                        end = if (overlayStart != null) Spacing.x6 + Dimens.touchTargetMin else Spacing.x2,
+                    ),
                 )
             }
         }
@@ -1319,7 +1340,11 @@ private fun RecordingOverlay(
     /** [재녹음]을 눌렀다 (KAN-33). 되감기 자체는 화면이 하고, 여기는 세기만 한다 */
     onRetake: () -> Unit,
     onSubmit: (attemptId: String, durationMs: Long, quality: QualityStatus) -> Unit,
+    /** 확인 창에서 [그만두기]를 골랐다 (KAN-288). 정리는 호출자가 한다 */
+    onQuit: () -> Unit,
 ) {
+    // 회전을 넘긴다 — 창이 사라지면 사용자는 방금 누른 ✕가 먹지 않은 것으로 읽는다.
+    var confirmingQuit by rememberSaveable { mutableStateOf(false) }
     // 색을 명시한다 - Surface 기본값은 surface(카드 흰색)라, 그대로 두면 이 오버레이만
     // 흰 배경이 되어 바로 앞뒤 WebView 화면(background #f3ecd9)과 어긋난다.
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -1333,8 +1358,25 @@ private fun RecordingOverlay(
             failureMessage = failureMessage,
             centerHz = centerHz,
             onRetake = onRetake,
+            onClose = { confirmingQuit = true },
             viewModel = viewModel,
         )
+    }
+    // 설정 탈퇴 창과 같은 모양이다 — 되돌릴 수 없는 쪽이 벽돌 외곽선, 머무는 쪽이 보조 버튼 (시안 HIG 수정).
+    if (confirmingQuit) {
+        ConfirmDialog(
+            title = "테스트를 그만둘까요?",
+            onDismiss = { confirmingQuit = false },
+            confirmLabel = "그만두기",
+            onConfirm = {
+                confirmingQuit = false
+                onQuit()
+            },
+            busy = false,
+            dismissLabel = "계속하기",
+        ) {
+            Text("그만두면 처음부터 다시 시작해야 해요", style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 

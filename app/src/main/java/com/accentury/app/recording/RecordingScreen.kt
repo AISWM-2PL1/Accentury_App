@@ -116,6 +116,12 @@ fun RecordingScreen(
      * 풀려야 해서 둔 자리다. null이면 아래 상태별 하단 그대로다.
      */
     footer: (@Composable () -> Unit)? = null,
+    /*
+     * 앱바 오른쪽 ✕ (KAN-288, 2026-10-18 사용자 결정 — KAN-147이 없앤 출구를 레벨 테스트에 되살림). 확인 창과 그 뒤
+     * 정리는 호출자가 한다. null이면 ✕가 없다 — 억양 학습은 자기 ✕를 화면 위에 따로 얹는다(IntonationCloseButton).
+     * 제출을 기다리는 동안은 비활성이다: 그 시도는 이미 업로드로 넘어가 여기서 되돌릴 것이 없다(예전 [나가기]와 같다).
+     */
+    onClose: (() -> Unit)? = null,
     viewModel: RecordingViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -186,7 +192,7 @@ fun RecordingScreen(
     ) {
         // 워드마크 앱바 (KAN-288 디자인 3). 8 + 48 + 8 = 예전 위 여백 64와 같아 본문 시작 높이는 그대로고,
         // 오른쪽 위에 얹히는 닫기 ✕·설정 톱니(호출자, 위 8dp)와 한 줄에 선다.
-        PaperAppBar()
+        PaperAppBar(onClose = onClose, closeEnabled = !submitting)
         Spacer(modifier = Modifier.height(Spacing.x2))
         /*
          * 본문은 스크롤하고 하단(타이머·녹음 버튼)은 고정이다 (아트보드의 `screen()` 틀).

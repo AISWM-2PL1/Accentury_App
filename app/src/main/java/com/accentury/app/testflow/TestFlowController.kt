@@ -403,13 +403,28 @@ class TestFlowController private constructor(
      * 다시 시도하겠다는 뜻일 뿐이라, 여기서 앞 문항들의 대기 시도까지 버리면 이미 끝난 업로드의
      * 결과가 웹에 영영 도착하지 않는다.
      *
-     * 녹음 화면의 [나가기] 버튼은 KAN-147에서 없앴고(2026-08-19), KAN-191이 그 뒤를 닫았다:
-     * 출구는 **막다른 실패 상태에만** 있고 그 자리는 웹의 분석 대기 화면이다 — 진행 중 화면인
-     * 여기에는 되살리지 않는다 (ux-ui.md §4-D·§4-F).
+     * 녹음 화면의 [나가기] 버튼은 KAN-147에서 없앴다(2026-08-19). 2026-10-18 사용자 결정으로 되살아난 ✕는
+     * 문항 하나가 아니라 응시 전체를 버리는 출구라 이 함수가 아니라 [onTestQuit]를 탄다 (ux-ui.md §4-D).
      */
     fun onRecordingExit() {
         if (phase !is TestFlowPhase.Recording) return
         phase = TestFlowPhase.Web
+    }
+
+    /**
+     * 녹음 화면 ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정으로 출구 복귀). [onRecordingExit]와 달리 문항 하나가
+     * 아니라 응시 전체를 버린다 — 호출자가 세션도 버리고 인트로로 되감는다(MainActivity `resetStartGates`). 그래서
+     * 기억해 둔 문항 요청·재녹음 대기열([onSessionReplaced])과 대기 시도까지 비운다: 버린 세션의 결과가 다음 응시의
+     * 웹에 실려 가면 안 된다.
+     *
+     * 제출을 기다리는 중에는 받지 않는다(false) — 그 시도는 이미 업로드로 넘어갔다. 화면은 그동안 ✕를 비활성으로 둔다.
+     */
+    fun onTestQuit(): Boolean {
+        if (phase !is TestFlowPhase.Recording) return false
+        phase = TestFlowPhase.Web
+        pendingAttempts.clear()
+        onSessionReplaced()
+        return true
     }
 
     /**
