@@ -6,9 +6,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import com.accentury.app.ui.components.PaperFailureScreen
 import com.accentury.app.ui.components.PaperWaitingScreen
 import com.accentury.app.ui.components.StatusBlock
+import com.accentury.app.web.openStoreListing
 import kotlinx.coroutines.ensureActive
 
 /**
@@ -106,7 +108,7 @@ private fun PreparingScreen() {
 /**
  * 실패 화면. 웹 로드 실패 화면과 같은 [StatusBlock] 구성이다 — 비난 없는 문구 + 지금 할 수 있는 동작 하나.
  *
- * [SessionFailureReason.Unsupported]에만 [다시 시도] 대신 [처음으로]를 준다. 서버가 재시도 불가로
+ * [SessionFailureReason.Unsupported]에만 [다시 시도] 대신 [업데이트하기]·[나중에](예전 [처음으로])를 준다. 서버가 재시도 불가로
  * 못박은 거절은 같은 요청을 다시 보내도 같은 답이 오므로 버튼이 거짓말이 된다(업로드 상태 바가
  * 재시도 불가 실패에 버튼을 주지 않는 것과 같은 판단). 그렇다고 아무 동작도 주지 않으면 이 게이트
  * 뒤에는 인트로로 돌아갈 길이 없어 사용자가 갇힌다.
@@ -138,10 +140,15 @@ private fun FailureScreen(
     }
     val unsupported = state.reason == SessionFailureReason.Unsupported
 
+    // 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15): 주 버튼 [업데이트하기]가 스토어를 열고, 예전 [처음으로]
+    // 동작은 [나중에]로 남는다 — 지금 업데이트하지 않는 사람도 인트로로 돌아갈 길이 있어야 갇히지 않는다.
+    val context = LocalContext.current
     PaperFailureScreen(
         title = message,
         detail = detail,
-        buttonLabel = if (unsupported) "처음으로" else "다시 시도",
-        onButtonClick = if (unsupported) onBackToIntro else onRetry,
+        buttonLabel = if (unsupported) "업데이트하기" else "다시 시도",
+        onButtonClick = if (unsupported) ({ openStoreListing(context) }) else onRetry,
+        secondaryLabel = if (unsupported) "나중에" else null,
+        onSecondaryClick = onBackToIntro,
     )
 }
