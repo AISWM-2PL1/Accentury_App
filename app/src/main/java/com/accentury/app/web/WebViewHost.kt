@@ -61,6 +61,7 @@ sealed interface WebLoadState {
  * @param onRefreshAccessToken 웹이 401 뒤 청한 계정 토큰 갱신 (KAN-255). 메인 스레드로 온다
  * @param onStartIntonationRecording 억양 학습 녹음 호출 (KAN-253). 검증된 payload만 메인 스레드로 온다
  * @param onOpenSettings 탭 바의 [설정] (KAN-252). 메인 스레드로 온다
+ * @param onRetryUpload 대기 화면의 [다시 보내기] (KAN-288 6단계). 빈 값이 아닌 attemptId가 메인 스레드로 온다
  * @param onPageStarted 메인 프레임 문서가 바뀌었다 — 웹의 탭 이동은 `location.href` 대입이라 문서마다 온다.
  *   상위가 시스템 뒤로가기를 문서의 `screen`으로 판정하는 데 쓴다 (KAN-252, [webBackTarget])
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
@@ -87,6 +88,7 @@ fun WebViewHost(
     modifier: Modifier = Modifier,
     onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onRetryUpload: (String) -> Unit = {},
     onPageStarted: (String?) -> Unit = {},
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
@@ -199,6 +201,7 @@ fun WebViewHost(
                                 onRefreshAccessToken = onRefreshAccessToken,
                                 onStartIntonationRecording = onStartIntonationRecording,
                                 onOpenSettings = onOpenSettings,
+                                onRetryUpload = onRetryUpload,
                             ),
                             "AccenturyBridge",
                         )

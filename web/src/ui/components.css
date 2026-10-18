@@ -1344,6 +1344,11 @@
   color: var(--color-foreground);
 }
 
+/* 음성 문항 대기 푸터의 전송 실패 줄 (KAN-288 6단계). 푸터는 블록이라 아래 [녹음 화면 다시 열기]와의 간격을 여기서 둔다 */
+.upload-failed-row {
+  margin-bottom: var(--space-3);
+}
+
 /*
  * 문항 이름은 줄어들지 않는다 (KAN-161 3단계 리뷰).
  *

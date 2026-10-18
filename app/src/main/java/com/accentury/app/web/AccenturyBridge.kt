@@ -19,7 +19,7 @@ import com.accentury.app.ui.components.Haptic
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
  * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
- * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)까지 필요한 열여섯 메서드만 둔다.
+ * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)까지 필요한 열여덟 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -62,6 +62,8 @@ import com.accentury.app.ui.components.Haptic
  *   `onIntonationRecorded` 회신은 창구 너머가 한다 (webview-bridge.md §12). 기본값은 학습을 모르는 테스트 하네스용이다
  * @param onOpenSettings 탭 바의 [설정] (KAN-252). 어느 설정 화면을 덮을지는 창구 너머(AuthGate·AnonymousFlow)가
  *   정한다 (webview-bridge.md §13). 기본값은 [onStartIntonationRecording]과 같은 이유다
+ * @param onRetryUpload 대기 화면의 [다시 보내기] (KAN-288 6단계). 빈 값이 아닌 attemptId만 온다 — 그 시도가 지금 재전송할 수
+ *   있는 실패인지는 창구 너머(UploadManager.retry)가 판정한다 (webview-bridge.md §14). 기본값은 [onStartIntonationRecording]과 같은 이유다
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -83,6 +85,7 @@ class AccenturyBridge(
     private val onRefreshAccessToken: () -> Unit,
     private val onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
     private val onOpenSettings: () -> Unit = {},
+    private val onRetryUpload: (String) -> Unit = {},
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -374,6 +377,25 @@ class AccenturyBridge(
     fun openSettings() {
         postToMain {
             if (isCurrentUrlAllowed()) onOpenSettings()
+        }
+    }
+
+    /**
+     * 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 다시 보낸다 (KAN-288 6단계, §14).
+     *
+     * 녹음은 그대로 둔다 — 예전 업로드 상태 바의 [재시도]와 같은 일이다. 인자는 `onUploadFailed`로 받은 attemptId 그대로다.
+     * 모르는 키·이미 성공했거나 재시도할 수 없는 실패는 UploadManager.retry가 무시하므로 여기서는 빈 값만 거른다.
+     * 회신은 없다: 성공하면 `onItemResult`가, 다시 실패하면 `onUploadFailed`가 간다.
+     */
+    @JavascriptInterface
+    fun retryUpload(attemptId: String) {
+        postToMain {
+            if (!isCurrentUrlAllowed()) return@postToMain
+            if (attemptId.isBlank()) {
+                CrashReports.recordBridgeParseFailure("retryUpload")
+                return@postToMain
+            }
+            onRetryUpload(attemptId)
         }
     }
 }

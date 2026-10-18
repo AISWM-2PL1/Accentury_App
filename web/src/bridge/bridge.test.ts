@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   appBridgeVersion,
   canOpenSettings,
+  canRetryUpload,
   getAccessToken,
   getSessionToken,
   haptic,
   installIntonationRecordedReceiver,
   installItemResultReceiver,
   installRetestFailedReceiver,
+  installUploadFailedReceiver,
   isBridgeCompatible,
   isStandaloneWeb,
   logAnalyticsEvent,
@@ -17,6 +19,7 @@ import {
   refreshAccessToken,
   REQUIRED_BRIDGE_VERSION,
   requestMicPermission,
+  retryUpload,
   shareResult,
   showInterstitialAd,
   startRetest,
@@ -232,6 +235,38 @@ describe('openSettings — 네이티브 설정 화면 (KAN-252)', () => {
     expect(openSettings()).toBe(true)
     expect(fn).toHaveBeenCalledTimes(1)
     expect(fn).toHaveBeenCalledWith()
+  })
+})
+
+describe('업로드 재전송 (KAN-288 6단계)', () => {
+  it('retryUpload가 없는 앱·브라우저면 false이고 canRetryUpload도 false다', () => {
+    expect(canRetryUpload()).toBe(false)
+    expect(retryUpload('at_1')).toBe(false)
+    window.AccenturyBridge = fakeBridge()
+    expect(canRetryUpload()).toBe(false)
+    expect(retryUpload('at_1')).toBe(false)
+  })
+
+  it('있으면 attemptId를 그대로 넘기고 true', () => {
+    const fn = vi.fn()
+    window.AccenturyBridge = fakeBridge({ retryUpload: fn })
+    expect(canRetryUpload()).toBe(true)
+    expect(retryUpload('at_1')).toBe(true)
+    expect(fn).toHaveBeenCalledWith('at_1')
+  })
+
+  it('onUploadFailed: 맞는 payload만 넘기고 깨진 것은 버린다, 해제하면 슬롯이 사라진다', () => {
+    const handler = vi.fn()
+    const uninstall = installUploadFailedReceiver(handler)
+
+    window.AccenturyWeb?.onUploadFailed?.('{broken')
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1' }))
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: '' }))
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: 'at_1', extra: 1 }))
+    expect(handler.mock.calls).toEqual([[{ itemId: 'v1', attemptId: 'at_1' }]])
+
+    uninstall()
+    expect(window.AccenturyWeb).toBeUndefined()
   })
 })
 

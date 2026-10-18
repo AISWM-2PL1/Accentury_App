@@ -104,6 +104,7 @@ import com.accentury.app.bridge.adDismissedRetestFailure
 import com.accentury.app.bridge.intonationRecordedDeliveryJs
 import com.accentury.app.bridge.itemResultDeliveryJs
 import com.accentury.app.bridge.retestFailedDeliveryJs
+import com.accentury.app.bridge.uploadFailedDeliveryJs
 import com.accentury.app.bridge.retestFailurePayload
 import com.accentury.app.learning.IntonationCloseButton
 import com.accentury.app.learning.IntonationRecordingOverlay
@@ -550,7 +551,7 @@ private fun TestFlow(
 
     /*
      * 업로드는 테스트 phase 전체를 산다 — 녹음 화면이 내려가도 전송은 계속돼야 하고, 실패한 건은
-     * 웹으로 돌아간 뒤에도 상태 바에서 재시도할 수 있어야 한다. 회전(Activity 재생성)도 넘겨야
+     * 웹으로 돌아간 뒤에도 대기 화면의 [다시 보내기]로 재전송할 수 있어야 한다. 회전(Activity 재생성)도 넘겨야
      * 해서 소유자는 ViewModel이다 (UploadViewModel 주석).
      *
      * 세션이 생긴 뒤에야 만든다 (KAN-34). 업로드가 어느 세션으로 나가는지는 만드는 순간 정해지는데
@@ -608,17 +609,27 @@ private fun TestFlow(
                 if (handed == "true") flow.onResultDelivered(result.attemptId)
             }
         }
+        /*
+         * 재전송으로 풀리는 실패를 웹에 알린다 (KAN-288 6단계, webview-bridge.md §14). 웹은 그 문항의 대기 화면에
+         * 「전송 실패」와 [다시 보내기]를 그린다 — 문항을 푸는 중에는 알리지 않는다는 결정(상태 바 제거)은 그대로다: 실패한
+         * 문항은 결과가 오지 않아 웹이 다음 문항으로 넘어가지 않으므로, 이 알림이 보이는 자리는 그 문항의 제출 대기뿐이다.
+         * 업로드 목록이 바뀔 때마다 남은 실패를 다시 싣는다. 웹이 같은 실패를 거듭 받아도 같은 화면이라 무해하고,
+         * 수신 지점이 아직 없던 때 놓친 알림을 WebView가 돌아왔을 때 다시 채운다.
+         */
+        flow.failedUploads(uploads).forEach { failed ->
+            view.evaluateJavascript(uploadFailedDeliveryJs(failed), null)
+        }
     }
 
     /*
      * 녹음을 새로 해야 풀리는 실패를 걷고 그 문항의 녹음 화면을 다시 연다 (KAN-147, B안).
      *
      * 서버가 녹음 자체를 거절한 건(rerecord)만 여기로 온다 - 그것만이 재전송으로 풀리지 않아
-     * 복구 경로가 재녹음 하나뿐이다. 전송 실패·그 외 서버 거절은 화면에 알리지 않고(KAN-288, 상태 바 제거)
-     * 웹 대기 화면의 [녹음 화면 다시 열기]로 풀린다.
+     * 복구 경로가 재녹음 하나뿐이다. 재전송으로 풀리는 실패는 위 이펙트가 웹 대기 화면의 [다시 보내기]로 넘기고
+     * (KAN-288 6단계), 그 밖의 거절은 웹 대기 화면의 [녹음 화면 다시 열기]로 풀린다.
      *
-     * 웹은 네이티브 쪽 실패를 통지받지 않으므로(브리지 표면 최소 원칙) 그 문항의 대기 화면에
-     * 그대로 멈춰 있다 - 여기서 화면을 다시 열어도 진행을 앞지르지 않는 근거다.
+     * 웹은 재녹음 거절을 통지받지 않으므로 그 문항의 대기 화면에 그대로 멈춰 있다 - 여기서 화면을
+     * 다시 열어도 진행을 앞지르지 않는 근거다.
      *
      * 위 결과 전달 이펙트와 같은 키(uploads)로 돌고, 그보다 뒤에 선언한다. 정확성은 순서에 기대지
      * 않는다 - onUploadsChanged는 Submitting일 때만, onResultDelivered는 기다리던 attemptId일 때만
@@ -1027,6 +1038,8 @@ private fun TestFlow(
                     }
                 },
                 onOpenSettings = onOpenSettings,
+                // 대기 화면의 [다시 보내기] (KAN-288 6단계) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 위 전달 이펙트가 싣는다
+                onRetryUpload = { attemptId -> uploadViewModel?.retry(attemptId) },
                 onPageStarted = { webUrl = it },
                 onWebViewCreated = { webView = it },
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
@@ -1314,8 +1327,9 @@ private fun TestFlow(
          * 끼면 문항을 푸는 사용자가 멈춘다. 이 앱의 업로드는 레벨 테스트 세션 것뿐이라 바가 설 다른 자리도 없다.
          *
          * 실패는 사라지지 않고 이렇게 풀린다. 녹음 자체가 거절된 것(rerecord)은 위 이펙트가 그 문항의 녹음 화면을 다시
-         * 연다. 전송 실패·그 밖의 거절은 결과가 웹에 가지 않으므로 웹이 그 문항의 대기 화면에 남고, 거기의
-         * [녹음 화면 다시 열기]가 새 녹음을 올린다(앞 시도는 onRecordingFinished가 밀어내 폐기 — 문항당 시도 1개).
+         * 연다. 전송 실패·그 밖의 거절은 결과가 웹에 가지 않으므로 웹이 그 문항의 대기 화면에 남는다. 재전송으로 풀리는
+         * 실패면 거기 「전송 실패」와 [다시 보내기]가 서서 녹음을 그대로 다시 보낸다(KAN-288 6단계, onUploadFailed·retryUpload).
+         * 어느 경우든 [녹음 화면 다시 열기]가 새 녹음을 올릴 수 있다(앞 시도는 onRecordingFinished가 밀어내 폐기 — 문항당 시도 1개).
          * 세션이 만료됐으면 같은 버튼의 생존 확인이 [다시 테스트하기]로 바꾼다(KAN-237).
          */
     }

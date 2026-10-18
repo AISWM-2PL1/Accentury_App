@@ -143,6 +143,12 @@ export interface AccenturyBridge {
    * 같은 이유로 optional이다
    */
   openSettings?(): void
+  /**
+   * 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 다시 보낸다 (KAN-288 6단계,
+   * webview-bridge §14). 인자는 [AccenturyWeb.onUploadFailed]로 받은 attemptId 그대로다. 회신은 없다 — 성공하면
+   * `onItemResult`, 다시 실패하면 `onUploadFailed`가 온다. 메서드 추가라 optional이다(iOS·구버전 앱엔 없다)
+   */
+  retryUpload?(attemptId: string): void
 }
 
 /**
@@ -249,6 +255,14 @@ export interface AccenturyWeb {
   onAccessTokenRefreshed?(result: string): void
   /** 억양 녹음 업로드 성공 (KAN-253). 인자는 [IntonationRecorded]의 JSON. 실패·취소는 오지 않는다 */
   onIntonationRecorded?(payloadJson: string): void
+  /** 재전송으로 풀리는 업로드 실패 (KAN-288 6단계). 인자는 [UploadFailed]의 JSON. 같은 실패가 여러 번 올 수 있다 */
+  onUploadFailed?(payloadJson: string): void
+}
+
+/** 업로드 실패 회신 — 재전송하면 풀리는 실패만 온다. 재녹음 거절·세션 만료 등은 오지 않는다 (webview-bridge §14) */
+export interface UploadFailed {
+  itemId: string
+  attemptId: string
 }
 
 /**
@@ -708,6 +722,41 @@ export function installIntonationRecordedReceiver(handler: (recorded: Intonation
       }
     } catch {
       // 깨진 JSON — 회신이 없던 것과 같게 둔다 (사용자는 A-2에 남아 다시 녹음할 수 있다)
+    }
+  })
+}
+
+/**
+ * 실패한 업로드 하나를 다시 보낸다 (KAN-288 6단계). 반환 규칙은 [openSettings]와 같다 — 메서드가 없으면 false.
+ */
+export function retryUpload(attemptId: string): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.retryUpload !== 'function') return false
+  bridge.retryUpload(attemptId)
+  return true
+}
+
+/**
+ * [retryUpload]를 부를 수 있는 실행인가. 대기 화면이 「전송 실패」·[다시 보내기]를 그릴지 정한다 — iOS·구버전 앱·
+ * 브라우저에서는 실패 회신도 오지 않으므로 예전 화면 그대로다 ([canOpenSettings]와 같은 판정).
+ */
+export function canRetryUpload(): boolean {
+  return typeof window.AccenturyBridge?.retryUpload === 'function'
+}
+
+/**
+ * 업로드 실패 수신 지점 (KAN-288 6단계). 반환값은 해제 함수다. 모양이 어긋난 payload는 버린다 —
+ * [installIntonationRecordedReceiver]와 같은 규칙.
+ */
+export function installUploadFailedReceiver(handler: (failed: UploadFailed) => void): () => void {
+  return installReceiver('onUploadFailed', (payloadJson) => {
+    try {
+      const v = JSON.parse(payloadJson) as Partial<UploadFailed> | null
+      if (typeof v?.itemId === 'string' && typeof v.attemptId === 'string' && v.attemptId !== '') {
+        handler({ itemId: v.itemId, attemptId: v.attemptId })
+      }
+    } catch {
+      // 깨진 JSON — 회신이 없던 것과 같게 둔다 (대기 화면의 [녹음 화면 다시 열기]가 남는다)
     }
   })
 }
