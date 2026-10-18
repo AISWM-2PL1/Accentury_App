@@ -1090,6 +1090,34 @@ class TestFlowControllerTest {
         assertEquals(TestFlowPhase.Submitting(second, "at_2"), controller.phase)
     }
 
+    /* KAN-288 - 녹음 화면 ✕ [그만두기]는 응시 전체를 버린다. */
+    @Test
+    fun `그만두기는 웹으로 돌아가고 앞 문항의 대기 시도까지 버린다`() {
+        val controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(itemId = "item_1"), micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onStartVoiceItem(voiceItem(itemId = "item_2", number = 2), micGranted = true)
+
+        assertTrue(controller.onTestQuit())
+
+        assertEquals(TestFlowPhase.Web, controller.phase)
+        assertTrue(controller.onUploadsChanged(mapOf("at_1" to UploadState.Done("job_1"))).isEmpty())
+    }
+
+    @Test
+    fun `제출을 기다리는 중에는 그만두기를 받지 않는다`() {
+        val controller = TestFlowController()
+        val start = voiceItem()
+        controller.onStartVoiceItem(start, micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        val before = controller.phase
+        assertTrue(before is TestFlowPhase.Submitting)
+
+        assertFalse(controller.onTestQuit())
+
+        assertEquals(before, controller.phase)
+    }
+
     /* KAN-261 리뷰 P1-4 - 재응시 뒤에는 이전 세션의 요청을 쓰지 않는다. */
     @Test
     fun `재응시로 세션이 바뀌면 이전 세션 itemId가 와도 거절당한 문항만 다시 연다`() {
