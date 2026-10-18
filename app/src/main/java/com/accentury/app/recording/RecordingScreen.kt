@@ -6,7 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -38,28 +37,29 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.accentury.app.audio.QualityStatus
+import com.accentury.app.audio.RecordingEngine
+import com.accentury.app.bridge.GuideF0
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.CurveLane
 import com.accentury.app.ui.components.CurveLaneGroup
 import com.accentury.app.ui.components.CurveLaneVariant
 import com.accentury.app.ui.components.Haptic
+import com.accentury.app.ui.components.PaperAppBar
 import com.accentury.app.ui.components.ProgressIndicator
 import com.accentury.app.ui.components.PromptCard
 import com.accentury.app.ui.components.RecordButton
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.components.performHaptic
-import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.Motion
 import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.ui.theme.motionDuration
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.accentury.app.audio.QualityStatus
-import com.accentury.app.audio.RecordingEngine
-import com.accentury.app.bridge.GuideF0
 
 @SuppressLint("MissingPermission") // 이 화면은 권한 보유 상태에서만 열린다 (KAN-11 게이트)
 @Composable
@@ -178,12 +178,16 @@ fun RecordingScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(
-                top = Dimens.screenPaddingTop,
+                top = Spacing.x2,
                 start = Spacing.x6,
                 end = Spacing.x6,
                 bottom = Spacing.x8,
             ),
     ) {
+        // 워드마크 앱바 (KAN-288 디자인 3). 8 + 48 + 8 = 예전 위 여백 64와 같아 본문 시작 높이는 그대로고,
+        // 오른쪽 위에 얹히는 닫기 ✕·설정 톱니(호출자, 위 8dp)와 한 줄에 선다.
+        PaperAppBar()
+        Spacer(modifier = Modifier.height(Spacing.x2))
         /*
          * 본문은 스크롤하고 하단(타이머·녹음 버튼)은 고정이다 (아트보드의 `screen()` 틀).
          * 글꼴을 200%로 키운 기기에서 대사 카드와 곡선이 자라면 녹음 버튼이 화면 밖으로 밀리는데,
@@ -401,7 +405,7 @@ private fun ElapsedTimer(elapsedMs: Long) {
 }
 
 /**
- * 8초 경고 캡슐 (아트보드 ②b). 잉크로 채운 알약이라 화면에서 주 버튼 다음으로 눈에 띈다.
+ * 8초 경고 캡슐 (아트보드 ②b). 벽돌 테두리 알약이라 화면에서 녹음 버튼 다음으로 눈에 띈다.
  *
  * `liveRegion = Polite`로 화면을 안 보는 사용자에게도 남은 시간이 닿는다. Assertive가 아닌
  * 이유는 매초 바뀌는 값이라, 끼어드는 쪽으로 두면 사용자가 지금 소리 내어 읽고 있는 대사를
@@ -409,11 +413,11 @@ private fun ElapsedTimer(elapsedMs: Long) {
  */
 @Composable
 private fun CountdownCapsule(seconds: Int) {
+    // 디자인 3 `.record-countdown`: 크림 알약에 벽돌 테두리·벽돌 글자. 잉크로 채운 알약은 녹음 버튼보다 무거웠다.
     Box(
         modifier = Modifier
             .height(COUNTDOWN_CAPSULE_HEIGHT)
-            .clip(RoundedCornerShape(Radius.full))
-            .background(MaterialTheme.colorScheme.primary)
+            .border(1.dp, LightPoint, RoundedCornerShape(Radius.full))
             .padding(horizontal = COUNTDOWN_CAPSULE_PADDING)
             .semantics { liveRegion = LiveRegionMode.Polite },
         contentAlignment = Alignment.Center,
@@ -421,7 +425,7 @@ private fun CountdownCapsule(seconds: Int) {
         Text(
             "${seconds}초 남음",
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = LightPoint,
         )
     }
 }
@@ -437,9 +441,14 @@ private fun ReviewControls(
 ) {
     if (state.autoStopped) {
         Caption("10초가 지나 자동으로 종료됐어요")
+        Spacer(modifier = Modifier.height(Spacing.x2))
     }
-    Text(qualityMessage(state.quality), style = MaterialTheme.typography.bodyLarge)
-    Caption("녹음 길이 ${"%.1f".format(state.durationMs / 1000.0)}초")
+    // 판정과 길이를 점선 상자 하나에 담는다 (디자인 3 `.status-box`, 시안 19·20)
+    StatusBlock(
+        tone = StatusTone.Waiting,
+        message = qualityMessage(state.quality),
+        detail = "녹음 길이 ${"%.1f".format(state.durationMs / 1000.0)}초",
+    )
 
     Spacer(modifier = Modifier.height(Spacing.x4))
     // 억양 학습에만 (KAN-253). 재녹음·다음 줄은 레벨테스트와 같게 두고 그 위에 보조 버튼 한 줄을 더한다.

@@ -30,10 +30,9 @@ import androidx.compose.ui.unit.dp
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
-import com.accentury.app.ui.theme.accenturyColors
 
 /**
- * 입력 칸 (KAN-224 추가 정보 화면). 컷아웃 규칙을 그대로 따른다 — 1.5dp 잉크 테두리, 크림 면, 반경 16.
+ * 입력 칸 (KAN-224 추가 정보 화면, 모양은 KAN-288 디자인 3). 시안 `.field` — 흐린 잉크 1dp 테두리, 크림 면, 반경 6.
  * 그림자는 없다: 떠 있는 종이는 주 버튼 하나여야 한다 (AccenturyButton KDoc). 포커스는 테두리가 2dp로
  * 굵어지는 것으로만 보인다 — 두께가 "지금 이것"을 뜻하는 유일한 자리라는 §8 규칙이다.
  *
@@ -64,7 +63,7 @@ fun AccenturyTextField(
         .background(MaterialTheme.colorScheme.surface)
         .border(
             width = if (focused) FOCUSED_BORDER else FIELD_BORDER,
-            color = MaterialTheme.accenturyColors.controlBorder,
+            color = if (focused) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
             shape = shape,
         )
 
@@ -117,5 +116,5 @@ fun AccenturyTextField(
 }
 
 /** 컷아웃 테두리 (§8). 포커스만 2dp다 — 주 CTA·선택된 선택지와 같은 "지금 이것" 굵기다 */
-private val FIELD_BORDER = 1.5.dp
+private val FIELD_BORDER = 1.dp
 private val FOCUSED_BORDER = 2.dp

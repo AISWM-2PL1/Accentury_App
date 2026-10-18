@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import com.accentury.app.R
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.Motion
 import com.accentury.app.ui.theme.accenturyColors
 import com.accentury.app.ui.theme.isReducedMotionEnabled
@@ -45,11 +46,11 @@ import com.accentury.app.ui.theme.motionDuration
  * 다른 버튼은 모두 알약꼴인데 녹음만 원형이라, 화면에서 눌러야 할 것이 무엇인지 모양만으로
  * 읽힌다.
  *
- * 오려 낸 크림 동그라미에 잉크 테두리 2dp를 두르고 [paperCircleShadow]가 그늘을 깐다.
+ * 벽돌 동그라미에 크림 테두리와 벽돌 바깥선을 두르고 [paperCircleShadow]가 그늘을 깐다 (KAN-288 디자인 3).
  * 누르면 다른 버튼과 같은 거리만큼 내려가 그늘을 덮는다.
  *
  * 색으로는 상태를 말하지 않는다 (정본 §7). 녹음 중이라는 것은 **안쪽 도형**이 말한다 —
- * 대기는 마이크 선화, 녹음 중은 잉크 정사각형(정지의 관용 기호)이다. 여기에 둘레의
+ * 대기는 마이크 선화, 녹음 중은 크림 정사각형(정지의 관용 기호)이다. 여기에 둘레의
  * 파문과 접근성 라벨이 겹쳐 세 신호가 같은 것을 알린다.
  *
  * 파문은 모션 축소에서 멈춘다 — 끝없이 반복하는 애니메이션은 전정 장애가 있는 사용자에게
@@ -65,7 +66,8 @@ fun RecordButton(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val reduceMotion = isReducedMotionEnabled()
-    val ink = MaterialTheme.colorScheme.primary
+    val brick = LightPoint
+    val cream = MaterialTheme.colorScheme.background
     val view = LocalView.current
 
     val sink by animateFloatAsState(
@@ -94,7 +96,7 @@ fun RecordButton(
                 modifier = Modifier.size(Dimens.recordButtonSize),
                 contentAlignment = Alignment.Center,
             ) {
-                RecordingRipple(color = ink)
+                RecordingRipple(color = brick)
             }
         }
         Box(
@@ -103,8 +105,11 @@ fun RecordButton(
                 .size(Dimens.recordButtonSize)
                 .offset(x = sink * Dimens.paperShadowX, y = sink * Dimens.paperShadowY)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(BUTTON_BORDER, ink, CircleShape)
+                // 디자인 3 `.record-btn`: 벽돌 면, 크림 6dp 테두리, 그 바깥 벽돌 1dp 선. 두 번째 border가 첫 번째의
+                // 바깥 1dp를 덮어 그린다.
+                .background(brick)
+                .border(RING_WIDTH + OUTLINE_WIDTH, cream, CircleShape)
+                .border(OUTLINE_WIDTH, brick, CircleShape)
                 .clickable(
                     interactionSource = interaction,
                     indication = null,
@@ -125,13 +130,13 @@ fun RecordButton(
                     modifier = Modifier
                         .size(STOP_ICON_SIZE)
                         .clip(RoundedCornerShape(STOP_ICON_RADIUS))
-                        .background(ink),
+                        .background(cream),
                 )
             } else {
                 Icon(
                     painter = painterResource(R.drawable.outline_mic_24),
                     contentDescription = null,
-                    tint = ink,
+                    tint = cream,
                     modifier = Modifier.size(RECORD_ICON_SIZE),
                 )
             }
@@ -166,7 +171,8 @@ private fun RecordingRipple(color: Color) {
     )
 }
 
-private val BUTTON_BORDER = 2.dp
+private val RING_WIDTH = 6.dp
+private val OUTLINE_WIDTH = 1.dp
 private val RECORD_ICON_SIZE = 34.dp
 
 /** 정지 사각형. 시안 값(28dp·모서리 6dp) 그대로다 */

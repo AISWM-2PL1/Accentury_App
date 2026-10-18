@@ -26,9 +26,9 @@ import com.accentury.app.ui.theme.accenturyColors
  * 어휘 문항(웹)과 이 화면이 번갈아 나오므로 카드 크기·모서리·그림자가 다르면 전환마다
  * 화면이 들썩인다.
  *
- * 오려 낸 종이 카드다: 크림 면에 잉크 테두리 1.5dp를 두르고 [paperShadow]가 오른쪽·아래로
- * 어긋난 그늘 한 겹을 깐다. 카드와 배경이 같은 크림이라 카드를 세우는 것은 색이 아니라
- * 테두리와 그늘이다 — 그라디언트로 깊이를 내던 자리를 이 둘이 대신한다.
+ * 오려 낸 종이 카드다 (디자인 3 `.practice-sheet`): 크림 면에 그림자색 1dp 테두리, 반경 10, 그리고 [paperShadow]가
+ * 오른쪽·아래로 어긋난 그늘 한 겹을 깐다. 카드와 배경이 같은 크림이라 카드를 세우는 것은 색이 아니라 그늘이다.
+ * 시안의 카드 위쪽 점선은 넣지 않는다 — 사용자가 앞서 지우라고 한 요소다 (KAN-288).
  *
  * 높이를 [Dimens.promptCardMinHeight]로 잡는 이유는 그대로다: 문항마다 글자 수가 달라도
  * 카드가 같은 크기여야 아래 요소가 제자리에 있는 것처럼 읽힌다.
@@ -63,16 +63,16 @@ fun PromptCard(
     cue: String? = null,
 ) {
     val colors = MaterialTheme.accenturyColors
-    val shape = RoundedCornerShape(Radius.xl)
+    val shape = RoundedCornerShape(Radius.lg)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .paperShadow(colors.primaryDim, Radius.xl)
+            .paperShadow(colors.primaryDim, Radius.lg)
             .defaultMinSize(minHeight = Dimens.promptCardMinHeight)
             .clip(shape)
             .background(colors.promptCardStart)
-            .border(CARD_BORDER, MaterialTheme.colorScheme.outlineVariant, shape)
+            .border(CARD_BORDER, colors.primaryDim, shape)
             .padding(
                 start = Dimens.promptCardPadding,
                 end = Dimens.promptCardPadding,
@@ -85,10 +85,10 @@ fun PromptCard(
             Text(
                 cue,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onTertiary,
+                color = MaterialTheme.colorScheme.onBackground,
+                // 시안 `.badge` — 크림 알약에 흐린 잉크 1dp 테두리. 잉크로 채운 알약은 주 버튼과 무게가 겹쳤다.
                 modifier = Modifier
-                    .clip(RoundedCornerShape(Radius.full))
-                    .background(MaterialTheme.colorScheme.tertiary)
+                    .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(Radius.full))
                     .padding(horizontal = Spacing.x3, vertical = Spacing.x1),
             )
         } else {
@@ -123,5 +123,5 @@ fun PromptCard(
     }
 }
 
-/** 테두리 굵기. 주 CTA와 선택 상태만 2dp, 나머지는 1.5dp다 (시안 규칙) */
-private val CARD_BORDER = 1.5.dp
+/** 테두리 굵기 (시안 `.practice-sheet` 1px 그림자색) */
+private val CARD_BORDER = 1.dp
