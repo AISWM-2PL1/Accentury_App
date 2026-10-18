@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -47,6 +48,7 @@ import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.Spacing
+import com.accentury.app.web.openStoreListing
 import kotlinx.coroutines.launch
 
 /**
@@ -265,6 +267,21 @@ fun AuthCheckScreen(failure: AuthFailure?, onRetry: () -> Unit, modifier: Modifi
         PaperWaitingScreen(title = "로그인 정보를 확인하고 있어요", modifier = modifier)
     } else {
         val (message, detail) = authFailureCopy(failure, verb = "연결")
-        PaperFailureScreen(title = message, detail = detail, buttonLabel = "다시 시도", onButtonClick = onRetry, modifier = modifier)
+        // 재시도 불가 거절(Unsupported)은 업데이트 안내다 (KAN-288 시안 15) — [업데이트하기]가 스토어를 열고, 지금까지의
+        // [다시 시도]는 [나중에]로 남는다.
+        if (failure.reason == AuthFailureReason.Unsupported) {
+            val context = LocalContext.current
+            PaperFailureScreen(
+                title = message,
+                detail = detail,
+                buttonLabel = "업데이트하기",
+                onButtonClick = { openStoreListing(context) },
+                modifier = modifier,
+                secondaryLabel = "나중에",
+                onSecondaryClick = onRetry,
+            )
+        } else {
+            PaperFailureScreen(title = message, detail = detail, buttonLabel = "다시 시도", onButtonClick = onRetry, modifier = modifier)
+        }
     }
 }

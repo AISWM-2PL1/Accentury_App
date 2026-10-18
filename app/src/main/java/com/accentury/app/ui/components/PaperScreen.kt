@@ -178,10 +178,23 @@ fun PaperFailureScreen(
     buttonLabel: String,
     onButtonClick: () -> Unit,
     modifier: Modifier = Modifier,
+    // 주 버튼 아래 텍스트 버튼 (시안 15 「나중에」, HIG 수정: 높이 48). null이면 버튼 하나다.
+    secondaryLabel: String? = null,
+    onSecondaryClick: () -> Unit = {},
 ) {
     PaperScreen(
         modifier = modifier,
-        footer = { AccenturyButton(text = buttonLabel, onClick = onButtonClick, modifier = Modifier.fillMaxWidth()) },
+        footer = {
+            AccenturyButton(text = buttonLabel, onClick = onButtonClick, modifier = Modifier.fillMaxWidth())
+            if (secondaryLabel != null) {
+                AccenturyButton(
+                    text = secondaryLabel,
+                    onClick = onSecondaryClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = ButtonVariant.Text,
+                )
+            }
+        },
     ) {
         Spacer(Modifier.height(Spacing.x6))
         HeroIcon { Text("!", style = MaterialTheme.typography.titleMedium) }
