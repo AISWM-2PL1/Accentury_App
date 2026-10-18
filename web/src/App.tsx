@@ -833,13 +833,14 @@ function HomeScreen({
     <main className="screen">
       <div className="screen__body">
         {levelTest === null ? (
-          <>
+          /* 디자인 3 (KAN-288, 시안 31): 제목·설명·버튼이 종이 카드 한 장에 묶인다 */
+          <div className="card home-card">
             <h1 className="type-title">내 사투리 레벨 테스트</h1>
-            <p className="type-body">억양과 단어로 내 사투리 등급을 알아봐요</p>
+            <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
             <Button onClick={onStartTest} style={{ width: '100%' }}>
               레벨 테스트 시작
             </Button>
-          </>
+          </div>
         ) : (
           <>
             <section className="card home-tier" aria-labelledby="home-tier-name">

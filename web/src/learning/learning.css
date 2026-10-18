@@ -22,8 +22,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: var(--control-height-lg);
-  padding: var(--space-3) var(--space-4);
+  /* 디자인 3 (KAN-288, 시안 `.course` min-height 95): 번호·제목(Jua 20)·메타 두 줄이 들어가는 종이 한 장.
+     48 한 줄 행이던 것을 키웠다 — 제목이 Jua 20으로 오르며 메타가 아래 줄로 내려갔다 */
+  position: relative;
+  min-height: 94px;
+  padding: var(--space-4) var(--space-3) var(--space-4) var(--space-4);
   /* 고르지 않은 종이 행은 선택지(.choice)와 같은 흐린 잉크 1px (KAN-288) */
   border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-md);
@@ -52,6 +55,49 @@
   /* 시안 `.course.featured`: 벽돌 1.5px + 종이 그림자 (KAN-288) */
   border: 1.5px solid var(--color-point);
   box-shadow: var(--shadow-card);
+}
+
+/* 추천 행 위 벽돌 테이프 한 조각 (시안 `.course.featured:before`) — 「추천」 글자가 이미 말하므로 장식이다 */
+.word-set-row--recommended::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 20px;
+  width: 42px;
+  height: 10px;
+  background: var(--color-point);
+  clip-path: polygon(2% 0, 100% 4%, 96% 100%, 0 90%);
+}
+
+/* 번호 — Jua 23 흐린 잉크, 제목 첫 줄에 맞춰 위로 붙는다 */
+.word-set-row__number {
+  align-self: flex-start;
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--color-muted-foreground);
+  font-family: var(--font-display);
+  font-size: 23px;
+  line-height: 1.4;
+}
+
+.word-set-row__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.word-set-row__title {
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  font-weight: var(--weight-normal);
+  line-height: 1.4;
+}
+
+.word-set-row__arrow {
+  flex-shrink: 0;
+  font-size: 18px;
 }
 
 .word-set-row__meta {
@@ -217,19 +263,8 @@
   margin-top: var(--space-3);
 }
 
-/* A-5 하단 (2026-10-12 에뮬 확인 뒤 사용자 지정): 목록 복귀는 배경색 바탕에 잉크 테두리·글자, 다시 시도는 벽돌색.
-   벽돌색은 결과 목록의 [코스 목록으로]도 같이 쓴다 */
-.intonation-footer__back {
-  background: var(--color-background);
-  color: var(--color-foreground);
-}
-
-.intonation-footer__retry {
-  /* 테두리까지 벽돌 — 결과 화면 [다시 테스트하기](.result-retest__button)와 같은 채운 벽돌 */
-  border-color: var(--color-point);
-  background: var(--color-point);
-  color: var(--color-point-foreground);
-}
+/* A-5 하단 [결과 목록으로]·[다시 시도]와 A-6 [코스 목록으로]의 개별 색 규칙(2026-10-12)은 디자인 3에서 걷었다 —
+   주버튼이 벽돌이 되어 Button 변형(primary·secondary)이 위계를 그대로 말한다 (KAN-288) */
 
 /* ── 억양 학습 결과 목록 (KAN-254 5단계) — 행은 .word-set-row를 그대로 쓴다 ── */
 
