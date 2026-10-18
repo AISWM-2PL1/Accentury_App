@@ -30,7 +30,7 @@ enum Papercut {
     static let ink = Color(red: 0x1c / 255, green: 0x1a / 255, blue: 0x17 / 255)
     /// 크림. 배경이자 카드 면이다 — 카드를 세우는 것은 색이 아니라 테두리와 그늘이다.
     static let cream = Color(red: 0xf3 / 255, green: 0xec / 255, blue: 0xd9 / 255)
-    /// 오프셋 종이 그림자(`3 4 0`). 번지지 않는 단색 면이라 알파를 주지 않는다.
+    /// 오프셋 종이 그림자(`4 5 0`). 번지지 않는 단색 면이라 알파를 주지 않는다.
     ///
     /// 크림 위 1.46:1이라 **상태를 이 색으로 알리면 안 된다** — 그늘과 "없는 것"에만 쓴다.
     static let paperShadow = Color(red: 0xcf / 255, green: 0xc5 / 255, blue: 0xaa / 255)
@@ -52,10 +52,12 @@ enum Papercut {
 
     // MARK: - 반경
 
-    static let radiusSM: CGFloat = 12
-    static let radiusMD: CGFloat = 16
-    static let radiusLG: CGFloat = 18
-    static let radiusXL: CGFloat = 24
+    /// 반경 4/6/10 세 단계 (KAN-288 디자인 3, 안드로이드 `Radius`와 같은 값). 오려 낸 종이라 모서리를 크게 굴리지 않는다 —
+    /// 시안 `--radius-sm/md/lg`. ``radiusXL``은 대사 카드·카드가 쓰던 이름이라 남기고 ``radiusLG``와 같은 10이다.
+    static let radiusSM: CGFloat = 4
+    static let radiusMD: CGFloat = 6
+    static let radiusLG: CGFloat = 10
+    static let radiusXL: CGFloat = 10
     /// 완전한 원. 배지·캡슐·원형 버튼처럼 모서리를 끝까지 굴리는 자리.
     static let radiusFull: CGFloat = 9999
 
@@ -83,10 +85,10 @@ enum Papercut {
     /// 같은 높이에서 시작한다.
     static let screenPaddingTop: CGFloat = 64
 
-    /// 오프셋 종이 그림자가 어긋난 거리 (정본 §5). 그리는 쪽과 눌려 내려가는 쪽이 같은 값을
-    /// 읽어야 종이가 바닥에 정확히 닿는다.
-    static let paperShadowX: CGFloat = 3
-    static let paperShadowY: CGFloat = 4
+    /// 오프셋 종이 그림자가 어긋난 거리 (정본 §5, 디자인 3에서 3·4 → 4·5 — 시안 `4px 5px 0`, KAN-288). 그리는 쪽과
+    /// 눌려 내려가는 쪽이 같은 값을 읽어야 종이가 바닥에 정확히 닿는다.
+    static let paperShadowX: CGFloat = 4
+    static let paperShadowY: CGFloat = 5
 
     /// 비활성 불투명도. 회색으로 칠하는 대신 원래 색을 흐리게 해 대비가 함께 준다.
     static let opacityDisabled: Double = 0.6

@@ -87,10 +87,11 @@ struct VoiceConsentScreen: View {
                     .foregroundColor(Papercut.muted)
             }
             .padding(.horizontal, Papercut.space6)
-            .padding(.top, Papercut.screenPaddingTop)
+            .padding(.top, Papercut.space2)
             .padding(.bottom, Papercut.space8)
         }
         // 아래 WebView를 완전히 가린다 (SettingsScreen과 같다).
-        .background(Papercut.cream.ignoresSafeArea())
+        // 워드마크 앱바 (KAN-288 디자인 3). 위 8 + 앱바 48 + 8 = 예전 위 여백 64라 본문 시작 높이는 그대로다.
+        .paperAppBar()
     }
 }

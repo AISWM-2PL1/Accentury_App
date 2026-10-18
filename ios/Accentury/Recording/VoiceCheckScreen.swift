@@ -78,7 +78,8 @@ struct VoiceCheckScreen: View {
         }
         .padding(Papercut.space4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Papercut.cream.ignoresSafeArea())
+        // 워드마크 앱바 (KAN-288 디자인 3) — 배경도 함께 깐다
+        .paperAppBar()
         // 권한은 앞 칸에서 받았으니 버튼 없이 진입 즉시 듣는다 — 여기서 한 번 더 누르게 하면
         // "말하세요"라는 안내와 "시작하세요"라는 버튼이 서로를 가린다.
         .onAppear { model.start() }

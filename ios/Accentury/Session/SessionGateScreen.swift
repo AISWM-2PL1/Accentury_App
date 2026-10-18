@@ -56,8 +56,8 @@ struct SessionGateScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // 색을 명시한다 — 그대로 두면 이 화면만 시스템 배경이 되어 바로 앞뒤 WebView 화면
-        // (background #f3ecd9)과 어긋난다 (녹음 오버레이와 같은 이유).
-        .background(Papercut.cream.ignoresSafeArea())
+        // (background #f3ecd9)과 어긋난다 (녹음 오버레이와 같은 이유). 앱바(KAN-288)가 그 배경을 함께 깐다.
+        .paperAppBar()
         // 게이트가 화면에 서 있는 동안 요청을 건다. attempt가 바뀌면(=[다시 시도]) 다시 건다 —
         // 상태만 되돌리면 이미 한 번 돈 이펙트가 다시 돌 이유가 없어 준비 중인 채로 멈춘다.
         .task(id: model.gateAttempt) { await model.createSessionIfNeeded() }

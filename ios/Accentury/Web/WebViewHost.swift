@@ -990,6 +990,8 @@ private struct LoadingScreen: View {
                     .tint(Papercut.ink)
             }
         }
+        // 워드마크 앱바 (KAN-288 디자인 3, 안드로이드 `PaperWaitingScreen`)
+        .paperAppBar()
     }
 }
 
@@ -1029,5 +1031,7 @@ private struct LoadFailureScreen: View {
             }
             .padding(Papercut.space6)
         }
+        // 워드마크 앱바 (KAN-288 디자인 3, 안드로이드 `PaperFailureScreen`)
+        .paperAppBar()
     }
 }

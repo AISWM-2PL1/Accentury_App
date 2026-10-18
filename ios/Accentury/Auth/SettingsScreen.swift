@@ -66,14 +66,11 @@ struct SettingsScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Papercut.space6) {
-                HStack {
-                    Text("설정")
-                        .papercutType(.title)
-                        .foregroundColor(Papercut.ink)
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer()
-                    AccenturyButton(text: "닫기", variant: .text, enabled: !busy, action: onClose)
-                }
+                // 닫기는 앱바 오른쪽 ✕다 (KAN-288 시안 49, 안드로이드와 같다). 제목은 왼쪽 정렬 Jua로 그 아래에 선다.
+                Text("설정")
+                    .papercutType(.headline)
+                    .foregroundColor(Papercut.ink)
+                    .accessibilityAddTraits(.isHeader)
 
                 VStack(alignment: .leading, spacing: Papercut.space3) {
                     Text("계정")
@@ -145,7 +142,7 @@ struct SettingsScreen: View {
             .padding(.vertical, Papercut.space4)
         }
         // 아래 WebView를 완전히 가린다 — 크림 면이 비치는 곳 없이 안전 영역 밖까지 간다 (TestFlowView `body` 주석).
-        .background(Papercut.cream.ignoresSafeArea())
+        .paperAppBar(onClose: onClose, closeEnabled: !busy)
         // 시스템 알림이라 버튼을 누르면 곧바로 닫힌다 — 진행 중 막기는 화면의 버튼들이 `busy`로 맡는다.
         .alert("로그아웃할까요?", isPresented: $confirming) {
             Button("취소", role: .cancel) {}
@@ -267,14 +264,11 @@ struct AnonymousSettingsScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Papercut.space6) {
-                HStack {
-                    Text("설정")
-                        .papercutType(.title)
-                        .foregroundColor(Papercut.ink)
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer()
-                    AccenturyButton(text: "닫기", variant: .text, action: onClose)
-                }
+                // 닫기는 앱바 오른쪽 ✕다 (KAN-288 시안 49, 안드로이드와 같다). 제목은 왼쪽 정렬 Jua로 그 아래에 선다.
+                Text("설정")
+                    .papercutType(.headline)
+                    .foregroundColor(Papercut.ink)
+                    .accessibilityAddTraits(.isHeader)
                 // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다.
                 VoiceConsentSection(
                     consented: consented,
@@ -287,6 +281,6 @@ struct AnonymousSettingsScreen: View {
             .padding(.horizontal, Papercut.space6)
             .padding(.vertical, Papercut.space4)
         }
-        .background(Papercut.cream.ignoresSafeArea())
+        .paperAppBar(onClose: onClose)
     }
 }
