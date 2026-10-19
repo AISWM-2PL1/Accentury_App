@@ -519,15 +519,16 @@ public final class TestFlowController {
     /// 웹에 알릴 업로드 실패 — 결과를 기다리는 시도 중 같은 바이트를 다시 보내면 풀리는 것만 (KAN-288, 안드로이드
     /// `failedUploads`의 이식본).
     ///
-    /// 웹은 그 문항의 대기 화면에 「전송 실패」와 [다시 보내기]를 그리고, 누르면 `retryUpload`로 이 attemptId를
-    /// 돌려준다. 재녹음 거절(rerecord)과 재시도 불가 실패(세션 만료·시도 상한)는 빠진다 — 앞의 것은
-    /// ``onUploadGivenUp(attemptId:micGranted:message:missingItems:)``이 녹음 화면을 다시 열고, 뒤의 것은 웹 대기 화면의
-    /// 생존 확인이 [다시 테스트하기]로 바꾼다. 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이
+    /// 웹은 그 문항의 대기 화면에 「전송 실패」를 그리고, 재전송으로 풀리는 것(retryable)이면 [다시 보내기]도 그려
+    /// 누르면 `retryUpload`로 이 attemptId를 돌려준다. 재시도 불가 실패(세션 만료·시도 상한)는 버튼 없이 표시만 하고
+    /// 복구는 웹 대기 화면의 [녹음 화면 다시 열기] 생존 확인이 맡는다 — 빼면 사용자는 실패를 모른 채 기다린다(PR #38
+    /// 리뷰 P1). 재녹음 거절(rerecord)은 빠진다 —
+    /// ``onUploadGivenUp(attemptId:micGranted:message:missingItems:)``이 녹음 화면을 다시 연다. 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이
     /// 기다리는 문항이 아니라 뺀다.
     public func failedUploads(_ uploads: [String: UploadState]) -> [UploadFailed] {
         pendingAttempts.compactMap { attempt in
-            guard case .failed(let failure)? = uploads[attempt.meta.attemptId], failure.retryable else { return nil }
-            return UploadFailed(itemId: attempt.meta.itemId, attemptId: attempt.meta.attemptId)
+            guard case .failed(let failure)? = uploads[attempt.meta.attemptId], !failure.rerecord else { return nil }
+            return UploadFailed(itemId: attempt.meta.itemId, attemptId: attempt.meta.attemptId, retryable: failure.retryable)
         }
     }
 

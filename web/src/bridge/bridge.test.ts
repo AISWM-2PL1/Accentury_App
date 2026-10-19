@@ -261,9 +261,10 @@ describe('업로드 재전송 (KAN-288 6단계)', () => {
 
     window.AccenturyWeb?.onUploadFailed?.('{broken')
     window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1' }))
-    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: '' }))
-    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: 'at_1', extra: 1 }))
-    expect(handler.mock.calls).toEqual([[{ itemId: 'v1', attemptId: 'at_1' }]])
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: '', retryable: true }))
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: 'at_1' }))
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: 'at_1', retryable: false, extra: 1 }))
+    expect(handler.mock.calls).toEqual([[{ itemId: 'v1', attemptId: 'at_1', retryable: false }]])
 
     uninstall()
     expect(window.AccenturyWeb).toBeUndefined()

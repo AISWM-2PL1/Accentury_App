@@ -15,12 +15,18 @@ class UploadFailedDeliveryTest {
         Json.decodeFromString(String.serializer(), js.substringAfter("return false;f(").substringBeforeLast(");return true;})()"))
 
     @Test
-    fun `onUploadFailed 슬롯으로 itemId·attemptId 두 필드만 간다`() {
-        val js = uploadFailedDeliveryJs(UploadFailed(itemId = "item_3", attemptId = "at_9"))
+    fun `onUploadFailed 슬롯으로 itemId·attemptId·retryable 세 필드만 간다`() {
+        val js = uploadFailedDeliveryJs(UploadFailed(itemId = "item_3", attemptId = "at_9", retryable = true))
 
         assertTrue(js.contains("window.AccenturyWeb.onUploadFailed"))
         assertEquals(
-            JsonObject(mapOf("itemId" to JsonPrimitive("item_3"), "attemptId" to JsonPrimitive("at_9"))),
+            JsonObject(
+                mapOf(
+                    "itemId" to JsonPrimitive("item_3"),
+                    "attemptId" to JsonPrimitive("at_9"),
+                    "retryable" to JsonPrimitive(true),
+                ),
+            ),
             Json.parseToJsonElement(decodePayload(js)),
         )
     }

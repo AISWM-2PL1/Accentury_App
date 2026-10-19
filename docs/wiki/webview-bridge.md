@@ -71,7 +71,7 @@
 | `onRetestFailed(payloadJson)` | KAN-34 | 재응시 실패 (`startRetest`·`startRetestAfterFailure` 공통). **성공은 오지 않는다** — 성공하면 페이지가 리로드된다. KAN-196부터 보상형 광고를 중간에 닫은 경우도 이 슬롯이다: `{code:'AD_DISMISSED', message:'광고를 끝까지 보시면 다시 테스트할 수 있어요', retryable:true, retryAfterMs:null}` (§8) |
 | `onAccessTokenRefreshed(result)` | KAN-255 | `refreshAccessToken()`의 결과. 인자는 JSON이 아니라 문자열 `'ok' \| 'failed'` 그대로다 (§11) |
 | `onIntonationRecorded(payloadJson)` | KAN-253 | 억양 녹음 업로드 202 접수. payload = `{cardId, attemptId}`. **성공만 온다** — 업로드 실패·녹음 화면 닫기는 회신 없음 (§12) |
-| `onUploadFailed(payloadJson)` | KAN-288 | 레벨 테스트 음성 업로드가 **재전송으로 풀리는** 실패로 끝났다. payload = `{itemId, attemptId}`. 재녹음 거절·재시도 불가(세션 만료·시도 상한)는 오지 않는다. 같은 실패가 여러 번 올 수 있다 (§14) |
+| `onUploadFailed(payloadJson)` | KAN-288 | 레벨 테스트 음성 업로드가 실패로 끝났다. payload = `{itemId, attemptId, retryable}`. `retryable:false`(세션 만료·시도 상한)면 웹은 [다시 보내기] 없이 표시만 한다. 재녹음 거절은 오지 않는다. 같은 실패가 여러 번 올 수 있다 (§14) |
 
 슬롯 단위로 갈아끼운다. 객체를 통째로 교체하면 나중에 설치한 수신자가 먼저 설치된 것을 지운다.
 
@@ -771,25 +771,27 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 
 | 방향 | 이름 | payload | 언제 |
 |---|---|---|---|
-| native → web | `onUploadFailed` | `{itemId, attemptId}` | 대기 시도(`TestFlowController.pendingAttempts`)의 업로드가 `Failed(retryable = true)`일 때. 업로드 목록이 바뀔 때마다·WebView가 돌아올 때 남은 실패를 다시 싣는다(웹에는 무해) |
+| native → web | `onUploadFailed` | `{itemId, attemptId, retryable}` | 대기 시도(`TestFlowController.pendingAttempts`)의 업로드가 `Failed`이고 재녹음 거절(`rerecord`)이 아닐 때. `retryable`은 `Failed.retryable` 그대로. 업로드 목록이 바뀔 때마다·WebView가 돌아올 때 남은 실패를 다시 싣는다(웹에는 무해) |
 | web → native | `retryUpload(attemptId)` | 문자열 | [다시 보내기] 탭 1회. 네이티브는 빈 값만 거르고 `UploadManager.retry`가 그 시도만 재전송한다(재시도할 수 없는 상태면 무시) |
 
 웹 화면: 실패 회신을 받으면 대기 문구 대신 분석 대기 화면과 같은 문항 줄(`.analysis-row`, 디자인 3 시안 24·25) — 왼쪽 「N번 문항」,
-오른쪽 「! 전송 실패」(기호+글자, 색만으로 가르지 않음), 보조 버튼 [다시 보내기](48). 그 아래 [녹음 화면 다시 열기]는 그대로다.
+오른쪽 「! 전송 실패」(기호+글자, 색만으로 가르지 않음), 보조 버튼 [다시 보내기](48, `retryable`일 때만). 그 아래 [녹음 화면 다시 열기]는 그대로다.
 [다시 보내기]를 누르면 대기 문구로 돌아가고, 성공하면 결과가 다음 문항을 열고 또 실패하면 회신이 줄을 다시 세운다.
 [녹음 화면 다시 열기]를 누르면 실패 줄을 걷는다(새 녹음이 앞 시도를 밀어내 폐기한다).
 
-바뀌지 않는 경로: 재녹음 거절(rerecord)은 네이티브가 녹음 화면을 다시 열고(KAN-147), 세션 만료 같은 재시도 불가 실패는 회신이 없어
-[녹음 화면 다시 열기]의 생존 확인이 [다시 테스트하기]로 바꾼다(KAN-191·KAN-237).
+재시도 불가 실패(세션 만료·시도 상한)도 `retryable:false`로 싣는다(PR #38 리뷰 P1). 예전 상태 바는 이 실패를 「N번 문항 업로드 실패」로
+보여 줬는데, 상태 바를 걷고 회신에서도 빼면 사용자는 「잠시만요…」 앞에서 까닭 없이 기다린다. 웹은 버튼 없이 「! 전송 실패」만 그리고,
+복구는 [녹음 화면 다시 열기]의 생존 확인이 맡는다(만료면 [다시 테스트하기], KAN-191·KAN-237). 재녹음 거절(rerecord)은 회신 없이
+네이티브가 녹음 화면을 다시 연다(KAN-147).
 
 | 자리 | 내용 |
 |---|---|
 | `web/src/bridge/bridge.ts` | `retryUpload?`·`onUploadFailed?`·`UploadFailed`, 래퍼 `retryUpload`·`canRetryUpload`·`installUploadFailedReceiver` |
 | `web/src/progress/VoiceItemScreen.tsx` | 수신 지점(이 문항 itemId만), 실패 줄·[다시 보내기] |
 | `app/.../bridge/UploadFailedDelivery.kt` | `UploadFailed`·`uploadFailedDeliveryJs` |
-| `app/.../testflow/TestFlowController.kt` | `failedUploads(uploads)` — 대기 시도 중 재전송 가능한 실패만 |
+| `app/.../testflow/TestFlowController.kt` | `failedUploads(uploads)` — 대기 시도 중 재녹음 거절이 아닌 실패 |
 | `app/.../web/AccenturyBridge.kt` · `WebViewHost.kt` · `MainActivity.kt` | `retryUpload` → `uploadViewModel.retry`, 결과 전달 이펙트에서 실패 회신 |
 | `ios/AccenturyCore/.../Bridge/UploadFailedDelivery.swift` | `UploadFailed`·`uploadFailedDeliveryJs` (안드로이드와 같은 주입 모양) |
-| `ios/AccenturyCore/.../TestFlow/TestFlowController.swift` | `failedUploads(_:)` — 대기 시도 중 재전송 가능한 실패만 |
+| `ios/AccenturyCore/.../TestFlow/TestFlowController.swift` | `failedUploads(_:)` — 대기 시도 중 재녹음 거절이 아닌 실패 |
 | `ios/Accentury/Web/BridgeUserScript.swift` · `AccenturyBridge.swift` · `WebViewHost.swift` | 심의 `retryUpload` → `postMessage` → `BridgeDispatcher`(origin·빈 값 거름) → `onRetryUpload` |
 | `ios/Accentury/TestFlow/TestFlowView.swift` | `onRetryUpload` → `uploads.retry`, `deliverResults()`(업로드 목록 변경·WebView 재생성 때 돈다)에서 실패 회신 |

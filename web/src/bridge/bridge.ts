@@ -255,14 +255,18 @@ export interface AccenturyWeb {
   onAccessTokenRefreshed?(result: string): void
   /** 억양 녹음 업로드 성공 (KAN-253). 인자는 [IntonationRecorded]의 JSON. 실패·취소는 오지 않는다 */
   onIntonationRecorded?(payloadJson: string): void
-  /** 재전송으로 풀리는 업로드 실패 (KAN-288 6단계). 인자는 [UploadFailed]의 JSON. 같은 실패가 여러 번 올 수 있다 */
+  /** 레벨 테스트 업로드 실패 (KAN-288 6단계). 인자는 [UploadFailed]의 JSON. 같은 실패가 여러 번 올 수 있다 */
   onUploadFailed?(payloadJson: string): void
 }
 
-/** 업로드 실패 회신 — 재전송하면 풀리는 실패만 온다. 재녹음 거절·세션 만료 등은 오지 않는다 (webview-bridge §14) */
+/**
+ * 업로드 실패 회신 — 재녹음 거절은 오지 않는다(네이티브가 녹음 화면을 다시 연다). `retryable`이 false인 실패(세션 만료·
+ * 시도 상한)는 [다시 보내기]가 소용없어 표시만 한다 (webview-bridge §14, PR #38 리뷰 P1)
+ */
 export interface UploadFailed {
   itemId: string
   attemptId: string
+  retryable: boolean
 }
 
 /**
@@ -752,8 +756,13 @@ export function installUploadFailedReceiver(handler: (failed: UploadFailed) => v
   return installReceiver('onUploadFailed', (payloadJson) => {
     try {
       const v = JSON.parse(payloadJson) as Partial<UploadFailed> | null
-      if (typeof v?.itemId === 'string' && typeof v.attemptId === 'string' && v.attemptId !== '') {
-        handler({ itemId: v.itemId, attemptId: v.attemptId })
+      if (
+        typeof v?.itemId === 'string' &&
+        typeof v.attemptId === 'string' &&
+        v.attemptId !== '' &&
+        typeof v.retryable === 'boolean'
+      ) {
+        handler({ itemId: v.itemId, attemptId: v.attemptId, retryable: v.retryable })
       }
     } catch {
       // 깨진 JSON — 회신이 없던 것과 같게 둔다 (대기 화면의 [녹음 화면 다시 열기]가 남는다)

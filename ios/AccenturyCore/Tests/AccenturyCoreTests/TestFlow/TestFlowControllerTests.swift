@@ -1126,19 +1126,23 @@ final class TestFlowControllerTests: XCTestCase {
         return restored
     }
 
-    // MARK: - KAN-288 웹에 알리는 실패는 재전송으로 풀리는 것뿐이다
+    // MARK: - KAN-288 웹에 알리는 실패는 재녹음 거절이 아닌 실패다
 
-    /// 재녹음 거절은 녹음 화면이 다시 열리고, 재시도 불가(세션 만료 등)는 [다시 보내기]가 소용없어 [다시 테스트하기] 경로가 푼다.
-    func testFailedUploadsAreOnlyRetryableFailuresOfPendingAttempts() {
+    /// 재녹음 거절은 녹음 화면이 다시 열리고, 재시도 불가(세션 만료 등)는 retryable=false로 실려 웹이 [다시 보내기] 없이 표시만 한다.
+    func testFailedUploadsAreNonRerecordFailuresOfPendingAttempts() {
         let controller = TestFlowController()
         controller.onStartVoiceItem(voiceItem(), micGranted: true)
         controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
 
         XCTAssertEqual(
-            [UploadFailed(itemId: "item_1", attemptId: "at_1")],
+            [UploadFailed(itemId: "item_1", attemptId: "at_1", retryable: true)],
             controller.failedUploads(["at_1": .failed(retryable: true, message: "timeout")])
         )
-        XCTAssertTrue(controller.failedUploads(["at_1": .failed(retryable: false, message: "만료")]).isEmpty)
+        // 재시도 불가 실패도 표시는 한다 — 버튼만 없다 (PR #38 리뷰 P1)
+        XCTAssertEqual(
+            [UploadFailed(itemId: "item_1", attemptId: "at_1", retryable: false)],
+            controller.failedUploads(["at_1": .failed(retryable: false, message: "만료")])
+        )
         XCTAssertTrue(controller.failedUploads(["at_1": .failed(retryable: false, message: "짧음", rerecord: true)]).isEmpty)
         XCTAssertTrue(controller.failedUploads(["at_1": .inFlight]).isEmpty)
         // 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이 기다리는 문항이 아니다

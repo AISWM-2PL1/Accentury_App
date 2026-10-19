@@ -13,13 +13,14 @@ final class UploadFailedDeliveryTests: XCTestCase {
         return try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
     }
 
-    func testOnUploadFailed_슬롯으로_itemId_attemptId_두_필드만_간다() throws {
-        let js = uploadFailedDeliveryJs(UploadFailed(itemId: "item_3", attemptId: "at_9"))
+    func testOnUploadFailed_슬롯으로_itemId_attemptId_retryable_세_필드만_간다() throws {
+        let js = uploadFailedDeliveryJs(UploadFailed(itemId: "item_3", attemptId: "at_9", retryable: true))
 
         XCTAssertTrue(js.contains("window.AccenturyWeb.onUploadFailed"))
         let decoded = try decodePayload(js)
-        XCTAssertEqual(Set(["itemId", "attemptId"]), Set(decoded.keys))
+        XCTAssertEqual(Set(["itemId", "attemptId", "retryable"]), Set(decoded.keys))
         XCTAssertEqual("item_3", decoded["itemId"] as? String)
         XCTAssertEqual("at_9", decoded["attemptId"] as? String)
+        XCTAssertEqual(true, decoded["retryable"] as? Bool)
     }
 }
