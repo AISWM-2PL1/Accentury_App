@@ -6,7 +6,7 @@ import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
 import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
-import { fetchLearningHome, formatKstDate, type HomeStreak, type LearningHome } from './learning/homeApi'
+import { attendanceWeek, fetchLearningHome, formatKstDate, type HomeStreak, type LearningHome } from './learning/homeApi'
 import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
@@ -831,10 +831,12 @@ function HomeScreen({
 
   return (
     <main className="screen">
-      <div className="screen__body">
+      {/* 테스트 후는 위에서부터 쌓는다(시안 32) — 카드·버튼·출석이 한 화면을 채워 가운데 정렬이면 위만 빈다 */}
+      <div className={levelTest === null ? 'screen__body' : 'screen__body home-after'}>
         {levelTest === null ? (
-          /* 디자인 3 (KAN-288, 시안 31): 제목·설명·버튼이 종이 카드 한 장에 묶인다 */
+          /* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */
           <div className="card home-card">
+            <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v2.png`} alt="" />
             <h1 className="type-title">내 사투리 레벨 테스트</h1>
             <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
             <Button onClick={onStartTest} style={{ width: '100%' }}>
@@ -843,22 +845,50 @@ function HomeScreen({
           </div>
         ) : (
           <>
+            {/* 시안 32: 테이프 붙은 종이에 캐릭터 왼쪽, 순위·등급명·응시일 오른쪽 */}
             <section className="card home-tier" aria-labelledby="home-tier-name">
               <TierCharacter code={levelTest.tier.code} name={levelTest.tier.name} className="illustration--home" />
-              <h1 id="home-tier-name" className="type-title">
-                {levelTest.tier.name}
-              </h1>
-              {tested !== '' && <p className="type-label">{tested} 응시</p>}
+              <div className="home-tier__text">
+                <p className="type-caption home-tier__rank">
+                  {levelTest.tier.of}개 등급 중 {levelTest.tier.rank}번째
+                </p>
+                <h1 id="home-tier-name" className="type-display">
+                  {levelTest.tier.name}
+                </h1>
+                {tested !== '' && <p className="type-label home-tier__date">{tested} 응시</p>}
+              </div>
             </section>
             <Button onClick={onStartLearning} style={{ width: '100%' }}>
               억양 학습 시작
             </Button>
-            <Button variant="text" onClick={onStartTest}>
+            <Button variant="secondary" onClick={onStartTest} style={{ width: '100%' }}>
               다시 테스트하기
             </Button>
           </>
         )}
-        {streak !== undefined && <p className="home-streak type-body">{streakText(streak)}</p>}
+        {streak !== undefined &&
+          (levelTest === null ? (
+            <p className="home-streak type-body">{streakText(streak)}</p>
+          ) : (
+            <section className="home-attendance" aria-labelledby="home-attendance-title">
+              <h2 id="home-attendance-title" className="type-label">
+                연속 출석
+              </h2>
+              <p className="home-streak type-body-sm">{streakText(streak)}</p>
+              {/* 출석한 날은 벽돌 ✓, 아닌 날은 잉크 ○ — 색과 기호를 함께 바꿔 색만으로 가르지 않는다 */}
+              <ol className="home-attendance__week">
+                {attendanceWeek(streak).map((day) => (
+                  <li key={day.label} className={day.attended ? 'home-attendance__day is-attended' : 'home-attendance__day'}>
+                    <span aria-hidden="true">{day.label}</span>
+                    <i aria-hidden="true">{day.attended ? '✓' : '○'}</i>
+                    <span className="sr-only">
+                      {day.label}요일 {day.attended ? '출석' : '출석 전'}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ))}
       </div>
     </main>
   )

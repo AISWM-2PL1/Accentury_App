@@ -90,3 +90,29 @@ export function formatKstDate(iso: string): string {
   const date = new Date(iso)
   return Number.isNaN(date.getTime()) ? '' : KST_DATE.format(date)
 }
+
+const DAY_MS = 86_400_000
+const KST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' })
+const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const
+
+/** 홈 출석 줄의 한 칸 (KAN-288, 디자인 3 시안 32) */
+export interface AttendanceDay {
+  label: (typeof WEEKDAYS)[number]
+  attended: boolean
+}
+
+/**
+ * 이번 주(KST 월~일) 출석 칸. 서버는 날짜별 기록을 주지 않으므로 지금 이어지는 연속 출석만 칠한다 —
+ * `lastAttendedDate`에서 `currentDays`일을 거슬러 간 날들이다. 연속이 끊기기 전 이번 주에 한 출석은 알 수 없어
+ * 빈 칸으로 남는다(ponytail: 날짜별 출석이 필요하면 서버 응답에 이번 주 출석일 목록을 더할 것).
+ */
+export function attendanceWeek(streak: HomeStreak, now: Date = new Date()): AttendanceDay[] {
+  const today = Date.parse(KST_DAY.format(now)) // 'yyyy-MM-dd'는 UTC 자정으로 읽힌다 — 날짜 계산만 하므로 그대로 쓴다
+  const monday = today - ((new Date(today).getUTCDay() + 6) % 7) * DAY_MS
+  const last = streak.lastAttendedDate === null ? NaN : Date.parse(streak.lastAttendedDate)
+  const first = last - (streak.currentDays - 1) * DAY_MS
+  return WEEKDAYS.map((label, i) => {
+    const day = monday + i * DAY_MS
+    return { label, attended: streak.currentDays > 0 && day >= first && day <= last }
+  })
+}
