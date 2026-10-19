@@ -117,27 +117,29 @@ export function VoiceItemScreen({
    */
   const mounted = useRef(true)
   /*
-   * 이 문항의 업로드가 재전송으로 풀리는 실패로 끝났다 (KAN-288 6단계). 값은 [다시 보내기]가 돌려줄 attemptId다.
+   * 이 문항의 업로드가 실패로 끝났다 (KAN-288 6단계). `attemptId`는 [다시 보내기]가 돌려줄 값이고, `retryable`이 false면
+   * (세션 만료·시도 상한) 같은 바이트를 다시 보내도 소용없어 버튼 없이 「전송 실패」만 보인다 — 복구는 아래 [녹음 화면 다시
+   * 열기]의 생존 확인이 맡는다(만료면 [다시 테스트하기]). 표시를 빼면 사용자는 대기 문구 앞에서 실패를 모른 채 기다린다
+   * (PR #38 리뷰 P1).
    *
    * 문항을 푸는 동안에는 업로드 상태를 알리지 않는다는 결정(디자인 3, 상태 바 제거)은 그대로다 — 실패한 문항은 결과가
    * 오지 않아 진행이 이 화면에서 멈추므로, 이 표시가 보이는 자리는 그 문항의 제출 대기뿐이다. 예전 상태 바의 [재시도]처럼
-   * 녹음은 그대로 두고 같은 바이트만 다시 보낸다. 재녹음이 필요한 거절은 네이티브가 녹음 화면을 다시 열고, 세션 만료 같은
-   * 재시도 불가 실패는 회신이 오지 않아 아래 [녹음 화면 다시 열기]의 생존 확인(KAN-237)이 그대로 푼다.
+   * 녹음은 그대로 두고 같은 바이트만 다시 보낸다. 재녹음이 필요한 거절은 회신이 오지 않는다 — 네이티브가 녹음 화면을 다시 연다.
    *
    * 수신 지점은 [retryUpload]가 있는 앱에서만 건다 — iOS·구버전 앱·브라우저에서는 회신도 버튼도 없는 예전 화면이다.
    * 다른 문항의 실패는 버린다: 이 화면이 기다리는 것은 이 문항의 결과뿐이다.
    */
-  const [failedAttemptId, setFailedAttemptId] = useState<string | null>(null)
+  const [failedUpload, setFailedUpload] = useState<{ attemptId: string; retryable: boolean } | null>(null)
   useEffect(() => {
     if (!canRetryUpload()) return
     return installUploadFailedReceiver((failed) => {
-      if (failed.itemId === item.itemId) setFailedAttemptId(failed.attemptId)
+      if (failed.itemId === item.itemId) setFailedUpload({ attemptId: failed.attemptId, retryable: failed.retryable })
     })
   }, [item.itemId])
 
   /** [다시 보내기]. 누르면 대기 문구로 돌아간다 — 성공하면 결과가 다음 문항을 열고, 또 실패하면 회신이 이 줄을 다시 세운다 */
   const resend = (attemptId: string) => {
-    setFailedAttemptId(null)
+    setFailedUpload(null)
     retryUpload(attemptId)
   }
 
@@ -180,7 +182,7 @@ export function VoiceItemScreen({
    */
   const reopen = async () => {
     // 새로 녹음하면 실패한 앞 시도는 네이티브가 밀어내 폐기한다 — 그 시도를 다시 보내라는 표시를 남기지 않는다
-    setFailedAttemptId(null)
+    setFailedUpload(null)
     if (probeSession === undefined) {
       requestRecording()
       return
@@ -262,7 +264,7 @@ export function VoiceItemScreen({
             결과를 기다리는 복귀 직후·그리고 네이티브가 결과 없이 돌려보낸 뒤(PCM 없는 제출,
             복원으로 대기 시도가 걷힌 경우)다.
           */}
-          {failedAttemptId === null ? (
+          {failedUpload === null ? (
             <StatusBlock tone="waiting" message={WAITING_MESSAGE} />
           ) : (
             /*
@@ -274,9 +276,11 @@ export function VoiceItemScreen({
               <span className="type-label analysis-row__status" role="status">
                 <span aria-hidden="true">!</span>전송 실패
               </span>
-              <Button variant="secondary" onClick={() => resend(failedAttemptId)}>
-                다시 보내기
-              </Button>
+              {failedUpload.retryable && (
+                <Button variant="secondary" onClick={() => resend(failedUpload.attemptId)}>
+                  다시 보내기
+                </Button>
+              )}
             </div>
           )}
           {bridgeAccepted === true && (

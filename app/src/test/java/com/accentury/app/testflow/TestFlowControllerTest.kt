@@ -306,20 +306,24 @@ class TestFlowControllerTest {
     }
 
     /*
-     * 웹에 알리는 실패는 재전송으로 풀리는 것뿐이다 (KAN-288 6단계). 재녹음 거절은 녹음 화면이 다시 열리고,
-     * 재시도 불가(세션 만료 등)는 [다시 보내기]가 소용없어 [다시 테스트하기] 경로가 푼다.
+     * 웹에 알리는 실패는 기다리는 시도의 재녹음 거절이 아닌 실패다 (KAN-288 6단계). 재녹음 거절은 녹음 화면이 다시 열리고,
+     * 재시도 불가(세션 만료 등)는 retryable=false로 실려 웹이 [다시 보내기] 없이 「전송 실패」만 그린다.
      */
     @Test
-    fun `웹에 알릴 실패는 기다리는 시도의 재전송 가능한 실패뿐이다`() {
+    fun `웹에 알릴 실패는 기다리는 시도의 재녹음 거절이 아닌 실패다`() {
         val controller = TestFlowController()
         controller.onStartVoiceItem(voiceItem(), micGranted = true)
         controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
 
         assertEquals(
-            listOf(UploadFailed(itemId = "item_1", attemptId = "at_1")),
+            listOf(UploadFailed(itemId = "item_1", attemptId = "at_1", retryable = true)),
             controller.failedUploads(mapOf("at_1" to UploadState.Failed(retryable = true, message = "timeout"))),
         )
-        assertTrue(controller.failedUploads(mapOf("at_1" to UploadState.Failed(retryable = false, message = "만료"))).isEmpty())
+        // 재시도 불가 실패도 표시는 한다 — 버튼만 없다 (PR #38 리뷰 P1)
+        assertEquals(
+            listOf(UploadFailed(itemId = "item_1", attemptId = "at_1", retryable = false)),
+            controller.failedUploads(mapOf("at_1" to UploadState.Failed(retryable = false, message = "만료"))),
+        )
         assertTrue(
             controller.failedUploads(
                 mapOf("at_1" to UploadState.Failed(retryable = false, message = "짧음", rerecord = true)),

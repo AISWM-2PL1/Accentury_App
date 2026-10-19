@@ -242,8 +242,8 @@ describe('대기 푸터의 전송 실패 · [다시 보내기] (KAN-288 6단계)
     return retryUpload
   }
 
-  function failUpload(itemId: string, attemptId: string) {
-    act(() => window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId, attemptId })))
+  function failUpload(itemId: string, attemptId: string, retryable = true) {
+    act(() => window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId, attemptId, retryable })))
   }
 
   it('이 문항의 업로드가 실패하면 대기 문구 대신 「! 전송 실패」 줄과 [다시 보내기]를 세운다', () => {
@@ -275,6 +275,18 @@ describe('대기 푸터의 전송 실패 · [다시 보내기] (KAN-288 6단계)
     // 또 실패하면 다시 선다
     failUpload('v1', 'at_1')
     expect(screen.getByRole('button', { name: '다시 보내기' })).toBeInTheDocument()
+  })
+
+  it('재시도 불가 실패(세션 만료 등)는 [다시 보내기] 없이 「! 전송 실패」와 [녹음 화면 다시 열기]만 둔다 (PR #38 리뷰 P1)', () => {
+    stubRetryBridge()
+    renderScreen()
+
+    failUpload('v1', 'at_1', false)
+
+    expect(screen.getByRole('status')).toHaveTextContent('!전송 실패')
+    expect(screen.queryByText('잠시만요…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '녹음 화면 다시 열기' })).toBeInTheDocument()
   })
 
   it('다른 문항의 실패는 버린다', () => {
