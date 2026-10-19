@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
-import { fetchLearningHome, formatKstDate } from './homeApi'
+import { attendanceWeek, fetchLearningHome, formatKstDate } from './homeApi'
 import { WordLearningError, type WordApiDeps } from './wordApi'
 
 const API = 'http://localhost:8080/'
@@ -113,5 +113,31 @@ describe('formatKstDate (KAN-287 2단계)', () => {
 
   it('파싱 안 되는 문자열은 빈 문자열', () => {
     expect(formatKstDate('not-a-date')).toBe('')
+  })
+})
+
+describe('attendanceWeek — 이번 주 출석 칸 (KAN-288)', () => {
+  // 2026-10-15(목) 10:00 KST
+  const now = new Date('2026-10-15T01:00:00Z')
+  const attended = (days: ReturnType<typeof attendanceWeek>) => days.filter((d) => d.attended).map((d) => d.label)
+
+  it('어제(수)까지 3일 연속이면 월·화·수가 칠해진다', () => {
+    expect(attended(attendanceWeek({ currentDays: 3, attendedToday: false, lastAttendedDate: '2026-10-14' }, now))).toEqual(['월', '화', '수'])
+  })
+
+  it('오늘 출석했으면 오늘 칸까지, 지난주에서 이어진 연속은 이번 주 칸만', () => {
+    expect(attended(attendanceWeek({ currentDays: 10, attendedToday: true, lastAttendedDate: '2026-10-15' }, now))).toEqual(['월', '화', '수', '목'])
+  })
+
+  it('연속 0일·출석 기록 없음이면 빈 주', () => {
+    expect(attended(attendanceWeek({ currentDays: 0, attendedToday: false, lastAttendedDate: '2026-10-10' }, now))).toEqual([])
+    expect(attended(attendanceWeek({ currentDays: 0, attendedToday: false, lastAttendedDate: null }, now))).toEqual([])
+  })
+
+  it('일요일 밤 KST도 그 주로 센다 (UTC로는 같은 일요일 오후)', () => {
+    const sunday = new Date('2026-10-18T14:30:00Z') // 23:30 KST
+    const days = attendanceWeek({ currentDays: 1, attendedToday: true, lastAttendedDate: '2026-10-18' }, sunday)
+    expect(days.map((d) => d.label)).toEqual(['월', '화', '수', '목', '금', '토', '일'])
+    expect(attended(days)).toEqual(['일'])
   })
 })
