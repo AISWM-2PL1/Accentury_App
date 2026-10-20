@@ -332,6 +332,69 @@ v3를 실패시켰을 때 브라우저가 보여주던 화면(KAN-191 이전):
 호스트에서 띄울 때 같은 값을 넘기지 않으면 BE→AI가 401로 막혀 회로가 열리고, `full-run`이
 분석 대기에서 멈춘다. 스모크는 세션 생성까지라 이 누락을 못 본다.
 
+## 단어 학습 스펙 (KAN-255 6단계, 2026-10-08)
+
+`word-learning.spec.ts`는 레벨테스트 스펙과 달리 **계정** 토큰이 필요하다. 단어 학습 API는 계정
+Bearer만 받기 때문이다. 브라우저에는 IdP SDK가 없으므로 서버의 가짜 IdP로 로그인한다.
+
+- 백엔드 기동 인자: `--accentury.auth.fake-idp=true`, 허용 출처에 `http://localhost:5174,http://127.0.0.1:5174`.
+  Redis(`backend/docker-compose.yml`의 `redis`)도 떠 있어야 한다. AI 서버는 필요 없다.
+- 로그인: `helpers/accountLogin.ts`가 Playwright `request`로 `POST /v0/auth/login`
+  (`idToken: "fake:e2e-word-<시각>-<난수>"`, 방침 버전은 앱 상수와 같은 `2026-10-04`)을 보낸다.
+  신규 계정이 `INCOMPLETE`이면 `PUT /v0/users/me/profile`로 추가 정보까지 채운다. 테스트마다 새 sub를
+  쓰고 계정은 지우지 않는다(로컬 DB).
+- 브리지 흉내: `addInitScript`로 문서보다 먼저 `window.AccenturyBridge`에
+  `getContractVersion`·`getAccessToken`·`refreshAccessToken`만 심고 `/?bridge=2&app=1.0&screen=words`로
+  연다. `bridge=2`라 스큐 게이트를 지난다. `refreshAccessToken` 흉내는 토큰을 바꾼 뒤 다음 틱에
+  `window.AccenturyWeb.onAccessTokenRefreshed('ok')`를 부른다. 401 케이스는 가짜 토큰으로 시작해 이 갈래를 탄다.
+- 개발 빌드는 StrictMode라 진입 목록 조회가 두 번 나간다. 그래서 목록 실패 케이스는 「첫 요청만 500」이
+  아니라 [다시 시도] 전까지 전부 500으로 막는다. 401 케이스도 갱신 횟수를 1로 못 박지 않는다.
+
+## 억양 학습 스펙 (KAN-253 4·5단계, KAN-254 4·5단계, 2026-10-12)
+
+`intonation-learning.spec.ts`는 단어 학습 스펙과 같은 판 위에서 돈다 — 기동 인자·로그인 헬퍼·
+StrictMode 주의가 그대로다. 다른 점만 적는다.
+
+- 시드: Flyway V10(`in-gn-2026.10.1`, 코스 14개)이 있어야 한다. A-1 첫 행이 서버 목록의 첫 코스인지,
+  A-2 카드가 서버 상세(seq 정렬)의 첫 카드인지를 Playwright `request`로 같은 응답을 받아 대조한다.
+- 진입: `/?bridge=2&app=1.0&screen=intonation`.
+- 브리지 흉내에 `startIntonationRecording`을 더한다. payload를 `window.__intonationCalls`에 쌓는다.
+  5단계부터 웹이 카드 진입(코스 열기·앞 카드 회신) 때 자동으로 부르므로, 스펙은 버튼을 누르지 않고
+  `__intonationCalls` 길이(코스 열기 1, 회신 뒤 2, 카드 로드 실패 뒤 [다시 시도] 성공 1)와
+  `itemNumber`·`totalItems`까지 대조한다. 회신(`onIntonationRecorded`)은 전부 테스트가 직접 쏜다 — 자동 호출이
+  카드 진입 즉시라 자동 회신이면 일시정지 A-2를 볼 틈이 없어 4단계의 `autoReply` 흉내는 걷었다.
+  A-2에서는 [다시 말해 보기]·[코스 목록으로]를 확인한다.
+- 실 Vite는 StrictMode 개발 빌드라, 자동 호출 1회 단언이 StrictMode 이중 effect 회귀도 함께 잡는다.
+- 사용자 Vite(5173)가 이미 떠 있고 백엔드 CORS에 5174가 없으면 `E2E_BASE_URL=http://localhost:5173`으로 돌린다
+  (5단계 확인 때 8건 3.5초).
+- **실제 녹음은 E2E 밖이다.** 네이티브가 녹음 화면·업로드까지 하고 웹은 성공 회신만 받는다. 마이크·녹음 화면은
+  에뮬레이터 확인으로 덮는다.
+- **실채점 흐름 (KAN-254 4단계).** 업로드는 스펙이 Playwright `request`로 흉내 낸다(`uploadRecording`). 브리지에 심은
+  것과 같은 계정 토큰으로 `POST /v0/learning/intonation-cards/{cardId}/recordings`에 multipart(`audio`=앱 레포
+  `app/src/debug/assets/fake_mic.wav`, `meta`=`{durationMs, clientQuality:{rms,peak,silenceRatio,clipped}}` JSON 파트)를
+  회신마다 새 `Idempotency-Key`로 올리고, 202의 진짜 attemptId를 `replyRecorded`에 싣는다. 그 뒤 채점 조회는 가로채지
+  않는다. KAN-254 5단계부터 카드가 가장 적은 코스(시드 V10에선 레벨 5의 7장)를 연속으로 올린다 — 회신마다 다음 카드
+  녹음 호출(`itemNumber` n)만 확인하고 A-5는 안 거친다. 마지막 회신 뒤 「분석 중이에요」 → 결과 목록에서 「평균 n점」과
+  행마다 `{score}점`을 `request`로 따로 받은 폴링 응답과 대조한다. 1번 행을 열어 A-5 점수·코멘트를 대조하고,
+  [다시 시도]로 같은 카드를 다시 올려 그 카드 대기 → 「지난번보다 …점」이 (2회차 − 1회차)의 `formatDelta`와 같은지,
+  [결과 목록으로]에서 1번 행·평균이 2회차로 바뀌었는지 본다. [코스 목록으로] → A-1 그 코스 행에 「완료」(서버 KAN-268 계산).
+  로컬 AI 스텁 지연 8초에서 이 테스트만 약 41초다(분석은 서버에서 겹쳐 돌아 카드 7장이 직렬 56초보다 짧다, 타임아웃 240초).
+  계정은 테스트마다 새로 만든다(`loginWithFakeIdp`) — 다른 테스트의 시도가 직전 대비·완료 판정에 섞이지 않게.
+- **가짜 AI 엔진의 한계.** 점수는 attemptId 해시라 0~100 아무 값이고, segments를 주지 않아 `pitchFeedback`이 늘 빈
+  배열이다 — 실채점 테스트에서 코멘트는 「높낮이 순서가 경남 화자와 같아요」 갈래만 실제로 지나간다(코멘트 목록 갈래는
+  vitest가 덮는다). 실패는 `ACCENTURY_AI_FAKE_FAIL_ITEM` 한 문항(학습이면 cardId)의 `AUDIO_TOO_QUIET`뿐인데 그 자리는
+  retake 스펙이 쓰고, 오독·분석 실패는 아예 못 낸다.
+- **실패 주입.** 그래서 실패 출구 3종은 채점 조회를 가로채 만든다. 회신 attemptId 끝 번호(`la_e2e_{n}`)로
+  오류 코드(`ANALYSIS_MISREAD`·`AUDIO_TOO_QUIET`·`ANALYSIS_UNSCORABLE` → `FAILED` + `error`)를 골라 카드마다 다른 실패를 낸다.
+  코스를 끝까지 회신하면 결과 목록 행이 전부 「다시 녹음 필요」이고 평균 줄이 없다. 1~3번 행을 차례로 열어 문구·대사 표시
+  (오독·조용함만)·버튼 2개([다시 녹음]·[결과 목록으로])를 보고, 마지막에 [다시 녹음] 뒤 같은 cardId 녹음 호출을 본다.
+  60초 소진(「확인 필요」·[다시 시도])은 벽시계를 태워야 해 E2E에서 빼고 vitest 가짜 타이머가 덮는다.
+- 브라우저 단독(브리지 없음) 케이스는 없다. 학습은 로그인 필수라 브리지 토큰 없이는 목록이 열리지 않아
+  A-2의 비활성 [다시 말해 보기]에 닿지 못한다 — vitest(`IntonationLearningScreens.test.tsx`)가 덮는다.
+- **로그인 분당 상한에 걸릴 수 있다.** 서버 `accentury.auth.rate-limit-per-minute`가 IP당 30이고 이 스펙은
+  한 판에 9번 로그인한다(KAN-254 4단계 뒤). `--repeat-each=3`(27번) 뒤 1분 안에 다른 학습 스펙을 돌리면 `RATE_LIMITED` 429로
+  로그인 헬퍼에서 100ms 만에 실패한다(2026-10-12 실측). 1분 쉬고 다시 돌리면 된다.
+
 ## 실측 수치
 
 전부 macOS + 로컬 스택 기준. `--repeat-each=3` 반복에서의 편차를 함께 적는다.
@@ -345,6 +408,8 @@ v3를 실패시켰을 때 브라우저가 보여주던 화면(KAN-191 이전):
 | 완주 스펙 전체 | 20.7~21.7초 |
 | 실패 갈래 스펙 | 18.5~18.9초 |
 | 마이크 갈래 스펙 | 0.3~0.6초 |
+| 억양 학습 스펙 8건 (KAN-253, 병렬 7 workers) | 4.0초 (`--repeat-each=3` 24건 6.6초) |
+| 억양 학습 스펙 8건 (`--workers=1`) | 6.5초 — 건당 0.2~0.8초, 로그인 없음 케이스만 2.5초(앱 실행 토큰 대기 2초, KAN-255 리뷰 P1) |
 
 분석 대기가 2.3초로 짧은 것은 음성 문항이 업로드 즉시 분석되기 때문이다 — 마지막 어휘 문항을
 푸는 동안 대부분 끝나 있다. 그래도 대기 화면이 반드시 관측되는 이유는 `/complete` 폴링이

@@ -7,7 +7,7 @@ import { VoiceItemScreen } from './VoiceItemScreen'
 import type { VoiceItem } from './testDefinition'
 
 /** 더미 확정본의 음성 문항 모양 그대로 (KAN-102 가이드 곡선 포함) */
-function voiceItem(): VoiceItem {
+function voiceItem(extra: Partial<VoiceItem> = {}): VoiceItem {
   return {
     itemId: 'v1',
     seq: 1,
@@ -15,6 +15,7 @@ function voiceItem(): VoiceItem {
     prompt: '"밥 뭇나?"를 평소 말투로 읽어 주세요',
     maxDurationMs: 10_000,
     guideF0: { unit: 'semitone', frameIntervalMs: 10, values: [0, 1] },
+    ...extra,
   }
 }
 
@@ -30,14 +31,18 @@ function stubBridge() {
 }
 
 function renderScreen(
-  extra: { retest?: RetestControl; probeSession?: () => Promise<'ALIVE' | 'EXPIRED'> } = {},
+  extra: {
+    retest?: RetestControl
+    probeSession?: () => Promise<'ALIVE' | 'EXPIRED'>
+    item?: VoiceItem
+  } = {},
 ) {
   const capture = createFakeCapture()
   const upload = vi.fn(async () => ({ analysisJobId: 'job-1' }))
   const onWebUploaded = vi.fn<(result: ItemResult) => void>()
   const { unmount } = render(
     <VoiceItemScreen
-      item={voiceItem()}
+      item={extra.item ?? voiceItem()}
       itemNumber={1}
       totalItems={7}
       webRecording={{ upload, capture: capture.factory }}
@@ -200,5 +205,105 @@ describe('앱 대기 푸터의 세션 만료 출구 (KAN-237)', () => {
     expect(await screen.findByRole('button', { name: '녹음 화면 다시 열기' })).toBeEnabled()
     expect(screen.queryByText('세션이 만료되었습니다. 테스트를 다시 시작해 주세요.')).not.toBeInTheDocument()
     expect(startVoiceItem).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('말투 감정 전달 (KAN-283)', () => {
+  it('정의에 emotion이 있으면 가공 없이 페이로드에 싣는다', () => {
+    const startVoiceItem = stubBridge()
+    renderScreen({ item: voiceItem({ emotion: '부탁하는' }) })
+
+    expect(JSON.parse(startVoiceItem.mock.calls[0][0]).emotion).toBe('부탁하는')
+  })
+
+  it('빈 문자열도 그대로 넘긴다 — 표시 여부 판정은 네이티브 몫', () => {
+    const startVoiceItem = stubBridge()
+    renderScreen({ item: voiceItem({ emotion: '' }) })
+
+    const payload = JSON.parse(startVoiceItem.mock.calls[0][0])
+    expect('emotion' in payload).toBe(true)
+    expect(payload.emotion).toBe('')
+  })
+
+  it('정의에 emotion이 없으면 키 자체를 보내지 않는다 (KAN-282 전 정의와 같은 페이로드)', () => {
+    const startVoiceItem = stubBridge()
+    renderScreen()
+
+    expect('emotion' in JSON.parse(startVoiceItem.mock.calls[0][0])).toBe(false)
+  })
+})
+
+describe('대기 푸터의 전송 실패 · [다시 보내기] (KAN-288 6단계)', () => {
+  /** 재전송을 아는 앱. 돌려주는 spy가 retryUpload 호출을 받는다 */
+  function stubRetryBridge() {
+    stubBridge()
+    const retryUpload = vi.fn()
+    window.AccenturyBridge = { ...window.AccenturyBridge!, retryUpload }
+    return retryUpload
+  }
+
+  function failUpload(itemId: string, attemptId: string, retryable = true) {
+    act(() => window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId, attemptId, retryable })))
+  }
+
+  it('이 문항의 업로드가 실패하면 대기 문구 대신 「! 전송 실패」 줄과 [다시 보내기]를 세운다', () => {
+    stubRetryBridge()
+    renderScreen()
+
+    failUpload('v1', 'at_1')
+
+    expect(screen.getByRole('status')).toHaveTextContent('!전송 실패')
+    expect(screen.getByText('1번 문항')).toBeInTheDocument()
+    expect(screen.queryByText('잠시만요…')).not.toBeInTheDocument()
+    // 새로 녹음하는 길은 그대로 남는다
+    expect(screen.getByRole('button', { name: '녹음 화면 다시 열기' })).toBeInTheDocument()
+  })
+
+  it('[다시 보내기]는 받은 attemptId 그대로 브리지를 부르고 대기 문구로 돌아간다 — 녹음 화면은 다시 열지 않는다', () => {
+    const retryUpload = stubRetryBridge()
+    const startVoiceItem = window.AccenturyBridge!.startVoiceItem as ReturnType<typeof vi.fn>
+    renderScreen()
+    failUpload('v1', 'at_1')
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 보내기' }))
+
+    expect(retryUpload).toHaveBeenCalledWith('at_1')
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('잠시만요…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+
+    // 또 실패하면 다시 선다
+    failUpload('v1', 'at_1')
+    expect(screen.getByRole('button', { name: '다시 보내기' })).toBeInTheDocument()
+  })
+
+  it('재시도 불가 실패(세션 만료 등)는 [다시 보내기] 없이 「! 전송 실패」와 [녹음 화면 다시 열기]만 둔다 (PR #38 리뷰 P1)', () => {
+    stubRetryBridge()
+    renderScreen()
+
+    failUpload('v1', 'at_1', false)
+
+    expect(screen.getByRole('status')).toHaveTextContent('!전송 실패')
+    expect(screen.queryByText('잠시만요…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '녹음 화면 다시 열기' })).toBeInTheDocument()
+  })
+
+  it('다른 문항의 실패는 버린다', () => {
+    stubRetryBridge()
+    renderScreen()
+
+    failUpload('v2', 'at_2')
+
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+  })
+
+  it('재전송을 모르는 앱(iOS·구버전)에서는 수신 지점을 걸지 않아 예전 화면 그대로다', () => {
+    stubBridge()
+    renderScreen()
+
+    expect(window.AccenturyWeb?.onUploadFailed).toBeUndefined()
+    expect(screen.queryByRole('button', { name: '다시 보내기' })).not.toBeInTheDocument()
+    expect(screen.getByText('잠시만요…')).toBeInTheDocument()
   })
 })

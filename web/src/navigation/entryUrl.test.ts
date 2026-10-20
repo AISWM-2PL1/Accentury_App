@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { buildIntroUrl, buildResultUrl, buildTestUrl } from './entryUrl'
+import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl } from './entryUrl'
 
 /** 앱 진입(bridge·app)과 공유 링크 진입(c)이 한꺼번에 들어 있는 최악의 조합 */
 const ENTRY = '?bridge=1&app=1.0&c=kko_share'
@@ -72,5 +72,26 @@ describe('buildIntroUrl — 인트로 복귀', () => {
 
   it('남을 파라미터가 없으면 물음표도 붙이지 않는다', () => {
     expect(buildIntroUrl('?screen=result&sessionId=s_1')).toBe('')
+  })
+})
+
+describe('buildTabUrl — 하단 탭 화면 (KAN-252)', () => {
+  it.each(['home', 'intonation', 'words', 'translate'] as const)(
+    '화면을 %s로 두고 레벨테스트 값만 지운다 — 앱 표식(bridge·app)과 유입 코드는 남는다',
+    (tab) => {
+      const next = paramsOf(buildTabUrl(`${ENTRY}&screen=result&sessionId=s_1&testVersion=gn-2026.08.1&voiceSet=3`, tab))
+
+      expect(next.get('screen')).toBe(tab)
+      expect(next.get('sessionId')).toBeNull()
+      expect(next.get('testVersion')).toBeNull()
+      expect(next.get('voiceSet')).toBeNull()
+      expect(next.get('bridge')).toBe('1')
+      expect(next.get('app')).toBe('1.0')
+      expect(next.get('c')).toBe('kko_share')
+    },
+  )
+
+  it('빈 쿼리에서도 화면 지정 하나는 남는다', () => {
+    expect(buildTabUrl('', 'words')).toBe('?screen=words')
   })
 })

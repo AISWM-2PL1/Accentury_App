@@ -76,6 +76,12 @@ export interface ResultScreenProps {
    */
   onDownloadClick?: () => void
   /**
+   * [이 등급에 맞는 억양 학습 시작] (KAN-252). **값이 있으면 앱 안 WebView다** — `storePlatform`과 같은
+   * 방식으로 판정은 부모가 하고, 없으면(웹 단독) 버튼 자체를 그리지 않는다. 학습은 로그인 필수라
+   * 웹에서는 갈 곳이 없다 (2026-10-13 사용자 결정: 스토어 URL이 나오면 후속에서 잇는다).
+   */
+  onStartLearning?: () => void
+  /**
    * 결과가 처음으로 도착했다 (KAN-33 계측 자리). **성공한 첫 조회에 한 번만** 부른다 —
    * [다시 시도]로 다시 조회해도, 부모가 리렌더돼도 두 번 가지 않는다.
    *
@@ -118,6 +124,7 @@ export function ResultScreen({
   retest,
   storePlatform,
   onDownloadClick,
+  onStartLearning,
   onResultLoaded,
   onFeedbackOpen,
   onFeedbackSubmitted,
@@ -305,6 +312,12 @@ export function ResultScreen({
           문의가 들어왔을 때 이 두 값이 없으면 어떤 눈금으로 나온 등급인지 되짚을 수 없다
           (KAN-21의 sv-0.4 재보정처럼 정책은 바뀐다).
         */}
+        {/*
+          점수가 무엇에 대한 값인지 카드 바로 아래 한 줄로 밝힌다 (KAN-288 디자인 검수 HIG-B). 숫자만 있으면
+          시험 점수처럼 확정된 판정으로 읽히는데, 실제로는 토박이 녹음 분포와 견준 모델 추정이다.
+        */}
+        <p className="type-caption result-estimate">경남 토박이 녹음과 비교한 AI 추정치예요</p>
+
         <p className="type-caption result-version">
           {result.testVersion} · {result.scoreVersion}
         </p>
@@ -329,19 +342,24 @@ export function ResultScreen({
           <span>친구에게 공유하기</span>
         </Button>
         {/*
-          학습 시작이 아니라 다시 테스트다 — 이 화면에서 나가는 길은 공유와 재응시뿐이다.
-
+          억양 학습으로 가는 글자 버튼 (KAN-252). 주버튼은 공유 그대로다 — 후기와 같은 이유로 테두리를
+          주지 않아 공유·재응시와 무게를 겨루지 않고, 생김새도 후기 버튼(`.result-feedback__open`)을 같이 쓴다.
+          앱 안에서만 선다 ([ResultScreenProps.onStartLearning]).
+        */}
+        {onStartLearning !== undefined && (
+          <Button variant="text" className="result-feedback__open" onClick={onStartLearning}>
+            이 등급에 맞는 억양 학습 시작
+          </Button>
+        )}
+        {/*
           글자만 있던 버튼을 보조 버튼으로 올렸다 (KAN-161 3단계, 시안 v3). 글자 버튼은
           눌리는 것인지가 모양으로 드러나지 않는데, 이 자리는 결과를 다 본 사람이 실제로
           누르는 두 번째 출구다 — 테두리 1.5px 하나가 그 어포던스를 준다. 그림자는 여전히
           주 버튼만 갖는다 (정본 §8: 떠 있는 종이가 둘이면 어느 쪽을 눌러야 할지 흐려진다).
 
-          그 두 번째 출구를 이 화면의 유일한 포인트색 — 점수 링·억양 곡선의 벽돌색 — 으로
-          칠한다 (사용자 결정 2026-09-15). 테두리까지 잉크로 두면 주버튼인 공유와 같은 목소리로
-          서서 재응시가 공유의 그림자처럼 읽히는데, 색이 갈리면 무게를 겨루지 않고도 다른 길이라는
-          것이 보인다. 글자체는 주버튼과 같은 제목 글자체(Jua)로 맞춘다. 값은
-          `.result-retest__button`에 있고, 전 화면 `.btn--secondary`를 고치지 않는 이유도
-          거기 적었다 — 대기·오류 화면의 재응시는 실패 복구용이라 눈에 띄면 안 된다.
+          그 두 번째 출구를 이 화면의 포인트색 — 점수 링·억양 곡선의 벽돌색 — 으로 칠한다 (사용자 결정
+          2026-09-15). 디자인 3(KAN-288)에서 주버튼도 벽돌이 됐지만 2026-10-18 사용자 결정으로 이 채움을
+          유지한다 — "화면당 벽돌 면 하나"의 예외. 값과 이유는 `.result-retest__button`에 있다.
         */}
         <RetestAction retest={retest} variant="secondary" className="result-retest__button" />
 
@@ -415,8 +433,10 @@ export function ResultScreen({
  * `.tier-character__image`의 크림 2px halo다.
  * 라이트에서는 halo가 배경과 같은 크림이라 보이지 않는다 — 지금 넣어 두는 이유는 다크가
  * 오는 날 이 화면을 다시 열지 않기 위해서다.
+ *
+ * 홈 등급 카드(KAN-287)도 이 함수를 쓴다. `className`은 슬롯 높이 클래스만 바꾼다 — 홈은 카드 안이라 `illustration--home`으로 줄인다.
  */
-function TierCharacter({ code, name }: { code: string; name: string }) {
+export function TierCharacter({ code, name, className = 'illustration--result' }: { code: string; name: string; className?: string }) {
   const src = tierImageFor(code)
   // 로딩 실패는 렌더 중에 알 수 없다 — onError가 뜬 뒤에야 폴백으로 바꾼다.
   const [failed, setFailed] = useState(false)
@@ -427,7 +447,7 @@ function TierCharacter({ code, name }: { code: string; name: string }) {
   }, [src])
 
   return (
-    <div className="illustration illustration--result">
+    <div className={`illustration ${className}`}>
       {src !== undefined && !failed ? (
         <img
           className="tier-character__image"

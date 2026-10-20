@@ -5,16 +5,17 @@ import SwiftUI
 /// 이식본이고, 문구와 구조를 1:1로 옮긴다 — 한 테스트 안에서 이 화면과 웹 녹음 패널이 번갈아
 /// 나오므로 문구 한 줄이 달라도 사용자에게는 같은 문항이 다르게 동작하는 것으로 보인다.
 ///
-/// **재생은 없다** (FR-AD-09). 검토 화면의 선택지는 [재녹음]과 [다음] 둘뿐이고, [다음]은 품질
-/// 판정이 통과일 때만 선다 (FR-AD-08).
+/// **레벨테스트에는 재생이 없다** (FR-AD-09). 검토 화면의 선택지는 [재녹음]과 [다음] 둘뿐이고, [다음]은 품질
+/// 판정이 통과일 때만 선다 (FR-AD-08). 억양 학습(KAN-253)만 그 위에 [내 녹음 듣기] 한 줄을 더한다
+/// (``AccenturyCore/RecordingPurpose/offersPlayback``).
 ///
 /// 곡선 좌표를 고르는 자리이기도 하다 (KAN-105) — 어떤 프레임을, 얼마짜리 창으로 볼지는
 /// ``curveCard``가 한 번에 정하고 레인은 픽셀 변환만 한다.
 struct RecordingScreen: View {
 
     let questionText: String
-    let questionIndex: Int
-    let totalQuestions: Int
+    /// 레벨테스트 문항인가 억양 학습 카드인가 (KAN-253). 진행 표기·표준어 줄·[내 녹음 듣기]만 이 값으로 갈린다.
+    let purpose: RecordingPurpose
 
     /// 제출한 시도의 결과가 웹에 닿기를 기다리는 중인가 (KAN-146). 화면을 갈아끼우지 않고 이
     /// 화면 안에서 아래쪽만 바꾼다 — 문항 문구도 곡선도 제자리에 남아, [다음]을 누른 뒤 다음
@@ -54,6 +55,20 @@ struct RecordingScreen: View {
     /// 안 된 자리라 "다시 읽기로 했다"는 사건이 아니고, 웹 `RetakeReason`에도 그 사유가 없다.
     var onRetake: () -> Void = {}
 
+    /// 확인 단계의 [내 녹음 듣기] (KAN-253). ``AccenturyCore/RecordingPurpose/offersPlayback``이 false면 넘겨도 그리지
+    /// 않는다. 재생 자체는 호출자가 한다(``PcmPlayer``) — 이 화면은 버튼과 그 상태만 안다.
+    var onListen: (() -> Void)?
+    var listening: Bool = false
+
+    /// 하단을 호출자가 통째로 그린다 (KAN-253). 억양 학습의 업로드 실패([재시도]·다시 녹음)가 녹음 화면 안에서
+    /// 풀려야 해서 둔 자리다. nil이면 아래 상태별 하단 그대로다.
+    var footerOverride: AnyView?
+
+    /// 앱바 오른쪽 ✕ (KAN-288, 2026-10-18 사용자 결정 — KAN-147이 없앤 출구를 레벨 테스트에 되살림). 확인 창과 그 뒤
+    /// 정리는 호출자가 한다. nil이면 ✕가 없다 — 억양 학습은 자기 ✕를 화면 위에 따로 얹는다(``IntonationCloseChrome``).
+    /// 제출을 기다리는 동안은 비활성이다: 그 시도는 이미 업로드로 넘어가 여기서 되돌릴 것이 없다(안드로이드와 같다).
+    var onClose: (() -> Void)?
+
     /// quality는 검토 상태에만 있고 화면이 넘어가는 즉시 되감기므로 호출자가 나중에 되물을 수
     /// 없다. 브리지 계약(KAN-89)이 qualityStatus를 요구해서 여기서 함께 넘긴다.
     let onNext: (_ attemptId: String, _ durationMs: Int64, _ quality: QualityStatus) -> Void
@@ -65,6 +80,10 @@ struct RecordingScreen: View {
          * 런타임을 오가도 첫 요소가 같은 높이에서 시작한다.
          */
         VStack(spacing: 0) {
+            // 워드마크 앱바 (KAN-288 디자인 3). 8 + 48 + 8 = 예전 위 여백 64와 같아 본문 시작 높이는 그대로고,
+            // 오른쪽 끝(본문 여백 24 안)에 ✕가 선다. 익명 빌드의 설정 톱니는 호출자가 그 왼쪽으로 비켜 세운다.
+            PaperAppBar(onClose: onClose, closeEnabled: !submitting)
+            Spacer().frame(height: Papercut.space2)
             /*
              * 본문은 스크롤하고 하단(타이머·녹음 버튼)은 고정이다. 글꼴을 크게 키운 기기에서
              * 대사 카드와 곡선이 자라면 녹음 버튼이 화면 밖으로 밀리는데, 이 화면에서 버튼이
@@ -77,7 +96,14 @@ struct RecordingScreen: View {
                      * 같은 이유다 — 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를 빼면 같은
                      * 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
                      */
-                    ProgressIndicator(current: questionIndex, total: totalQuestions, note: "음성")
+                    switch purpose {
+                    case let .levelTest(itemNumber, totalItems, _):
+                        ProgressIndicator(current: itemNumber, total: totalItems, note: "음성")
+                    // 억양 학습은 이 화면이 A-2 카드 역할이라 n/N을 여기서 그린다 (KAN-253 5단계). 라벨·종류 표기는
+                    // 웹 A-2(일시정지 화면)의 「카드 진행률」·note 없음과 맞춘다 — 뒤로가기로 오갈 때 줄이 튀지 않게.
+                    case let .intonationLearning(_, itemNumber, totalItems):
+                        ProgressIndicator(current: itemNumber, total: totalItems, label: "카드 진행률")
+                    }
 
                     /*
                      * 대사 카드. 배지·이모지·부연을 걷고 캡션 한 줄 + 대사만 남겼다 (아트보드 ②).
@@ -86,8 +112,12 @@ struct RecordingScreen: View {
                      * 캡션이 한다.
                      */
                     PromptCard(
-                        caption: promptCaption(questionIndex: questionIndex, totalQuestions: totalQuestions),
-                        prompt: questionText
+                        caption: promptCardCaption,
+                        prompt: questionText,
+                        // 억양 학습의 표준어 원문 (KAN-253). nil이면 그 줄을 그리지 않는다 (§12).
+                        supporting: promptCardSupporting,
+                        // 레벨테스트 감정 칩 (KAN-283). 억양 학습은 emotion이 없어 칩도 없다.
+                        cue: promptCardCue
                     )
 
                     curveCard
@@ -103,7 +133,7 @@ struct RecordingScreen: View {
             .frame(maxWidth: .infinity)
             .padding(.top, Papercut.space4)
         }
-        .padding(.top, Papercut.screenPaddingTop)
+        .padding(.top, Papercut.space2)
         .padding(.horizontal, Papercut.space6)
         .padding(.bottom, Papercut.space8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -177,9 +207,30 @@ struct RecordingScreen: View {
 
     // MARK: - 하단
 
+    private var promptCardCaption: String {
+        switch purpose {
+        case let .levelTest(itemNumber, totalItems, _):
+            return promptCaption(questionIndex: itemNumber, totalQuestions: totalItems)
+        case .intonationLearning:
+            return promptCaption(questionIndex: 0, totalQuestions: 0)
+        }
+    }
+
+    private var promptCardSupporting: String? {
+        guard case let .intonationLearning(standard, _, _) = purpose, let standard else { return nil }
+        return "표준어 · \(standard)"
+    }
+
+    private var promptCardCue: String? {
+        guard case let .levelTest(_, _, emotion) = purpose else { return nil }
+        return emotionCue(emotion)
+    }
+
     @ViewBuilder
     private var footer: some View {
-        if submitting {
+        if let footerOverride {
+            footerOverride
+        } else if submitting {
             /*
              * 결과를 기다리는 동안의 하단. 버튼 자리를 문구 하나로 바꿔 "눌린 건 알아들었고 지금
              * 처리 중"만 알린다 — 진행률이나 취소를 주지 않는 이유는 이 구간이 보통 1초 안쪽이고
@@ -288,6 +339,13 @@ struct RecordingScreen: View {
             caption(String(format: "녹음 길이 %.1f초", Double(review.durationMs) / 1000.0))
 
             Spacer().frame(height: Papercut.space2)
+
+            // 억양 학습에만 (KAN-253). 재녹음·다음 줄은 레벨테스트와 같게 두고 그 위에 보조 버튼 한 줄을 더한다.
+            if purpose.offersPlayback, let onListen {
+                AccenturyButton(text: listening ? "듣기 멈추기" : "내 녹음 듣기", variant: .secondary, fillsWidth: true) {
+                    onListen()
+                }
+            }
 
             /*
              * 둘이 같은 폭을 갖는다 (웹 `.record-actions`와 같은 규칙). 무게는 이미 변형이

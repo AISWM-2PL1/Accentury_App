@@ -249,4 +249,132 @@ final class WebConfigTests: XCTestCase {
         XCTAssertNil(externalUrlToOpen("not a url"))
     }
 
+    // MARK: - buildWebUrl: 홈 시작 (KAN-252)
+
+    /// 홈 시작 URL은 스큐 파라미터 뒤에 screen home을 잇고 계측 코드는 맨 뒤다.
+    func testHomeUrlAppendsScreenHomeAfterSkewParamsAndCampaignLast() {
+        XCTAssertEqual(
+            "https://web.example.com?bridge=\(bridgeContractVersion)&app=1.0&screen=home",
+            buildWebUrl(base: "https://web.example.com", appVersionName: "1.0", home: true)
+        )
+        XCTAssertEqual(
+            "https://web.example.com?bridge=\(bridgeContractVersion)&app=1.0&screen=home&c=abc",
+            buildWebUrl(base: "https://web.example.com", appVersionName: "1.0", campaignToken: "abc", home: true)
+        )
+    }
+
+    /// testEntry가 있으면 home은 무시되고 테스트 진입 URL 그대로다.
+    func testHomeIsIgnoredWhenTestEntryIsPresent() {
+        let entry = TestEntry(testVersion: "gn-1", voiceSet: 2, sessionId: "s-1")
+        XCTAssertEqual(
+            buildWebUrl(base: "https://web.example.com", appVersionName: "1.0", testEntry: entry),
+            buildWebUrl(base: "https://web.example.com", appVersionName: "1.0", testEntry: entry, home: true)
+        )
+    }
+
+    // MARK: - startsAtHome: 첫 문서 홈 판정 (KAN-252, PR #33 리뷰 P1)
+
+    func test일반_실행은_홈이고_코드_없는_링크와_무효_코드_링크는_인트로다() {
+        let allowed: Set<String> = ["https://accentury.app"]
+        func entered(_ url: String?) -> Bool { parseAppLink(url, allowedOrigins: allowed) != nil }
+
+        XCTAssertTrue(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered(nil)))
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered("https://accentury.app/t")))
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered("https://accentury.app/t?c=kko%20share")))
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: false, appLinkEntered: entered("https://accentury.app/t?c=kko_share")))
+    }
+
+    func test재응시와_익명_빌드는_홈이_아니다() {
+        XCTAssertFalse(startsAtHome(tabBarEntry: true, introRequested: true, appLinkEntered: false))
+        XCTAssertFalse(startsAtHome(tabBarEntry: false, introRequested: false, appLinkEntered: false))
+    }
+
+    // MARK: - webBackTarget: 뒤로가기 판정 (KAN-252)
+
+    private let app = "https://web.example.com/?bridge=2&app=1.0"
+    private var home: String { "\(app)&screen=home" }
+
+    /// 홈에서의 뒤로는 아무 일도 없다.
+    func testBackFromHomeDoesNothing() {
+        XCTAssertNil(webBackTarget(currentUrl: home, startRequested: false))
+    }
+
+    /// 탭 화면의 뒤로는 홈 문서다.
+    func testBackFromTabScreensGoesHome() {
+        for screen in ["intonation", "words", "translate"] {
+            XCTAssertEqual(home, webBackTarget(currentUrl: "\(app)&screen=\(screen)", startRequested: false), screen)
+        }
+    }
+
+    /// 시작을 누르기 전의 인트로는 홈으로, 누른 뒤는 아무 일도 없다.
+    func testIntroGoesHomeOnlyBeforeStart() {
+        XCTAssertEqual(home, webBackTarget(currentUrl: app, startRequested: false))
+        XCTAssertNil(webBackTarget(currentUrl: app, startRequested: true))
+    }
+
+    /// 테스트 진행과 결과는 그대로 둔다.
+    func testBackDuringTestAndResultDoesNothing() {
+        XCTAssertNil(webBackTarget(
+            currentUrl: "\(app)&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1", startRequested: true
+        ))
+        XCTAssertNil(webBackTarget(currentUrl: "\(app)&screen=result&sessionId=s-1", startRequested: true))
+        XCTAssertNil(webBackTarget(currentUrl: "\(app)&screen=result&sessionId=s-1", startRequested: false))
+    }
+
+    /// 홈으로 갈 때 계측 코드는 남기고 레벨테스트 값과 fragment는 지운다.
+    func testBackKeepsCampaignAndDropsTestValues() {
+        XCTAssertEqual(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=home",
+            webBackTarget(currentUrl: "\(app)&screen=words&sessionId=s-1&c=abc#x", startRequested: false)
+        )
+    }
+
+    /// 문서가 아직 없으면 아무 일도 없다.
+    func testBackWithoutDocumentDoesNothing() {
+        XCTAssertNil(webBackTarget(currentUrl: nil, startRequested: false))
+    }
+
+    // MARK: - webTabUrl: 탭 문서 조립 — 억양 녹음 ✕의 목적지 (KAN-252, 2026-10-13)
+
+    /// 탭 문서는 screen만 바꾼다.
+    func testTabUrlReplacesScreen() {
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: "\(app)&screen=intonation", screen: "intonation"))
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: home, screen: "intonation"))
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: app, screen: "intonation"))
+    }
+
+    /// 탭 문서는 레벨테스트 값을 지우고 계측 코드는 남기며 fragment를 뗀다.
+    func testTabUrlKeepsCampaignAndDropsTestValues() {
+        XCTAssertEqual(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=intonation",
+            webTabUrl(
+                currentUrl: "\(app)&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1&c=abc#x", screen: "intonation"
+            )
+        )
+    }
+
+    /// 문서가 아직 없으면 탭 문서도 없다.
+    func testTabUrlWithoutDocumentIsNil() {
+        XCTAssertNil(webTabUrl(currentUrl: nil, screen: "intonation"))
+    }
+
+    // MARK: - showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13)
+
+    /// 톱니는 인트로와 테스트 진행에서만 선다.
+    func testGearShowsOnlyOnIntroAndTest() {
+        XCTAssertTrue(showsSettingsGear(app))
+        XCTAssertTrue(showsSettingsGear("\(app)&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1"))
+    }
+
+    /// 탭 화면과 결과에서는 톱니가 없다.
+    func testGearHiddenOnTabScreensAndResult() {
+        for screen in ["home", "intonation", "words", "translate", "result"] {
+            XCTAssertFalse(showsSettingsGear("\(app)&screen=\(screen)"), screen)
+        }
+    }
+
+    /// 문서가 아직 없으면 톱니가 없다.
+    func testGearHiddenWithoutDocument() {
+        XCTAssertFalse(showsSettingsGear(nil))
+    }
 }

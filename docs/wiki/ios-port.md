@@ -114,8 +114,30 @@ allowlist를 통과한 문서뿐이고, `force`는 그 문을 열지 못한다. 
 | 6b | `beginBackgroundTask` (상한 ≈30초) | 안드로이드는 프로세스가 살아 있으면 코루틴이 계속 돌지만 iOS는 백그라운드 몇 초 뒤 정지한다. `URLSessionConfiguration.background`는 **쓰지 않는다** — 본문을 파일로 요구해 녹음이 디스크에 남는다 (FR-DP-02 위반) |
 | 7b | 밴드를 그리지 않는다 | 안드로이드와 같은 판단 |
 | 7b | `FilePcmSource` 심볼이 Release에도 있다 | Core가 한 모듈이라 타입 자체는 링크된다. **결선이 없다**: 읽는 코드가 `#if DEBUG`이고, `FAKE_MIC_ASSET` 키가 `Info-Release.plist`에 없고, `DebugResources/`가 릴리스 번들에서 빠진다 |
+| 5b·KAN-252 | 응시 저장은 `UserDefaults`, 이어 갈지는 `@SceneStorage` 표시가 정한다 | 아래 「새 실행은 홈부터」 |
 | ~~5b~~ | ~~카카오 SDK 없음~~ | KAN-180에서 해소 — 아래 §10 참고 |
 | ~~7·8~~ | ~~Jua 대신 시스템 서체~~ | KAN-178에서 해소 — 아래 참고 |
+
+### 새 실행은 홈부터 (KAN-252 4단계 보완, 2026-10-13)
+
+안드로이드 `TestFlow`의 시작 게이트 칸·`introRequested`·세션·흐름은 전부 `rememberSaveable`이다 — **시스템이 죽인 프로세스를
+되살릴 때만** 돌아오고, 사용자가 앱을 새로 실행하면 비어 있어 홈(`screen=home`)부터 연다. 업로드는 `UploadViewModel`(메모리)이다.
+iOS는 5b단계부터 이 값들을 `UserDefaults`에 적어 그 구분이 없었고, 테스트를 마치거나 도중에 앱을 끈 뒤 다시 열면 지난
+테스트·결과 URL이 열렸다(지라 AC 「로그인 뒤 첫 화면이 홈」 위반).
+
+| 값 | Android | iOS (보완 뒤) |
+|---|---|---|
+| `startRequested`·`micPassed`·`voiceCenterHz`·`introRequested` | `rememberSaveable` | `UserDefaults`, 새 실행이면 지움 |
+| 세션(`SessionGateController`)·흐름(`TestFlowController`) | `rememberSaveable`(Saver) | `UserDefaults`(JSON), 새 실행이면 지움 |
+| `campaignToken` | OS가 VIEW Intent를 다시 배달 | `UserDefaults`, 새 실행이면 지움(링크 실행이면 `onContinueUserActivity`가 다시 채움) |
+| 업로드 | `UploadViewModel`(메모리) | `UploadModel`(메모리) |
+
+"새 실행인가"는 `@SceneStorage("TestFlowView.restorable")` 표시가 정한다. `TestFlowView`의 호출자(로그인 화면·`AnonymousFlowView`)가
+처음 나타날 때 true로 세우고, 모델은 `init(restoresSavedState:)`가 false면 저장분을 읽기 전에 `clearSavedState`로 지운다. 장면 저장소는
+시스템 종료 뒤 장면 복원에서 돌아오고, 사용자가 장면을 버리면(앱 전환기에서 쓸어 올림) 함께 버려진다 — `rememberSaveable` 봉투와 같은
+수명이다. 업데이트 전 빌드가 남긴 키도 업데이트 뒤 첫 실행(표시 없음)에서 지워진다. 값 자체를 장면 저장소로 옮기지 않은 이유는
+둘이다: 세션 토큰이 들어 있는데 애플이 장면 저장소에 민감한 값을 두지 말라고 하고, 장면 저장소는 `body`에서만 읽혀 `@StateObject`
+모델의 `init`에 직접 닿지 않는다.
 
 ### 서체 (KAN-178에서 해소)
 
@@ -383,6 +405,7 @@ Refresh를 죽인다.
 순간 `TestFlowModel.clearSavedState()`로 저장해 둔 시작 게이트·세션을 지운다 — 다시 들어오면 인트로부터다.
 안드로이드는 TestFlow 컴포저블이 컴포지션에서 내려가며 저장 상태가 함께 버려져 따로 지우는 코드가 없다.
 iOS는 진행 저장이 `UserDefaults`에 남아(`ios/README.md` 「진행 저장이 남는다」) 명시적으로 지워야 같은 결과가 된다.
+새 실행에서 지우는 것은 별도 장치다(§3 「새 실행은 홈부터」).
 세션 생성 403 `AUTH_PROFILE_INCOMPLETE`에서는 시작 게이트를 먼저 되감고(`TestFlowModel`) 추가 정보로 넘긴다 —
 위 삭제가 있으니 되감기는 이중 안전장치다.
 

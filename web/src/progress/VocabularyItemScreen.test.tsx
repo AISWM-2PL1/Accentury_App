@@ -61,7 +61,7 @@ describe('표시', () => {
     expect(group).toBeInTheDocument()
 
     // getAllByRole은 DOM 순서로 돌려주므로 이 대조가 곧 "서버 정의 순서 유지" 검증이다
-    const labels = screen.getAllByRole('radio').map((radio) => radio.closest('label')?.textContent)
+    const labels = screen.getAllByRole('radio').map((radio) => radio.closest('label')?.querySelector('.choice__text')?.textContent)
     expect(labels).toEqual(['부추', '미나리', '쑥갓', '시금치'])
   })
 
@@ -78,9 +78,10 @@ describe('표시', () => {
      * 카드 캡션은 KAN-161 3단계에서 유형 배지("📝 단어 문항")에서 "7 / 7 · 이 말은 무슨
      * 뜻일까요?"로 바뀌었다 - 자리와 할 일을 말하는 줄이라 정답과 무관한 것은 그대로다.
      * 고른 것의 ✓도 같은 단계에서 글자에서 SVG로 바뀌어 텍스트에 남지 않는다.
+     * 선택지 앞 1~4는 디자인 3의 번호 상자다 (KAN-288) — 자리 번호라 정오와 무관하다.
      */
     expect(document.body.textContent).toBe(
-      "7 / 7 · 이 말은 무슨 뜻일까요?'정구지'는 표준어로?부추미나리쑥갓시금치다음",
+      "7 / 7 · 이 말은 무슨 뜻일까요?'정구지'는 표준어로?1부추2미나리3쑥갓4시금치다음",
     )
   })
 })
@@ -170,6 +171,18 @@ describe('제출 수명주기', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '제출 중…' }))
     expect(submitSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('제출 성공 뒤에도 정오가 보이지 않는다 — 정답·오답 문구도, 정답 표시 클래스도 없다 (KAN-13, KAN-255)', async () => {
+    // ChoiceList를 단어 학습(정답 공개)과 나눠 쓰게 된 뒤에도 레벨테스트 쪽은 정답 무표시여야 한다
+    const { onSubmitted } = renderScreen()
+
+    choose('부추')
+    pressNext()
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1))
+
+    expect(document.body.textContent).not.toMatch(/정답|오답/)
+    expect(document.querySelector('[class*="correct"], [class*="wrong"]')).toBeNull()
   })
 
   it('제출 중에는 보기와 버튼이 잠기고 "제출 중…"이 보인다', async () => {

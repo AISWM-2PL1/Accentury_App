@@ -177,6 +177,33 @@ final class AuthApiTests: XCTestCase {
         guard case .success = result else { return XCTFail("\(result)") }
     }
 
+    // 회원 탈퇴 (KAN-251). 안드로이드 `AuthApiTest`의 같은 이름 테스트와 짝이고, 애플 코드 본문은 iOS에만 있다.
+
+    func test회원_탈퇴는_Bearer를_싣고_본문_없이_POST하며_204를_성공으로_본다() async throws {
+        MockURLProtocol.respond(status: 204, body: "")
+
+        let result = await api.withdraw(appleAuthorizationCode: nil)
+
+        let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
+        XCTAssertEqual("POST", recorded.method)
+        XCTAssertEqual("/v0/users/me/withdrawal", recorded.url?.path)
+        XCTAssertEqual("Bearer jwt_a", recorded.header("Authorization"))
+        XCTAssertTrue(recorded.body.isEmpty)
+        XCTAssertNil(recorded.header("Content-Type"))
+        guard case .success = result else { return XCTFail("\(result)") }
+    }
+
+    func test애플_계정_탈퇴는_재인증_코드를_본문에_싣는다() async throws {
+        MockURLProtocol.respond(status: 204, body: "")
+
+        _ = await api.withdraw(appleAuthorizationCode: "c_apple")
+
+        let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
+        XCTAssertEqual("/v0/users/me/withdrawal", recorded.url?.path)
+        XCTAssertEqual("application/json", recorded.header("Content-Type"))
+        XCTAssertEqual(#"{"appleAuthorizationCode":"c_apple"}"#, try lastBody().raw)
+    }
+
     // 음성 저장 선택 동의 (KAN-270). 안드로이드 `AuthApiTest`의 같은 이름 테스트와 짝이다.
 
     func test내_정보의_음성_저장_동의를_읽는다_동의_미동의_키_없음() async {

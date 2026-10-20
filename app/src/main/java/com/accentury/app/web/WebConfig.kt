@@ -42,12 +42,15 @@ data class TestEntry(val testVersion: String, val voiceSet: Int, val sessionId: 
  *   `c`로 딸려 보내 웹이 만드는 첫 세션에 같은 코드가 실리게 한다 — 웹은 진입 쿼리의 `?c=`를
  *   `session/campaign.ts`로 읽고 `navigation/entryUrl.ts`가 화면을 옮겨도 그 값을 보존한다.
  *   앱이 값을 해석하지 않고 그대로 넘기는 자리라, 링크에서 실려 온 유입 경로가 세션까지 이어진다.
+ * @param home 인트로 대신 홈 탭(`screen=home`)으로 연다 (KAN-252). 로그인 빌드의 첫 문서만 켠다 — 재응시·앱 링크처럼
+ *   인트로로 가야 하는 경로는 호출자가 끈다. [testEntry]가 있으면 무시한다: 테스트 진입 URL은 그대로여야 한다
  */
 fun buildWebUrl(
     base: String,
     appVersionName: String,
     testEntry: TestEntry? = null,
     campaignToken: String? = null,
+    home: Boolean = false,
 ): String {
     val separator = if ('?' in base) '&' else '?'
     val query = StringBuilder("bridge=$BRIDGE_CONTRACT_VERSION&app=${encodeQueryValue(appVersionName)}")
@@ -56,11 +59,85 @@ fun buildWebUrl(
         query.append("&testVersion=${encodeQueryValue(testEntry.testVersion)}")
         query.append("&voiceSet=${testEntry.voiceSet}")
         query.append("&sessionId=${encodeQueryValue(testEntry.sessionId)}")
+    } else if (home) {
+        query.append("&screen=$HOME_SCREEN")
     }
     if (campaignToken != null) {
         query.append("&c=${encodeQueryValue(campaignToken)}")
     }
     return "$base$separator$query"
+}
+
+/** 홈 탭의 `screen` 값 (KAN-252). 웹 `TabScreen`의 'home'과 같다. */
+private const val HOME_SCREEN = "home"
+
+/** 뒤로가기가 홈으로 돌리는 탭 화면 (KAN-252). 홈 자신은 빠진다 — 홈에서의 뒤로는 앱 종료다. */
+private val BACK_TO_HOME_SCREENS = setOf("intonation", "words", "translate")
+
+/** 홈 문서로 옮길 때 지우는 레벨테스트 값. 웹 `buildTabUrl`이 지우는 것과 같다. */
+private val TEST_QUERY_KEYS = setOf("sessionId", "testVersion", "voiceSet")
+
+/**
+ * 첫 문서를 홈(`screen=home`)으로 열까 (KAN-252). 세 조건을 다 넘어야 홈이다 — 탭 바 빌드(로그인 빌드)이고, 재응시가 인트로를
+ * 요청하지 않았고, **앱 링크로 들어오지 않았다.** 앱 링크는 계측 코드가 없거나 무효여도(campaignToken null) 링크로 친다 —
+ * 공유 링크를 누른 사람은 테스트를 하러 온 것이라 예전처럼 인트로다 (PR #33 리뷰 P1). 그래서 campaignToken이 아니라
+ * 링크를 인정했다는 사실([parseAppLink]가 null이 아님)을 본다.
+ *
+ * 앱이 떠 있을 때 링크를 받아도 같은 판정이다 — 값이 바뀌면 진입 URL 문자열이 바뀌어 WebViewHost가 다시 로드하고 인트로가
+ * 선다(코드가 바뀐 링크의 KAN-32 리로드와 같은 결과). LaunchedEffect로 introRequested를 세우지 않고 파생식으로 두는 이유는
+ * 이중 로드다 — 첫 컴포지션에 홈을 한 번 로드한 뒤 인트로로 다시 로드하게 된다.
+ */
+fun startsAtHome(tabBarEntry: Boolean, introRequested: Boolean, appLinkEntered: Boolean): Boolean =
+    tabBarEntry && !introRequested && !appLinkEntered
+
+/**
+ * 시스템 뒤로가기의 목적지 (KAN-252, 로그인 빌드). 홈 문서 URL이면 그리로 옮기고, null이면 가로채지 않는다 —
+ * 가로채지 않으면 예전처럼 앱이 닫힌다.
+ *
+ * 홈으로 돌리는 것은 **탭 화면**(억양·단어·번역기)과 **시작을 누르기 전의 인트로**뿐이다. 홈 자신·테스트 진행·결과는
+ * 그대로 앱 종료다 — 테스트 중 시스템 뒤로가기로 응시가 끊기지 않게 한 KAN-191·KAN-147 규칙을 건드리지 않는다.
+ * 인트로는 `screen`이 없는 문서인데, [startRequested]가 서면 시작 게이트(권한·점검·세션)가 진행 중이라 마찬가지로 둔다.
+ *
+ * 목적지는 웹 탭 이동(`buildTabUrl`)과 같은 결과다 — `screen`만 home으로 바꾸고 레벨테스트 값을 지우며 나머지(`bridge`·
+ * `app`·`c`)는 보존한다. 판정을 URL 문자열 → 행동의 순수 함수로 둔 이유는 Compose 밖 JVM에서 표로 검증하려는 것이다.
+ */
+fun webBackTarget(currentUrl: String?, startRequested: Boolean): String? {
+    if (currentUrl == null) return null
+    val withoutFragment = currentUrl.substringBefore('#')
+    val base = withoutFragment.substringBefore('?')
+    val params = withoutFragment.substringAfter('?', "").split('&').filter { it.isNotEmpty() }
+    val screen = params.firstOrNull { it.substringBefore('=') == "screen" }?.substringAfter('=', "")
+    val goHome = if (screen == null) !startRequested else screen in BACK_TO_HOME_SCREENS
+    if (!goHome) return null
+    return webTabUrl(currentUrl, HOME_SCREEN)
+}
+
+/**
+ * 현재 문서를 탭 [screen] 문서로 옮긴 URL (KAN-252). 웹 탭 이동(`buildTabUrl`)과 같은 쿼리 규칙이다 — `screen`만 바꾸고
+ * 레벨테스트 값을 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다. [webBackTarget](홈)과 억양 녹음 ✕
+ * (억양 탭, 2026-10-13 사용자 결정)가 같이 쓴다. 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
+ */
+fun webTabUrl(currentUrl: String?, screen: String): String? {
+    if (currentUrl == null) return null
+    val withoutFragment = currentUrl.substringBefore('#')
+    val base = withoutFragment.substringBefore('?')
+    val params = withoutFragment.substringAfter('?', "").split('&').filter { it.isNotEmpty() }
+    val kept = params.filter { it.substringBefore('=').let { key -> key != "screen" && key !in TEST_QUERY_KEYS } }
+    return "$base?" + (kept + "screen=$screen").joinToString("&")
+}
+
+/**
+ * 로그인 빌드에서 WebView 위 설정 톱니를 세울 문서인가 (KAN-252, 2026-10-13 사용자 결정). 레벨 테스트 웹 화면 —
+ * 인트로(`screen` 없음)와 진행(`screen=test`) — 만 true다. 이 화면들엔 탭 바가 없어 설정으로 갈 길이 톱니뿐이다.
+ * 탭 화면(home·intonation·words·translate)과 결과(`screen=result`)는 탭 바의 [설정]이 있어 false다.
+ * 문서를 아직 모르면(null) false — 로그인 빌드의 첫 문서는 홈이라 톱니가 없는 쪽이 맞다.
+ * 녹음 오버레이·시작 게이트처럼 네이티브가 WebView를 덮는 경우는 URL로 알 수 없어 호출자(`TestFlow`)가 따로 거른다.
+ */
+fun showsSettingsGear(currentUrl: String?): Boolean {
+    if (currentUrl == null) return false
+    val params = currentUrl.substringBefore('#').substringAfter('?', "").split('&')
+    val screen = params.firstOrNull { it.substringBefore('=') == "screen" }?.substringAfter('=', "")
+    return screen == null || screen == "test"
 }
 
 /**

@@ -5,19 +5,31 @@ import { track } from './analytics/track'
 import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
+import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
+import { attendanceWeek, fetchLearningHome, formatKstDate, type HomeStreak, type LearningHome } from './learning/homeApi'
+import { WordLearningRoute } from './learning/WordLearningScreens'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
 import { START_FAILED_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE } from './intro/introText'
-import { getSessionToken, isBridgeCompatible, isStandaloneWeb } from './bridge/bridge'
-import { buildIntroUrl, buildResultUrl, buildTestUrl } from './navigation/entryUrl'
+import {
+  getAccessToken,
+  getSessionToken,
+  isBridgeCompatible,
+  isStandaloneWeb,
+  requestMicPermission,
+  waitForAccessToken,
+} from './bridge/bridge'
+import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, type TabScreen } from './navigation/entryUrl'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
 import type { RegionCode } from './region/regions'
 import { RegionSelectScreen } from './region/RegionSelectScreen'
-import { ResultScreen } from './result/ResultScreen'
+import { ResultScreen, TierCharacter } from './result/ResultScreen'
+import { Button, TabBar } from './ui'
 import { useRetest } from './result/useRetest'
 import { readCampaignToken, sanitizeCampaignToken } from './session/campaign'
 import { shareResult } from './share/shareResult'
+import { TranslatorScreen } from './translator/TranslatorScreen'
 import { VoiceCheckScreen } from './voicecheck/VoiceCheckScreen'
 import {
   createWebSession,
@@ -166,6 +178,63 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
     return (
       <ResultRoute sessionId={params.get('sessionId') ?? ''} standalone={standalone} navigate={navigate} />
     )
+  }
+
+  /*
+   * 하단 탭 바 (KAN-252, 2026-10-13 사용자 결정). **앱 안 + 계정 로그인 상태에서만** 선다([useAccountTabs]) — 웹 단독
+   * (브라우저)은 공유 링크로 들어와 테스트 한 판을 하는 실행이고, 익명 빌드는 학습(로그인 필수)으로 갈 곳이 없다.
+   * 웹 단독이면 아예 그리지 않는다. 어느 화면에서 그릴지(목록 단계만)는 각 화면이 정한다.
+   */
+  const tabBar = (current?: TabScreen) =>
+    standalone ? undefined : <AccountTabBar current={current} navigate={navigate} />
+
+  /*
+   * `?screen=home` — 앱 홈 (KAN-252). 앱이 처음 여는 화면이고, 레벨 테스트로 들어가는 버튼 하나뿐이다.
+   * 누르면 인트로 [시작하기]와 같은 브리지 `requestMicPermission`을 부른다 — 홈이 이미 테스트 진입 화면이라
+   * 인트로를 한 번 더 거치면 중복이다(2026-10-13 사용자 결정). 이후 권한·목소리 점검·세션 생성·테스트 문서
+   * 재로드는 네이티브가 한다. 브리지가 받지 않는 구버전 앱만 예전처럼 인트로로 보낸다. 웹 단독 시작 게이트는
+   * 옮기지 않는다 — 홈은 앱 안에서만 쓰인다. 응시 시작 계측(`referral_test_started`)은 테스트 문서 진입에서
+   * 세므로 여기서 따로 보내지 않는다.
+   * 테스트 후면 등급 카드·[억양 학습 시작]을, 응답에 `streak`가 있으면 연속 출석을 더한다(KAN-287, 2026-10-15 팀 결정 —
+   * ux-ui 「홈 카드 (KAN-287)」 절). 판정은 `GET /v0/learning/home` 응답이고 [HomeScreen]이 조회한다.
+   */
+  if (params.get('screen') === 'home') {
+    return (
+      <>
+        <HomeScreen
+          apiBase={API_BASE}
+          onStartTest={() => requestMicPermission() || goToIntro(navigate)}
+          onStartLearning={() => goToTab('intonation', navigate)}
+        />
+        {tabBar('home')}
+      </>
+    )
+  }
+
+  /*
+   * `?screen=translate` — 사투리 번역기 탭 (KAN-252 진입, KAN-256 화면). 입력·대기·결과·오류를 문서 재로드
+   * 없이 화면 안에서 바꾼다(`translator/TranslatorScreen`). 탭 바는 모든 상태에서 서고, 계정 토큰이 없으면
+   * `useAccountTabs`가 그리지 않는다 — 그때 [바꾸기]는 로그인 안내로 끝난다(ux-ui 「사투리 번역기 화면」 절).
+   */
+  if (params.get('screen') === 'translate') {
+    return <TranslatorScreen apiBase={API_BASE} tabBar={tabBar('translate')} />
+  }
+
+  /*
+   * `?screen=words` — 단어 학습(KAN-255). 진입 쿼리는 이것 하나이고 W-1~W-5는 문서를 다시 로드하지
+   * 않고 라우트 안의 상태로 넘긴다 (세트·시도 id가 메모리에 있어야 하고, 학습은 이탈 허용이라 URL
+   * 복원이 필요 없다 — `learning/useWordLearning` 머리 주석). 탭 바는 W-1 목록 단계에서만 선다.
+   */
+  if (params.get('screen') === 'words') {
+    return <WordLearningRoute apiBase={API_BASE} tabBar={tabBar('words')} />
+  }
+
+  /*
+   * `?screen=intonation` — 억양 학습(KAN-253). 단어 학습과 같은 이유로 A-1·A-2는 라우트 안의 상태로
+   * 넘긴다 (`learning/useIntonationLearning` 머리 주석). 탭 바도 같은 규칙으로 A-1 목록 단계에서만 선다.
+   */
+  if (params.get('screen') === 'intonation') {
+    return <IntonationLearningRoute apiBase={API_BASE} tabBar={tabBar('intonation')} />
   }
 
   return <IntroRoute standalone={standalone} navigate={navigate} voiceCheckCapture={voiceCheckCapture} />
@@ -550,88 +619,105 @@ function ResultRoute({
     ? detectStorePlatform(navigator.userAgent, navigator.maxTouchPoints)
     : undefined
 
+  /*
+   * [이 등급에 맞는 억양 학습 시작] (KAN-252)은 앱 안 + 계정 로그인 상태에서만 준다([useAccountTabs], 탭 바와 같은 판정 —
+   * 익명 빌드에서는 학습이 로그인 안내로 막힌다, PR #33 리뷰 P1) — `storePlatform`의 반대편이다. 학습은
+   * 로그인 필수(2026-10-04)라 웹 단독 실행에서 A-1을 열면 로그인 안내에서 막힌다. 웹에서는 스토어 URL이
+   * 나오면 그쪽으로 잇는다 (2026-10-13 사용자 결정, 후속).
+   */
+  const accountTabs = useAccountTabs()
+  const onStartLearning = standalone || !accountTabs ? undefined : () => goToTab('intonation', navigate)
+
+  /*
+   * 결과 화면은 앱 안이면 탭 바를 세운다 (KAN-252). 테스트가 끝난 자리라 진행 중 이탈 규칙(KAN-147)에 걸리지
+   * 않고, 앱에서는 여기서 다른 탭으로 가는 길이 있어야 한다. 어느 탭도 강조하지 않는다 — 결과는 탭 화면이 아니다.
+   */
   return (
-    <ResultScreen
-      apiBase={API_BASE}
-      sessionId={sessionId}
-      /*
-       * 토큰은 실행에 따라 출처가 갈린다. 앱에서는 브리지, 웹 단독 실행에서는 이 탭의
-       * 세션 저장소다 (KAN-31). 공통점이 요점이다 — **어느 쪽도 URL에서 읽지 않는다.**
-       * 쿼리에 실으면 세션 토큰이 히스토리·액세스 로그·Referer에 남는다.
-       *
-       * 둘 다 없으면 빈 문자열이라 조회 전에 막히고 사용자용 문구가 뜬다.
-       *
-       * 렌더 시점에 읽는 이유: 결과 조회는 이 화면에 들어올 때 한 번뿐이라, 진행 화면처럼
-       * 제출 때마다 다시 읽을 필요가 없다.
-       */
-      sessionToken={standalone ? getWebSessionToken() : (getSessionToken() ?? '')}
-      /*
-       * [친구에게 공유하기] (KAN-30 1·3단계). 통로 선택은 `share/shareResult`가 소유한다 —
-       * 앱 안이면 브리지, 브라우저면 공유 시트, 둘 다 없으면 링크 복사다.
-       *
-       * 공유 클릭 계측 (FR-SH-06). 공유를 **먼저** 보내고 그 반환값으로 센다 — 어느 통로로
-       * 갔는지는 통로를 고른 뒤에야 알 수 있는 값이고, 계측 때문에 공유가 한 틱이라도 늦으면
-       * 안 된다 ([shareResult]도 [track]도 던지지 않으므로 순서만 남는 이야기다).
-       *
-       * **실행을 가리지 않는다.** 예전에는 앱 안의 같은 탭을 네이티브가 `share_tapped`로 따로
-       * 셌는데, 그러면 한 사람의 같은 행동이 플랫폼에 따라 다른 이름으로 쌓여 공유 퍼널이 둘로
-       * 갈렸다 (Codex 검증 지적, AC 8). 지금은 **클릭은 여기 하나가 세고** 네이티브는 통로가
-       * 실제로 열린 것(`share_launched`)만 센다 — 둘의 차이로 "눌렀는데 아무 데도 못 간 비율"은
-       * 그대로 나오면서 이름이 하나 줄었다.
-       *
-       * 앱 안에서는 `channel`이 `bridge`다. 그 값이 곧 "네이티브가 통로를 고르러 갔다"는 뜻이고,
-       * 어느 통로였는지는 네이티브의 `share_launched`가 말한다.
-       */
-      onShare={(result) => {
-        const channel = shareResult(result.share)
-        track({ name: 'share_clicked', campaign: trackedCampaign(), channel })
-      }}
-      retest={retest}
-      /*
-       * 결과 도착 계측 (KAN-33). 두 이벤트가 같은 순간에 나가지만 세는 것이 다르다 —
-       * `result_viewed`는 퍼널의 마지막 지점(공유 링크를 탄 사람이 여기까지 왔다)이고,
-       * `tier_assigned`는 등급 분포 편향(KAN-21)을 보는 계기판이다. 하나로 합치면 유입
-       * 코드가 없는 앱 응시가 등급 집계에서 빠지거나, 등급이 유입 퍼널의 축이 된다.
-       *
-       * 점수 원값은 싣지 않는다 — `overallBucket`이 10점 단위로 뭉갠 값만 나간다 (FR-AN-09).
-       */
-      onResultLoaded={(result) => {
-        track({ name: 'result_viewed', campaign: trackedCampaign() })
-        track({
-          name: 'tier_assigned',
-          tier_code: result.tier.code,
-          score_version: result.scoreVersion,
-          overall_bucket: overallBucket(result.scores.overall),
-        })
-      }}
-      storePlatform={storePlatform}
-      /*
-       * 다운로드 탭 계측 (퍼널 4번째 지점, KAN-31 3단계). 링크의 이동은 이 콜백과 무관하게
-       * 일어나므로 계측이 무엇을 하든 설치 전환이 끊기지 않는다 ([track]은 던지지 않는다).
-       *
-       * 마지막 지점을 클릭으로 세는 것이 한계다 — 스토어에 실제로 도달했는지는 웹이 알 수
-       * 없고, 설치까지는 스토어 콘솔의 유입 통계가 답한다.
-       */
-      onDownloadClick={
-        storePlatform === undefined
-          ? undefined
-          : () =>
-              track({
-                name: 'app_download_clicked',
-                campaign: trackedCampaign(),
-                platform: storePlatform,
-              })
-      }
-      /*
-       * 후기 퍼널 (KAN-211). [공유]와 같은 방식으로 여기서 센다 — 화면은 "무슨 일이 일어났다"만
-       * 올리고 그것을 어느 이름으로 세는지는 이 자리가 정한다.
-       *
-       * 실은 것은 별점 하나뿐이다. 후기 본문과 답변용 이메일은 계측에 닿는 길 자체가 없다
-       * (`analytics/events.ts`의 익명 규칙) — 그 값들은 슬랙 알림과 DB에만 남는다.
-       */
-      onFeedbackOpen={() => track({ name: 'feedback_opened' })}
-      onFeedbackSubmitted={(rating) => track({ name: 'feedback_submitted', rating })}
-    />
+    <>
+      <ResultScreen
+        apiBase={API_BASE}
+        sessionId={sessionId}
+        /*
+         * 토큰은 실행에 따라 출처가 갈린다. 앱에서는 브리지, 웹 단독 실행에서는 이 탭의
+         * 세션 저장소다 (KAN-31). 공통점이 요점이다 — **어느 쪽도 URL에서 읽지 않는다.**
+         * 쿼리에 실으면 세션 토큰이 히스토리·액세스 로그·Referer에 남는다.
+         *
+         * 둘 다 없으면 빈 문자열이라 조회 전에 막히고 사용자용 문구가 뜬다.
+         *
+         * 렌더 시점에 읽는 이유: 결과 조회는 이 화면에 들어올 때 한 번뿐이라, 진행 화면처럼
+         * 제출 때마다 다시 읽을 필요가 없다.
+         */
+        sessionToken={standalone ? getWebSessionToken() : (getSessionToken() ?? '')}
+        /*
+         * [친구에게 공유하기] (KAN-30 1·3단계). 통로 선택은 `share/shareResult`가 소유한다 —
+         * 앱 안이면 브리지, 브라우저면 공유 시트, 둘 다 없으면 링크 복사다.
+         *
+         * 공유 클릭 계측 (FR-SH-06). 공유를 **먼저** 보내고 그 반환값으로 센다 — 어느 통로로
+         * 갔는지는 통로를 고른 뒤에야 알 수 있는 값이고, 계측 때문에 공유가 한 틱이라도 늦으면
+         * 안 된다 ([shareResult]도 [track]도 던지지 않으므로 순서만 남는 이야기다).
+         *
+         * **실행을 가리지 않는다.** 예전에는 앱 안의 같은 탭을 네이티브가 `share_tapped`로 따로
+         * 셌는데, 그러면 한 사람의 같은 행동이 플랫폼에 따라 다른 이름으로 쌓여 공유 퍼널이 둘로
+         * 갈렸다 (Codex 검증 지적, AC 8). 지금은 **클릭은 여기 하나가 세고** 네이티브는 통로가
+         * 실제로 열린 것(`share_launched`)만 센다 — 둘의 차이로 "눌렀는데 아무 데도 못 간 비율"은
+         * 그대로 나오면서 이름이 하나 줄었다.
+         *
+         * 앱 안에서는 `channel`이 `bridge`다. 그 값이 곧 "네이티브가 통로를 고르러 갔다"는 뜻이고,
+         * 어느 통로였는지는 네이티브의 `share_launched`가 말한다.
+         */
+        onShare={(result) => {
+          const channel = shareResult(result.share)
+          track({ name: 'share_clicked', campaign: trackedCampaign(), channel })
+        }}
+        retest={retest}
+        /*
+         * 결과 도착 계측 (KAN-33). 두 이벤트가 같은 순간에 나가지만 세는 것이 다르다 —
+         * `result_viewed`는 퍼널의 마지막 지점(공유 링크를 탄 사람이 여기까지 왔다)이고,
+         * `tier_assigned`는 등급 분포 편향(KAN-21)을 보는 계기판이다. 하나로 합치면 유입
+         * 코드가 없는 앱 응시가 등급 집계에서 빠지거나, 등급이 유입 퍼널의 축이 된다.
+         *
+         * 점수 원값은 싣지 않는다 — `overallBucket`이 10점 단위로 뭉갠 값만 나간다 (FR-AN-09).
+         */
+        onResultLoaded={(result) => {
+          track({ name: 'result_viewed', campaign: trackedCampaign() })
+          track({
+            name: 'tier_assigned',
+            tier_code: result.tier.code,
+            score_version: result.scoreVersion,
+            overall_bucket: overallBucket(result.scores.overall),
+          })
+        }}
+        storePlatform={storePlatform}
+        onStartLearning={onStartLearning}
+        /*
+         * 다운로드 탭 계측 (퍼널 4번째 지점, KAN-31 3단계). 링크의 이동은 이 콜백과 무관하게
+         * 일어나므로 계측이 무엇을 하든 설치 전환이 끊기지 않는다 ([track]은 던지지 않는다).
+         *
+         * 마지막 지점을 클릭으로 세는 것이 한계다 — 스토어에 실제로 도달했는지는 웹이 알 수
+         * 없고, 설치까지는 스토어 콘솔의 유입 통계가 답한다.
+         */
+        onDownloadClick={
+          storePlatform === undefined
+            ? undefined
+            : () =>
+                track({
+                  name: 'app_download_clicked',
+                  campaign: trackedCampaign(),
+                  platform: storePlatform,
+                })
+        }
+        /*
+         * 후기 퍼널 (KAN-211). [공유]와 같은 방식으로 여기서 센다 — 화면은 "무슨 일이 일어났다"만
+         * 올리고 그것을 어느 이름으로 세는지는 이 자리가 정한다.
+         *
+         * 실은 것은 별점 하나뿐이다. 후기 본문과 답변용 이메일은 계측에 닿는 길 자체가 없다
+         * (`analytics/events.ts`의 익명 규칙) — 그 값들은 슬랙 알림과 DB에만 남는다.
+         */
+        onFeedbackOpen={() => track({ name: 'feedback_opened' })}
+        onFeedbackSubmitted={(rating) => track({ name: 'feedback_submitted', rating })}
+      />
+      {!standalone && <AccountTabBar navigate={navigate} />}
+    </>
   )
 }
 
@@ -682,6 +768,16 @@ function goToIntro(navigate: Navigate): void {
 }
 
 /**
+ * 탭 화면 전환 (KAN-252). [goToIntro]처럼 같은 문서를 다시 로드하고, 남기고 지우는 규칙은 [buildTabUrl]이
+ * 소유한다 — 앱 표식(`bridge`·`app`)이 남아야 다음 문서도 앱 실행으로 판정된다.
+ *
+ * 히스토리는 쌓는다(`replace` 아님). 앱 안의 뒤로가기는 네이티브가 자기 규칙으로 다룬다 ([goToResult] 주석).
+ */
+function goToTab(tab: TabScreen, navigate: Navigate): void {
+  navigate(window.location.pathname + buildTabUrl(window.location.search, tab))
+}
+
+/**
  * [AppProps.navigate]의 기본값. 대입 한 줄을 함수로 감싸 두면 화면 전환 지점이 전부
  * `navigate` 하나를 거치게 되어, 테스트가 갈아끼울 자리가 한 곳으로 모인다.
  *
@@ -694,6 +790,112 @@ function assignHref(url: string, options?: { replace?: boolean }): void {
     return
   }
   window.location.href = url
+}
+
+/**
+ * 앱 홈 (KAN-252, 등급 카드·출석은 KAN-287). 버튼은 화면 가운데 본문 아래에 둔다 — 하단은 탭 바 자리라 주버튼을
+ * 바닥에 붙이면 두 띠가 겹쳐 보인다.
+ *
+ * 응답 전에는 테스트 전 홈(제목·설명·[레벨 테스트 시작])을 먼저 그린다. 홈은 앱이 처음 여는 화면이라 로딩 화면을
+ * 두면 [레벨 테스트 시작]과 탭 바가 API를 기다리게 된다. 응답이 오면 테스트 후 카드·출석으로 채운다.
+ *
+ * 조회 실패(401 포함 어떤 오류든)는 조용히 삼키고 응답 전 모양으로 남는다. 홈 카드는 덧붙인 정보라, 막다른
+ * [다시 시도] 화면이나 오류 문구보다 테스트 진입과 탭 바가 그대로 있는 편이 낫다(ux-ui 「홈 카드」 절).
+ */
+function HomeScreen({
+  apiBase,
+  onStartTest,
+  onStartLearning,
+}: {
+  apiBase: string
+  onStartTest: () => void
+  onStartLearning: () => void
+}) {
+  const [home, setHome] = useState<LearningHome | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetchLearningHome(apiBase).then(
+      (result) => {
+        if (alive) setHome(result)
+      },
+      () => {},
+    )
+    return () => {
+      alive = false
+    }
+  }, [apiBase])
+
+  const levelTest = home?.levelTest ?? null
+  const streak = home?.streak
+  const tested = levelTest === null ? '' : formatKstDate(levelTest.completedAt)
+
+  return (
+    <main className="screen">
+      {/* 테스트 후는 위에서부터 쌓는다(시안 32) — 카드·버튼·출석이 한 화면을 채워 가운데 정렬이면 위만 빈다 */}
+      <div className={levelTest === null ? 'screen__body' : 'screen__body home-after'}>
+        {levelTest === null ? (
+          /* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */
+          <div className="card home-card">
+            <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v2.png`} alt="" />
+            <h1 className="type-title">내 사투리 레벨 테스트</h1>
+            <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
+            <Button onClick={onStartTest} style={{ width: '100%' }}>
+              레벨 테스트 시작
+            </Button>
+          </div>
+        ) : (
+          <>
+            {/* 시안 32: 테이프 붙은 종이에 캐릭터 왼쪽, 순위·등급명·응시일 오른쪽 */}
+            <section className="card home-tier" aria-labelledby="home-tier-name">
+              <TierCharacter code={levelTest.tier.code} name={levelTest.tier.name} className="illustration--home" />
+              <div className="home-tier__text">
+                <p className="type-caption home-tier__rank">
+                  {levelTest.tier.of}개 등급 중 {levelTest.tier.rank}번째
+                </p>
+                <h1 id="home-tier-name" className="type-display">
+                  {levelTest.tier.name}
+                </h1>
+                {tested !== '' && <p className="type-label home-tier__date">{tested} 응시</p>}
+              </div>
+            </section>
+            <Button onClick={onStartLearning} style={{ width: '100%' }}>
+              억양 학습 시작
+            </Button>
+            <Button variant="secondary" onClick={onStartTest} style={{ width: '100%' }}>
+              다시 테스트하기
+            </Button>
+          </>
+        )}
+        {streak !== undefined && (
+          <section className="home-attendance" aria-labelledby="home-attendance-title">
+            <h2 id="home-attendance-title" className="type-label">
+              연속 출석
+            </h2>
+            <p className="home-streak type-body-sm">{streakText(streak)}</p>
+            {/* 출석한 날은 벽돌 ✓, 아닌 날은 잉크 ○ — 색과 기호를 함께 바꿔 색만으로 가르지 않는다 */}
+            <ol className="home-attendance__week">
+              {attendanceWeek(streak).map((day) => (
+                <li key={day.label} className={day.attended ? 'home-attendance__day is-attended' : 'home-attendance__day'}>
+                  <span aria-hidden="true">{day.label}</span>
+                  <i aria-hidden="true">{day.attended ? '✓' : '○'}</i>
+                  <span className="sr-only">
+                    {day.label}요일 {day.attended ? '출석' : '출석 전'}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+      </div>
+    </main>
+  )
+}
+
+/** 홈 출석 문구 (KAN-287). 끊겼거나 오늘 아직이어도 탓하지 않고 다음 한 걸음만 말한다(ux-ui 카피 톤) */
+function streakText({ currentDays, attendedToday }: HomeStreak): string {
+  if (currentDays === 0) return '오늘 학습하면 출석이 시작돼요'
+  if (attendedToday) return `${currentDays}일 연속 출석 중이에요`
+  return `${currentDays}일 연속 출석 중 · 오늘 학습하면 ${currentDays + 1}일`
 }
 
 /** 신버전 웹 + 구버전 앱 조합에서만 보이는 화면. 비난 없는 카피 톤(ux-ui.md)을 지킨다. */
@@ -711,8 +913,41 @@ function UpdateRequiredScreen() {
         textAlign: 'center',
       }}
     >
-      <h1 className="type-title-sm">앱 업데이트가 필요해요</h1>
+      <h1 className="type-title">앱 업데이트가 필요해요</h1>
       <p className="type-label">새로운 테스트를 이용하려면 스토어에서 최신 버전으로 업데이트해 주세요.</p>
     </main>
   )
+}
+
+/**
+ * 탭 바·학습 진입(결과의 [억양 학습 시작])을 보일까 (KAN-252, PR #33 리뷰 P1). **앱 안 + 계정 로그인 상태**일 때만이다.
+ * 익명 빌드(현재 기본 빌드)의 WebView도 브리지·`bridge=2`를 가져 `standalone`만으로는 갈리지 않는다 — 그대로 두면 익명 결과
+ * 화면에 탭 바가 서고, 학습 탭은 로그인 안내로 막히고, 설정 탭이 톱니와 겹친다.
+ *
+ * 판정은 기존 브리지 `getAccessToken()`(KAN-255, webview-bridge §11)이다. 새 브리지 메서드·쿼리를 두지 않는다. 두 앱 모두 저장소의
+ * Access를 만료와 무관하게 돌려주고(Android `currentAccessToken` = `store.read()?.accessToken`, iOS `readAccessToken` = Keychain
+ * `store.read()?.accessToken`), 익명 빌드(계정 클라이언트 없음)·로그아웃(저장소 비움)·allowlist 밖 문서면 `""` → null이다. 그래서
+ * "값이 있다"가 곧 "로그인 상태"다. 만료 여부는 학습 API가 401 → 갱신으로 따로 처리한다.
+ *
+ * iOS 첫 문서는 Keychain 비동기 읽기가 끝나야 토큰이 밀리므로(§11 iOS 「토큰 읽기」) 처음에 없으면 [waitForAccessToken]으로
+ * 잠깐 더 기다린다. 브리지에 메서드가 없으면(브라우저·구버전 앱) 기다리지 않고 false다.
+ */
+function useAccountTabs(): boolean {
+  const [signedIn, setSignedIn] = useState(() => getAccessToken() !== null)
+  useEffect(() => {
+    if (signedIn) return
+    let alive = true
+    void waitForAccessToken().then((token) => {
+      if (alive && token !== null) setSignedIn(true)
+    })
+    return () => {
+      alive = false
+    }
+  }, [signedIn])
+  return signedIn
+}
+
+/** 하단 탭 바를 [useAccountTabs] 판정으로 세운다 (KAN-252). 홈·번역기·학습 목록·결과가 모두 이것 하나를 쓴다. */
+function AccountTabBar({ current, navigate }: { current?: TabScreen; navigate: Navigate }) {
+  return useAccountTabs() ? <TabBar current={current} onSelect={(tab) => goToTab(tab, navigate)} /> : null
 }

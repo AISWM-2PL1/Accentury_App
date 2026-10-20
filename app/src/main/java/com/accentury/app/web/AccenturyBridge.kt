@@ -7,7 +7,9 @@ import com.accentury.app.analytics.EventParam
 import com.accentury.app.analytics.isAnalyticsName
 import com.accentury.app.analytics.parseEventParams
 import com.accentury.app.bridge.SharePayload
+import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.bridge.VoiceItemStart
+import com.accentury.app.bridge.parseIntonationRecordingStart
 import com.accentury.app.bridge.parseSharePayload
 import com.accentury.app.bridge.parseVoiceItemStart
 import com.accentury.app.ui.components.Haptic
@@ -17,7 +19,7 @@ import com.accentury.app.ui.components.Haptic
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
  * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
- * 햅틱(KAN-258)까지 필요한 열세 메서드만 둔다.
+ * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)까지 필요한 열여덟 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -52,6 +54,16 @@ import com.accentury.app.ui.components.Haptic
  *   (InterstitialGate)
  * @param onHaptic 웹 버튼의 햅틱 (KAN-258). 계약 안 세 값만 온다 — 어떻게 떨지는 창구 너머가 정한다
  *   (WebViewHost의 [com.accentury.app.ui.components.performHaptic])
+ * @param accessToken 계정 Access 토큰 공급자 (KAN-255). [getAccessToken]이 **JS 스레드에서 동기로** 부르므로
+ *   임의 스레드에서 안전해야 한다. 로그인 안 됨·로그인 끈 빌드면 빈 문자열
+ * @param onRefreshAccessToken 웹이 401을 받아 청한 계정 토큰 갱신 (KAN-255). 즉시 돌아오고, 결과는 창구 너머가
+ *   `onAccessTokenRefreshed`로 반드시 한 번 회신한다 (webview-bridge.md §11)
+ * @param onStartIntonationRecording 억양 학습 녹음 호출(카드 진입 자동·[다시 말해 보기]) (KAN-253). 검증을 통과한 payload만 온다 — 녹음·업로드·
+ *   `onIntonationRecorded` 회신은 창구 너머가 한다 (webview-bridge.md §12). 기본값은 학습을 모르는 테스트 하네스용이다
+ * @param onOpenSettings 탭 바의 [설정] (KAN-252). 어느 설정 화면을 덮을지는 창구 너머(AuthGate·AnonymousFlow)가
+ *   정한다 (webview-bridge.md §13). 기본값은 [onStartIntonationRecording]과 같은 이유다
+ * @param onRetryUpload 대기 화면의 [다시 보내기] (KAN-288 6단계). 빈 값이 아닌 attemptId만 온다 — 그 시도가 지금 재전송할 수
+ *   있는 실패인지는 창구 너머(UploadManager.retry)가 판정한다 (webview-bridge.md §14). 기본값은 [onStartIntonationRecording]과 같은 이유다
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -69,6 +81,11 @@ class AccenturyBridge(
     private val onSetAdConsent: (AdConsent) -> Unit,
     private val onShowInterstitialAd: () -> Unit,
     private val onHaptic: (Haptic) -> Unit,
+    private val accessToken: () -> String,
+    private val onRefreshAccessToken: () -> Unit,
+    private val onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
+    private val onOpenSettings: () -> Unit = {},
+    private val onRetryUpload: (String) -> Unit = {},
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -307,6 +324,78 @@ class AccenturyBridge(
                 return@postToMain
             }
             onHaptic(haptic)
+        }
+    }
+
+    /**
+     * 계정 Access 토큰 — 단어 학습 API(`/v0/learning/word-*`)의 Authorization에 싣는다 (KAN-255, §11).
+     *
+     * [getSessionToken]과 같은 꼴이다: 비밀값을 동기로 돌려주므로 postToMain으로 미룰 수 없어 메인 스레드가
+     * 유지하는 [isOriginAllowedNow] 플래그를 본다. allowlist(§7)와 이 검사를 이중으로 거는 이유도 같다 — 로드
+     * 이후 리다이렉트로 allowlist 밖 문서가 남아 있을 수 있고, 계정 토큰은 세션 토큰보다 수명·권한이 넓다.
+     * 허용이 아니면 빈 문자열이다(웹 래퍼가 null로 정규화 → `CLIENT_NOT_SIGNED_IN`).
+     *
+     * 만료 여부는 보지 않는다 — 만료는 서버 401로 드러나고 그때 [refreshAccessToken]이 갱신한다.
+     */
+    @JavascriptInterface
+    fun getAccessToken(): String = if (isOriginAllowedNow()) accessToken() else ""
+
+    /**
+     * 계정 토큰 갱신 요청 (KAN-255, §11). fire-and-forget — 결과는 `onAccessTokenRefreshed('ok'|'failed')`로 간다.
+     *
+     * origin 불허 문서에서 온 요청은 조용히 버린다. 회신도 하지 않는다 — 우리 웹이 아닌 페이지에 갱신 성패를
+     * 알려 줄 이유가 없고, 우리 웹이라면 래퍼의 10초 타임아웃이 실패로 끝낸다 (§11).
+     */
+    @JavascriptInterface
+    fun refreshAccessToken() {
+        postToMain {
+            if (isCurrentUrlAllowed()) onRefreshAccessToken()
+        }
+    }
+
+    /**
+     * 억양 학습 녹음 호출 → 네이티브 녹음 화면 (KAN-253, §12). [startVoiceItem]과 같은 순서다 — origin 검증을 통과한
+     * payload만 파싱하고, 불량은 조용히 버리되 흔적을 남긴다. 회신(`onIntonationRecorded`)은 업로드 202 때 한 번뿐이다.
+     */
+    @JavascriptInterface
+    fun startIntonationRecording(payloadJson: String) {
+        postToMain {
+            if (!isCurrentUrlAllowed()) return@postToMain
+            val start = parseIntonationRecordingStart(payloadJson) ?: run {
+                CrashReports.recordBridgeParseFailure("startIntonationRecording")
+                return@postToMain
+            }
+            onStartIntonationRecording(start)
+        }
+    }
+
+    /**
+     * 탭 바의 [설정] → 네이티브 설정 화면 (KAN-252, §13). 인자·반환·회신이 없다 — 웹은 문서를 옮기지 않고 기다리지도
+     * 않는다. 화면을 띄우는 호출이라 [haptic]과 같은 꼴로 메인 스레드에 넘긴 뒤 그 시점의 origin으로 판정한다(§5).
+     */
+    @JavascriptInterface
+    fun openSettings() {
+        postToMain {
+            if (isCurrentUrlAllowed()) onOpenSettings()
+        }
+    }
+
+    /**
+     * 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 다시 보낸다 (KAN-288 6단계, §14).
+     *
+     * 녹음은 그대로 둔다 — 예전 업로드 상태 바의 [재시도]와 같은 일이다. 인자는 `onUploadFailed`로 받은 attemptId 그대로다.
+     * 모르는 키·이미 성공했거나 재시도할 수 없는 실패는 UploadManager.retry가 무시하므로 여기서는 빈 값만 거른다.
+     * 회신은 없다: 성공하면 `onItemResult`가, 다시 실패하면 `onUploadFailed`가 간다.
+     */
+    @JavascriptInterface
+    fun retryUpload(attemptId: String) {
+        postToMain {
+            if (!isCurrentUrlAllowed()) return@postToMain
+            if (attemptId.isBlank()) {
+                CrashReports.recordBridgeParseFailure("retryUpload")
+                return@postToMain
+            }
+            onRetryUpload(attemptId)
         }
     }
 }

@@ -515,8 +515,9 @@ iOS가 주는 시간이라 보장값이 아니다. 그 안에 못 끝내면 전�
 ### 진행 저장이 남는다
 
 `TestFlowModel`이 `UserDefaults`에 진행을 적는다(`test_flow_state`·`session_gate_state`·
-`test_flow_start_requested` 등, 안드로이드 `rememberSaveable` 자리). 인트로부터 다시 보려면
-앱을 지웠다 깔거나 시뮬레이터를 초기화한다.
+`test_flow_start_requested` 등, 안드로이드 `rememberSaveable` 자리). 이어지는 것은 시스템 종료 뒤 장면 복원뿐이고,
+새 실행(`@SceneStorage` 복원 표시 없음)은 저장분을 지우고 홈부터다(KAN-252, `docs/wiki/ios-port.md` §3 「새 실행은 홈부터」).
+처음부터 다시 보려면 앱 전환기에서 쓸어 올려 종료하거나, 확실히 하려면 앱을 지웠다 깐다.
 
 ```bash
 xcrun simctl uninstall booted com.accentury.app

@@ -15,6 +15,9 @@ import Foundation
 /// - `guideF0`: 상단 레인에 그릴 정적 가이드 곡선 (KAN-102). 필드 추가는 하위호환이라
 ///   계약 버전을 올리지 않았고(§5), 그래서 이 필드를 모르는 구버전 웹의 payload도 유효하다 —
 ///   없으면 가이드 레인만 비운 채 녹음은 그대로 진행한다.
+/// - `emotion`: 문항의 감정 지시어(예: "부탁하는") (KAN-283). 정의 값 그대로 오고, 정의에
+///   없으면 키가 없다. guideF0와 같은 이유로 계약 버전을 안 올렸다. 빈 문자열도 그대로 받고,
+///   칩을 그릴지는 화면 쪽 ``emotionCue(_:)``가 가른다.
 public struct VoiceItemStart: Codable, Equatable, Sendable {
     public let itemId: String
     public let prompt: String
@@ -22,6 +25,7 @@ public struct VoiceItemStart: Codable, Equatable, Sendable {
     public let totalItems: Int
     public let maxDurationMs: Int64
     public let guideF0: GuideF0?
+    public let emotion: String?
 
     public init(
         itemId: String,
@@ -29,7 +33,8 @@ public struct VoiceItemStart: Codable, Equatable, Sendable {
         itemNumber: Int,
         totalItems: Int,
         maxDurationMs: Int64,
-        guideF0: GuideF0? = nil
+        guideF0: GuideF0? = nil,
+        emotion: String? = nil
     ) {
         self.itemId = itemId
         self.prompt = prompt
@@ -37,6 +42,7 @@ public struct VoiceItemStart: Codable, Equatable, Sendable {
         self.totalItems = totalItems
         self.maxDurationMs = maxDurationMs
         self.guideF0 = guideF0
+        self.emotion = emotion
     }
 }
 
@@ -77,8 +83,11 @@ public struct GuideF0: Codable, Equatable, Sendable {
 /// 곡선은 없어도 녹음은 성립하는데, guideF0의 내용은 웹 빌드가 아니라 서버가 발행한 정의
 /// (KAN-17 산출물)에서 오므로, 여기서 payload째 거부하면 정의 데이터 한 줄이 문항 진행 전체를
 /// 막게 되기 때문이다.
+///
+/// emotion도 같은 대우다 (KAN-283) — 칩 한 줄이 없어도 녹음은 성립하고, 값은 역시 서버가
+/// 발행한 정의에서 온다.
 public func parseVoiceItemStart(_ payloadJson: String) -> VoiceItemStart? {
-    guard let start = decodeStart(payloadJson) else { return nil }
+    guard let start = decodeTolerantOfGuide(payloadJson, as: VoiceItemStart.self) else { return nil }
 
     if start.itemId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
     if start.itemNumber < 1 || start.totalItems < 1 { return nil }
@@ -88,17 +97,24 @@ public func parseVoiceItemStart(_ payloadJson: String) -> VoiceItemStart? {
     return start
 }
 
-/// 전체 파싱을 먼저 시도하고, 실패하면 guideF0만 떼어낸 뒤 한 번 더 시도한다.
-private func decodeStart(_ payloadJson: String) -> VoiceItemStart? {
+/// 전체 파싱을 먼저 시도하고, 실패하면 버려도 되는 선택 필드(guideF0, emotion)를 떼어낸 뒤 다시 시도한다.
+/// 하나만 떼는 조합을 먼저 시도하는 이유: 불량 필드 하나 때문에 멀쩡한 다른 선택 필드까지 잃지 않게 (KAN-283).
+/// 억양 학습 녹음 payload(KAN-253, ``parseIntonationRecordingStart(_:)``)도 같은 규칙을 쓴다 — emotion 키가 없으니 영향 없다.
+func decodeTolerantOfGuide<T: Decodable>(_ payloadJson: String, as type: T.Type) -> T? {
     guard let data = payloadJson.data(using: .utf8) else { return nil }
     let decoder = JSONDecoder()
-    if let start = try? decoder.decode(VoiceItemStart.self, from: data) {
+    if let start = try? decoder.decode(T.self, from: data) {
         return start
     }
-    // guideF0만 불량일 수 있다 — 곡선을 버리고 구제를 시도한다. 안드로이드가 `JsonObject`를
+    // 선택 필드만 불량일 수 있다 — 그 필드를 버리고 구제를 시도한다. 안드로이드가 `JsonObject`를
     // 다시 만드는 자리에 여기서는 `JSONSerialization`을 쓴다(관대한 파싱 통로).
-    guard var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
-    object.removeValue(forKey: "guideF0")
-    guard let stripped = try? JSONSerialization.data(withJSONObject: object) else { return nil }
-    return try? decoder.decode(VoiceItemStart.self, from: stripped)
+    guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+    for drop in droppableKeySets {
+        guard let stripped = try? JSONSerialization.data(withJSONObject: object.filter { !drop.contains($0.key) })
+        else { continue }
+        if let start = try? decoder.decode(T.self, from: stripped) { return start }
+    }
+    return nil
 }
+
+private let droppableKeySets: [Set<String>] = [["guideF0"], ["emotion"], ["guideF0", "emotion"]]

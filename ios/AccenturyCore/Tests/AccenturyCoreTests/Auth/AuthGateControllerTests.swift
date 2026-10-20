@@ -45,7 +45,8 @@ final class AuthGateControllerTests: XCTestCase {
     private func controller(
         _ store: TokenStore,
         logoutServerTimeout: Duration = .seconds(10),
-        logoutIdpTimeout: Duration = .seconds(5)
+        logoutIdpTimeout: Duration = .seconds(5),
+        withdrawServerTimeout: Duration = .seconds(30)
     ) -> (AuthGateController, AuthClients) {
         let clients = AuthClients(baseURL: "https://api.test/", store: store, session: MockURLProtocol.makeSession())
         let gate = AuthGateController(
@@ -53,7 +54,8 @@ final class AuthGateControllerTests: XCTestCase {
             store: store,
             refresher: clients.refresher,
             logoutServerTimeout: logoutServerTimeout,
-            logoutIdpTimeout: logoutIdpTimeout
+            logoutIdpTimeout: logoutIdpTimeout,
+            withdrawServerTimeout: withdrawServerTimeout
         )
         return (gate, clients)
     }
@@ -469,5 +471,464 @@ final class AuthGateControllerTests: XCTestCase {
         _ = await consentTask.value
 
         XCTAssertEqual(.signedOut(nil), gate.state)
+    }
+
+    // 회원 탈퇴 (KAN-251). 안드로이드 `AuthGateControllerTest`의 같은 이름 테스트와 짝이다.
+
+    func test탈퇴_204면_토큰을_지우고_IdP_정리_뒤_로그인_화면이며_서버_로그아웃은_부르지_않는다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([(204, "")])
+        var idpLoggedOut = false
+
+        let outcome = await gate.withdraw { idpLoggedOut = true }
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertNil(store.tokens)
+        XCTAssertTrue(idpLoggedOut)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+        XCTAssertEqual(["/v0/users/me/withdrawal"], MockURLProtocol.requests().map { $0.url?.path })
+    }
+
+    func test탈퇴_401은_이미_탈퇴된_계정이라_탈퇴됨으로_정리한다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        // bootstrap이 로그아웃 훅을 건다 — 실제 로그인 상태에서 훅이 먼저 로그인 화면으로 돌리는 경로를 겨눈다(KAN-251 리뷰 P1).
+        // 탈퇴 401 → 갱신 → 서버가 Refresh를 이미 폐기해 401. 갱신 거절이 저장소를 먼저 비워도 IdP 정리는 빠지지 않는다.
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)),
+            (200, account("COMPLETE")),
+            (401, envelope("AUTH_TOKEN_INVALID", false)),
+            (401, envelope("AUTH_REFRESH_INVALID", false)),
+        ])
+        await gate.bootstrap()
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+        var stateDuringIdp: AuthGateState?
+
+        let outcome = await gate.withdraw { stateDuringIdp = gate.state }
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(.signedOut(nil), stateDuringIdp, "갱신 거절 훅이 IdP 정리 전에 로그인 화면으로 돌렸다")
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+        XCTAssertEqual(
+            ["/v0/auth/refresh", "/v0/users/me", "/v0/users/me/withdrawal", "/v0/auth/refresh"],
+            MockURLProtocol.requests().map { $0.url?.path }
+        )
+    }
+
+    func test탈퇴_401_뒤_IdP_정리_대기_중에_새로_로그인하면_새_토큰과_상태를_지우지_않는다() async throws {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([
+            (200, tokens(2)),
+            (200, account("COMPLETE")),
+            (401, envelope("AUTH_TOKEN_INVALID", false)),
+            (401, envelope("AUTH_REFRESH_INVALID", false)),
+            (200, loginComplete),
+            (200, account("COMPLETE")),
+        ])
+        await gate.bootstrap()
+        let (entered, enteredSignal) = AsyncStream<Void>.makeStream()
+        let (release, releaseSignal) = AsyncStream<Void>.makeStream()
+
+        let withdrawal = Task {
+            await gate.withdraw {
+                enteredSignal.yield()
+                for await _ in release { break }
+            }
+        }
+        for await _ in entered { break }
+        XCTAssertEqual(.signedOut(nil), gate.state)
+        XCTAssertNil(store.tokens)
+        await gate.login(google, privacyPolicyVersion: "v1")
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+        releaseSignal.yield()
+        let outcome = await withdrawal.value
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+    }
+
+    func test탈퇴_서버_단계가_끝나기_전에_완료된_새_로그인을_정리가_지우지_않는다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, clients) = controller(store)
+        MockURLProtocol.respondInOrder([
+            (200, tokens(2)),
+            (200, account("COMPLETE")),
+            (401, envelope("AUTH_TOKEN_INVALID", false)),
+            (401, envelope("AUTH_REFRESH_INVALID", false)),
+            (200, loginComplete),
+            (200, account("COMPLETE")),
+        ])
+        await gate.bootstrap()
+        // URLSession은 본문까지 받은 뒤 갱신하므로 본문을 늦출 수 없다. 대신 갱신 거절 훅을 붙잡아 탈퇴 서버 단계가 끝나기
+        // 전에 새 로그인을 끝낸다(KAN-251 리뷰 P1 재검증 3). 정리 시작 때 세대를 잡으면 새 로그인의 세대라 새 토큰을 지운다.
+        let (entered, enteredSignal) = AsyncStream<Void>.makeStream()
+        let (release, releaseSignal) = AsyncStream<Void>.makeStream()
+        await clients.refresher.setOnSignedOut {
+            enteredSignal.yield()
+            for await _ in release { break }
+        }
+
+        let withdrawal = Task { await gate.withdraw() }
+        for await _ in entered { break }
+        XCTAssertNil(store.tokens)
+        await gate.login(google, privacyPolicyVersion: "v1")
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+        releaseSignal.yield()
+        let outcome = await withdrawal.value
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+    }
+
+    func test탈퇴_정리가_저장_중인_새_로그인_토큰을_지우지_않는다() async throws {
+        let store = HeldSaveTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([
+            (200, tokens(2)),
+            (200, account("COMPLETE")),
+            (401, envelope("AUTH_TOKEN_INVALID", false)),
+            (401, envelope("AUTH_REFRESH_INVALID", false)),
+            (200, loginComplete),
+            (200, account("COMPLETE")),
+        ])
+        await gate.bootstrap()
+        let (idpEntered, idpEnteredSignal) = AsyncStream<Void>.makeStream()
+        let (idpRelease, idpReleaseSignal) = AsyncStream<Void>.makeStream()
+
+        let withdrawal = Task {
+            await gate.withdraw {
+                idpEnteredSignal.yield()
+                for await _ in idpRelease { break }
+            }
+        }
+        for await _ in idpEntered { break }
+        // 새 로그인의 저장이 저장소 잠금 안에서 붙잡힌 사이 IdP 정리를 끝낸다(KAN-251 리뷰 P1 재검증 2).
+        store.holdNextSave()
+        let login = Task { await gate.login(google, privacyPolicyVersion: "v1") }
+        await store.waitUntilSaveHeld()
+        idpReleaseSignal.yield()
+        try await Task.sleep(for: .milliseconds(200))
+        store.releaseSave()
+        await login.value
+        let outcome = await withdrawal.value
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+    }
+
+    func test탈퇴_정리_중에_앞서_시작된_갱신이_끝나도_새_로그인이_아니라_정리를_마친다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([(200, tokens(1)), (200, account("COMPLETE")), (204, "")])
+        await gate.bootstrap()
+        // 탈퇴 전에 시작된 기존 세션 갱신. 응답을 붙잡아 두었다가 IdP 정리 중에 풀어 쌍을 jwt_2로 바꾼다(KAN-251 리뷰 P1 재검증).
+        let (held, releaseRefresh) = AsyncStream<Void>.makeStream()
+        let refresher = TokenRefresher(store: store) { _ in
+            for await _ in held { break }
+            return .success(AuthTokens("jwt_2", "rt_2"))
+        }
+        let refreshing = Task { await refresher.refresh(staleAccess: nil) }
+
+        let outcome = await gate.withdraw {
+            releaseRefresh.yield()
+            _ = await refreshing.value
+        }
+
+        XCTAssertEqual(.withdrawn, outcome)
+        let refreshed = await refreshing.value
+        XCTAssertEqual(.refreshed(AuthTokens("jwt_2", "rt_2")), refreshed)
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+    }
+
+    func test탈퇴_429면_탈퇴_안_됨으로_토큰을_두고_대기_시간을_알린다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([
+            (429, #"{"code":"RATE_LIMITED","message":"m","retryable":true,"retryAfterMs":2100,"correlationId":"c"}"#),
+        ])
+        var idpLoggedOut = false
+
+        let outcome = await gate.withdraw { idpLoggedOut = true }
+
+        XCTAssertEqual(.failed(AuthFailure(.rateLimited, retryAfterSeconds: 3)), outcome)
+        XCTAssertEqual(AuthTokens("jwt_0", "rt_0"), store.tokens)
+        XCTAssertFalse(idpLoggedOut)
+        XCTAssertEqual(1, MockURLProtocol.requestCount)
+    }
+
+    func test탈퇴_503이면_토큰과_로그인_상태를_그대로_두고_실패를_돌려준다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.respondInOrder([
+            (200, tokens(1)),
+            (200, account("COMPLETE")),
+            (503, envelope("AUTH_STORE_UNAVAILABLE", true)),
+        ])
+        await gate.bootstrap()
+        let signedIn = gate.state
+        var idpLoggedOut = false
+
+        let outcome = await gate.withdraw { idpLoggedOut = true }
+
+        XCTAssertEqual(.failed(AuthFailure(.retryLater)), outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertFalse(idpLoggedOut)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), signedIn)
+        XCTAssertEqual(signedIn, gate.state)
+    }
+
+    func test탈퇴_전송이_실패하면_토큰과_상태를_그대로_두고_실패를_돌려준다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        MockURLProtocol.fail(with: URLError(.notConnectedToInternet))
+        var idpLoggedOut = false
+
+        let outcome = await gate.withdraw { idpLoggedOut = true }
+
+        XCTAssertEqual(.failed(AuthFailure(.retry)), outcome)
+        XCTAssertEqual(AuthTokens("jwt_0", "rt_0"), store.tokens)
+        XCTAssertFalse(idpLoggedOut)
+        XCTAssertEqual(.checking, gate.state)
+    }
+
+    func test탈퇴_서버_응답이_상한을_넘기면_탈퇴_안_됨으로_토큰을_둔다() async {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store, withdrawServerTimeout: .milliseconds(100))
+        MockURLProtocol.hang()
+        var idpLoggedOut = false
+        let started = ContinuousClock.now
+
+        let outcome = await gate.withdraw { idpLoggedOut = true }
+
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(2))
+        XCTAssertEqual(.failed(AuthFailure(.retry)), outcome)
+        XCTAssertEqual(AuthTokens("jwt_0", "rt_0"), store.tokens)
+        XCTAssertFalse(idpLoggedOut)
+    }
+
+    func test탈퇴_상한_뒤에_늦게_온_401은_갱신하지_않아_실패와_로그인_상태가_유지된다() async throws {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store, withdrawServerTimeout: .milliseconds(100))
+        MockURLProtocol.respondInOrder([(200, tokens(1)), (200, account("COMPLETE"))])
+        await gate.bootstrap()
+        let rejected = Data(envelope("AUTH_TOKEN_INVALID", false).utf8)
+        // 탈퇴 응답은 상한(100ms) 뒤에 401로 온다. 취소가 없으면 이 401이 갱신 → 갱신 401로 저장소를 비운다(KAN-251 리뷰 P0).
+        MockURLProtocol.setHandler { request in
+            if request.url?.path == "/v0/users/me/withdrawal" { Thread.sleep(forTimeInterval: 0.3) }
+            return (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: "HTTP/1.1", headerFields: nil)!, rejected)
+        }
+        var idpLoggedOut = false
+
+        let outcome = await gate.withdraw { idpLoggedOut = true }
+        try await Task.sleep(for: .milliseconds(600))
+
+        XCTAssertEqual(.failed(AuthFailure(.retry)), outcome)
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual(.signedIn(user, voiceConsent: nil), gate.state)
+        XCTAssertFalse(idpLoggedOut)
+        XCTAssertEqual(
+            ["/v0/auth/refresh", "/v0/users/me", "/v0/users/me/withdrawal"],
+            MockURLProtocol.requests().map { $0.url?.path }
+        )
+    }
+
+    func test진행_중에_다시_탈퇴를_불러도_서버_요청은_한_번이고_같은_결과를_받는다() async throws {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        let release = DispatchSemaphore(value: 0)
+        MockURLProtocol.setHandler { request in
+            _ = release.wait(timeout: .now() + 5)
+            return (HTTPURLResponse(url: request.url!, statusCode: 204, httpVersion: "HTTP/1.1", headerFields: nil)!, Data())
+        }
+        var idpCalls = 0
+
+        let first = Task { await gate.withdraw { idpCalls += 1 } }
+        for _ in 0..<500 where MockURLProtocol.requestCount == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        let second = Task { await gate.withdraw { idpCalls += 1 } }
+        await Task.yield()
+        release.signal()
+
+        let firstOutcome = await first.value
+        let secondOutcome = await second.value
+        XCTAssertEqual(.withdrawn, firstOutcome)
+        XCTAssertEqual(.withdrawn, secondOutcome)
+        XCTAssertEqual(1, MockURLProtocol.requestCount)
+        XCTAssertEqual(1, idpCalls)
+        XCTAssertNil(store.tokens)
+    }
+
+    func test탈퇴가_서버_응답_대기_중_취소돼도_IdP_정리와_로컬_정리까지_끝낸다() async throws {
+        let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        let (gate, _) = controller(store)
+        let release = DispatchSemaphore(value: 0)
+        MockURLProtocol.setHandler { request in
+            _ = release.wait(timeout: .now() + 5)
+            return (HTTPURLResponse(url: request.url!, statusCode: 204, httpVersion: "HTTP/1.1", headerFields: nil)!, Data())
+        }
+        var idpLoggedOut = false
+
+        let screen = Task { await gate.withdraw { idpLoggedOut = true } }
+        for _ in 0..<500 where MockURLProtocol.requestCount == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        screen.cancel()
+        release.signal()
+        let outcome = await screen.value
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertTrue(idpLoggedOut)
+        XCTAssertNil(store.tokens)
+        XCTAssertEqual(.signedOut(nil), gate.state)
+    }
+
+    // 애플 재인증 갈래 (KAN-251, iOS만). 안드로이드에는 애플 로그인이 없다.
+
+    /// 재인증 결과를 차례로 돌려주고 부른 횟수를 센다. 지연은 0이다.
+    private func withdrawApple(
+        _ answers: [AppleReauth],
+        result: WithdrawOutcome = .withdrawn
+    ) async -> (outcome: WithdrawOutcome?, reauthCalls: Int, sent: [String?]) {
+        var remaining = answers
+        var reauthCalls = 0
+        var sent: [String?] = []
+        let outcome = await withdrawAccount(
+            provider: .APPLE,
+            reauthDelay: .zero,
+            appleReauth: { reauthCalls += 1; return remaining.removeFirst() }
+        ) { sent.append($0); return result }
+        return (outcome, reauthCalls, sent)
+    }
+
+    func test애플_재인증을_취소하면_탈퇴를_멈추고_서버에_보내지_않는다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.cancelled])
+
+        XCTAssertNil(outcome)
+        XCTAssertEqual(1, reauthCalls)
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func test애플_재인증이_성공하면_코드를_실어_탈퇴한다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.code("c_apple")], result: .failed(AuthFailure(.retry)))
+
+        XCTAssertEqual(.failed(AuthFailure(.retry)), outcome)
+        XCTAssertEqual(1, reauthCalls)
+        XCTAssertEqual(["c_apple"], sent)
+    }
+
+    // 첫 재인증 실패는 한 번 더 시도한다 — 확인 창이 닫히는 중에 시트가 실패했을 수 있다 (KAN-251).
+
+    func test애플_재인증이_실패한_뒤_다시_받은_코드로_탈퇴한다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.failed, .code("c_apple")])
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(2, reauthCalls)
+        XCTAssertEqual(["c_apple"], sent)
+    }
+
+    func test애플_재인증이_두_번_실패하면_코드_없이_탈퇴한다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.failed, .failed])
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(2, reauthCalls)
+        XCTAssertEqual([nil], sent)
+    }
+
+    func test애플_재인증_재시도에서_취소하면_탈퇴를_멈춘다() async {
+        let (outcome, reauthCalls, sent) = await withdrawApple([.failed, .cancelled])
+
+        XCTAssertNil(outcome)
+        XCTAssertEqual(2, reauthCalls)
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func test애플이_아닌_계정은_재인증_없이_코드_없이_탈퇴한다() async {
+        var reauthCalls = 0
+        var sent: [String?] = []
+
+        let outcome = await withdrawAccount(provider: .KAKAO, reauthDelay: .zero, appleReauth: { reauthCalls += 1; return .code("x") }) {
+            sent.append($0)
+            return .withdrawn
+        }
+
+        XCTAssertEqual(.withdrawn, outcome)
+        XCTAssertEqual(0, reauthCalls)
+        XCTAssertEqual([nil], sent)
+    }
+
+    func test애플_재인증_코드는_설명에_남지_않는다() {
+        XCTAssertFalse("\(AppleReauth.code("c_apple"))".contains("c_apple"))
+    }
+}
+
+/// 실제 키체인 저장소처럼 save·clear를 한 줄로 세우고, 다음 save 한 번을 풀 때까지 붙잡는 가짜 (KAN-251 리뷰 P1 재검증 2).
+/// 줄을 세우는 이유: 붙잡힌 save 뒤에 온 clear는 save가 끝난 뒤에 돈다 — 고치기 전 코드의 경합이 이 순서에서 난다.
+private final class HeldSaveTokenStore: TokenStore, @unchecked Sendable {
+    private let inner: InMemoryTokenStore
+    private let lock = NSLock()
+    private var tail: Task<Void, Never>?
+    private var hold: (entered: AsyncStream<Void>.Continuation, release: AsyncStream<Void>)?
+    private var enteredStream: AsyncStream<Void>?
+    private var releaseSignal: AsyncStream<Void>.Continuation?
+
+    init(_ initial: AuthTokens?) { inner = InMemoryTokenStore(initial) }
+
+    var tokens: AuthTokens? { inner.tokens }
+
+    func holdNextSave() {
+        let (entered, enteredSignal) = AsyncStream<Void>.makeStream()
+        let (release, releaseSignal) = AsyncStream<Void>.makeStream()
+        lock.lock()
+        hold = (enteredSignal, release)
+        enteredStream = entered
+        self.releaseSignal = releaseSignal
+        lock.unlock()
+    }
+
+    func waitUntilSaveHeld() async {
+        lock.lock()
+        let entered = enteredStream
+        lock.unlock()
+        for await _ in entered ?? AsyncStream { $0.finish() } { break }
+    }
+
+    func releaseSave() {
+        lock.lock()
+        let signal = releaseSignal
+        lock.unlock()
+        signal?.yield()
+    }
+
+    private func serial<T: Sendable>(_ body: @escaping @Sendable () async -> T) async -> T {
+        lock.lock()
+        let previous = tail
+        let task = Task { _ = await previous?.value; return await body() }
+        tail = Task { _ = await task.value }
+        lock.unlock()
+        return await task.value
+    }
+
+    func read() async -> AuthTokens? { await inner.read() }
+
+    func save(_ tokens: AuthTokens) async -> Bool {
+        await serial { [self] in
+            lock.lock()
+            let held = hold
+            hold = nil
+            lock.unlock()
+            if let held {
+                held.entered.yield()
+                for await _ in held.release { break }
+            }
+            return await inner.save(tokens)
+        }
+    }
+
+    func clear() async {
+        await serial { [self] in await inner.clear() }
     }
 }

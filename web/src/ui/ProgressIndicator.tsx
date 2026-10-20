@@ -33,6 +33,17 @@ export function ProgressIndicator({
   return (
     <div className="progress-indicator">
       {/*
+        디자인 3 (KAN-288): 이름과 숫자가 도트 위 한 줄에 선다 (시안 `.card-progress`). 둘 다 눈으로만
+        읽는다 — 값은 아래 progressbar 한 줄이 말한다.
+      */}
+      <div className="progress-indicator__head" aria-hidden="true">
+        <span className="type-caption progress-indicator__label">{label}</span>
+        <p className="type-caption progress-indicator__count">
+          {current} / {total}
+          {note !== undefined && ` · ${note}`}
+        </p>
+      </div>
+      {/*
         값을 읽는 것은 이 줄 하나다. 도트 열 개가 각각 읽히면 스크린 리더가 같은 정보를
         열 번 말하므로 개별 도트는 aria-hidden으로 빼고, 아래 숫자도 의미론에서 뺀다
         (시각적으로는 남는다).
@@ -54,10 +65,6 @@ export function ProgressIndicator({
           />
         ))}
       </div>
-      <p className="type-caption progress-indicator__count" aria-hidden="true">
-        {current} / {total}
-        {note !== undefined && ` · ${note}`}
-      </p>
     </div>
   )
 }

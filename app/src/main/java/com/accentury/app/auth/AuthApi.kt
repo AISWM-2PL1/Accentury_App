@@ -24,6 +24,7 @@ private const val PATH_LOGOUT = "v0/auth/logout"
 private const val PATH_ME = "v0/users/me"
 private const val PATH_PROFILE = "v0/users/me/profile"
 private const val PATH_VOICE_CONSENT = "v0/users/me/voice-consent"
+private const val PATH_WITHDRAWAL = "v0/users/me/withdrawal"
 private const val JSON_MEDIA_TYPE = "application/json"
 private const val HEADER_CORRELATION_ID = "X-Correlation-Id"
 private const val HEADER_RETRY_AFTER = "Retry-After"
@@ -232,6 +233,15 @@ class AuthApi(
     /** 로그아웃 (§3.13) — 그 Refresh의 패밀리를 서버에서 폐기한다. 모르는 토큰도 204다. */
     suspend fun logout(refreshToken: String): AuthResult<Unit> =
         call(authedClient, post(PATH_LOGOUT, refreshBody(refreshToken))) { }
+
+    /**
+     * 회원 탈퇴 (KAN-251, 서버 KAN-241 §3.14). 204면 계정 정보가 파기됐고 서버의 Refresh도 전부 폐기됐다.
+     *
+     * 본문은 비운다 — 서버가 받는 선택 본문은 애플의 `appleAuthorizationCode`뿐이고 Android에는 애플 로그인이 없다.
+     * OkHttp의 POST는 본문이 꼭 있어야 해서 빈 본문을 싣는다. 이미 탈퇴한 계정의 재요청은 401이다 — 판정은 게이트가 한다.
+     */
+    suspend fun withdraw(): AuthResult<Unit> =
+        call(authedClient, request(PATH_WITHDRAWAL).post(ByteArray(0).toRequestBody()).build()) { }
 
     private fun decodeAccount(text: String): Account = json.decodeFromString(Account.serializer(), text)
 

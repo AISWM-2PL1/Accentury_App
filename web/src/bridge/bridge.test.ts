@@ -1,20 +1,29 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   appBridgeVersion,
+  canOpenSettings,
+  canRetryUpload,
+  getAccessToken,
   getSessionToken,
   haptic,
+  installIntonationRecordedReceiver,
   installItemResultReceiver,
   installRetestFailedReceiver,
+  installUploadFailedReceiver,
   isBridgeCompatible,
   isStandaloneWeb,
   logAnalyticsEvent,
   openExternalUrl,
+  openSettings,
   readAdConsent,
+  refreshAccessToken,
   REQUIRED_BRIDGE_VERSION,
   requestMicPermission,
+  retryUpload,
   shareResult,
   showInterstitialAd,
   startRetest,
+  startIntonationRecording,
   startRetestAfterFailure,
   startVoiceItem,
   writeAdConsent,
@@ -176,6 +185,89 @@ describe('startVoiceItem — 문항 컨텍스트를 JSON으로 넘긴다', () =>
     } as unknown as AccenturyBridge
 
     expect(startVoiceItem(voiceStart)).toBe(false)
+  })
+})
+
+describe('억양 학습 녹음 (KAN-253)', () => {
+  const start = {
+    cardId: 'c1', prompt: '안녕하능교', standard: null, maxDurationMs: 10_000, guideF0: REAL_GUIDE_F0, itemNumber: 1, totalItems: 3,
+  }
+
+  it('startIntonationRecording: 있으면 JSON으로 넘기고 true, 메서드가 없는 앱이면 false', () => {
+    window.AccenturyBridge = fakeBridge()
+    expect(startIntonationRecording(start)).toBe(false)
+
+    const fn = vi.fn()
+    window.AccenturyBridge = fakeBridge({ startIntonationRecording: fn })
+    expect(startIntonationRecording(start)).toBe(true)
+    const sent = JSON.parse(fn.mock.calls[0][0])
+    expect({ ...sent, guideF0: null }).toEqual({ ...start, guideF0: null })
+    expect(sent.guideF0.values.length).toBe(REAL_GUIDE_F0.values.length)
+  })
+
+  it('onIntonationRecorded: 맞는 payload만 넘기고 깨진 것은 버린다, 해제하면 슬롯이 사라진다', () => {
+    const handler = vi.fn()
+    const uninstall = installIntonationRecordedReceiver(handler)
+
+    window.AccenturyWeb?.onIntonationRecorded?.('{broken')
+    window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1' }))
+    window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId: 'c1', attemptId: 'la_1', extra: 1 }))
+    expect(handler.mock.calls).toEqual([[{ cardId: 'c1', attemptId: 'la_1' }]])
+
+    uninstall()
+    expect(window.AccenturyWeb).toBeUndefined()
+  })
+})
+
+describe('openSettings — 네이티브 설정 화면 (KAN-252)', () => {
+  it('메서드가 없는 앱·브라우저면 false이고 canOpenSettings도 false다', () => {
+    expect(canOpenSettings()).toBe(false)
+    expect(openSettings()).toBe(false)
+    window.AccenturyBridge = fakeBridge()
+    expect(canOpenSettings()).toBe(false)
+    expect(openSettings()).toBe(false)
+  })
+
+  it('있으면 인자 없이 한 번 부르고 true', () => {
+    const fn = vi.fn()
+    window.AccenturyBridge = fakeBridge({ openSettings: fn })
+    expect(canOpenSettings()).toBe(true)
+    expect(openSettings()).toBe(true)
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith()
+  })
+})
+
+describe('업로드 재전송 (KAN-288 6단계)', () => {
+  it('retryUpload가 없는 앱·브라우저면 false이고 canRetryUpload도 false다', () => {
+    expect(canRetryUpload()).toBe(false)
+    expect(retryUpload('at_1')).toBe(false)
+    window.AccenturyBridge = fakeBridge()
+    expect(canRetryUpload()).toBe(false)
+    expect(retryUpload('at_1')).toBe(false)
+  })
+
+  it('있으면 attemptId를 그대로 넘기고 true', () => {
+    const fn = vi.fn()
+    window.AccenturyBridge = fakeBridge({ retryUpload: fn })
+    expect(canRetryUpload()).toBe(true)
+    expect(retryUpload('at_1')).toBe(true)
+    expect(fn).toHaveBeenCalledWith('at_1')
+  })
+
+  it('onUploadFailed: 맞는 payload만 넘기고 깨진 것은 버린다, 해제하면 슬롯이 사라진다', () => {
+    const handler = vi.fn()
+    const uninstall = installUploadFailedReceiver(handler)
+
+    window.AccenturyWeb?.onUploadFailed?.('{broken')
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1' }))
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: '', retryable: true }))
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: 'at_1' }))
+    window.AccenturyWeb?.onUploadFailed?.(JSON.stringify({ itemId: 'v1', attemptId: 'at_1', retryable: false, extra: 1 }))
+    expect(handler.mock.calls).toEqual([[{ itemId: 'v1', attemptId: 'at_1', retryable: false }]])
+
+    uninstall()
+    expect(window.AccenturyWeb).toBeUndefined()
   })
 })
 
@@ -386,6 +478,158 @@ describe('getSessionToken — 토큰 읽기 (KAN-13)', () => {
     window.AccenturyBridge = fakeBridge({ getSessionToken: () => '' })
 
     expect(getSessionToken()).toBeNull()
+  })
+})
+
+describe('getAccessToken — 계정 토큰 읽기 (KAN-255)', () => {
+  it('브리지가 토큰을 주면 그대로 돌려준다', () => {
+    window.AccenturyBridge = fakeBridge({ getAccessToken: () => 'acc-1' })
+
+    expect(getAccessToken()).toBe('acc-1')
+  })
+
+  it('브리지가 없거나 메서드를 모르는 앱이면 null이다', () => {
+    expect(getAccessToken()).toBeNull()
+    window.AccenturyBridge = fakeBridge() // getAccessToken 없음
+    expect(getAccessToken()).toBeNull()
+  })
+
+  it('로그인 안 됨·origin 거부(빈 문자열·공백)는 null로 정규화한다', () => {
+    window.AccenturyBridge = fakeBridge({ getAccessToken: () => '' })
+    expect(getAccessToken()).toBeNull()
+    window.AccenturyBridge = fakeBridge({ getAccessToken: () => '  ' })
+    expect(getAccessToken()).toBeNull()
+  })
+})
+
+describe('refreshAccessToken — 계정 토큰 갱신 요청 (KAN-255)', () => {
+  it('메서드가 없으면 즉시 false, 슬롯도 설치하지 않는다', async () => {
+    window.AccenturyBridge = fakeBridge()
+
+    await expect(refreshAccessToken()).resolves.toBe(false)
+    expect(window.AccenturyWeb).toBeUndefined()
+  })
+
+  it("회신 'ok'면 true, 끝난 뒤 슬롯을 해제한다", async () => {
+    const refresh = vi.fn()
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    const pending = refreshAccessToken()
+    expect(refresh).toHaveBeenCalledTimes(1)
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+
+    await expect(pending).resolves.toBe(true)
+    expect(window.AccenturyWeb).toBeUndefined()
+  })
+
+  it("회신 'failed'나 계약 밖 문자열이면 false", async () => {
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: vi.fn() })
+
+    const failed = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+    await expect(failed).resolves.toBe(false)
+
+    const unknown = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('OK')
+    await expect(unknown).resolves.toBe(false)
+  })
+
+  // KAN-255 리뷰 P1: 타임아웃은 호출자만 포기시킨다. 슬롯은 네이티브 회신이 올 때까지 남아야
+  // 늦은 회신이 뒤 요청의 슬롯에 떨어지지 않는다 (예전 「타임아웃이면 슬롯 해제」를 바꿨다)
+  it('회신이 timeoutMs 안에 안 오면 false지만 슬롯은 남고, 늦은 회신이 와야 해제된다', async () => {
+    vi.useFakeTimers()
+    try {
+      window.AccenturyBridge = fakeBridge({ refreshAccessToken: vi.fn() })
+
+      const pending = refreshAccessToken(10_000)
+      vi.advanceTimersByTime(9_999)
+      expect(window.AccenturyWeb?.onAccessTokenRefreshed).toBeTypeOf('function')
+      vi.advanceTimersByTime(1)
+
+      await expect(pending).resolves.toBe(false)
+      expect(window.AccenturyWeb?.onAccessTokenRefreshed).toBeTypeOf('function')
+      window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+      await Promise.resolve()
+      expect(window.AccenturyWeb).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('타임아웃 뒤 요청은 네이티브를 다시 부르지 않고 같은 작업을 기다려, 늦은 ok로 true다', async () => {
+    vi.useFakeTimers()
+    try {
+      const refresh = vi.fn()
+      window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+      const a = refreshAccessToken(1_000)
+      vi.advanceTimersByTime(1_000)
+      await expect(a).resolves.toBe(false)
+
+      const b = refreshAccessToken(10_000)
+      expect(refresh).toHaveBeenCalledTimes(1)
+      window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+      await expect(b).resolves.toBe(true)
+
+      // 회신으로 작업이 끝났으니 다음 요청은 네이티브를 새로 부른다
+      const c = refreshAccessToken(10_000)
+      expect(refresh).toHaveBeenCalledTimes(2)
+      window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+      await expect(c).resolves.toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('동시에 두 번 불리면 갱신 요청은 한 번이고 같은 결과를 공유한다', async () => {
+    const refresh = vi.fn()
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    // 호출자마다 타임아웃이 따로라 Promise 객체는 다르다 — 공유하는 것은 네이티브 작업이다
+    const first = refreshAccessToken()
+    const second = refreshAccessToken()
+    expect(refresh).toHaveBeenCalledTimes(1)
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true])
+  })
+
+  it('끝난 뒤의 요청은 새 갱신을 보낸다', async () => {
+    const refresh = vi.fn()
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    const first = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('failed')
+    await first
+
+    const second = refreshAccessToken()
+    expect(second).not.toBe(first)
+    expect(refresh).toHaveBeenCalledTimes(2)
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+    await expect(second).resolves.toBe(true)
+  })
+
+  it('다른 수신 슬롯은 건드리지 않는다', async () => {
+    const onItemResult = vi.fn()
+    window.AccenturyWeb = { onItemResult }
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: vi.fn() })
+
+    const pending = refreshAccessToken()
+    window.AccenturyWeb?.onAccessTokenRefreshed?.('ok')
+    await pending
+
+    expect(window.AccenturyWeb).toEqual({ onItemResult })
+  })
+
+  it('브리지 호출이 던지면 false이고 다음 요청은 다시 나간다', async () => {
+    const refresh = vi.fn(() => {
+      throw new Error('native')
+    })
+    window.AccenturyBridge = fakeBridge({ refreshAccessToken: refresh })
+
+    await expect(refreshAccessToken()).resolves.toBe(false)
+    await expect(refreshAccessToken()).resolves.toBe(false)
+    expect(refresh).toHaveBeenCalledTimes(2)
   })
 })
 

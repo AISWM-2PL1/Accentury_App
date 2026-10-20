@@ -3,14 +3,15 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { installGa4Tag } from './analytics/ga4'
 import { isStandaloneWeb } from './bridge/bridge'
+import { AppBar } from './ui/AppBar'
 import { markRuntime } from './ui/runtime'
 import './tokens.css'
 import './ui/components.css'
+import './learning/learning.css'
 
 /*
- * 런타임 표식을 렌더보다 먼저 심는다 (KAN-199 #3). 브라우저에서는 화면 위쪽 여백이 앱보다
- * 좁아야 하는데(`tokens.css`의 `:root[data-runtime='browser']`), 표식이 첫 페인트 뒤에
- * 붙으면 앱 기준 여백으로 그려진 화면이 한 프레임 보였다가 튄다.
+ * 런타임 표식을 렌더보다 먼저 심는다 (KAN-199 #3). 브라우저에서만 보이는 사이트 푸터
+ * (`index.html`의 `:root[data-runtime='app'] #site-footer`)가 앱에서 한 프레임 비치지 않게 한다.
  */
 markRuntime(window.location.search)
 
@@ -29,6 +30,7 @@ if (isStandaloneWeb(window.location.search)) installGa4Tag()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <AppBar />
     <App />
   </StrictMode>,
 )

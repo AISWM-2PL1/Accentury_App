@@ -245,4 +245,133 @@ class WebConfigTest {
         assertNull(externalUrlToOpen("not a url"))
     }
 
+
+    // --- buildWebUrl: 홈 시작 (KAN-252) ---
+
+    @Test
+    fun `홈 시작 URL은 스큐 파라미터 뒤에 screen home을 잇고 계측 코드는 맨 뒤다`() {
+        assertEquals(
+            "https://web.example.com?bridge=$BRIDGE_CONTRACT_VERSION&app=1.0&screen=home",
+            buildWebUrl("https://web.example.com", "1.0", home = true),
+        )
+        assertEquals(
+            "https://web.example.com?bridge=$BRIDGE_CONTRACT_VERSION&app=1.0&screen=home&c=abc",
+            buildWebUrl("https://web.example.com", "1.0", campaignToken = "abc", home = true),
+        )
+    }
+
+    @Test
+    fun `testEntry가 있으면 home은 무시되고 테스트 진입 URL 그대로다`() {
+        val entry = TestEntry(testVersion = "gn-1", voiceSet = 2, sessionId = "s-1")
+        assertEquals(
+            buildWebUrl("https://web.example.com", "1.0", testEntry = entry),
+            buildWebUrl("https://web.example.com", "1.0", testEntry = entry, home = true),
+        )
+    }
+
+    // --- startsAtHome: 첫 문서 홈 판정 (KAN-252, PR #33 리뷰 P1) ---
+
+    @Test
+    fun `일반 실행은 홈, 코드 없는 링크와 무효 코드 링크는 인트로다`() {
+        val allowed = setOf("https://accentury.app")
+        fun entered(url: String?) = parseAppLink(url, allowed) != null
+
+        assertTrue(startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered(null)))
+        assertFalse(startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered("https://accentury.app/t")))
+        assertFalse(
+            startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered("https://accentury.app/t?c=kko%20share")),
+        )
+        assertFalse(startsAtHome(tabBarEntry = true, introRequested = false, appLinkEntered = entered("https://accentury.app/t?c=kko_share")))
+    }
+
+    @Test
+    fun `재응시와 익명 빌드는 홈이 아니다`() {
+        assertFalse(startsAtHome(tabBarEntry = true, introRequested = true, appLinkEntered = false))
+        assertFalse(startsAtHome(tabBarEntry = false, introRequested = false, appLinkEntered = false))
+    }
+
+    // --- webBackTarget: 시스템 뒤로가기 판정 (KAN-252) ---
+
+    private val app = "https://web.example.com/?bridge=2&app=1.0"
+    private val home = "$app&screen=home"
+
+    @Test
+    fun `홈에서의 뒤로는 가로채지 않는다 - 앱 종료`() {
+        assertNull(webBackTarget(home, startRequested = false))
+    }
+
+    @Test
+    fun `탭 화면의 뒤로는 홈 문서다`() {
+        listOf("intonation", "words", "translate").forEach { screen ->
+            assertEquals(home, webBackTarget("$app&screen=$screen", startRequested = false))
+        }
+    }
+
+    @Test
+    fun `시작을 누르기 전의 인트로는 홈으로, 누른 뒤는 가로채지 않는다`() {
+        assertEquals(home, webBackTarget(app, startRequested = false))
+        assertNull(webBackTarget(app, startRequested = true))
+    }
+
+    @Test
+    fun `테스트 진행과 결과는 가로채지 않는다`() {
+        assertNull(webBackTarget("$app&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1", startRequested = true))
+        assertNull(webBackTarget("$app&screen=result&sessionId=s-1", startRequested = true))
+        assertNull(webBackTarget("$app&screen=result&sessionId=s-1", startRequested = false))
+    }
+
+    @Test
+    fun `홈으로 갈 때 계측 코드는 남기고 레벨테스트 값은 지운다`() {
+        assertEquals(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=home",
+            webBackTarget("$app&screen=words&sessionId=s-1&c=abc#x", startRequested = false),
+        )
+    }
+
+    @Test
+    fun `문서가 아직 없으면 가로채지 않는다`() {
+        assertNull(webBackTarget(null, startRequested = false))
+    }
+
+    // --- webTabUrl: 탭 문서 조립 — 억양 녹음 ✕의 목적지 (KAN-252, 2026-10-13) ---
+
+    @Test
+    fun `탭 문서는 screen만 바꾼다`() {
+        assertEquals("$app&screen=intonation", webTabUrl("$app&screen=intonation", "intonation"))
+        assertEquals("$app&screen=intonation", webTabUrl(home, "intonation"))
+        assertEquals("$app&screen=intonation", webTabUrl(app, "intonation"))
+    }
+
+    @Test
+    fun `탭 문서는 레벨테스트 값을 지우고 계측 코드는 남기며 fragment를 뗀다`() {
+        assertEquals(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=intonation",
+            webTabUrl("$app&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1&c=abc#x", "intonation"),
+        )
+    }
+
+    @Test
+    fun `문서가 아직 없으면 탭 문서도 없다`() {
+        assertNull(webTabUrl(null, "intonation"))
+    }
+
+    // --- showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13) ---
+
+    @Test
+    fun `톱니는 인트로와 테스트 진행에서만 선다`() {
+        assertTrue(showsSettingsGear(app))
+        assertTrue(showsSettingsGear("$app&screen=test&testVersion=gn-1&voiceSet=2&sessionId=s-1"))
+    }
+
+    @Test
+    fun `탭 화면과 결과에서는 톱니가 없다`() {
+        listOf("home", "intonation", "words", "translate", "result").forEach { screen ->
+            assertFalse(screen, showsSettingsGear("$app&screen=$screen"))
+        }
+    }
+
+    @Test
+    fun `문서가 아직 없으면 톱니가 없다`() {
+        assertFalse(showsSettingsGear(null))
+    }
 }

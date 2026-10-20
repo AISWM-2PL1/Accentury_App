@@ -159,7 +159,7 @@ describe('진행률 — 분모는 정의의 문항 수(7)다', () => {
     expect(bar).toHaveAttribute('aria-valuemax', '7')
     // 어휘 4 + 음성 완료 2
     expect(bar).toHaveAttribute('aria-valuenow', '6')
-    expect(screen.getByText('분석 중 6 / 7')).toBeInTheDocument()
+    expect(screen.getByText('7문항 중 6개 완료')).toBeInTheDocument()
   })
 
   it('음성이 전부 실패해도 분모는 7을 유지한다 — 시도 수와 무관하다', async () => {
@@ -188,7 +188,7 @@ function stepStates(container: HTMLElement): string[] {
 }
 
 describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)', () => {
-  it('음성 분석이 남았으면 1단계(곡선 추출)가 진행 중이다', async () => {
+  it('음성 분석이 남았으면 1단계(억양 그리기)가 진행 중이다', async () => {
     const { container } = await renderScreen({
       fetchImpl: fetchFor({
         analyses: () =>
@@ -197,12 +197,12 @@ describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)'
     })
 
     expect(stepStates(container)).toEqual(['current', 'todo', 'todo'])
-    expect(screen.getByText('곡선 추출')).toBeInTheDocument()
-    expect(screen.getByText('분포 비교')).toBeInTheDocument()
-    expect(screen.getByText('등급 계산')).toBeInTheDocument()
+    expect(screen.getByText('억양 그리기')).toBeInTheDocument()
+    expect(screen.getByText('토박이 말투와 비교')).toBeInTheDocument()
+    expect(screen.getByText('등급 정하기')).toBeInTheDocument()
   })
 
-  it('음성이 전부 끝나고 결과를 기다리면 2단계(분포 비교)로 넘어간다', async () => {
+  it('음성이 전부 끝나고 결과를 기다리면 2단계(토박이 말투와 비교)로 넘어간다', async () => {
     const { container } = await renderScreen({
       fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'))) }),
     })
@@ -210,7 +210,7 @@ describe('3단계 표시 — 폴링 상태에서 파생한다 (KAN-161 3단계)'
     expect(stepStates(container)).toEqual(['done', 'current', 'todo'])
   })
 
-  it('READY면 3단계(등급 계산)까지 온다', async () => {
+  it('READY면 3단계(등급 정하기)까지 온다', async () => {
     const { container } = await renderScreen({
       fetchImpl: fetchFor({
         analyses: () => jsonResponse(200, statusesBody(Array(3).fill('COMPLETED'))),

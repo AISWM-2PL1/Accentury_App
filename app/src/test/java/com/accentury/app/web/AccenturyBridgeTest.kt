@@ -3,6 +3,7 @@ package com.accentury.app.web
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.analytics.EventParam
 import com.accentury.app.bridge.GuideF0
+import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.recording.GuideF0Fixture
 import com.accentury.app.bridge.SharePayload
 import com.accentury.app.bridge.VoiceItemStart
@@ -56,6 +57,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.startVoiceItem(payloadJson)
         queue.drain()
@@ -82,6 +85,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.requestMicPermission()
         queue.drain()
@@ -108,6 +113,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.requestMicPermission()
         queue.drain()
@@ -137,6 +144,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.requestMicPermission() // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -164,6 +173,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.startRetest()
         queue.drain()
@@ -203,6 +214,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.startRetest() // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -236,6 +249,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.startRetest()
         bridge.startRetest()
@@ -265,6 +280,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.startRetestAfterFailure()
         queue.drain()
@@ -301,6 +318,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         assertEquals(BRIDGE_CONTRACT_VERSION, bridge.getContractVersion())
     }
@@ -322,6 +341,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
     )
 
     @Test
@@ -455,6 +476,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.startVoiceItem(payload()) // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -483,6 +506,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.shareResult(payloadJson)
         queue.drain()
@@ -548,6 +573,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.logEvent(name, paramsJson)
         queue.drain()
@@ -621,6 +648,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.openExternalUrl(url)
         queue.drain()
@@ -678,6 +707,8 @@ class AccenturyBridgeTest {
             },
             onShowInterstitialAd = { interstitialShown++ },
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
     }
 
@@ -754,6 +785,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = { setCalls++ },
             onShowInterstitialAd = {},
             onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         bridge.setAdConsent("granted") // 호출 시점엔 허용 상태
         allowedNow = false // 실행 전에 allowlist 밖으로 이동
@@ -807,6 +840,8 @@ class AccenturyBridgeTest {
             onSetAdConsent = {},
             onShowInterstitialAd = {},
             onHaptic = { received += it },
+            accessToken = { "" },
+            onRefreshAccessToken = {},
         )
         values.forEach { bridge.haptic(it) }
         queue.drain()
@@ -827,5 +862,210 @@ class AccenturyBridgeTest {
     fun `계약 밖 햅틱 값은 버린다 - 대소문자·공백을 보정하지 않는다`() {
         assertEquals(emptyList<Haptic>(), haptics("", "TAP", "vibrate", "success "))
     }
-}
 
+    /** 계정 토큰 두 메서드용 (KAN-255). 이 둘 말고는 아무 것도 하지 않는 브리지다. */
+    private class TokenHarness(originAllowedNow: Boolean = true, urlAllowed: () -> Boolean = { true }) {
+        val queue = FakeMainQueue()
+        var refreshRequested = 0
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = urlAllowed,
+            isOriginAllowedNow = { originAllowedNow },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "access-1" },
+            onRefreshAccessToken = { refreshRequested++ },
+        )
+    }
+
+    @Test
+    fun `허용된 origin이면 계정 Access 토큰을 돌려준다`() {
+        assertEquals("access-1", TokenHarness(originAllowedNow = true).bridge.getAccessToken())
+    }
+
+    @Test
+    fun `allowlist 밖 origin에서는 계정 토큰 대신 빈 문자열이다`() {
+        assertEquals("", TokenHarness(originAllowedNow = false).bridge.getAccessToken())
+    }
+
+    @Test
+    fun `허용된 origin이면 갱신 요청이 콜백으로 한 번 간다`() {
+        val h = TokenHarness()
+        h.bridge.refreshAccessToken()
+        h.queue.drain()
+        assertEquals(1, h.refreshRequested)
+    }
+
+    @Test
+    fun `allowlist 밖 origin의 갱신 요청은 조용히 버린다`() {
+        val h = TokenHarness(urlAllowed = { false })
+        h.bridge.refreshAccessToken()
+        h.queue.drain()
+        assertEquals(0, h.refreshRequested)
+    }
+
+    @Test
+    fun `갱신 요청도 실행 시점 origin으로 판정한다`() {
+        var allowedNow = true
+        val h = TokenHarness(urlAllowed = { allowedNow })
+        h.bridge.refreshAccessToken() // 호출 시점엔 허용 상태
+        allowedNow = false // 실행 전에 allowlist 밖으로 이동
+        h.queue.drain()
+        assertEquals(0, h.refreshRequested)
+    }
+
+    /** startIntonationRecording을 한 번 부르고 콜백이 받은 값을 돌려준다 (KAN-253). 무시됐으면 null. */
+    private fun startIntonation(payloadJson: String, urlAllowed: () -> Boolean = { true }, beforeDrain: () -> Unit = {}): IntonationRecordingStart? {
+        val queue = FakeMainQueue()
+        var received: IntonationRecordingStart? = null
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = urlAllowed,
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
+            onStartIntonationRecording = { received = it },
+        )
+        bridge.startIntonationRecording(payloadJson)
+        beforeDrain()
+        queue.drain()
+        return received
+    }
+
+    private val intonationPayload =
+        """{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000,"itemNumber":1,"totalItems":3}"""
+
+    @Test
+    fun `허용된 origin이면 억양 녹음 시작이 파싱된 payload로 간다`() {
+        assertEquals("card_1", startIntonation(intonationPayload)?.cardId)
+    }
+
+    @Test
+    fun `allowlist 밖 origin의 억양 녹음 시작은 버린다`() {
+        assertNull(startIntonation(intonationPayload, urlAllowed = { false }))
+    }
+
+    @Test
+    fun `억양 녹음 시작도 실행 시점 origin으로 판정한다`() {
+        var allowedNow = true
+        assertNull(startIntonation(intonationPayload, urlAllowed = { allowedNow }, beforeDrain = { allowedNow = false }))
+    }
+
+    @Test
+    fun `불량 억양 payload는 콜백 없이 버린다`() {
+        assertNull(startIntonation("""{"cardId":"","prompt":"a","maxDurationMs":10000,"itemNumber":1,"totalItems":1}"""))
+        assertNull(startIntonation("not json"))
+    }
+
+    /** openSettings를 한 번 부르고 콜백 횟수를 돌려준다 (KAN-252). */
+    private fun openSettings(urlAllowed: () -> Boolean, beforeDrain: () -> Unit = {}): Int {
+        val queue = FakeMainQueue()
+        var opened = 0
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = urlAllowed,
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
+            onOpenSettings = { opened++ },
+        )
+        bridge.openSettings()
+        beforeDrain()
+        queue.drain()
+        return opened
+    }
+
+    @Test
+    fun `허용된 origin이면 설정 열기 콜백이 한 번 간다`() {
+        assertEquals(1, openSettings(urlAllowed = { true }))
+    }
+
+    @Test
+    fun `allowlist 밖 origin에서는 설정을 열지 않는다`() {
+        assertEquals(0, openSettings(urlAllowed = { false }))
+    }
+
+    @Test
+    fun `설정 열기도 실행 시점 origin으로 판정한다`() {
+        var allowedNow = true
+        assertEquals(0, openSettings(urlAllowed = { allowedNow }, beforeDrain = { allowedNow = false }))
+    }
+
+    /** retryUpload를 한 번 부르고 콜백이 받은 attemptId들을 돌려준다 (KAN-288 6단계). */
+    private fun retryUpload(attemptId: String, allowed: Boolean = true): List<String> {
+        val queue = FakeMainQueue()
+        val retried = mutableListOf<String>()
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = { allowed },
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
+            onRetryUpload = { retried += it },
+        )
+        bridge.retryUpload(attemptId)
+        queue.drain()
+        return retried
+    }
+
+    @Test
+    fun `다시 보내기는 받은 attemptId 그대로 재전송 콜백으로 간다`() {
+        assertEquals(listOf("at_1"), retryUpload("at_1"))
+    }
+
+    @Test
+    fun `allowlist 밖 origin에서는 재전송하지 않는다`() {
+        assertEquals(emptyList<String>(), retryUpload("at_1", allowed = false))
+    }
+
+    @Test
+    fun `빈 attemptId는 버린다`() {
+        assertEquals(emptyList<String>(), retryUpload(" "))
+    }
+}

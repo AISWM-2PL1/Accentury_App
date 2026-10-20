@@ -292,6 +292,28 @@ class UploadManagerTest {
         assertEquals(TRANSPORT_FAILED, manager.uploads.value["at-1"])
     }
 
+    /*
+     * 대기 화면의 [다시 보내기]는 그 문항 하나만 다시 보낸다 (KAN-288 6단계). 다른 문항의 실패까지 함께 보내면
+     * 사용자가 누르지 않은 업로드가 나가고, 그 문항의 대기 화면은 영문도 모른 채 실패 표시를 잃는다.
+     */
+    @Test
+    fun `retry는 그 시도만 재전송하고 다른 실패는 그대로 둔다`() = withManager { fake, manager ->
+        manager.enqueue(requestOf("at-1"))
+        manager.enqueue(requestOf("at-2"))
+        advanceUntilIdle()
+        fake.respond("at-1", transportError())
+        fake.respond("at-2", transportError())
+        advanceUntilIdle()
+
+        manager.retry("at-2")
+        advanceUntilIdle()
+
+        assertEquals(1, fake.callsFor("at-1"))
+        assertEquals(2, fake.callsFor("at-2"))
+        assertEquals(TRANSPORT_FAILED, manager.uploads.value["at-1"])
+        assertEquals(UploadState.InFlight, manager.uploads.value["at-2"])
+    }
+
     @Test
     fun `retry는 같은 멱등 키와 같은 바이트로 재전송한다`() = withManager { fake, manager ->
         val original = requestOf("at-1")

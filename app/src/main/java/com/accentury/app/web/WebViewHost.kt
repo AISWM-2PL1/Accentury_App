@@ -9,35 +9,26 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.accentury.app.BuildConfig
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.analytics.EventParam
-import com.accentury.app.ui.components.AccenturyButton
-import com.accentury.app.ui.components.StatusBlock
-import com.accentury.app.ui.components.StatusTone
-import com.accentury.app.ui.components.performHaptic
-import com.accentury.app.ui.theme.Spacing
+import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.bridge.SharePayload
 import com.accentury.app.bridge.VoiceItemStart
-import kotlinx.coroutines.delay
+import com.accentury.app.ui.components.PaperFailureScreen
+import com.accentury.app.ui.components.PaperWaitingScreen
+import com.accentury.app.ui.components.performHaptic
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.delay
 
 /** 원격 웹 로드의 세 상태. Failed로 가는 길은 명시 오류 콜백과 자체 타임아웃 두 갈래다. */
 sealed interface WebLoadState {
@@ -66,6 +57,13 @@ sealed interface WebLoadState {
  * @param readAdConsent 광고 동의 정본 (KAN-196). 브리지가 JS 스레드에서 동기로 읽는다
  * @param onSetAdConsent 시트에서 고른 동의 (KAN-196). `granted`·`denied`만 온다. 메인 스레드로 온다
  * @param onShowInterstitialAd 대기 화면의 전면 광고 (KAN-196). 메인 스레드로 온다
+ * @param accessToken 계정 Access 토큰 (KAN-255). 브리지가 JS 스레드에서 동기로 읽는다
+ * @param onRefreshAccessToken 웹이 401 뒤 청한 계정 토큰 갱신 (KAN-255). 메인 스레드로 온다
+ * @param onStartIntonationRecording 억양 학습 녹음 호출 (KAN-253). 검증된 payload만 메인 스레드로 온다
+ * @param onOpenSettings 탭 바의 [설정] (KAN-252). 메인 스레드로 온다
+ * @param onRetryUpload 대기 화면의 [다시 보내기] (KAN-288 6단계). 빈 값이 아닌 attemptId가 메인 스레드로 온다
+ * @param onPageStarted 메인 프레임 문서가 바뀌었다 — 웹의 탭 이동은 `location.href` 대입이라 문서마다 온다.
+ *   상위가 시스템 뒤로가기를 문서의 `screen`으로 판정하는 데 쓴다 (KAN-252, [webBackTarget])
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
  */
@@ -85,7 +83,13 @@ fun WebViewHost(
     readAdConsent: () -> AdConsent,
     onSetAdConsent: (AdConsent) -> Unit,
     onShowInterstitialAd: () -> Unit,
+    accessToken: () -> String,
+    onRefreshAccessToken: () -> Unit,
     modifier: Modifier = Modifier,
+    onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onRetryUpload: (String) -> Unit = {},
+    onPageStarted: (String?) -> Unit = {},
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
     onWebViewReleased: (WebView) -> Unit = {},
@@ -147,6 +151,7 @@ fun WebViewHost(
                                 // 메인 프레임 전환마다 동기 브리지용 origin 플래그 갱신 (메인 스레드).
                                 // 리다이렉트도 각 전환이 onPageStarted를 타므로 여기 한 곳이면 된다.
                                 originAllowed.set(isAllowedWebUrl(url, allowedOrigins))
+                                onPageStarted(url)
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
@@ -192,6 +197,11 @@ fun WebViewHost(
                                 onShowInterstitialAd = onShowInterstitialAd,
                                 // 웹 버튼의 햅틱 (KAN-258) — 이 WebView에서 낸다. 브리지가 메인으로 넘긴 뒤 부른다.
                                 onHaptic = { performHaptic(it) },
+                                accessToken = accessToken,
+                                onRefreshAccessToken = onRefreshAccessToken,
+                                onStartIntonationRecording = onStartIntonationRecording,
+                                onOpenSettings = onOpenSettings,
+                                onRetryUpload = onRetryUpload,
                             ),
                             "AccenturyBridge",
                         )
@@ -232,31 +242,17 @@ fun WebViewHost(
  */
 @Composable
 private fun LoadingScreen(modifier: Modifier = Modifier) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x3, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("사투리 억양 테스트", style = MaterialTheme.typography.titleMedium)
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-        }
-    }
+    PaperWaitingScreen(title = "사투리 억양 테스트", modifier = modifier)
 }
 
-/** 네이티브 오류 화면 (§6) — 비난 없는 카피 + [다시 시도]. */
+/** 네이티브 오류 화면 (§6) — 비난 없는 카피 + [다시 시도]. 시안 06b 배치(KAN-288). */
 @Composable
 private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(Spacing.x4),
-        verticalArrangement = Arrangement.spacedBy(Spacing.x3, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        StatusBlock(
-            tone = StatusTone.Error,
-            message = "연결이 불안정해요",
-            detail = "네트워크를 확인하고 다시 시도해 주세요",
-            action = { AccenturyButton(text = "다시 시도", onClick = onRetry) },
-        )
-    }
+    PaperFailureScreen(
+        title = "연결이 불안정해요",
+        detail = "네트워크를 확인하고 다시 시도해 주세요",
+        buttonLabel = "다시 시도",
+        onButtonClick = onRetry,
+        modifier = modifier,
+    )
 }

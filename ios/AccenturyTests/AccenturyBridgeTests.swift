@@ -28,6 +28,10 @@ final class AccenturyBridgeTests: XCTestCase {
         var consents: [AdConsent] = []
         var interstitialCalls = 0
         var haptics: [Haptic] = []
+        var refreshAccessTokenCalls = 0
+        var intonationStarts: [IntonationRecordingStart] = []
+        var openSettingsCalls = 0
+        var retriedUploads: [String] = []
     }
 
     private func makeDispatcher(
@@ -45,7 +49,11 @@ final class AccenturyBridgeTests: XCTestCase {
             onOpenExternalUrl: { sink.externalUrls.append($0) },
             onSetAdConsent: { sink.consents.append($0) },
             onShowInterstitialAd: { sink.interstitialCalls += 1 },
-            onHaptic: { sink.haptics.append($0) }
+            onHaptic: { sink.haptics.append($0) },
+            onRefreshAccessToken: { sink.refreshAccessTokenCalls += 1 },
+            onStartIntonationRecording: { sink.intonationStarts.append($0) },
+            onOpenSettings: { sink.openSettingsCalls += 1 },
+            onRetryUpload: { sink.retriedUploads.append($0) }
         )
     }
 
@@ -533,5 +541,106 @@ final class AccenturyBridgeTests: XCTestCase {
         dispatcher.handle(method: "haptic", payload: 1)
         dispatcher.handle(method: "haptic", payload: ["type": "tap"])
         XCTAssertTrue(sink.haptics.isEmpty)
+    }
+
+    // MARK: refreshAccessToken (KAN-255)
+
+    /// 우리 웹의 요청은 갱신 창구로 정확히 한 번 간다. payload는 없다 — 무엇이 와도 같은 요청이다.
+    func testRefreshAccessTokenReachesItsCallbackOnceFromAnAllowedOrigin() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+        dispatcher.handle(method: "refreshAccessToken", payload: nil)
+        XCTAssertEqual(1, sink.refreshAccessTokenCalls)
+    }
+
+    /// 불허 문서의 요청은 조용히 버린다 — 갱신도 회신도 없다(웹은 10초 타임아웃으로 끝낸다, §11).
+    func testRefreshAccessTokenIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
+        dispatcher.handle(method: "refreshAccessToken", payload: nil)
+        XCTAssertEqual(0, sink.refreshAccessTokenCalls)
+    }
+
+    // MARK: startIntonationRecording (KAN-253)
+
+    private let intonationPayload =
+        #"{"cardId":"card_1","prompt":"어데 가노?","standard":"어디 가니?","maxDurationMs":10000,"itemNumber":1,"totalItems":3}"#
+
+    /// 우리 웹의 카드 진입 자동 호출은 파싱된 카드 컨텍스트로 녹음 창구에 간다.
+    func testAllowedOriginHandsTheParsedIntonationStartToItsCallback() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+            .handle(method: "startIntonationRecording", payload: intonationPayload)
+        XCTAssertEqual(
+            [IntonationRecordingStart(
+                cardId: "card_1", prompt: "어데 가노?", standard: "어디 가니?", maxDurationMs: 10_000, itemNumber: 1, totalItems: 3
+            )],
+            sink.intonationStarts
+        )
+    }
+
+    /// allowlist 밖 문서의 호출은 내용과 무관하게 조용히 버린다 (§5).
+    func testIntonationStartIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
+            .handle(method: "startIntonationRecording", payload: intonationPayload)
+        XCTAssertTrue(sink.intonationStarts.isEmpty)
+    }
+
+    /// 불량 payload(빈 cardId·JSON 아님·문자열 아닌 봉투)는 콜백 없이 버린다.
+    func testMalformedIntonationPayloadsAreIgnoredSilently() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+        dispatcher.handle(method: "startIntonationRecording", payload: #"{"cardId":"","prompt":"a","maxDurationMs":10000}"#)
+        dispatcher.handle(method: "startIntonationRecording", payload: "not json")
+        dispatcher.handle(method: "startIntonationRecording", payload: nil)
+        dispatcher.handle(method: "startIntonationRecording", payload: ["cardId": "card_1"])
+        XCTAssertTrue(sink.intonationStarts.isEmpty)
+    }
+
+    // MARK: retryUpload (KAN-288, 안드로이드 AccenturyBridgeTest와 같은 세 주장)
+
+    func testRetryUploadPassesTheAttemptIdThrough() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(method: "retryUpload", payload: "at_1")
+        XCTAssertEqual(["at_1"], sink.retriedUploads)
+    }
+
+    func testRetryUploadIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false }).handle(method: "retryUpload", payload: "at_1")
+        XCTAssertEqual([], sink.retriedUploads)
+    }
+
+    func testBlankAttemptIdIsDropped() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(method: "retryUpload", payload: " ")
+        XCTAssertEqual([], sink.retriedUploads)
+    }
+
+    // MARK: openSettings (KAN-252)
+
+    /// 허용된 origin이면 설정 열기 콜백이 한 번 간다.
+    func testOpenSettingsReachesItsCallbackOnceFromAnAllowedOrigin() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(method: "openSettings", payload: nil)
+        XCTAssertEqual(1, sink.openSettingsCalls)
+    }
+
+    /// allowlist 밖 origin에서는 설정을 열지 않는다 (§5).
+    func testOpenSettingsIsIgnoredOutsideTheAllowlist() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false }).handle(method: "openSettings", payload: nil)
+        XCTAssertEqual(0, sink.openSettingsCalls)
+    }
+
+    /// 설정 열기도 처리 시점 origin으로 판정한다 — 안드로이드가 postToMain 큐를 비우기 전에 origin을 바꾸는 자리다.
+    func testOpenSettingsIsJudgedByTheOriginWhenHandled() {
+        let sink = Sink()
+        var allowedNow = true
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { allowedNow })
+        allowedNow = false
+        dispatcher.handle(method: "openSettings", payload: nil)
+        XCTAssertEqual(0, sink.openSettingsCalls)
     }
 }

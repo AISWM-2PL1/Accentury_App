@@ -16,6 +16,15 @@ import Foundation
 /// Compose의 `rememberSaveable`은 OS가 들고 있는 봉투(Bundle)에 값을 넣어 프로세스 사망까지
 /// 넘겨준다. iOS에는 그 자리가 없어서 직접 `UserDefaults`에 적는다. 무엇을 적는지는
 /// 두 컨트롤러의 `saved()`가 정하고(각각 JSON 한 줄), 이 클래스는 그 문자열을 나르기만 한다.
+///
+/// ## 새 실행은 저장을 버린다 (KAN-252 4단계 보완)
+///
+/// 봉투는 **시스템이 죽인 프로세스를 되살릴 때만** 돌아온다 — 사용자가 앱을 새로 실행하면 비어 있어 홈부터다(지라 AC 「로그인
+/// 뒤 첫 화면이 홈」). `UserDefaults`는 그 구분 없이 남아, 테스트를 마치거나 도중에 앱을 끈 뒤 다시 열면 지난 테스트·결과가
+/// 열렸다. 그래서 "이번 실행이 복원인가"를 ``init(restoresSavedState:defaults:sessionClient:isMicGranted:onProfileIncomplete:anonymousConsent:tabBarEntry:)``가
+/// 받아, 아니면 저장분을 먼저 지운다. 그 표시는 화면이 SwiftUI `@SceneStorage`로 든다(``TestFlowView/sceneRestorationKey``).
+/// 값 자체를 장면 저장소로 옮기지 않은 이유는 세션 토큰이다 — 애플은 장면 저장소에 민감한 값을 두지 말라고 한다.
+/// https://developer.apple.com/documentation/swiftui/restoring-your-app-s-state-with-swiftui
 /*
  * 업로드가 뒷받침하지 않는 붙들기를 걷는 상한 (KAN-146). 안드로이드
  * `MainActivity.ORPHANED_SUBMIT_TIMEOUT_MS`(2_000L)와 같은 값이고, iOS 타이머 API가 초 단위
@@ -46,6 +55,10 @@ final class TestFlowModel: ObservableObject {
     /// Universal Link가 실어 온 유입 계측 코드 (KAN-32). 안드로이드에는 대응 키가 없다 —
     /// 아래 ``campaignToken`` 주석 참고.
     static let campaignTokenKey = "test_flow_campaign_token"
+    /// 안드로이드 `var introRequested by rememberSaveable` (KAN-252).
+    static let introRequestedKey = "test_flow_intro_requested"
+    /// 앱 링크로 들어왔는가 (KAN-252, PR #33 리뷰 P1). 아래 ``appLinkEntered`` 주석 참고.
+    static let appLinkEnteredKey = "test_flow_app_link_entered"
 
     // MARK: 시작 게이트의 네 칸 (KAN-34, KAN-105)
 
@@ -86,6 +99,25 @@ final class TestFlowModel: ObservableObject {
                 defaults.removeObject(forKey: Self.campaignTokenKey)
             }
         }
+    }
+
+    /*
+     * 첫 문서를 홈이 아니라 인트로로 열어야 하는가 (KAN-252). 홈 시작은 ``tabBarEntry`` 빌드의 **앱을 연 첫 문서**에만 해당한다.
+     * 재응시는 "새 세션을 든 채 인트로로 돌아가는" 흐름이라(``startRetest()``) 거기서 세운다 — 세우지 않으면 재응시가 홈으로
+     * 떨어진다. 앱 링크 진입(``appLinkEntered``)도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다. 진입 URL 문자열이 곧
+     * 로드라(``WebViewHost``) 이 값이 바뀌는 순간이 곧 리로드다. ``startRequested``와 같이 `UserDefaults`에 적어 시스템 종료 뒤
+     * 장면 복원을 넘긴다 — 사라지면 재응시 직후 복원에서 인트로 대신 홈이 뜬다. 새 실행에서는 다른 저장분과 함께 지워진다(타입 주석).
+     */
+    @Published private(set) var introRequested: Bool {
+        didSet { defaults.set(introRequested, forKey: Self.introRequestedKey) }
+    }
+
+    /// 이번 실행이 앱 링크로 들어왔는가 (KAN-252, PR #33 리뷰 P1). 안드로이드는 `appLink` StateFlow가 null이 아닌 것으로 같은 판정을
+    /// 한다. ``campaignToken``과 따로 드는 이유는 코드 없는 링크(`/t`)·무효 코드 링크다 — 파서는 링크로 인정하고 코드만 nil로 주므로,
+    /// 코드로 판정하면 그 링크가 홈으로 열린다. ``campaignToken``과 같은 이유로 `UserDefaults`에 적고, 새 실행에서는 함께 지워진다
+    /// (``clearSavedState(in:)``) — 링크는 그 뒤 씬이 붙으면서 ``applyAppLink(_:)``로 오므로 지우기가 새 링크를 먹지 않는다.
+    @Published private(set) var appLinkEntered: Bool {
+        didSet { defaults.set(appLinkEntered, forKey: Self.appLinkEnteredKey) }
     }
 
     // MARK: 컨트롤러가 정하는 값
@@ -131,7 +163,10 @@ final class TestFlowModel: ObservableObject {
              * 응시 중에 자기 링크를 다시 누르는 일 자체가 드물어 그 리로드를 감수한다
              * (KAN-32 결정, 안드로이드와 같은 판단).
              */
-            campaignToken: campaignToken
+            campaignToken: campaignToken,
+            // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면 코드가 없거나
+            // 무효여도 예전처럼 인트로다 — 판정은 Core ``AccenturyCore/startsAtHome(tabBarEntry:introRequested:appLinkEntered:)``.
+            home: startsAtHome(tabBarEntry: tabBarEntry, introRequested: introRequested, appLinkEntered: appLinkEntered)
         )
     }
 
@@ -164,6 +199,10 @@ final class TestFlowModel: ObservableObject {
     private let isMicGranted: () -> Bool
     private let onProfileIncomplete: @MainActor () -> Void
 
+    /// 웹 하단 탭 바로 들어가는 빌드인가 (KAN-252, 로그인 빌드). 켜면 첫 문서가 홈(`screen=home`)이다. 끄면(익명 빌드)
+    /// 예전 그대로 인트로로 시작한다 — 학습이 로그인 필수라 그 빌드엔 탭 바가 보이지 않는다.
+    let tabBarEntry: Bool
+
     /// 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). nil이면 계정 모드 — 동의·지역 단계가 없고 body에 버전·지역을 싣지 않는다.
     let anonymousConsent: AnonymousVoiceConsentStore?
     /// 저장소가 바뀌면 이 모델도 바뀐 것으로 알린다 — 시작 게이트의 동의 단계가 ``TestFlowView``에서 이 모델만 보고 걷힌다.
@@ -180,18 +219,30 @@ final class TestFlowModel: ObservableObject {
     ///   - anonymousConsent: 익명 모드의 로컬 동의·지역 (KAN-270 6·7단계). 주면 시작 게이트가 권한 → 동의(설치당 1회) →
     ///     지역(아직 없을 때, 동의와 무관, 설치당 1회) → 점검 → 세션이 되고, 세션 생성 body에 동의 버전·지역을 싣는다.
     ///     nil이 계정 모드다.
+    ///   - tabBarEntry: 홈으로 시작하는 로그인 빌드인가 (KAN-252, ``tabBarEntry``).
+    ///   - restoresSavedState: 이번 실행이 시스템 종료 뒤 장면 복원인가 (KAN-252 4단계 보완). false면 저장분을 지우고 새로 시작한다 —
+    ///     안드로이드에서 새 실행의 `rememberSaveable`이 비어 있는 것과 같은 결과다. 기본값 true는 단위 테스트가 쓰는 예전 의미다.
     init(
+        restoresSavedState: Bool = true,
         defaults: UserDefaults = .standard,
         sessionClient: SessionClient? = TestFlowModel.defaultSessionClient(),
         isMicGranted: @escaping () -> Bool = { MicPermission.currentStatus().granted },
         onProfileIncomplete: @escaping @MainActor () -> Void = { AuthHub.gate.onProfileIncomplete() },
-        anonymousConsent: AnonymousVoiceConsentStore? = nil
+        anonymousConsent: AnonymousVoiceConsentStore? = nil,
+        tabBarEntry: Bool = false
     ) {
         self.defaults = defaults
+        self.tabBarEntry = tabBarEntry
         self.sessionClient = sessionClient
         self.isMicGranted = isMicGranted
         self.onProfileIncomplete = onProfileIncomplete
         self.anonymousConsent = anonymousConsent
+
+        /*
+         * 새 실행이면 지난 실행의 흐름·세션·진입 상태를 읽기 전에 버린다 (KAN-252 4단계 보완). 이 갈래가 곧 마이그레이션이다 —
+         * 업데이트 전 빌드가 남긴 키도 업데이트 뒤 첫 실행(장면 복원 표시가 없다)에서 함께 지워진다.
+         */
+        if !restoresSavedState { Self.clearSavedState(in: defaults) }
 
         let flow = TestFlowController.restored(from: defaults.string(forKey: Self.flowStorageKey) ?? "")
             ?? TestFlowController()
@@ -206,6 +257,8 @@ final class TestFlowModel: ObservableObject {
         self.micPassed = defaults.bool(forKey: Self.micPassedKey)
         self.voiceCenterHz = defaults.object(forKey: Self.voiceCenterKey) as? Double
         self.campaignToken = defaults.string(forKey: Self.campaignTokenKey)
+        self.introRequested = defaults.bool(forKey: Self.introRequestedKey)
+        self.appLinkEntered = defaults.bool(forKey: Self.appLinkEnteredKey)
 
         /*
          * 대응 업로드가 없는 대기 시도를 한 번 걷어낸다 (안드로이드의 첫 LaunchedEffect).
@@ -242,6 +295,7 @@ final class TestFlowModel: ObservableObject {
             return
         }
         campaignToken = entry.campaignToken
+        appLinkEntered = true
         #if DEBUG
         smokeLog("APPLINK: campaignToken=\(entry.campaignToken ?? "(none)")")
         #endif
@@ -298,6 +352,20 @@ final class TestFlowModel: ObservableObject {
     func onRecordingExit() {
         flow.onRecordingExit()
         syncFlow()
+    }
+
+    /// 녹음 화면 ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정). 안드로이드 RecordingOverlay `onQuit`의 자리다 — 컨트롤러가
+    /// 응시를 버리면(``AccenturyCore/TestFlowController/onTestQuit()``) 세션 실패 [처음으로]와 같은 ``backToIntro()``로 되감는다:
+    /// 세션을 버리고(서버 폐기는 다음 생성이 이전 토큰을 실어 한다, KAN-107) `startRequested`가 내려가 진입 URL이 인트로
+    /// (탭 바 빌드는 홈)로 다시 로드된다. 웹에 따로 알리는 브리지는 없다 — 문서가 통째로 다시 서므로 알릴 상대가 남지 않는다.
+    ///
+    /// - Returns: 받아들였는가. 제출을 기다리는 중이면 false이고 아무것도 바뀌지 않는다.
+    @discardableResult
+    func onTestQuit() -> Bool {
+        guard flow.onTestQuit() else { return false }
+        syncFlow()
+        backToIntro()
+        return true
     }
 
     /// 시작 게이트를 인트로 앞으로 되감는다. 세션 게이트 실패 화면의 [처음으로]와, 프로필 미완료로 추가 정보 화면에
@@ -374,7 +442,8 @@ final class TestFlowModel: ObservableObject {
     /// 그대로 두면 다른 계정(또는 프로필을 다시 채운 계정)이 앞 응시의 세션을 복원해 이어 간다. 그래서 관문이 SignedIn을
     /// 벗어날 때 여기서 같은 결과를 만든다. 프로세스 사망 뒤 복원(SignedIn → SignedIn)은 건드리지 않는다.
     static func clearSavedState(in defaults: UserDefaults = .standard) {
-        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey] {
+        for key in [flowStorageKey, gateStorageKey, startRequestedKey, micPassedKey, voiceCenterKey, campaignTokenKey, introRequestedKey,
+                    appLinkEnteredKey] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -463,6 +532,8 @@ final class TestFlowModel: ObservableObject {
             // (`webUrl`) 이 한 줄이 곧 인트로 리로드다. micPassed는 되돌리지 않는다 —
             // 권한이 이미 허용이면 다시 묻지 않는 것이 KAN-34 AC다.
             startRequested = false
+            // 홈 시작 빌드에서도 재응시 뒤는 인트로다 (KAN-252).
+            introRequested = true
             // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
             flow.onSessionReplaced()
             return nil
@@ -548,6 +619,12 @@ final class TestFlowModel: ObservableObject {
         let delivered = flow.onUploadsChanged(uploads)
         syncFlow()
         return delivered
+    }
+
+    /// 웹에 알릴 업로드 실패, 재녹음 거절 제외 (KAN-288, webview-bridge.md §14). 판정은 Core
+    /// ``AccenturyCore/TestFlowController/failedUploads(_:)``가 하고, 주입은 화면 몫이다(``takeResultsForDelivery()``와 같은 이유).
+    func failedUploads() -> [UploadFailed] {
+        flow.failedUploads(uploads)
     }
 
     /// 결과 주입이 끝났다 — 웹이 받아 다음 문항을 그리기 시작했다는 뜻이다 (KAN-146).

@@ -1,0 +1,321 @@
+/*
+ * 단어 학습 화면 (KAN-255 3단계). 값은 전부 tokens.css 토큰을 참조한다 — components.css 머리
+ * 주석과 같은 규칙. 카드·선택지·버튼은 components.css의 것을 그대로 쓰고 여기엔 학습에만 있는
+ * 조각(세트 행·정오 표시·오답 목록)만 둔다.
+ */
+
+/* ── W-1 세트 목록 ── */
+
+.word-level {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.word-level__title {
+  color: var(--color-muted-foreground);
+}
+
+/* 선택지(.choice)와 같은 종이 행. 누르면 바닥에 닿는 것도 같은 규칙이다 */
+.word-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  /* 디자인 3 (KAN-288, 시안 `.course` min-height 95): 번호·제목(Jua 20)·메타 두 줄이 들어가는 종이 한 장.
+     48 한 줄 행이던 것을 키웠다 — 제목이 Jua 20으로 오르며 메타가 아래 줄로 내려갔다 */
+  position: relative;
+  min-height: 94px;
+  padding: var(--space-4) var(--space-3) var(--space-4) var(--space-4);
+  /* 고르지 않은 종이 행은 선택지(.choice)와 같은 흐린 잉크 1px (KAN-288) */
+  border: 1px solid var(--color-muted-foreground);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    box-shadow var(--duration-press) var(--ease-out),
+    transform var(--duration-press) var(--ease-out);
+}
+
+.word-set-row:active {
+  transform: translate(var(--paper-shadow-x), var(--paper-shadow-y));
+  box-shadow: none;
+}
+
+.word-set-row:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* 추천 1개만 강조 — 두께·그림자·「추천」 글자로 말한다 (색 하나에 기대지 않는다) */
+.word-set-row--recommended {
+  /* 시안 `.course.featured`: 벽돌 1.5px + 종이 그림자 (KAN-288) */
+  border: 1.5px solid var(--color-point);
+  box-shadow: var(--shadow-card);
+}
+
+/* 추천 행 위 벽돌 테이프 한 조각 (시안 `.course.featured:before`) — 「추천」 글자가 이미 말하므로 장식이다 */
+.word-set-row--recommended::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 20px;
+  width: 42px;
+  height: 10px;
+  background: var(--color-point);
+  clip-path: polygon(2% 0, 100% 4%, 96% 100%, 0 90%);
+}
+
+/* 번호 — Jua 23 흐린 잉크, 제목 첫 줄에 맞춰 위로 붙는다 */
+.word-set-row__number {
+  align-self: flex-start;
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--color-muted-foreground);
+  font-family: var(--font-display);
+  font-size: 23px;
+  line-height: 1.4;
+}
+
+.word-set-row__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.word-set-row__title {
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  font-weight: var(--weight-normal);
+  line-height: 1.4;
+}
+
+.word-set-row__arrow {
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.word-set-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  color: var(--color-muted-foreground);
+}
+
+.word-set-row__badge {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-point);
+  color: var(--color-point-foreground);
+}
+
+/* ── W-4 정오 ── */
+
+/* 정오가 붙은 보기는 잠겨도 흐리게 하지 않는다 — 읽어야 할 표시가 그 안에 있다 */
+.choice--locked.choice--correct,
+.choice--locked.choice--wrong {
+  opacity: 1;
+}
+
+.choice--correct {
+  border-width: 2px;
+  border-color: var(--color-control-border);
+}
+
+.choice--wrong {
+  border-style: dashed;
+  border-color: var(--color-point);
+}
+
+.choice__mark {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-size: var(--text-label);
+}
+
+.choice__mark--wrong,
+.word-verdict--wrong .word-verdict__label {
+  color: var(--color-point);
+}
+
+.word-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.word-verdict__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.word-verdict__explanation,
+.word-wrong__explanation {
+  color: var(--color-muted-foreground);
+  word-break: keep-all;
+}
+
+.word-inline-error {
+  margin-bottom: var(--space-3);
+  text-align: center;
+  color: var(--color-destructive-on-surface);
+}
+
+/* ── W-5 세트 완료 ── */
+
+.word-complete__count {
+  text-align: center;
+}
+
+.word-wrong {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.word-wrong__notice {
+  color: var(--color-muted-foreground);
+}
+
+.word-wrong__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.word-wrong__item {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-muted-foreground);
+  border-radius: var(--radius-md);
+}
+
+/* ── 억양 학습 A-1·A-2 (KAN-253) — 코스 행은 위 .word-set-row를 그대로 쓴다 ── */
+
+.intonation-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.intonation-row__topic,
+.intonation-note {
+  color: var(--color-muted-foreground);
+}
+
+.intonation-note {
+  width: 100%;
+  text-align: center;
+}
+
+/* ── 억양 학습 A-5 피드백·A-6 완료 (KAN-254 3단계) ── */
+
+.intonation-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.intonation-score__caption,
+.intonation-delta {
+  color: var(--color-muted-foreground);
+}
+
+/* 강조 글자 — 색은 덤이고 밑줄 모양(올리기 실선·낮추기 점선)·↑↓·번호가 뜻을 나른다 (NFR-US-03) */
+.intonation-mark {
+  color: var(--color-point);
+  text-decoration: underline 2px;
+  text-underline-offset: 4px;
+}
+
+.intonation-mark--lower {
+  text-decoration-style: dashed;
+}
+
+.intonation-mark__sign {
+  font-size: var(--text-label);
+}
+
+.intonation-comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-6);
+  word-break: keep-all;
+}
+
+/* 하단 자리는 블록이라 테두리 있는 보조 버튼이 주버튼에 붙지 않게 띄운다 */
+.intonation-footer .btn--secondary,
+.intonation-footer .btn + .btn {
+  margin-top: var(--space-3);
+}
+
+/* A-5 하단 (2026-10-12 에뮬 확인 뒤 사용자 지정): 목록 복귀는 배경색 바탕에 잉크 테두리·글자, 다시 시도는 벽돌색.
+   디자인 3(KAN-288)에서 한때 걷었다가 2026-10-18 사용자 결정으로 되살렸다 — "화면당 벽돌 면 하나"의 예외
+   (design-tokens.md) */
+.intonation-footer__back {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.intonation-footer__retry {
+  /* 테두리까지 벽돌 — 결과 화면 [다시 테스트하기](.result-retest__button)와 같은 채운 벽돌 */
+  border-color: var(--color-point);
+  background: var(--color-point);
+  color: var(--color-point-foreground);
+}
+
+/* ── 억양 학습 결과 목록 (KAN-254 5단계) — 행은 .word-set-row를 그대로 쓴다 ── */
+
+/* 3열 격자 (2026-10-12 사용자 결정) — 행이 번호·점수뿐이라 한 줄 행은 가로가 비고, 9~10장이 한 화면에 안 들어왔다 */
+.intonation-results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+/* 종이 행(.word-set-row)의 테두리·그림자·눌림은 그대로, 배치만 세로 가운데로 */
+.intonation-result-tile {
+  flex-direction: column;
+  justify-content: flex-start; /* 번호는 위에 두고 점수가 남은 높이의 가운데에 선다 */
+  gap: var(--space-1);
+  min-height: 144px;
+  padding: var(--space-6) var(--space-2) var(--space-3);
+  text-align: center;
+  /* 눌리는 타일임을 종이 그림자로 말한다 — 기본 행은 그림자가 없다(A-1은 추천만). 눌림은 .word-set-row:active가 그림자를 걷는다 */
+  box-shadow: var(--shadow-card);
+}
+
+.intonation-result-tile .word-set-row__meta {
+  flex: 1;
+  justify-content: center;
+}
+
+/* 점수만 크게 — 「다시 녹음 필요」 같은 상태 글자는 좁은 타일에서 30px면 서너 줄로 깨진다 */
+.intonation-result__score {
+  color: var(--color-foreground); /* 타일의 주인공은 점수 — 번호(회색)보다 진하게 */
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  flex-shrink: 1;
+  word-break: keep-all;
+}
+
+/* 결과 목록 행 「n번 문항」 — Jua(굵기 하나짜리라 weight로 굵히지 않고 서체 자체의 두께를 쓴다, 2026-10-12 사용자 지정) */
+.intonation-result__label {
+  color: var(--color-muted-foreground);
+  font-family: var(--font-display);
+  font-weight: var(--weight-normal);
+}

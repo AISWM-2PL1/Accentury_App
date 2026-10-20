@@ -136,6 +136,14 @@ public final class RecordingController: @unchecked Sendable {
         startRecording()
     }
 
+    /// 방금 녹음을 지우지 않고 본다 — 억양 학습 확인 단계의 [내 녹음 듣기](KAN-253)용. 제출은 여전히
+    /// ``consumeRecording()``이 가져간다.
+    public func peekRecording() -> [Int16]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return lastPcm
+    }
+
     /// 방금 녹음한 PCM을 **한 번만** 꺼낸다. 두 번째 호출은 nil이다 —
     /// 업로드가 가져간 바이트를 화면이 계속 쥐고 있지 않게 하는 규칙이다 (FR-DP-02).
     public func consumeRecording() -> [Int16]? {

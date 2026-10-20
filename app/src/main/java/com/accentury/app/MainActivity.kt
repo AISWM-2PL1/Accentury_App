@@ -9,24 +9,23 @@ import android.os.Bundle
 import android.provider.Settings
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -36,6 +35,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,15 +44,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -60,33 +61,22 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.accentury.app.audio.AudioQuality
-import com.accentury.app.audio.QualityStatus
-import com.accentury.app.audio.WavWriter
 import com.accentury.app.ads.AdsController
-import com.accentury.app.bridge.VoiceItemStart
-import com.accentury.app.bridge.adDismissedRetestFailure
-import com.accentury.app.bridge.itemResultDeliveryJs
-import com.accentury.app.bridge.retestFailedDeliveryJs
-import com.accentury.app.bridge.retestFailurePayload
-import com.accentury.app.permission.MicPermissionController
-import com.accentury.app.permission.MicPermissionState
-import com.accentury.app.recording.RecordingScreen
-import com.accentury.app.audio.RecordingEngine
-import com.accentury.app.audio.defaultPcmSource
-import com.accentury.app.recording.RecordingViewModel
-import com.accentury.app.recording.VoiceCheckScreen
-import com.accentury.app.recording.VoiceCheckViewModel
 import com.accentury.app.analytics.EventParam
 import com.accentury.app.analytics.EventSink
 import com.accentury.app.analytics.RecordingEvents
 import com.accentury.app.analytics.ShareEvents
+import com.accentury.app.analytics.channelParam
 import com.accentury.app.analytics.crashIfRequested
 import com.accentury.app.analytics.create
 import com.accentury.app.analytics.log
-import com.accentury.app.analytics.channelParam
-import com.accentury.app.auth.AnonymousSettingsScreen
+import com.accentury.app.audio.AudioQuality
+import com.accentury.app.audio.QualityStatus
+import com.accentury.app.audio.RecordingEngine
+import com.accentury.app.audio.WavWriter
+import com.accentury.app.audio.defaultPcmSource
 import com.accentury.app.auth.AnonymousRegionScreen
+import com.accentury.app.auth.AnonymousSettingsScreen
 import com.accentury.app.auth.AnonymousVoiceConsentStore
 import com.accentury.app.auth.AuthCheckScreen
 import com.accentury.app.auth.AuthGateController
@@ -99,8 +89,8 @@ import com.accentury.app.auth.PRIVACY_POLICY_VERSION
 import com.accentury.app.auth.ProfileScreen
 import com.accentury.app.auth.SettingsGearButton
 import com.accentury.app.auth.SettingsScreen
-import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
+import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VoiceConsentScreen
 import com.accentury.app.auth.anonymousVoiceConsentVersion
 import com.accentury.app.auth.configuredProviders
@@ -108,24 +98,49 @@ import com.accentury.app.auth.idpSignInFor
 import com.accentury.app.auth.needsAnonymousRegion
 import com.accentury.app.auth.shouldPromptVoiceConsent
 import com.accentury.app.auth.visibleProviders
-import com.accentury.app.share.ResultSharer
+import com.accentury.app.bridge.VoiceItemStart
+import com.accentury.app.bridge.accessTokenRefreshedDeliveryJs
+import com.accentury.app.bridge.adDismissedRetestFailure
+import com.accentury.app.bridge.intonationRecordedDeliveryJs
+import com.accentury.app.bridge.itemResultDeliveryJs
+import com.accentury.app.bridge.retestFailedDeliveryJs
+import com.accentury.app.bridge.uploadFailedDeliveryJs
+import com.accentury.app.bridge.retestFailurePayload
+import com.accentury.app.learning.IntonationCloseButton
+import com.accentury.app.learning.IntonationRecordingOverlay
+import com.accentury.app.learning.IntonationRecordingViewModel
+import com.accentury.app.learning.IntonationUploadClient
+import com.accentury.app.learning.IntonationUploadState
+import com.accentury.app.permission.MicPermissionController
+import com.accentury.app.permission.MicPermissionState
+import com.accentury.app.recording.RecordingPurpose
+import com.accentury.app.recording.RecordingScreen
+import com.accentury.app.recording.RecordingViewModel
+import com.accentury.app.recording.VoiceCheckScreen
+import com.accentury.app.recording.VoiceCheckViewModel
 import com.accentury.app.session.OkHttpSessionClient
-import com.accentury.app.session.createWithConsentFallback
 import com.accentury.app.session.RetestOutcome
 import com.accentury.app.session.SessionGateController
 import com.accentury.app.session.SessionGateScreen
+import com.accentury.app.session.createWithConsentFallback
 import com.accentury.app.session.sessionCreationClient
+import com.accentury.app.share.ResultSharer
 import com.accentury.app.testflow.TestFlowController
-import com.accentury.app.testflow.continuesFrom
 import com.accentury.app.testflow.TestFlowPhase
+import com.accentury.app.testflow.continuesFrom
 import com.accentury.app.ui.components.AccenturyButton
+import com.accentury.app.ui.components.ConfirmDialog
 import com.accentury.app.ui.components.HeroIcon
+import com.accentury.app.ui.components.PaperLead
+import com.accentury.app.ui.components.PaperScreen
+import com.accentury.app.ui.components.PaperTitle
 import com.accentury.app.ui.theme.AccenturyTheme
-import com.accentury.app.ui.theme.Radius
+import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPoint
+import com.accentury.app.ui.theme.LightPrimaryDim
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.upload.UploadRequest
 import com.accentury.app.upload.UploadState
-import com.accentury.app.upload.UploadStatusBar
 import com.accentury.app.upload.UploadViewModel
 import com.accentury.app.web.AppLinkEntry
 import com.accentury.app.web.ExternalBrowser
@@ -134,12 +149,19 @@ import com.accentury.app.web.WebViewHost
 import com.accentury.app.web.appLinkOrigins
 import com.accentury.app.web.buildWebUrl
 import com.accentury.app.web.parseAppLink
+import com.accentury.app.web.showsSettingsGear
+import com.accentury.app.web.startsAtHome
+import com.accentury.app.web.webBackTarget
 import com.accentury.app.web.webOrigin
+import com.accentury.app.web.webTabUrl
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 
 
@@ -314,6 +336,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                     anonymousConsent = null,
                     onProfileIncomplete = gate::onProfileIncomplete,
                     onOpenSettings = { settingsOpen = true },
+                    // 하단 탭 바 진입 (KAN-252) — 홈으로 시작하고, 설정은 탭 바가 열며, 탭 화면의 뒤로는 홈이다.
+                    tabBarEntry = true,
                 )
                 if (!consentPromptDone && shouldPromptVoiceConsent(state, promptStore.wasPrompted(state.user.id))) {
                     val finish = {
@@ -336,6 +360,9 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야
                         // 다음 로그인에서 계정을 다시 고를 수 있다.
                         onLogout = { gate.logout { IdpLogout.all(context) } },
+                        // 탈퇴도 IdP SDK 세션까지 정리한다 (KAN-251). 녹음기 초기화 등 로그인 화면으로 갈 때의 정리는
+                        // SignedIn을 벗어나며 TestFlow가 내려갈 때 일어나므로 로그아웃과 같이 따라온다.
+                        onWithdraw = { gate.withdraw { IdpLogout.all(context) } },
                         // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의
                         // 화면이 뜨던 문제(PR #22 리뷰).
                         onVoiceConsentChange = { consented ->
@@ -379,6 +406,8 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
             // 익명 세션에는 프로필이 없어 서버가 이 거절을 주지 않는다.
             onProfileIncomplete = {},
             onOpenSettings = { settingsOpen = true },
+            // 학습이 로그인 필수라 이 빌드는 인트로로 시작한다 — 탭 바가 보이지 않으니 톱니를 남긴다 (KAN-252).
+            tabBarEntry = false,
         )
         if (settingsOpen) {
             AnonymousSettingsScreen(
@@ -407,7 +436,12 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
  * @param anonymousConsent 익명 모드의 로컬 동의·지역 (KAN-270 5·7단계). null이면 계정 모드 — 동의·지역 단계가 없고 body에
  *   버전·지역을 싣지 않는다
  * @param onProfileIncomplete 세션 생성이 403 `AUTH_PROFILE_INCOMPLETE`로 막혔다 — 추가 정보 화면으로 (KAN-224)
- * @param onOpenSettings 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(AuthGate)가 이 위에 덮는다 (KAN-247)
+ * @param onOpenSettings 웹 위 톱니나 탭 바의 [설정](브리지 `openSettings`, KAN-252)을 눌렀다 — 설정 화면은 호출자가
+ *   이 위에 덮는다 (KAN-247)
+ * @param tabBarEntry 웹 하단 탭 바로 들어가는 빌드인가 (KAN-252, 로그인 빌드). 켜면 첫 문서가 홈(`screen=home`)이고,
+ *   톱니는 레벨 테스트 웹 화면(인트로·진행)에만 세우며([showsSettingsGear], 나머지는 탭 바가 설정을 연다),
+ *   탭 화면·시작 전 인트로의 시스템 뒤로가기가 홈으로 간다([webBackTarget]).
+ *   끄면(익명 빌드) 예전 그대로 인트로 시작·톱니·뒤로 = 앱 종료다
  */
 @Composable
 private fun TestFlow(
@@ -416,6 +450,7 @@ private fun TestFlow(
     anonymousConsent: AnonymousVoiceConsentStore?,
     onProfileIncomplete: () -> Unit,
     onOpenSettings: () -> Unit,
+    tabBarEntry: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -425,7 +460,8 @@ private fun TestFlow(
      * `POST /v0/sessions`의 campaignToken이다. 앱이 세션을 직접 만드는 구조라(KAN-34) URL만으로는
      * 서버 세션에 유입 경로가 남지 않아 둘 다 필요하다.
      */
-    val campaignToken = appLink.collectAsStateWithLifecycle().value?.campaignToken
+    val appLinkEntry = appLink.collectAsStateWithLifecycle().value
+    val campaignToken = appLinkEntry?.campaignToken
 
     /*
      * 결과 공유 (KAN-30). Activity 컨텍스트인 이유: 공유 시트와 카톡 전환은 지금 화면 위에 올라와야
@@ -490,6 +526,13 @@ private fun TestFlow(
      * 회전을 넘긴다. 회전으로 사라지면 웹 결과 화면이 다시 로드되어 버튼은 열리지만, 사용자가 광고를 한 번 더 봐야 한다.
      */
     var retestRegionPending by rememberSaveable { mutableStateOf(false) }
+    /*
+     * 첫 문서를 홈이 아니라 인트로로 열어야 하는가 (KAN-252). 홈 시작은 [tabBarEntry] 빌드의 **앱을 연 첫 문서**에만 해당한다.
+     * 재응시는 "새 세션을 든 채 인트로로 돌아가는" 흐름이라(아래 buildWebUrl 주석) 거기서 세운다 — 세우지 않으면 재응시가
+     * 홈으로 떨어진다. 앱 링크 진입도 예전처럼 인트로로 가야 해서 진입 URL 쪽에서 함께 본다([startsAtHome]). 진입 URL 문자열이
+     * 곧 로드라(WebViewHost) 이 값이 바뀌는 순간이 곧 리로드다. 회전을 넘긴다 — 사라지면 회전 한 번에 홈이 다시 뜬다.
+     */
+    var introRequested by rememberSaveable { mutableStateOf(false) }
     val sessionGate = rememberSaveable(saver = SessionGateController.saver()) { SessionGateController() }
     /*
      * 세션 생성만 계정 토큰을 싣는다 (KAN-224) — 서버가 세션을 계정에 묶고 출신지역을 계정 값으로 채운다.
@@ -508,7 +551,7 @@ private fun TestFlow(
 
     /*
      * 업로드는 테스트 phase 전체를 산다 — 녹음 화면이 내려가도 전송은 계속돼야 하고, 실패한 건은
-     * 웹으로 돌아간 뒤에도 상태 바에서 재시도할 수 있어야 한다. 회전(Activity 재생성)도 넘겨야
+     * 웹으로 돌아간 뒤에도 대기 화면의 [다시 보내기]로 재전송할 수 있어야 한다. 회전(Activity 재생성)도 넘겨야
      * 해서 소유자는 ViewModel이다 (UploadViewModel 주석).
      *
      * 세션이 생긴 뒤에야 만든다 (KAN-34). 업로드가 어느 세션으로 나가는지는 만드는 순간 정해지는데
@@ -539,6 +582,8 @@ private fun TestFlow(
     // 결과를 웹에 넣으려면 evaluateJavascript를 부를 인스턴스가 필요하다.
     // 로드 실패 화면·재시도 구간에는 WebView가 아예 없으므로 nullable이다.
     var webView by remember { mutableStateOf<WebView?>(null) }
+    // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
+    var webUrl by remember { mutableStateOf<String?>(null) }
 
     /*
      * 업로드가 끝난 시도를 웹으로 흘려보낸다.
@@ -564,17 +609,27 @@ private fun TestFlow(
                 if (handed == "true") flow.onResultDelivered(result.attemptId)
             }
         }
+        /*
+         * 재녹음 거절을 뺀 업로드 실패를 웹에 알린다 (KAN-288 6단계, webview-bridge.md §14). 웹은 그 문항의 대기 화면에
+         * 「전송 실패」를, 재전송으로 풀리는 실패면 [다시 보내기]도 그린다 — 문항을 푸는 중에는 알리지 않는다는 결정(상태 바 제거)은 그대로다: 실패한
+         * 문항은 결과가 오지 않아 웹이 다음 문항으로 넘어가지 않으므로, 이 알림이 보이는 자리는 그 문항의 제출 대기뿐이다.
+         * 업로드 목록이 바뀔 때마다 남은 실패를 다시 싣는다. 웹이 같은 실패를 거듭 받아도 같은 화면이라 무해하고,
+         * 수신 지점이 아직 없던 때 놓친 알림을 WebView가 돌아왔을 때 다시 채운다.
+         */
+        flow.failedUploads(uploads).forEach { failed ->
+            view.evaluateJavascript(uploadFailedDeliveryJs(failed), null)
+        }
     }
 
     /*
      * 녹음을 새로 해야 풀리는 실패를 걷고 그 문항의 녹음 화면을 다시 연다 (KAN-147, B안).
      *
      * 서버가 녹음 자체를 거절한 건(rerecord)만 여기로 온다 - 그것만이 재전송으로 풀리지 않아
-     * 복구 경로가 재녹음 하나뿐이다. 전송 실패는 [재시도]가 계속 서 있고, 그 외 서버 거절은
-     * 서버 문구를 단 실패 행으로 상태 바에 그대로 남는다.
+     * 복구 경로가 재녹음 하나뿐이다. 그 밖의 실패는 위 이펙트가 웹 대기 화면의 「전송 실패」로 넘기고(KAN-288 6단계),
+     * 재전송으로 풀리면 [다시 보내기], 아니면 [녹음 화면 다시 열기]로 풀린다.
      *
-     * 웹은 네이티브 쪽 실패를 통지받지 않으므로(브리지 표면 최소 원칙) 그 문항의 대기 화면에
-     * 그대로 멈춰 있다 - 여기서 화면을 다시 열어도 진행을 앞지르지 않는 근거다.
+     * 웹은 재녹음 거절을 통지받지 않으므로 그 문항의 대기 화면에 그대로 멈춰 있다 - 여기서 화면을
+     * 다시 열어도 진행을 앞지르지 않는 근거다.
      *
      * 위 결과 전달 이펙트와 같은 키(uploads)로 돌고, 그보다 뒤에 선언한다. 정확성은 순서에 기대지
      * 않는다 - onUploadsChanged는 Submitting일 때만, onResultDelivered는 기다리던 attemptId일 때만
@@ -746,6 +801,8 @@ private fun TestFlow(
                      * 새 세션은 새 인스턴스를 받고, 끝난 응시의 업로드가 섞이지 않는다.
                      */
                     startRequested = false
+                    // 홈 시작 빌드에서도 재응시 뒤는 인트로다 (KAN-252).
+                    introRequested = true
                     // 이전 세션의 음성 문항 요청이 새 세션 복구에 섞이지 않게 비운다 (KAN-261 리뷰 P1-4).
                     flow.onSessionReplaced()
                 }
@@ -812,6 +869,92 @@ private fun TestFlow(
      */
     fun startRetestAfterFailure() = proceedRetest()
 
+    /*
+     * 계정 토큰 (KAN-255, webview-bridge.md §11). 단어 학습 웹이 Access를 읽고, 401이면 갱신을 청한다.
+     *
+     * 로그인을 끈 빌드(익명 모드)는 늘 빈 토큰·'failed'다. authClients를 아예 깨우지 않는다 — 예전 로그인 빌드가
+     * Keystore에 남긴 토큰이 웹으로 새면 익명 빌드에서 계정 API가 열린다(AnonymousFlow KDoc과 같은 이유).
+     */
+    val authClients = if (BuildConfig.LOGIN_ENABLED) remember(appContext) { (appContext as AccenturyApplication).authClients } else null
+
+    /*
+     * 브리지 getAccessToken이 JS 스레드(바인더 스레드)에서 동기로 부른다. 저장소 읽기가 suspend라 runBlocking으로
+     * 잇는다 — AccessTokenInterceptor(AuthHttp.kt)와 같은 선례다. 메인 스레드가 아니므로 막혀도 UI는 멈추지 않고,
+     * 저장소는 메모리 캐시라 실제로 기다리는 일은 첫 읽기(복호화) 정도다.
+     */
+    fun currentAccessToken(): String =
+        authClients?.let { clients -> runBlocking { clients.store.read() }?.accessToken }.orEmpty()
+
+    /**
+     * 웹의 갱신 요청 → TokenRefresher → `onAccessTokenRefreshed` 회신 한 번 (KAN-255, §11). 메인 스레드에서 불린다.
+     *
+     * staleAccess로 **지금 저장된 값**을 넘긴다. 웹이 401을 받은 토큰을 네이티브는 모르므로, 저장된 값과 같다고
+     * 보고 서버에 묻게 하는 것이다. 앱 자체 OkHttp 갱신이 먼저 돌고 있으면 TokenRefresher 뮤텍스에서 줄을 서고,
+     * 차례가 오면 저장소가 이미 새 값이라 서버에 묻지 않고 그 결과로 회신한다 — Refresh 회전 재사용 사고가 없다.
+     * 웹은 갱신 요청을 하나로 합쳐 보내므로(§11 동시 요청) 실제로 겹치는 상대는 앱 자체 갱신뿐이다.
+     *
+     * 갱신 본체는 NonCancellable이다. 화면 회전 등으로 이 스코프가 취소돼 서버는 회전했는데 저장 전에 끊기면
+     * 옛 Refresh만 남아 다음 갱신이 재사용 거절로 로그아웃된다. 회신은 WebView가 있을 때만 닿고, 없으면 웹이
+     * 10초 타임아웃으로 끝낸다.
+     *
+     * SignedOut이면 TokenRefresher가 이미 onSignedOut으로 게이트를 로그인 화면으로 돌린다 — 여기서 더 할 일은 없다.
+     */
+    fun refreshAccessToken() {
+        val clients = authClients ?: run {
+            webView?.evaluateJavascript(accessTokenRefreshedDeliveryJs(null), null)
+            return
+        }
+        scope.launch {
+            val outcome = withContext(NonCancellable) {
+                runCatching {
+                    clients.refresher.refresh(staleAccess = clients.store.read()?.accessToken)
+                }.getOrNull()
+            }
+            // evaluateJavascript는 메인 스레드에서만 — 이 스코프(rememberCoroutineScope)의 기본 디스패처가 메인이다.
+            webView?.evaluateJavascript(accessTokenRefreshedDeliveryJs(outcome), null)
+        }
+    }
+
+    /*
+     * 억양 학습 녹음 (KAN-253, webview-bridge.md §12). 학습은 로그인 필수라 계정 클라이언트가 없는 빌드(익명 모드)에서는
+     * 만들지 않고 녹음 호출도 버린다 — 그 빌드의 웹은 계정 토큰이 없어 A-2까지 오지 못한다.
+     *
+     * 녹음 뷰모델은 레벨테스트 오버레이와 다른 인스턴스다(키 "intonation"). 같은 것을 쓰면 학습이 레벨테스트의 녹음 상태를
+     * 되감거나 읽게 된다 — §12 「세션 ID·문항 인덱스와 섞지 않는다」.
+     */
+    val intonation: IntonationRecordingViewModel? = authClients?.let { clients ->
+        viewModel(
+            key = "intonation-upload",
+            factory = viewModelFactory {
+                initializer {
+                    IntonationRecordingViewModel(IntonationUploadClient(BuildConfig.API_BASE_URL, clients.authedClient)::upload)
+                }
+            },
+        )
+    }
+    val intonationRecording: RecordingViewModel = viewModel(key = "intonation", factory = recordingFactory)
+    val intonationStart = intonation?.start?.collectAsStateWithLifecycle()?.value
+    val intonationUpload = intonation?.uploadState?.collectAsStateWithLifecycle()?.value
+    // 학습만 하는 사용자는 시작 게이트의 권한 칸을 지나지 않았을 수 있다 — 화면을 열 때마다 다시 본다.
+    var intonationMicOk by rememberSaveable { mutableStateOf(false) }
+
+    // TestFlow가 내려가면 학습 녹음도 놓는다 — 위 KAN-247 정리와 같은 이유·같은 회전 예외. intonation은 빌드 상수로 정해져 바뀌지 않는다.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!activity.isChangingConfigurations) {
+                intonation?.close()
+                intonationRecording.reset()
+            }
+        }
+    }
+
+    // 202 → 웹에 한 번 회신하고 화면을 닫는다. WebView가 없으면 회신 없이 닫는다 — 웹은 A-2 그대로라 다시 말해 볼 수 있다.
+    LaunchedEffect(intonationUpload) {
+        val accepted = intonationUpload as? IntonationUploadState.Accepted ?: return@LaunchedEffect
+        webView?.evaluateJavascript(intonationRecordedDeliveryJs(accepted.recorded), null)
+        intonation?.close()
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             WebViewHost(
@@ -841,6 +984,9 @@ private fun TestFlow(
                      * 리로드를 감수한다 (KAN-32 결정).
                      */
                     campaignToken = campaignToken,
+                    // 홈 시작 (KAN-252). testEntry가 서면 무시되므로 테스트 진입 URL은 그대로다. 앱 링크로 들어왔으면 코드가
+                    // 없거나 무효여도 예전처럼 인트로다 — 판정은 [startsAtHome] (PR #33 리뷰 P1).
+                    home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLinkEntry != null),
                 ),
                 allowedOrigins = setOfNotNull(webOrigin(BuildConfig.WEB_URL)),
                 // 웹의 어휘 답안 제출(KAN-13)이 쓸 토큰. 업로드·웹 진입 URL과 같은 세션에서 온다.
@@ -883,11 +1029,35 @@ private fun TestFlow(
                 readAdConsent = { ads.consentStore.read() },
                 onSetAdConsent = { ads.setConsent(it) },
                 onShowInterstitialAd = { ads.interstitial.show(activity) },
+                accessToken = { currentAccessToken() },
+                onRefreshAccessToken = { refreshAccessToken() },
+                onStartIntonationRecording = { start ->
+                    intonation?.let {
+                        intonationMicOk = isMicGranted()
+                        it.open(start)
+                    }
+                },
+                onOpenSettings = onOpenSettings,
+                // 대기 화면의 [다시 보내기] (KAN-288 6단계) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 위 전달 이펙트가 싣는다
+                onRetryUpload = { attemptId -> uploadViewModel?.retry(attemptId) },
+                onPageStarted = { webUrl = it },
                 onWebViewCreated = { webView = it },
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.
                 onWebViewReleased = { if (webView === it) webView = null },
             )
+
+            /*
+             * 탭 화면의 시스템 뒤로가기 = 홈 (KAN-252). 대상과 판정은 [webBackTarget]에 있고, 목적지가 없으면 비활성이라
+             * 예전처럼 앱이 닫힌다(홈·테스트 진행·결과 — KAN-191·KAN-147). 웹 탭 이동과 같은 결과가 되게 문서를 옮긴다.
+             * 아래 오버레이들(억양 녹음의 BackHandler)과 AuthGate의 설정 화면보다 **먼저** 컴포지션에 들어가 있어야
+             * 그쪽이 우선한다 — Compose는 나중에 등록된 활성 콜백부터 부른다. 그래서 오버레이 `when`보다 앞에 둔다.
+             * 학습 카드 단계도 screen이 intonation·words라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다.
+             */
+            val backTarget = if (tabBarEntry) webBackTarget(webUrl, startRequested) else null
+            BackHandler(enabled = backTarget != null && webView != null) {
+                backTarget?.let { webView?.loadUrl(it) }
+            }
 
             // 오버레이는 WebView 위, 업로드 상태 바 아래다 — 녹음 중에도 실패한 업로드의
             // 재시도 통로가 가려지지 않아야 한다.
@@ -931,6 +1101,36 @@ private fun TestFlow(
             }
 
             when {
+                // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
+                // 시스템 뒤로가기 = 회신 없이 A-2로 (§12). 권한 화면에서의 뒤로가기도 같다.
+                intonationStart != null && intonation != null -> {
+                    BackHandler(onBack = intonation::close)
+                    if (!intonationMicOk) {
+                        PermissionGate(onGranted = { intonationMicOk = true })
+                    } else {
+                        // 회신 직후 웹이 다음 카드를 바로 열면(KAN-254 5단계) close·open이 한 프레임에 묶여 화면이 안 내려가고
+                        // 앞 카드의 확인 단계([다음] 등)가 남는다 — 카드가 바뀌면 새로 세워 onDispose의 recording.reset()을 태운다
+                        key(intonationStart.cardId) {
+                            IntonationRecordingOverlay(
+                                start = intonationStart,
+                                uploader = intonation,
+                                recording = intonationRecording,
+                                centerHz = voiceCenterHz,
+                            )
+                        }
+                    }
+                    // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close 다음 억양 탭 문서를 다시 열어
+                    // 코스 목록(A-1)으로 간다 — A-1은 그 문서의 첫 상태라서다. 오버레이만 닫으면 대사 카드(A-2)가 남아
+                    // [코스 목록으로]를 한 번 더 눌러야 했다. 뒤로가기는 그대로 카드로 간다. 권한 화면에서도 같다.
+                    IntonationCloseButton(
+                        onClick = {
+                            intonation.close()
+                            webTabUrl(webUrl, "intonation")?.let { webView?.loadUrl(it) }
+                        },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
+                    )
+                }
+
                 // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던
                 // 재응시를 이어 간다. 이번에는 지역이 있어 [proceedRetest]가 곧장 세션 요청으로 간다.
                 retestRegionPending && anonymousConsent != null ->
@@ -1069,14 +1269,30 @@ private fun TestFlow(
                                     .forEach(uploadViewModel::discard)
                             }
                         },
+                        /*
+                         * ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정). KAN-147 이전 업로드 바 [테스트 종료]가 쓰던
+                         * 되감기를 그대로 탄다: 녹음 중단·PCM과 업로드 바이트 폐기(FR-DP-02), 그리고 세션 실패 [처음으로]와
+                         * 같은 [resetStartGates] — 세션을 버리고(서버 폐기는 다음 생성이 이전 토큰을 실어 한다, KAN-107)
+                         * startRequested가 내려가 진입 URL이 인트로(탭 바 빌드는 홈)로 다시 로드된다. 웹에 따로 알리는
+                         * 브리지는 없다 — 문서가 통째로 다시 서므로 알릴 상대가 남지 않는다.
+                         */
+                        onQuit = {
+                            if (flow.onTestQuit()) {
+                                viewModel.reset()
+                                uploadViewModel.clearAll()
+                                resetStartGates()
+                            }
+                        },
                     )
                 }
             }
 
             /*
-             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+             * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 익명 빌드는 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
              * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
-             * 계속 돈다(설정은 TestFlow를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+             * 계속 돈다(설정은 TestFlow를 덮을 뿐 내리지 않는다).
+             * 로그인 빌드(탭 바)는 레벨 테스트 웹 화면(인트로·진행)에서만 선다 (KAN-252, 2026-10-13 사용자 결정).
+             * 탭 바가 없는 화면에만 설정 출구가 필요하고, 녹음 화면(레벨 테스트 VOICE·억양 학습)에서는 빼기로 했다. 시작 게이트 세 칸·문항 권한이 WebView를
              * 덮는 동안은 숨긴다. 조건은 위 `when`의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
              * 녹음 오버레이 뒤에 그려 그 위에 선다. 녹음 화면 본문은 위 64dp부터라 톱니(8~56dp)와 겹치지 않는다.
              * 시스템 바 여백은 Scaffold의 innerPadding이 이미 뺐다.
@@ -1084,23 +1300,38 @@ private fun TestFlow(
             // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
             val nativeCovering = (startRequested && session == null) ||
                 phase is TestFlowPhase.NeedsPermission ||
-                retestRegionPending
-            if (!nativeCovering) {
+                retestRegionPending ||
+                (intonationStart != null && !intonationMicOk)
+            // 탭 바 빌드의 탭 화면·결과는 탭 바의 [설정]이 설정을 연다 (KAN-252, webview-bridge §13).
+            val gearVisible = if (tabBarEntry) {
+                showsSettingsGear(webUrl) && overlayStart == null && intonationStart == null
+            } else {
+                true
+            }
+            if (gearVisible && !nativeCovering) {
                 SettingsGearButton(
                     onClick = onOpenSettings,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
+                    // 레벨 테스트 녹음 화면은 앱바 오른쪽 끝(본문 여백 24dp 안)에 ✕가 선다 (KAN-288) — 익명 빌드의 톱니는
+                    // 그 바로 왼쪽으로 비켜 선다. 겹치면 위에 그린 톱니가 ✕를 가린다.
+                    modifier = Modifier.align(Alignment.TopEnd).padding(
+                        top = Spacing.x2,
+                        end = if (overlayStart != null) Spacing.x6 + Dimens.touchTargetMin else Spacing.x2,
+                    ),
                 )
             }
         }
 
-        // 세션 전에는 올라간 것도, 실패한 것도 없다 — 상태 바가 설 이유 자체가 없는 구간이다.
-        if (uploadViewModel != null) {
-            UploadStatusBar(
-                uploads = uploads,
-                labelOf = uploadViewModel::labelOf,
-                onRetry = uploadViewModel::retry,
-            )
-        }
+        /*
+         * 업로드 상태 바는 두지 않는다 (KAN-288, 디자인 3 Figma 수정 fix-upload·fix-upload2). 레벨 테스트 진행 중에는
+         * 「업로드 중」도 「업로드 실패」도 화면에 알리지 않는다 — 업로드는 백그라운드 일이고, 진행 중 화면에 실패 줄이
+         * 끼면 문항을 푸는 사용자가 멈춘다. 이 앱의 업로드는 레벨 테스트 세션 것뿐이라 바가 설 다른 자리도 없다.
+         *
+         * 실패는 사라지지 않고 이렇게 풀린다. 녹음 자체가 거절된 것(rerecord)은 위 이펙트가 그 문항의 녹음 화면을 다시
+         * 연다. 전송 실패·그 밖의 거절은 결과가 웹에 가지 않으므로 웹이 그 문항의 대기 화면에 남는다. 재전송으로 풀리는
+         * 실패면 거기 「전송 실패」와 [다시 보내기]가 서서 녹음을 그대로 다시 보낸다(KAN-288 6단계, onUploadFailed·retryUpload).
+         * 어느 경우든 [녹음 화면 다시 열기]가 새 녹음을 올릴 수 있다(앞 시도는 onRecordingFinished가 밀어내 폐기 — 문항당 시도 1개).
+         * 세션이 만료됐으면 같은 버튼의 생존 확인이 [다시 테스트하기]로 바꾼다(KAN-237).
+         */
     }
 }
 
@@ -1123,14 +1354,17 @@ private fun RecordingOverlay(
     /** [재녹음]을 눌렀다 (KAN-33). 되감기 자체는 화면이 하고, 여기는 세기만 한다 */
     onRetake: () -> Unit,
     onSubmit: (attemptId: String, durationMs: Long, quality: QualityStatus) -> Unit,
+    /** 확인 창에서 [그만두기]를 골랐다 (KAN-288). 정리는 호출자가 한다 */
+    onQuit: () -> Unit,
 ) {
+    // 회전을 넘긴다 — 창이 사라지면 사용자는 방금 누른 ✕가 먹지 않은 것으로 읽는다.
+    var confirmingQuit by rememberSaveable { mutableStateOf(false) }
     // 색을 명시한다 - Surface 기본값은 surface(카드 흰색)라, 그대로 두면 이 오버레이만
     // 흰 배경이 되어 바로 앞뒤 WebView 화면(background #f3ecd9)과 어긋난다.
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         RecordingScreen(
             questionText = start.prompt,
-            questionIndex = start.itemNumber,
-            totalQuestions = start.totalItems,
+            purpose = RecordingPurpose.LevelTest(start.itemNumber, start.totalItems, start.emotion),
             onNext = onSubmit,
             guideF0 = start.guideF0,
             submitting = submitting,
@@ -1138,8 +1372,25 @@ private fun RecordingOverlay(
             failureMessage = failureMessage,
             centerHz = centerHz,
             onRetake = onRetake,
+            onClose = { confirmingQuit = true },
             viewModel = viewModel,
         )
+    }
+    // 설정 탈퇴 창과 같은 모양이다 — 되돌릴 수 없는 쪽이 벽돌 외곽선, 머무는 쪽이 보조 버튼 (시안 HIG 수정).
+    if (confirmingQuit) {
+        ConfirmDialog(
+            title = "테스트를 그만둘까요?",
+            onDismiss = { confirmingQuit = false },
+            confirmLabel = "그만두기",
+            onConfirm = {
+                confirmingQuit = false
+                onQuit()
+            },
+            busy = false,
+            dismissLabel = "계속하기",
+        ) {
+            Text("그만두면 처음부터 다시 시작해야 해요", style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 
@@ -1233,11 +1484,10 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 }
 
 /**
- * 게이트 화면. 녹음 오버레이와 같은 이유로 [Surface]가 아래 WebView를 가린다.
+ * 게이트 화면. 녹음 오버레이와 같은 이유로 크림 화면이 아래 WebView를 가린다.
  *
- * 배치는 시안(`prototype/src/app/App.tsx` MicScreen)을 따른다 — 히어로 아이콘, 카피,
- * 안심 문구 카드, 바닥의 주버튼. 권한을 묻는 화면이라 "무엇을 왜 가져가는지"가 카드에
- * 먼저 보이고 버튼이 마지막에 오는 순서가 중요하다.
+ * 배치는 시안 09를 따른다 (KAN-288 디자인 3) — 점선 표식 안의 마이크, 왼쪽 정렬 제목·부연, 무엇에 쓰는지 세 줄,
+ * 바닥의 주버튼. 권한을 묻는 화면이라 "무엇을 왜 가져가는지"가 먼저 보이고 버튼이 마지막에 오는 순서가 중요하다.
  */
 @Composable
 private fun GateScreen(
@@ -1247,84 +1497,56 @@ private fun GateScreen(
     onButtonClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(Spacing.x6),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.x6, Alignment.CenterVertically),
-            ) {
-                // 마이크 선화. 잉크 한 색이라 아래 녹음 버튼 안의 아이콘과 같은 그림이다 -
-                // "이 앱이 쓰는 것"과 "지금 허락을 구하는 것"이 같다는 게 그림으로 읽힌다.
-                // 설명을 달지 않는 것은 바로 아래 제목이 이미 마이크 이야기를 하기 때문이다.
-                HeroIcon(painter = painterResource(R.drawable.outline_mic_24))
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.x2),
-                ) {
-                    Text(
-                        headline,
-                        style = MaterialTheme.typography.headlineMedium,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        supporting,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-
-                AssuranceCard()
-            }
-
-            AccenturyButton(
-                text = buttonLabel,
-                onClick = onButtonClick,
-                modifier = Modifier.fillMaxWidth(),
+    PaperScreen(
+        modifier = modifier,
+        footer = { AccenturyButton(text = buttonLabel, onClick = onButtonClick, modifier = Modifier.fillMaxWidth()) },
+    ) {
+        Spacer(Modifier.weight(1f))
+        // 마이크 선화. 아래 녹음 버튼 안의 아이콘과 같은 그림이다 - "이 앱이 쓰는 것"과 "지금 허락을 구하는 것"이
+        // 같다는 게 그림으로 읽힌다. 설명을 달지 않는 것은 바로 아래 제목이 이미 마이크 이야기를 하기 때문이다.
+        HeroIcon {
+            Icon(
+                painter = painterResource(R.drawable.outline_mic_24),
+                contentDescription = null,
+                tint = LightPoint,
+                modifier = Modifier.size(32.dp),
             )
         }
+        Spacer(Modifier.height(Spacing.x6))
+        PaperTitle(headline)
+        Spacer(Modifier.height(Spacing.x3))
+        PaperLead(supporting)
+        Spacer(Modifier.height(Spacing.x4))
+        AssuranceList()
+        Spacer(Modifier.weight(1f))
     }
 }
 
 /**
- * 마이크를 왜 달라는지 세 줄로 답하는 카드 (시안). 권한 요청 앞에서 사용자가 실제로 궁금해하는
- * 것은 "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다.
+ * 마이크를 왜 달라는지 세 줄로 답한다 (시안 `.steps`). 권한 요청 앞에서 사용자가 실제로 궁금해하는 것은
+ * "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다. 줄 사이는 그림자색 점선이다.
  */
 @Composable
-private fun AssuranceCard() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.xl))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Radius.xl))
-            .padding(Spacing.x4),
-        verticalArrangement = Arrangement.spacedBy(Spacing.x3),
-    ) {
+private fun AssuranceList() {
+    Column {
         ASSURANCES.forEach { text ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.x3),
-            ) {
-                /*
-                 * 줄머리는 잉크 점 하나다 (KAN-161 4단계). 📊·🏆·🔒였는데, 잉크 한 색 화면에서
-                 * 이모지는 색을 가진 유일한 물건이라 세 줄이 그림 밖으로 튀었다 (정본 §7).
-                 * 그림을 잉크 선화 셋으로 바꾸려면 자산이 필요한데, 이 세 줄이 나르는 정보는
-                 * 전부 글에 있어서 그림이 없어도 잃는 것이 없다 - 점은 목록이라는 표시만 한다.
-                 */
-                Box(
-                    modifier = Modifier
-                        .size(ASSURANCE_BULLET)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                )
-                Text(text, style = MaterialTheme.typography.bodyMedium)
-            }
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .drawBehind {
+                        val y = size.height - 0.5.dp.toPx()
+                        drawLine(
+                            color = LightPrimaryDim,
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                        )
+                    }
+                    .padding(vertical = Spacing.x3),
+            )
         }
     }
 }
@@ -1335,6 +1557,3 @@ private val ASSURANCES = listOf(
     // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
     "음성은 따로 동의한 경우에만 보관",
 )
-
-/** 안심 문구 줄머리 점 */
-private val ASSURANCE_BULLET = 6.dp

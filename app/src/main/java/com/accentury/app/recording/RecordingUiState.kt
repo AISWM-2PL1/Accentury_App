@@ -44,3 +44,29 @@ sealed interface RecordingUiState {
 
     data class Failed(val reason: String) : RecordingUiState
 }
+
+/**
+ * 녹음 화면을 누가 띄웠는가 (KAN-253). 상태 머신·품질 선차단·10초 컷·2단 레인은 같고, 위쪽 표기와 확인 단계의 보조
+ * 동작만 갈린다. 확인 뒤 무엇을 할지(업로드 대상)는 호출자의 `onNext`가 정한다 — 화면은 세션도 카드도 모른다.
+ */
+sealed interface RecordingPurpose {
+
+    /** 확인 단계에 [내 녹음 듣기]를 두는가 — 학습에만 (2026-10-12 착수 결정). */
+    val offersPlayback: Boolean
+
+    /**
+     * 레벨테스트 음성 문항 (KAN-100). 화면 모양은 KAN-253 전과 같다.
+     * [emotion]은 대사 위 감정 칩의 재료다 (KAN-283) — 칩을 그릴지는 `emotionCue`가 가른다.
+     */
+    data class LevelTest(val itemNumber: Int, val totalItems: Int, val emotion: String? = null) : RecordingPurpose {
+        override val offersPlayback get() = false
+    }
+
+    /**
+     * 억양 학습 카드 (KAN-253, webview-bridge.md §12). 표준어 줄은 null이면 생략.
+     * 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「카드 진행률」)를 그린다.
+     */
+    data class IntonationLearning(val standard: String?, val itemNumber: Int, val totalItems: Int) : RecordingPurpose {
+        override val offersPlayback get() = true
+    }
+}

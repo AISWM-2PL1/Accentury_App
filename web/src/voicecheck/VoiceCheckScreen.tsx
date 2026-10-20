@@ -172,7 +172,7 @@ export function VoiceCheckScreen({ onDone, startFailure = null, capture, now }: 
   return (
     <main className="item-screen">
       <div>
-        <h1 className="type-title-sm">목소리를 확인할게요</h1>
+        <h1 className="type-title">목소리를 확인할게요</h1>
         <p
           className="type-body-sm"
           style={{ color: 'var(--color-muted-foreground)', marginTop: 'var(--space-2)' }}

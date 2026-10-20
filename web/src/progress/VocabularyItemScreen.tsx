@@ -5,28 +5,20 @@
  * 답안을 서버에 제출한 뒤([submitAnswer]) 성공했을 때만 진행 통지([onSubmitted])를 보낸다.
  * 진행을 움직이는 건 호출자(상태 머신)다.
  *
- * 선택지는 네이티브 라디오(input type="radio")다. 진행바가 `<progress>`를 쓰는 것과 같은
- * 이유 — 단일 선택 보장·화살표 키 이동·radiogroup 의미론을 브라우저가 전부 주므로,
- * 버튼 배열에 aria를 손으로 채워 같은 것을 재현할 이유가 없다 (KAN-13 AC: 접근성 라벨).
- *
- * ## 멱등 키의 수명 (AC: 중복 생성 없는 재시도)
- *
- * 키는 "지금 고른 답" 단위로 산다. 같은 답의 재시도는 같은 키로 나가고(서버가 재전송으로
- * 알아본다), 실패 후 답을 바꾸면 새 키다 — 같은 키로 다른 답을 보내면 서버가 400으로
- * 거절하기 때문이다(§3.5). 이 규칙이 선택 상태와 함께 움직여서 키가 이 컴포넌트 소유다.
+ * 선택지 목록은 `ui/ChoiceList`, 멱등 키 수명 규칙은 `net/useChoiceIdempotencyKey`에 있다
+ * (KAN-255 — 단어 학습 치환 문항이 같은 규칙을 재사용한다).
  *
  * **정오 정보는 이 화면 어디에도 없다.** 정의(testDefinition)에 정답 필드 자체가 없어
  * 화면이 실수로도 노출할 수 없다 — 채점은 서버가 하고 점수는 /result에서 한 번에 공개된다.
  */
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { VocabularyItem } from './testDefinition'
-import { newIdempotencyKey, VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
+import { VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
 import { RetestAction } from '../result/RetestAction'
 import type { RetestControl } from '../result/useRetest'
-import { haptic } from '../bridge/bridge'
-import { Button, StatusBlock } from '../ui'
-import { CheckIcon } from '../ui/icons'
+import { Button, ChoiceList, StatusBlock } from '../ui'
+import { useChoiceIdempotencyKey } from '../net/useChoiceIdempotencyKey'
 import { itemCaption } from './itemBadge'
 import { isSessionExitCode } from './sessionExit'
 
@@ -66,8 +58,8 @@ export function VocabularyItemScreen({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // 직전 실패가 세션 만료·타인 세션인가 (KAN-237). 문구와 같은 자리에서 세우고 지운다
   const [sessionExit, setSessionExit] = useState(false)
-  // 답 → 멱등 키. 상태가 아니라 ref인 이유: 키는 렌더에 안 보이고, 제출 시점에만 읽고 쓴다
-  const keyForChoice = useRef<{ choiceId: string; key: string } | null>(null)
+  // 답 → 멱등 키. 같은 답 재시도는 같은 키, 답이 바뀌면 새 키 (훅 주석의 수명 규칙)
+  const keyForChoice = useChoiceIdempotencyKey()
 
   const submit = async () => {
     // disabled 가드와 겹치지만 남겨 둔다 — 비동기 제출 도중 들어오는 호출은 disabled로 못 막는다
@@ -79,11 +71,7 @@ export function VocabularyItemScreen({
     // 키 생성까지 try 안이다 — 여기서 동기로 터지면 rejection이 아무 데도 안 잡혀 버튼이
     // "눌러도 아무 일 없는" 상태가 된다 (crypto.randomUUID 부재로 실제 발생했던 증상)
     try {
-      // 같은 답의 재시도면 키 재사용, 답이 바뀌었으면 새 키 (헤더 주석의 수명 규칙)
-      if (keyForChoice.current?.choiceId !== selected) {
-        keyForChoice.current = { choiceId: selected, key: newIdempotencyKey() }
-      }
-      await submitAnswer(selected, keyForChoice.current.key)
+      await submitAnswer(selected, keyForChoice(selected))
       onSubmitted()
     } catch (error: unknown) {
       setErrorMessage(error instanceof Error ? error.message : String(error))
@@ -108,50 +96,14 @@ export function VocabularyItemScreen({
         </h1>
       </div>
 
-      {/* 문제 문구가 곧 이 라디오 그룹의 이름이다 — 스크린 리더가 "그룹 진입"에서 문제를 읽는다 */}
-      <div className="choice-list" role="radiogroup" aria-labelledby="vocab-prompt">
-        {/* 정의의 choices 배열 순서 = 화면 순서. 정렬·섞기를 하지 않는 것이 요구사항이다 */}
-        {item.choices.map((choice) => {
-          const checked = selected === choice.choiceId
-          const classes = [
-            'choice',
-            checked ? 'choice--selected' : '',
-            submitting ? 'choice--locked' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')
-          return (
-            <label key={choice.choiceId} className={classes}>
-              <input
-                className="choice__radio"
-                type="radio"
-                name="vocab-choice"
-                value={choice.choiceId}
-                checked={checked}
-                // 제출 중 잠금 — 요청이 나간 답과 화면의 답이 달라지는 순간을 만들지 않는다
-                disabled={submitting}
-                // 객관식 선택은 가벼운 탭 햅틱 (KAN-258) — 고른 순간을 손끝으로도 알린다
-                onChange={() => {
-                  haptic('tap')
-                  setSelected(choice.choiceId)
-                }}
-              />
-              <span>{choice.text}</span>
-              {/*
-                고른 것을 색 말고도 알린다. 표식(라디오)을 눈에서 지우고 나면 선택/미선택의
-                차이가 색상뿐인데, 두 상태의 명도 차이는 1.2 정도라 색각 이상에서는 구분이
-                어렵다 (WCAG 1.4.1). 시안이 오른쪽에 아이콘을 두던 자리를 그대로 쓴다.
-                정답이 아니라 "내가 고른 것" 표시라 정오 미노출(KAN-13)과는 무관하다.
-              */}
-              {checked && (
-                <span className="choice__check">
-                  <CheckIcon />
-                </span>
-              )}
-            </label>
-          )
-        })}
-      </div>
+      <ChoiceList
+        name="vocab-choice"
+        labelledBy="vocab-prompt"
+        choices={item.choices}
+        selected={selected}
+        locked={submitting}
+        onSelect={setSelected}
+      />
 
       <div className="item-screen__footer">
         {sessionExit && retest !== undefined ? (

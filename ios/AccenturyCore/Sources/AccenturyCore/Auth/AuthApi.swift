@@ -7,6 +7,7 @@ private let pathLogout = "v0/auth/logout"
 private let pathMe = "v0/users/me"
 private let pathProfile = "v0/users/me/profile"
 private let pathVoiceConsent = "v0/users/me/voice-consent"
+private let pathWithdrawal = "v0/users/me/withdrawal"
 private let jsonMediaType = "application/json"
 private let headerContentType = "Content-Type"
 private let headerCorrelationId = "X-Correlation-Id"
@@ -203,7 +204,7 @@ public struct AuthApi: Sendable {
     private let baseURL: URL
     /// 토큰 없는 호출용 (login·refresh)
     private let send: HTTPSend
-    /// Bearer + 자동 갱신 호출용 (me·updateProfile·logout)
+    /// Bearer + 자동 갱신 호출용 (me·updateProfile·logout·withdraw)
     private let authedSend: HTTPSend
 
     public init(baseURL: String, send: @escaping HTTPSend, authedSend: @escaping HTTPSend) {
@@ -274,6 +275,21 @@ public struct AuthApi: Sendable {
     /// 로그아웃 (§3.13) — 그 Refresh의 패밀리를 서버에서 폐기한다. 모르는 토큰도 204다.
     public func logout(_ refreshToken: String) async -> AuthResult<Void> {
         await call(authedSend, request(pathLogout, method: "POST", body: RefreshBody(refreshToken: refreshToken))) { _ in () }
+    }
+
+    /// 회원 탈퇴 (KAN-251, 서버 KAN-241 §3.14). 204면 계정 정보가 파기됐고 서버의 Refresh도 전부 폐기됐다.
+    /// 안드로이드 `AuthApi.withdraw`와 같은 호출이고, 다른 점은 애플 계정의 본문 하나다.
+    ///
+    /// - Parameter appleAuthorizationCode: 애플 계정만 — 탈퇴 직전 Sign in with Apple을 한 번 더 해 받은
+    ///   `authorizationCode`. 서버(`AppleTokenRevoker`)는 애플 토큰을 보관하지 않아서, 이 코드를 애플 토큰으로 바꾼 뒤
+    ///   revoke한다(애플 계정 삭제 요구). nil이면 본문 없이 보낸다(`@RequestBody(required=false)`) — 다른 제공자이거나
+    ///   재인증이 실패한 경우로, 서버는 탈퇴를 성공시키고 revoke만 건너뛴다.
+    ///   https://developer.apple.com/documentation/sign_in_with_apple/revoke_tokens
+    ///
+    /// 이미 탈퇴한 계정의 재요청은 401이다 — 판정은 게이트가 한다(``AuthGateController/withdraw(appleAuthorizationCode:idpLogout:)``).
+    public func withdraw(appleAuthorizationCode: String?) async -> AuthResult<Void> {
+        let body = appleAuthorizationCode.map(WithdrawalBody.init)
+        return await call(authedSend, request(pathWithdrawal, method: "POST", body: body)) { _ in () }
     }
 
     private static func decodeAccount(_ data: Data) throws -> Account {
@@ -349,6 +365,11 @@ private struct LoginBody: Encodable, CustomStringConvertible {
 private struct RefreshBody: Encodable, CustomStringConvertible {
     let refreshToken: String
     var description: String { "RefreshBody[]" }
+}
+
+private struct WithdrawalBody: Encodable, CustomStringConvertible {
+    let appleAuthorizationCode: String
+    var description: String { "WithdrawalBody[]" }
 }
 
 private struct VoiceConsentBody: Encodable {

@@ -48,7 +48,7 @@ export function VoiceConsentScreen({ onDone }: VoiceConsentScreenProps) {
   return (
     <main className="item-screen" aria-labelledby="voice-consent-title">
       <div>
-        <h1 id="voice-consent-title" className="type-title-sm">
+        <h1 id="voice-consent-title" className="type-title">
           {VOICE_CONSENT_TITLE}
         </h1>
         <p

@@ -2,6 +2,7 @@ package com.accentury.app.testflow
 
 import androidx.compose.runtime.saveable.SaverScope
 import com.accentury.app.audio.QualityStatus
+import com.accentury.app.bridge.UploadFailed
 import com.accentury.app.bridge.VoiceItemStart
 import com.accentury.app.upload.UploadState
 import org.junit.Assert.assertEquals
@@ -302,6 +303,35 @@ class TestFlowControllerTest {
         controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
 
         assertTrue(controller.onUploadsChanged(mapOf("at_1" to UploadState.InFlight)).isEmpty())
+    }
+
+    /*
+     * 웹에 알리는 실패는 기다리는 시도의 재녹음 거절이 아닌 실패다 (KAN-288 6단계). 재녹음 거절은 녹음 화면이 다시 열리고,
+     * 재시도 불가(세션 만료 등)는 retryable=false로 실려 웹이 [다시 보내기] 없이 「전송 실패」만 그린다.
+     */
+    @Test
+    fun `웹에 알릴 실패는 기다리는 시도의 재녹음 거절이 아닌 실패다`() {
+        val controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(), micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+
+        assertEquals(
+            listOf(UploadFailed(itemId = "item_1", attemptId = "at_1", retryable = true)),
+            controller.failedUploads(mapOf("at_1" to UploadState.Failed(retryable = true, message = "timeout"))),
+        )
+        // 재시도 불가 실패도 표시는 한다 — 버튼만 없다 (PR #38 리뷰 P1)
+        assertEquals(
+            listOf(UploadFailed(itemId = "item_1", attemptId = "at_1", retryable = false)),
+            controller.failedUploads(mapOf("at_1" to UploadState.Failed(retryable = false, message = "만료"))),
+        )
+        assertTrue(
+            controller.failedUploads(
+                mapOf("at_1" to UploadState.Failed(retryable = false, message = "짧음", rerecord = true)),
+            ).isEmpty(),
+        )
+        assertTrue(controller.failedUploads(mapOf("at_1" to UploadState.InFlight)).isEmpty())
+        // 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이 기다리는 문항이 아니다
+        assertTrue(controller.failedUploads(mapOf("at_x" to UploadState.Failed(retryable = true, message = "timeout"))).isEmpty())
     }
 
     @Test
@@ -1088,6 +1118,34 @@ class TestFlowControllerTest {
         controller.onRecordingFinished("at_2", durationMs = 3_200, quality = QualityStatus.NORMAL)
 
         assertEquals(TestFlowPhase.Submitting(second, "at_2"), controller.phase)
+    }
+
+    /* KAN-288 - 녹음 화면 ✕ [그만두기]는 응시 전체를 버린다. */
+    @Test
+    fun `그만두기는 웹으로 돌아가고 앞 문항의 대기 시도까지 버린다`() {
+        val controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(itemId = "item_1"), micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        controller.onStartVoiceItem(voiceItem(itemId = "item_2", number = 2), micGranted = true)
+
+        assertTrue(controller.onTestQuit())
+
+        assertEquals(TestFlowPhase.Web, controller.phase)
+        assertTrue(controller.onUploadsChanged(mapOf("at_1" to UploadState.Done("job_1"))).isEmpty())
+    }
+
+    @Test
+    fun `제출을 기다리는 중에는 그만두기를 받지 않는다`() {
+        val controller = TestFlowController()
+        val start = voiceItem()
+        controller.onStartVoiceItem(start, micGranted = true)
+        controller.onRecordingFinished("at_1", durationMs = 3_200, quality = QualityStatus.NORMAL)
+        val before = controller.phase
+        assertTrue(before is TestFlowPhase.Submitting)
+
+        assertFalse(controller.onTestQuit())
+
+        assertEquals(before, controller.phase)
     }
 
     /* KAN-261 리뷰 P1-4 - 재응시 뒤에는 이전 세션의 요청을 쓰지 않는다. */

@@ -43,7 +43,7 @@
 | `getContractVersion(): number` | KAN-97 | 앱이 보유한 계약 버전. 동기 반환 | 스큐 협상 이전 앱으로 본다 |
 | `getSessionToken(): string` | KAN-13 | 어휘 답안 제출의 `Authorization` 헤더에 실을 토큰. 동기 반환. origin이 allowlist 밖이면 빈 문자열 | 빈 값은 `null`로 정규화 → 제출 불가 |
 | `requestMicPermission()` | KAN-98 | 네이티브 마이크 권한 게이트를 연다 | 웹이 직접 `getUserMedia` |
-| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0}` | 웹 녹음기(`WebVoiceRecorder`) |
+| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0, emotion?}`. `emotion`(KAN-283)은 정의 VOICE 문항의 말투 감정 문자열(예: "부탁하는")을 가공 없이 — 정의에 없으면 키가 없다, 빈 문자열은 그대로 온다. 「~ 느낌으로 말해주세요!」 문구와 빈 값 처리는 네이티브 몫. 하위호환 추가라 계약 버전 그대로 | 웹 녹음기(`WebVoiceRecorder`) |
 | `startRetest()` | KAN-34 | 이전 세션·결과를 버리고 새 세션으로 인트로 리로드. **인자 없음** — 폐기할 토큰은 네이티브가 들고 있다 | 쿼리를 걷어내고 인트로로 (`goToIntro`) |
 | `startRetestAfterFailure()` | KAN-248 | 실패 출구의 재응시. `startRetest`와 같되 **보상형 광고만 건너뛴다**. 인자도 회신 규칙 차이도 없다 (§8.6) | `startRetest()` — 구버전 앱에서는 광고가 떠도 감수. 그것도 없으면 `goToIntro` |
 | `shareResult(payloadJson)` | KAN-30 | 카카오 피드 템플릿으로 공유. payload = `{imageUrl, text, webTestUrl}` — 점수·세션 id·등급 코드 없음 | `navigator.share` → 링크 복사 |
@@ -53,6 +53,11 @@
 | `setAdConsent(state)` | KAN-196 | 동의를 네이티브 저장소에 쓴다. 인자는 `'granted' \| 'denied'` — `'unknown'`으로 되돌리는 길은 없다 | 래퍼 false. `readAdConsent()`가 null인 실행에서는 애초에 부르지 않는다 |
 | `showInterstitialAd()` | KAN-196 | 분석 대기 화면의 전면 광고. **인자도 회신도 없다** (`shareResult`와 같은 규칙) | 래퍼 false — 광고 없이 대기 화면만 |
 | `haptic(type)` | KAN-258 | 가벼운 탭·성공·실패 햅틱. 인자는 `'tap' \| 'success' \| 'error'`, 그 밖은 네이티브가 무시. 회신 없음. OS 「터치 진동」 설정을 따른다 (§9) | 래퍼 false — 무동작 (브라우저 단독·구버전 앱) |
+| `getAccessToken(): string` | KAN-255 | 계정 Access 토큰. 단어 학습 API(`/v0/learning/word-*`)의 `Authorization`에 싣는다. 동기 반환. 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열 (§11). Android: `AccenturyBridge.getAccessToken` ← `MainActivity` TestFlow의 `currentAccessToken()`. iOS: `BridgeUserScript`의 문서 변수 `accessToken` ← `WebViewCoordinator.pushAccessToken` ← `TestFlowView`의 `readAccessToken` | 빈 값은 `null`로 정규화 → 네트워크 전에 `CLIENT_NOT_SIGNED_IN` |
+| `refreshAccessToken()` | KAN-255 | 계정 토큰 갱신 요청. **fire-and-forget** — 결과는 `onAccessTokenRefreshed`로 온다 (§11). Android: `AccenturyBridge.refreshAccessToken` → `MainActivity` TestFlow의 `refreshAccessToken()`. iOS: `BridgeDispatcher` `case "refreshAccessToken"` → `WebViewCoordinator.refreshAccessTokenForWeb` → `TestFlowView`의 `refreshAccessToken` | 래퍼 `refreshAccessToken()`이 즉시 false → `UNAUTHENTICATED` |
+| `startIntonationRecording(payloadJson)` | KAN-253 | 억양 학습 카드 진입(코스 열기·[다음 카드] 직후 웹이 자동 1회)과 일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면(A-3). payload = `{cardId, prompt, standard, maxDurationMs, guideF0, itemNumber, totalItems}`. 업로드까지 네이티브가 하고 성공하면 `onIntonationRecorded`로 회신 (§12) | 래퍼 false — 자동 호출은 조용히 넘어가고 A-2가 그대로 보인다. 웹은 `canStartIntonationRecording()`이 false면 [다시 말해 보기]를 비활성으로 그리고 「앱에서 녹음할 수 있어요」 — 웹 녹음기 폴백 없음 |
+| `retryUpload(attemptId)` | KAN-288 | 음성 문항 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 재전송. 인자는 `onUploadFailed`로 받은 attemptId 그대로. **회신 없음** — 성공하면 `onItemResult`, 또 실패하면 `onUploadFailed` (§14). Android: `AccenturyBridge.retryUpload` → `uploadViewModel.retry`. iOS: `BridgeUserScript`의 `retryUpload` → `BridgeDispatcher` `case "retryUpload"` → `TestFlowView`의 `uploads.retry` | 래퍼 false. 웹은 `canRetryUpload()`가 false면 `onUploadFailed` 수신 지점도 걸지 않고 「전송 실패」 줄을 그리지 않는다 — 예전 대기 화면 그대로 |
+| `openSettings()` | KAN-252 | 하단 탭 바의 [설정] → 네이티브의 기존 설정 화면을 띄운다. **인자도 반환도 회신도 없다** (§13) | 래퍼 false. 웹은 `canOpenSettings()`가 false면 [설정] 탭을 그리지 않는다 — 구버전 앱은 WebView 위 톱니가 그대로 남아 있다 |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
@@ -64,6 +69,9 @@
 |---|---|---|
 | `onItemResult(payloadJson)` | KAN-100 | 네이티브 녹음이 끝난 문항 결과 |
 | `onRetestFailed(payloadJson)` | KAN-34 | 재응시 실패 (`startRetest`·`startRetestAfterFailure` 공통). **성공은 오지 않는다** — 성공하면 페이지가 리로드된다. KAN-196부터 보상형 광고를 중간에 닫은 경우도 이 슬롯이다: `{code:'AD_DISMISSED', message:'광고를 끝까지 보시면 다시 테스트할 수 있어요', retryable:true, retryAfterMs:null}` (§8) |
+| `onAccessTokenRefreshed(result)` | KAN-255 | `refreshAccessToken()`의 결과. 인자는 JSON이 아니라 문자열 `'ok' \| 'failed'` 그대로다 (§11) |
+| `onIntonationRecorded(payloadJson)` | KAN-253 | 억양 녹음 업로드 202 접수. payload = `{cardId, attemptId}`. **성공만 온다** — 업로드 실패·녹음 화면 닫기는 회신 없음 (§12) |
+| `onUploadFailed(payloadJson)` | KAN-288 | 레벨 테스트 음성 업로드가 실패로 끝났다. payload = `{itemId, attemptId, retryable}`. `retryable:false`(세션 만료·시도 상한)면 웹은 [다시 보내기] 없이 표시만 한다. 재녹음 거절은 오지 않는다. 같은 실패가 여러 번 올 수 있다 (§14) |
 
 슬롯 단위로 갈아끼운다. 객체를 통째로 교체하면 나중에 설치한 수신자가 먼저 설치된 것을 지운다.
 
@@ -201,6 +209,9 @@ https://accentury.app/privacy.html
 | 스레드 | `@JavascriptInterface`는 **JS 전용 스레드** → `View.post`로 메인에 넘긴 뒤 검증 | WebKit이 메인 스레드에서 부른다 → 넘기는 단계가 없다 |
 | 파일 | `web/AccenturyBridge.kt` | `Web/AccenturyBridge.swift` + `Web/BridgeUserScript.swift` |
 
+iOS의 계정 Access 토큰(`getAccessToken`, KAN-255)도 세션 토큰·광고 동의와 같은 구조로 심는다 — 문서 변수 +
+`__accenturySetAccessToken` setter + 대기 자리. 네이티브가 문서 커밋 때(Keychain을 새로 읽어)와 갱신 성공 직후에 민다 (§11).
+
 **계약 메서드를 더할 때 iOS는 파일이 둘이다** — 디스패처의 `case`와 주입 JS의 객체 리터럴을 함께
 고쳐야 한다. 웹 쪽 `bridge.ts`는 이 차이를 모른다.
 
@@ -218,6 +229,19 @@ https://accentury.app/privacy.html
 | 5 | `ios/Accentury/Web/AccenturyBridge.swift` — 디스패처 `case` + 필드 |
 | 6 | `ios/Accentury/Web/WebViewHost.swift`(3계층) · `TestFlow/TestFlowView.swift` — 콜백 배선 |
 | 7 | 이 문서 §2 표 |
+
+KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android(2·3, 4단계)·iOS(4~6, 5단계) 완료 (§11).
+
+KAN-252는 웹 쪽 1·7·테스트를 2단계에서 끝냈고, Android 2·3과 iOS 4~6이 3·4단계다 (§13).
+
+KAN-253은 웹 쪽 1·7을 1단계, Android 2·3을 2단계, iOS 4~6을 3단계에서 끝냈다. 메서드가 녹음 화면을 띄우는 종류라
+Android는 표의 2·3 말고도 손대는 곳이 있다 — `bridge/IntonationRecordingStart.kt`(payload 파서) ·
+`bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/`(업로드·화면) · `recording/RecordingScreen.kt`의
+`RecordingPurpose`. 목록과 이유는 §12 「Android 구현」.
+iOS도 같다 — Core `Bridge/IntonationRecordingStart.swift`(파서) · `Bridge/IntonationRecordedDelivery.swift`(회신 JS) ·
+`Learning/`(업로드·키 규칙 모델) · `Recording/RecordingUiState.swift`의 `RecordingPurpose`, 앱 `Learning/IntonationRecordingOverlay.swift`(화면) ·
+`Recording/PcmPlayer.swift` · `Recording/RecordingScreen.swift` · `Web/WebViewHost.swift`(전달) · `TestFlow/TestFlowView.swift`(결선).
+목록과 이유는 §12 「iOS 구현」.
 
 테스트도 같은 수만큼 늘어난다: `bridge.test.ts`, `AccenturyBridgeTest.kt`,
 `AccenturyBridgeTests.swift`, `BridgeUserScriptTests.swift`(메서드 목록).
@@ -376,7 +400,7 @@ Android WebView는 있지만 VIBRATE 권한이 필요하고 길이(ms)만 정할
 | 자리 | 종류 | 구현 위치 |
 |---|---|---|
 | Primary 버튼 (`Button` `variant="primary"`) | `tap` | 웹 `ui/Button.tsx` |
-| 객관식 선택 (어휘 문항·출신 지역 라디오) | `tap` | 웹 `VocabularyItemScreen.tsx`·`RegionSelectScreen.tsx` |
+| 객관식 선택 (어휘 문항·출신 지역 라디오) | `tap` | 웹 `ui/ChoiceList.tsx`(어휘 문항, KAN-255에서 `VocabularyItemScreen.tsx`로부터 추출)·`RegionSelectScreen.tsx` |
 | 시작 대기 카운트다운 3·2·1 (숫자가 바뀔 때마다, 0 제외) | `tap` | 웹 `TestStartScreen.tsx` — 실기기 확인 중 사용자 요청으로 추가 (2026-10-01) |
 | 녹음 버튼 | `tap` | 네이티브 녹음 화면 (Android `RecordButton.kt`, iOS `RecordButton.swift`) |
 | 녹음 완료·실패 | `success`·`error` | 네이티브 녹음 화면 (`RecordingScreen`) — 앱 안 녹음 실패는 웹에 회신되지 않는다 |
@@ -475,3 +499,299 @@ id·X 자신은 거른다. 남는 것이 없으면 X만 다시 녹음하는 기�
   서버가 다시 알려 준다.
 - 네이티브가 앞 문항을 다시 열려면 그 세션에서 웹이 해당 `startVoiceItem`을 한 번 보냈어야 한다. 기억이
   없는 문항(구버전 저장값에서 복원 등)은 걸러지고, 서버가 다음 거절에서 다시 알려 준다.
+
+## 11. 계정 토큰 (KAN-255)
+
+계약 버전은 2 그대로다 — 메서드 둘(`getAccessToken`·`refreshAccessToken`)과 수신 슬롯 하나
+(`onAccessTokenRefreshed`)를 **추가**만 했다(§1). 이 셋을 모르는 앱에서는 래퍼가 null·false를 주고
+단어 학습 화면이 로그인 안내로 내려간다. 단어 학습 하나 때문에 응시할 수 있는 앱을 업데이트
+안내로 막을 이유가 없다.
+
+### 왜 세션 토큰과 따로인가
+
+`getSessionToken`은 레벨테스트 한 판의 권한이다. 단어 학습 API(서버 KAN-265)는 계정에 기록을
+남기므로 전부 **계정 Access 토큰** Bearer를 요구하고, 세션 토큰을 실으면 401이다. 계정 토큰과
+그 갱신(리프레시 토큰 회전)은 네이티브가 소유한다 — Android `auth/AuthHttp.kt`의 TokenRefresher.
+웹은 토큰을 저장하지 않고 요청마다 브리지에서 읽는다.
+
+### 401 → 갱신 1회 → 재시도 1회
+
+`web/src/learning/wordApi.ts`의 공통 요청 함수가 이 규칙의 유일한 구현이다.
+
+1. 첫 토큰은 `waitForAccessToken()`으로 읽는다 — 바로 null이어도 **앱 실행(`getAccessToken` 메서드가
+   있음)일 때만** 100ms 간격으로 최대 2초 다시 읽는다(KAN-255 리뷰 P0, 아래 「네이티브가 지킬 것」).
+   그래도 null이면 네트워크 전에 `CLIENT_NOT_SIGNED_IN`(retryable false). 화면은
+   「로그인하면 단어 학습을 할 수 있어요」 + 하단 탭 바를 보인다(3단계, 출구는 KAN-252에서 [학습 종류로] → 탭 바). 브라우저 단독·구버전 앱은 기다리지 않는다.
+2. 401이면 `refreshAccessToken()`을 **한 번** 부른다. 결과가 true면 `getAccessToken()`을 (기다리지 않고) 다시 읽어
+   같은 요청(같은 멱등 키·같은 본문)을 한 번 재시도한다.
+3. 갱신 false·다시 읽은 토큰이 null·재시도도 401이면 `UNAUTHENTICATED`(retryable false).
+   두 번째 401에서 다시 갱신하지 않는다.
+
+### 갱신 회신과 타임아웃
+
+| 항목 | 규칙 |
+|---|---|
+| 회신 | `window.AccenturyWeb.onAccessTokenRefreshed('ok' \| 'failed')`. `'ok'`만 성공이고 그 밖의 문자열은 실패로 본다 |
+| 타임아웃 | 웹 래퍼가 호출자마다 10초 기다린다. 회신이 없으면 그 호출자는 실패(false)로 끝나지만 **네이티브 작업은 회신이 올 때까지 진행 중으로 남는다**(KAN-255 리뷰 P1) |
+| 동시 요청 | 네이티브 작업이 진행 중이면(앞 호출자가 타임아웃으로 포기한 뒤라도) 새로 부르지 않고 그 작업의 회신을 기다린다. 네이티브에는 갱신 요청이 겹쳐 가지 않는다. 늦은 `'ok'`는 실제로 갱신이 끝났다는 뜻이라 뒤 요청은 true를 받는다 — 앞 작업의 회신이 다른 작업의 회신으로 잘못 읽히는 일은 없다 |
+| 슬롯 | 네이티브 작업 동안 설치하고, **회신이 와야** 설치 전 값으로 되돌린다(§3 슬롯 단위 규칙). 회신이 끝내 안 오면(origin 불허 등) 그 문서에서는 이후 갱신이 전부 타임아웃 false다 |
+
+### 네이티브가 지킬 것 (4단계 Android 완료 · 5단계 iOS 완료)
+
+- `getAccessToken()`: 현재 메모리의 Access 토큰을 동기로. 로그인 안 됨·로그인 기능을 끈 빌드·origin
+  불허(§5)면 빈 문자열. 만료 여부는 보지 않는다 — 만료는 서버 401로 드러나고 그때 갱신한다.
+- 첫 문서에서 토큰이 늦게 올 수 있어(iOS는 커밋 때 `""`를 먼저 밀고 Keychain 읽기 뒤 실제 토큰을 민다)
+  웹이 앱 실행일 때만 최대 2초 기다린다. 그보다 늦게 밀면 첫 화면은 로그인 안내로 간다.
+- `refreshAccessToken()`: 즉시 반환하고 갱신은 백그라운드에서. 끝나면 **반드시 한 번**
+  `onAccessTokenRefreshed`를 부른다(성공 `'ok'`, 리프레시 토큰 만료·네트워크 실패 등은 `'failed'`).
+  10초 안에 회신하지 못하면 웹은 이미 실패로 처리했다.
+- 갱신이 이미 진행 중이면(앱 자체 요청이 먼저 시작했어도) 새로 시작하지 말고 그 결과로 회신한다.
+- origin 불허 문서에서 온 `refreshAccessToken()`은 조용히 버린다(회신도 없음 — 웹은 타임아웃으로 끝난다).
+
+#### Android 구현 (KAN-255 4단계)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `web/AccenturyBridge.kt`(두 메서드) · `web/WebViewHost.kt`(전달) · `MainActivity.kt` TestFlow(`currentAccessToken()`·`refreshAccessToken()`) · `bridge/AccessTokenRefreshedDelivery.kt`(결말 → `'ok'\|'failed'`, 주입 JS) |
+| origin | `getAccessToken`은 `getSessionToken`처럼 `isOriginAllowedNow` 플래그(동기 반환). `refreshAccessToken`은 postToMain 뒤 `isCurrentUrlAllowed` — 불허면 콜백도 회신도 없다 |
+| 토큰 읽기 | `authClients.store.read()`를 `runBlocking`으로. JS 인터페이스 스레드라 메인을 막지 않는다 (`AccessTokenInterceptor` 선례). 저장소는 메모리 캐시 |
+| 갱신 | TestFlow `rememberCoroutineScope`에서 `refresher.refresh(staleAccess = 지금 저장된 Access)`. 본체는 `NonCancellable` — 회전 도중 취소돼 회전된 Refresh를 잃지 않게. 앱 자체 OkHttp 갱신과 겹치면 TokenRefresher 뮤텍스가 줄 세우고 뒤쪽은 서버에 묻지 않는다 |
+| 회신 | `Refreshed`만 `'ok'`, `SignedOut`·`Failed`·예외는 `'failed'`. 메인 스레드에서 `webDeliveryJs("onAccessTokenRefreshed", …)` 한 번. WebView가 없으면 웹 타임아웃 |
+| SignedOut | TokenRefresher의 `onSignedOut`이 이미 게이트를 로그인 화면으로 돌린다 — 브리지 쪽 추가 처리 없음 |
+| `LOGIN_ENABLED=false` | `authClients`를 깨우지 않는다. `getAccessToken`은 늘 `""`, `refreshAccessToken`은 즉시 `'failed'`. 예전 로그인 빌드가 Keystore에 남긴 토큰이 익명 빌드 웹으로 새지 않게 |
+
+#### iOS 구현 (KAN-255 5단계)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `Web/BridgeUserScript.swift`(주입 JS 두 메서드 · 문서 변수 `accessToken` · `__accenturySetAccessToken` · `__accenturyPendingAccessToken` · `accessTokenPushJs`) · `Web/AccenturyBridge.swift`(디스패처 `case "refreshAccessToken"`) · `Web/WebViewHost.swift`(`pushAccessToken`·`refreshAccessTokenForWeb`·순서 함수 `accessTokenRefreshReplyScripts`) · `TestFlow/TestFlowView.swift`(`readAccessToken`·`refreshAccessToken` 클로저) · Core `Bridge/AccessTokenRefreshedDelivery.swift`(결말 → `'ok'\|'failed'`, 주입 JS) |
+| origin | `getAccessToken`은 동기 반환이 없어 문서 변수를 읽는다. 미는 판정은 세션 토큰과 같은 `shouldPushToken`(커밋된 origin이 allowlist 안) — 불허 문서는 영영 `""`. `refreshAccessToken`은 디스패처의 처리 시점 URL 검사 — 불허면 콜백도 회신도 없다 |
+| 토큰 읽기 | `AuthHub.clients.store.read()`가 `async`라 값이 아니라 읽기 클로저를 넘긴다. `didCommit`에서 든 값을 바로 밀고 저장소를 새로 읽어 다시 밀며, `didFinish`에서 강제 재주입(세션 토큰과 같은 이유) |
+| 갱신 | 코디네이터에 매이지 않은 `Task`에서 `refresher.refresh(staleAccess: 지금 저장된 Access)`. 안드로이드 `NonCancellable`과 같은 이유 — 화면이 사라져도 회전된 Refresh 저장까지 끝까지 돈다 |
+| 회신 | 메인 액터에서 한 번. **성공이면 새 토큰을 먼저 밀고(`accessTokenPushJs`) 그 뒤 `onAccessTokenRefreshed('ok')`** — 웹이 'ok'를 받자마자 `getAccessToken()`을 다시 읽기 때문(안드로이드엔 없는 단계). 순서는 `accessTokenRefreshReplyScripts`가 정하고 JSContext 테스트가 고정. `.refreshed`만 `'ok'`. WebView가 없으면 웹 타임아웃 |
+| SignedOut | TokenRefresher의 로그아웃 신호가 게이트를 로그인 화면으로 돌린다 — 브리지 쪽 추가 처리 없음 |
+| `loginEnabled=false` | `AuthHub`를 깨우지 않는다. 읽기는 늘 `""`, 갱신은 nil → 즉시 `'failed'`. 예전 로그인 빌드가 Keychain에 남긴 토큰이 익명 빌드 웹으로 새지 않게 |
+
+## 12. 억양 학습 녹음 (KAN-253)
+
+계약 버전은 2 그대로다 — 메서드 하나(`startIntonationRecording`)와 수신 슬롯 하나(`onIntonationRecorded`)를
+**추가**만 했다(§1). 모르는 앱에서는 래퍼가 false라 A-2의 [다시 말해 보기]가 비활성이다. 웹 쪽은 1단계 완료
+(`web/src/bridge/bridge.ts`, `web/src/learning/useIntonationLearning.ts`), 네이티브는 2단계 Android 완료 · 3단계 iOS 완료.
+5단계(2026-10-12 사용자 결정)에서 payload에 `itemNumber`·`totalItems`를 넣었다 — 릴리스 전 계약이라 버전은 그대로다.
+
+### 진입 흐름 (5단계)
+
+A-2와 녹음 대기 화면이 같은 대사·곡선을 두 번 보여 중복이었다. 그래서 **녹음 대기 화면이 카드 역할**을 한다(카드 n/N,
+사투리 대사, 표준어 줄, 가이드 곡선).
+
+1. 웹이 카드에 들어서는 순간 — 코스 상세 로드 성공 직후, 「분석 중」 화면의 [다음 카드] 직후 — `startIntonationRecording`을
+   **자동으로 한 번** 부른다. 호출은 effect가 아니라 그 전이를 만든 비동기 작업·클릭 핸들러 안에 있어 StrictMode의
+   이중 effect에도 1회다(`recordCard`, vitest가 StrictMode에서 고정). 로드 실패 뒤 [다시 시도]가 성공하면 그때 1회.
+2. 녹음 화면 아래에는 웹 A-2가 그려져 있다. 녹음 화면을 뒤로가기로 닫으면 그 A-2가 드러난다 — **일시정지 화면**이다:
+   카드 n/N, 사투리 대사, 표준어(있으면), 곡선 + Primary [다시 말해 보기](같은 카드로 다시 호출) + 출구 [코스 목록으로].
+3. 브라우저 단독(브리지 없음)이면 자동 호출이 false로 넘어가고 A-2의 [다시 말해 보기]가 비활성 + 「앱에서 녹음할 수 있어요」.
+
+### web → native: `startIntonationRecording(payloadJson)`
+
+| 필드 | 타입 | 내용 |
+|---|---|---|
+| `cardId` | string | 서버 카드 id. 업로드 경로에 그대로 쓴다 |
+| `prompt` | string | 사투리 대사 — 녹음 화면의 큰 글자 |
+| `standard` | string \| null | 표준어 원문. null이면 그 줄을 그리지 않는다 |
+| `maxDurationMs` | number | 늘 `10000` — 레벨테스트와 같은 10초 컷 |
+| `guideF0` | `{unit, frameIntervalMs, values}` | 서버 카드의 곡선을 가공 없이. `startVoiceItem`의 `guideF0`와 같은 형식·같은 렌더 규칙(`unit`이 `semitone`이 아니면 가이드 레인을 비운다, `values`의 null은 무성) |
+| `itemNumber` | number (정수, 필수) | 코스 안 몇 번째 카드인지(1부터, seq 정렬 순). 녹음 화면의 진행바 `n / N` (5단계) |
+| `totalItems` | number (정수, 필수) | 코스의 카드 수. `1 ≤ itemNumber ≤ totalItems`가 아니거나 둘 중 하나라도 빠지면 네이티브는 payload를 버린다(`startVoiceItem`과 같은 규칙) |
+
+반환 규칙은 `startVoiceItem`과 같다 — 웹 래퍼는 메서드가 없으면 false. 네이티브는 즉시 반환하고 녹음 화면을 띄운다.
+
+### native → web: `onIntonationRecorded(payloadJson)`
+
+| 상황 | 회신 |
+|---|---|
+| 업로드가 202를 받음 | `{cardId, attemptId}` **한 번**. `attemptId`는 202 본문의 값(`la_…`). 회신 뒤 녹음 화면을 닫고 WebView로 돌아온다 |
+| 업로드 실패 (네트워크·5xx·429 등) | **회신 없음.** 녹음 화면 안에서 [재시도]를 무제한 준다 |
+| 사용자가 녹음 화면을 시스템 뒤로가기로 닫음 (녹음 전·확인 단계·업로드 실패 후 어디서든) | **회신 없음.** 웹은 일시정지 A-2 그대로라 [다시 말해 보기]로 다시 시작하거나 [코스 목록으로] 나간다 |
+
+웹은 A-2(`view.screen === 'card'`)에 있는 동안만 이 슬롯을 설치하고, **지금 카드의 `cardId`가 아닌 회신과 모양이 어긋난
+payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표시로 간다(A-4 본 화면·결과 폴링은 KAN-254).
+
+### 네이티브가 지킬 것 (2단계 Android 완료 · 3단계 iOS 완료)
+
+- **녹음 화면은 레벨테스트 것을 재사용한다.** 상태 머신(카운트다운 → 녹음 → 확인 → 업로드), 품질 선차단
+  `TOO_QUIET`·`TOO_SHORT`·`CLIPPED`(Android `recording/RecordingScreen.kt`의 `QualityStatus`, iOS `Recording/RecordingScreen.swift`),
+  `maxDurationMs` 10초 자동 컷, 2단 레인(위 가이드 `guideF0`, 아래 내 억양). 진행 표기는 5단계부터 레벨테스트와 같은 진행바·`n / N`
+  컴포넌트로 그린다 — 접근성 라벨은 「카드 진행률」, 종류 note 없음(웹 A-2와 같음, 레벨테스트는 「문항 진행률」·「음성」 그대로).
+- **세션 ID·문항 인덱스와 섞지 않는다.** 억양 학습은 레벨테스트 세션이 없다. 레벨테스트 진행 상태(세션 토큰,
+  문항 인덱스, 보관 음성 복구 §10, 재응시 잠금)를 읽거나 갱신하지 않고, `onItemResult`도 보내지 않는다. 카드 식별은 `cardId` 하나다.
+- **확인 단계에 [내 녹음 듣기] Secondary 버튼**을 둔다 — 학습 화면에만(레벨테스트 녹음 화면에는 없음, 2026-10-12 착수 결정).
+  다시 녹음·제출 버튼 구성은 레벨테스트 확인 단계 그대로.
+- **업로드**: `POST /v0/learning/intonation-cards/{cardId}/recordings` (서버 KAN-267, 명세 §3.19).
+  - multipart는 레벨테스트 업로드(`upload/UploadClient.kt`)와 같다 — 파트 `audio`(`recording.wav`, `audio/wav`) + `meta`(`application/json`, `{durationMs, clientQuality}`). 서버도 같은 `VoiceRecordings.read`로 읽는다.
+  - `Authorization: Bearer <계정 Access 토큰>` — 세션 토큰이 아니다(§11). 401이면 TokenRefresher로 **갱신 1회 뒤 같은 요청 재시도 1회**, 그래도 401이면 로그인 만료로 안내(업로드 실패와 같이 회신 없음).
+  - `Idempotency-Key`: 녹음 1건(확인 단계에서 제출한 그 오디오)마다 새로 만들고, 그 녹음의 재시도에는 **같은 키**를 다시 쓴다. 다시 녹음하면 새 키.
+  - [재시도]는 무제한. 단 `503 ANALYSIS_UNAVAILABLE`은 서버가 그 키의 시도를 실패로 기록했을 수 있어(같은 키 재전송이 실패 시도를 202로 돌려준다 — 서버 코드로 확인, 아래 「Android 구현」) **재시도 때 새 키**를 쓴다. 400·413·415·422처럼 봉투 `retryable:false`면 재시도 대신 다시 녹음을 안내한다(오디오가 같으면 결과도 같다).
+  - 202 응답 `{attemptId, contentVersion, cardId, status, pollAfterMs}` 중 `attemptId`만 웹으로 넘긴다. 폴링은 웹(KAN-254)이 한다.
+- **뒤로가기 = 회신 없이 일시정지 A-2 복귀.** 업로드 진행 중이면 요청을 버린다(같은 키로 서버에 이미 닿았더라도 웹은 그 시도를 모른다 — 다음 녹음은 새 키라 별개 시도다).
+- **화면 오른쪽 위 ✕ 닫기** (KAN-252, 2026-10-13 사용자 결정) — ✕ = `close` 후 억양 탭 문서(A-1)로, 뒤로가기·제스처는 카드(A-2)로 (2026-10-13 사용자 결정). A-1은 `?screen=intonation` 문서의 첫 상태라 문서를 다시 열면 목록이 뜬다 — URL은 `webTabUrl(currentUrl, "intonation")`(`webBackTarget`과 같은 쿼리 규칙, 문서를 모르면 닫기만). 권한 화면 포함, 제출 중에도 선다. 시스템 뒤로·가장자리 스와이프를 몰라도 나갈 수 있게. 모양은 설정 톱니와 같다(Android `learning/IntonationRecordingOverlay.kt` `IntonationCloseButton`, iOS `IntonationCloseChrome`). 레벨 테스트 VOICE 녹음 화면에는 두지 않는다(KAN-147).
+- origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
+
+#### Android 구현 (KAN-253 2단계)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `web/AccenturyBridge.kt`(`startIntonationRecording`) · `web/WebViewHost.kt`(전달) · `bridge/IntonationRecordingStart.kt`(파서) · `bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/IntonationUploadClient.kt` · `learning/IntonationRecordingViewModel.kt`(열림·업로드·키 규칙) · `learning/IntonationRecordingOverlay.kt`(A-3) · `recording/PcmPlayer.kt`([내 녹음 듣기]) · `MainActivity.kt` TestFlow(결선) |
+| origin·파싱 | `startVoiceItem`과 같은 순서 — postToMain 뒤 `isCurrentUrlAllowed`, 파싱 실패는 `CrashReports.recordBridgeParseFailure("startIntonationRecording")`. 빈 `cardId`·빈 `prompt`·`maxDurationMs ≤ 0`·`itemNumber`/`totalItems` 누락·범위 밖은 버린다. `guideF0`만 불량이면 곡선만 버린다(`decodeTolerantOfGuide`, `startVoiceItem`과 공유) |
+| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `RecordingPurpose`를 받는다 — `LevelTest(itemNumber, totalItems)`는 이전과 같은 모양, `IntonationLearning(standard, itemNumber, totalItems)`는 진행바·`n / N`(라벨 「카드 진행률」, note 없음 — 5단계), 대사 카드 아래 「표준어 · …」 한 줄(null이면 생략), 확인 단계에 [내 녹음 듣기]. 확인 뒤의 일은 호출자의 `onNext`가 정한다. 녹음 뷰모델은 레벨테스트와 다른 인스턴스(`viewModel(key = "intonation")`) |
+| 업로드 | `AuthClients.authedClient`에 60초 callTimeout만 얹어 쓴다 — 계정 Bearer와 401 → 갱신 1회 → 같은 요청 재시도 1회가 그 클라이언트(`AccessTokenInterceptor`·`TokenAuthenticator`)에 이미 있다. multipart는 레벨테스트와 같은 `upload/UploadClient.kt`의 `recordingMultipart` |
+| 멱등 키 | 제출 1건마다 `li_<UUID>`, [재시도]는 같은 키. `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키 — 서버 `IntonationScoringService.upload`가 분석 큐 전달 실패 시 그 키의 시도를 `RETRYABLE_FAILED`로 커밋하고 503을 주며, 같은 키 재전송에는 그 실패 시도를 202로 돌려준다(2026-10-12 origin/Dev 확인). 회로 차단(`accepts()` false)의 503은 시도를 만들지 않아 어느 키든 같다 |
+| 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요」(Refresh 거절이면 TokenRefresher가 이미 로그인 화면으로 돌린다) |
+| 회신·닫기 | 202 → `onIntonationRecorded({cardId, attemptId})` 한 번 → 화면 닫기. 업로드 중·202 뒤에는 하단이 「제출 중…」 |
+| 뒤로가기 | 오버레이의 `BackHandler`가 `close()` — 진행 중 업로드 취소, 음성 바이트 0으로 덮기, 회신 없음. 권한 화면에서도 같다 |
+| 마이크 권한 | 학습만 하는 사용자는 시작 게이트를 안 지났을 수 있어 열 때마다 확인하고, 없으면 `PermissionGate`를 먼저 띄운다 |
+| [내 녹음 듣기] | `AudioTrack` `MODE_STATIC`으로 방금 PCM을 메모리에서 재생(MediaPlayer는 파일·URI가 필요해 WAV를 디스크에 써야 한다 — FR-DP-02). 재생 중 다시 누르면 정지. 확인 단계 이탈(재녹음)·[다음]·화면 이탈 때 정지·`release()`. 레벨테스트 확인 단계에는 없다(`RecordingPurpose.offersPlayback`) |
+| 회전·로그아웃 | 열린 카드·업로드는 ViewModel이라 회전을 넘긴다. TestFlow가 내려가면(로그아웃) `close()`·녹음 `reset()` |
+| `LOGIN_ENABLED=false` | 업로드 뷰모델을 만들지 않고 `startIntonationRecording`을 버린다 — 그 빌드의 웹은 계정 토큰이 없어 A-2까지 오지 못한다 |
+
+#### iOS 구현 (KAN-253 3단계)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | 앱 `Web/AccenturyBridge.swift`(`startIntonationRecording` case) · `Web/BridgeUserScript.swift`(JS 메서드) · `Web/WebViewHost.swift`(전달) · `Learning/IntonationRecordingOverlay.swift`(A-3·닫기) · `Recording/PcmPlayer.swift`([내 녹음 듣기]) · `Recording/RecordingScreen.swift` · `TestFlow/TestFlowView.swift`(결선). Core `Bridge/IntonationRecordingStart.swift`(파서) · `Bridge/IntonationRecordedDelivery.swift`(회신 JS) · `Learning/IntonationUploadClient.swift` · `Learning/IntonationRecordingModel.swift`(열림·업로드·키 규칙) · `Recording/RecordingUiState.swift`(`RecordingPurpose`) |
+| origin·파싱 | `startVoiceItem`과 같은 순서 — `BridgeDispatcher`가 처리 시점 URL로 origin 먼저, 파싱 실패는 `CrashReports.recordBridgeParseFailure("startIntonationRecording")`. 빈 `cardId`·빈 `prompt`·`maxDurationMs ≤ 0`·`itemNumber`/`totalItems` 누락·범위 밖은 버린다. `guideF0`만 불량이면 곡선만 버린다(`decodeTolerantOfGuide`, `parseVoiceItemStart`와 공유) |
+| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `purpose: RecordingPurpose`를 받는다 — `.levelTest(itemNumber:totalItems:)`는 이전과 같은 모양, `.intonationLearning(standard:itemNumber:totalItems:)`는 진행바·`n / N`(라벨 「카드 진행률」, note 없음 — 5단계), 대사 카드 아래 「표준어 · …」 한 줄(nil이면 생략), 확인 단계에 [내 녹음 듣기]. 실패 하단은 `footerOverride`로 호출자가 그린다. 녹음 모델은 레벨테스트와 다른 `@StateObject` 인스턴스(`intonationRecording`) |
+| 업로드 | `AuthClients.intonationUploadClient()` — 60초 상한 업로드 세션(`defaultUploadSession()`) 위에 `AuthorizedSession`(계정 Bearer, 401 → `TokenRefresher` 갱신 1회 → 같은 `URLRequest` 재시도 1회)을 얹는다. multipart는 레벨테스트와 같은 `recordingMultipartBody` 한 벌(`URLSessionUploadClient.swift`) |
+| 멱등 키 | Android와 같다 — 제출 1건마다 `li_<소문자 UUID>`, [재시도]는 같은 키, `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키, 다시 녹음은 새 키 |
+| 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요. 다시 로그인해 주세요」 |
+| 회신·닫기 | `uploadState`가 `.accepted` → `onIntonationRecorded({cardId, attemptId})` 한 번 → `close()`(상태가 idle로 돌아가 두 번 회신하지 않는다). 업로드 중·202 뒤에는 하단이 「제출 중…」. 닫기·다시 녹음 뒤 늦게 온 202는 세대 번호로 버린다 |
+| 뒤로가기 | iOS에는 시스템 뒤로가기가 없어 `IntonationCloseChrome`이 왼쪽 위 닫기(xmark)와 왼쪽 가장자리 스와이프를 둔다 — 둘 다 `close()`: 진행 중 업로드 Task 취소(URLSession까지 내려간다), 보관 음성 참조 폐기, 회신 없음. 권한 화면에서도 같다 |
+| 음성 바이트 | 디스크에 닿지 않는다(레벨테스트와 같이 메모리 PCM → `WavWriter` 메모리 WAV, `RecordingFileLifecycleTests`의 규칙). Swift `Data`는 값 타입이라 Android처럼 0으로 덮지 않고, `UploadManager`와 같이 접수·다시 녹음·닫기에서 참조를 놓는다(`retainsAudio`로 테스트) |
+| 마이크 권한 | 열 때마다 `MicPermission.currentStatus()`로 확인하고, 없으면 `PermissionGateView`를 먼저 띄운다. 그동안 톱니는 숨긴다 |
+| [내 녹음 듣기] | `AVAudioPlayer(data:fileTypeHint: .wav)`로 메모리 WAV를 재생(파일 URL 없음 — FR-DP-02). 녹음 세션이 `.record`라 재생 직전 `.playback`으로 바꾸고 정지 때 비활성화한다(다음 녹음은 `AudioRecorder`가 `.record`로 다시 잡는다). 재생 중 다시 누르면 정지. [재녹음]·확인 단계 이탈·[다음]·화면 이탈 때 정지 |
+| 백그라운드·로그아웃 | 앱이 `.background`로 가면 학습 녹음도 `reset()`(마이크 해제, 레벨테스트와 같은 규칙). `TestFlowView`가 사라지면(로그아웃) `close()`·녹음 `reset()` |
+| `LOGIN_ENABLED=false` | `startIntonationRecording`을 버린다 — 업로드 클라이언트(`AuthHub`)는 첫 업로드 때만 만들어 그 빌드에서는 깨우지 않는다 |
+
+## 13. 설정 열기 (KAN-252)
+
+계약 버전은 2 그대로다 — 메서드 하나(`openSettings`)를 **추가**만 했다(§1). 웹 쪽은 2단계 완료
+(`web/src/bridge/bridge.ts`, `web/src/ui/TabBar.tsx`), Android는 3단계 완료, iOS는 4단계 완료.
+
+2026-10-13 사용자 결정으로 앱 진입이 **웹이 그리는 하단 탭 바 5칸**(홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정)으로
+바뀌었다(ux-ui.md 「앱 진입 구조 — 하단 탭 바」). 앞 넷은 웹 화면이라 URL로 옮기고, 설정만 네이티브 화면이라 이 메서드로 연다.
+
+### web → native: `openSettings()`
+
+| 항목 | 내용 |
+|---|---|
+| 시그니처 | `openSettings(): void` — 인자 없음, 반환 없음, `AccenturyWeb` 회신 없음 |
+| 호출 시점 | 탭 바의 [설정]을 누를 때 한 번. 웹은 문서를 옮기지 않는다 |
+| 존재 판정 | 웹 `canOpenSettings()` = `typeof window.AccenturyBridge?.openSettings === 'function'`. false면 [설정] 탭 자체를 그리지 않는다(`canStartIntonationRecording`과 같은 패턴). 래퍼 `openSettings()`는 메서드가 없으면 false |
+
+### 네이티브가 지킬 것 (3단계 Android 완료 · 4단계 iOS 완료)
+
+- **기존 설정 화면 오버레이를 재사용한다.** 지금 WebView 위 톱니가 여는 그 화면(계정·로그아웃·약관 등)을 그대로 띄운다. 새 화면을 만들지 않는다.
+- **WebView 위 톱니는 레벨 테스트 웹 화면에만 남긴다** (2026-10-13 사용자 결정). 탭 바가 있는 화면에서는 설정으로 가는 길을 탭 바 하나로 모은다 — 둘 다 있으면 같은 곳으로 가는 버튼이 두 개다. 탭 바가 없는 인트로·테스트 진행에서는 톱니가 유일한 설정 출구라 남긴다. 단 이 메서드를 구현한 빌드(로그인 빌드)에서만 이렇게 한다(구버전 웹을 받는 경우는 없다 — 웹은 원격 배포라 늘 최신이다).
+
+  | 화면 | 판정 | 톱니 |
+  |---|---|---|
+  | 인트로 | 현재 문서에 `screen` 없음 | 보임 |
+  | 테스트 진행 | `screen=test` | 보임 |
+  | 탭 화면 | `screen=home`·`intonation`·`words`·`translate` | 숨김 (탭 바 [설정]) |
+  | 결과 | `screen=result` | 숨김 (탭 바 [설정]) |
+  | 레벨 테스트 VOICE 문항 녹음·제출 | 네이티브 녹음 오버레이 | 숨김 |
+  | 억양 학습 녹음 | 네이티브 녹음 오버레이 | 숨김 |
+  | 시작 게이트·문항 권한·지역 화면 | 네이티브가 WebView를 덮음 | 숨김 (예전과 같음) |
+
+  익명 빌드(탭 바 없음)는 예전 그대로다 — 웹 화면과 녹음 화면에서 톱니가 선다(녹음 화면은 2026-10-03 팀장 요청).
+- **메인 스레드에서 연다.** Android `@JavascriptInterface`는 JS 스레드에서 불리므로 `postToMain`으로 넘긴다. iOS 메시지 핸들러는 이미 메인이지만 디스패처의 다른 화면 전환과 같은 경로를 탄다.
+- origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
+- 설정 화면을 닫으면 WebView의 그 문서(탭 화면)로 그대로 돌아온다 — 웹은 회신을 기다리지 않으므로 다시 그릴 것이 없다.
+
+### Android 구현 (3단계 완료)
+
+| 자리 | 내용 |
+|---|---|
+| `web/AccenturyBridge.kt` `openSettings()` | `postToMain` → `isCurrentUrlAllowed`면 `onOpenSettings`. `haptic`·`refreshAccessToken`과 같은 꼴 |
+| `web/WebViewHost.kt` | `onOpenSettings` 전달, `onPageStarted(url)`로 현재 문서 URL을 상위에 알림(뒤로가기·톱니 판정용) |
+| `MainActivity.kt` `TestFlow(tabBarEntry)` | 로그인 빌드(AuthGate SignedIn)만 `true` — 홈 시작·톱니는 인트로·테스트 진행에만(녹음 오버레이 위 제외)·탭 뒤로가기. 익명 빌드(AnonymousFlow)는 `false`라 인트로 시작·톱니 유지 |
+| `MainActivity.kt` 설정 화면 | 기존 `onOpenSettings`(settingsOpen = true) 그대로 — SignedIn은 `SettingsScreen`, 익명은 `AnonymousSettingsScreen` |
+| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)`, 톱니 판정 `showsSettingsGear(url)`(`screen` 없음·`test`면 true) |
+
+**시작 URL 상태.** `home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLink != null)`(`web/WebConfig.kt`). 재응시
+성공(`RetestOutcome.Replaced`)이 `introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다).
+**앱 링크로 들어오면 인트로다** — `c`가 없거나 무효여도(`campaignToken` null) `parseAppLink`가 링크로 인정했으면 링크다(PR #33 리뷰 P1).
+앱이 떠 있을 때 링크가 오면 `appLink` 값이 바뀌어 진입 URL이 바뀌고 다시 로드돼 인트로가 선다(KAN-32의 코드 변경 리로드와 같다).
+파생식이라 LaunchedEffect로 상태를 세우는 이중 로드가 없다. 테스트 진입 URL은 `home`을 보지 않는다.
+
+### iOS 구현 (4단계 완료)
+
+Android 3단계와 같은 규칙을 옮겼다. 판정 함수는 Core(`AccenturyCore/Web/WebConfig.swift`)에 두어 WebKit 없이 표로 검증한다.
+
+| 자리 | 내용 |
+|---|---|
+| `Web/AccenturyBridge.swift` `BridgeDispatcher` | `case "openSettings"` → `onOpenSettings`. 처리 시점 origin 판정은 디스패처 첫 guard가 한다(§6 — 메인 스레드로 넘기는 단계가 없다) |
+| `Web/BridgeUserScript.swift` | 객체 리터럴에 `openSettings: function(){ post("openSettings"); }` |
+| `Web/WebViewHost.swift` | `onOpenSettings` 전달, `didStartProvisionalNavigation`·`didCommit`에서 `onPageStarted(webView.url)`로 현재 문서 URL을 상위에 알림(뒤로·톱니 판정용), 왼쪽 가장자리 `UIScreenEdgePanGestureRecognizer`(60pt 이상 끌고 놓으면 `onEdgeSwipeBack`, `edgeSwipeEnabled`로 켜고 끔) |
+| `TestFlow/TestFlowView.swift` `tabBarEntry`·`covered` | 로그인 빌드(`AuthGateView` SignedIn)만 `true` — 톱니는 `showsSettingsGear(currentWebUrl)`이고 녹음 오버레이(VOICE 녹음·제출, 억양 학습) 위에서 숨김. 스와이프는 `webBackTarget` 대상이 있을 때만 그 URL을 `load`. 억양 녹음·설정·음성 저장 동의가 덮으면(`covered`) 인식기를 끈다. 익명 빌드(`AnonymousFlowView`)는 `false`라 인트로 시작·톱니 유지·스와이프 없음 |
+| `TestFlow/TestFlowModel.swift` | `webUrl`이 `home: startsAtHome(tabBarEntry:introRequested:appLinkEntered:)`를 넘김. `appLinkEntered`는 `applyAppLink`가 링크를 인정하면(코드 없음·무효 포함) 서고 `UserDefaults`(`test_flow_app_link_entered`)에 적힌다 — 새 실행의 `clearSavedState`가 먼저 지우고 링크는 그 뒤 `onContinueUserActivity`로 오므로 새 링크를 지우지 않는다(PR #33 리뷰 P1). 재응시 성공(`.replaced`)이 `introRequested`를 세움 — `UserDefaults`(`test_flow_intro_requested`)에 적어 시스템 종료 뒤 장면 복원을 넘기고, 관문 이탈 때와 **새 실행**(`@SceneStorage` 복원 표시 없음, `init(restoresSavedState: false)`) 때 `clearSavedState`가 함께 지운다 — 앱을 새로 열면 Android `rememberSaveable`처럼 홈부터다(4단계 보완, ios-port.md §3 「새 실행은 홈부터」) |
+| `AccenturyCore/Web/WebConfig.swift` | `buildWebUrl(home:)`, `startsAtHome(tabBarEntry:introRequested:appLinkEntered:)`, `webBackTarget(currentUrl:startRequested:)`, `showsSettingsGear(_:)` — 안드로이드 `WebConfig.kt`의 이식본, 테스트도 `WebConfigTests.swift`에 1:1 |
+
+**iOS의 뒤로는 왼쪽 가장자리 스와이프다.** iOS에는 시스템 뒤로 버튼이 없어 Android 시스템 뒤로가기 자리를 이 몸짓이 맡는다.
+판정 표는 Android와 같고, 대상이 없을 때(홈·테스트 진행·결과) Android는 앱이 닫히지만 iOS는 아무 일도 없다.
+`allowsBackForwardNavigationGestures`는 켜지 않는다 — 웹 히스토리를 되감는 것이 아니라 판정 표가 정한 홈 문서로 옮기는 결정이라서다.
+
+### 앱 시작 URL (3·4단계)
+
+로그인 빌드는 WebView를 **`?bridge=<보유 버전>&app=<앱 버전>&screen=home`**으로 연다. 재응시 뒤와 **앱 링크 진입**은 `screen` 없는
+인트로이고(위 「시작 URL 상태」), 익명 빌드는 늘 인트로다. 탭 이동은 웹이 `location.href` 대입으로 문서를 다시 로드하지만 뒤로가기는
+WebView 히스토리(`goBack()`)를 타지 않는다 — 판정 함수 `webBackTarget`이 정한 홈 문서로 옮기고, 대상이 없으면 Android는 앱 종료·iOS는
+무시다(위 Android·iOS 구현 절). 학습 화면 안의 이탈은 웹 우상단 ✕(목록으로)와 네이티브 억양 녹음 ✕(코스 목록으로)가 맡는다(ux-ui.md
+「앱 진입 구조」).
+
+**탭 바는 계정 로그인 상태에서만 선다**(PR #33 리뷰 P1). 웹은 탭 바·결과의 학습 진입을 `getAccessToken()`(§11)에 값이 있을 때만 그린다
+(`web/src/App.tsx` `useAccountTabs`) — 익명 빌드 WebView도 브리지·`bridge=2`를 가져 「앱 안」만으로는 갈리지 않기 때문이다. 새 메서드·쿼리는
+없다. 두 앱 모두 저장소의 Access를 만료와 무관하게 주고 익명 빌드·로그아웃이면 `""`라 「값이 있다 = 로그인 상태」다. iOS 첫 문서는
+Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으로 잠깐 더 기다렸다가 탭 바를 세운다.
+
+## 14. 업로드 재전송 (KAN-288 6단계)
+
+계약 버전은 2 그대로다 — 메서드 `retryUpload` 하나와 수신 슬롯 `onUploadFailed` 하나를 **추가**만 했다(§1). Android(6단계)·iOS(7단계)
+모두 구현했다. 웹은 메서드 유무(`canRetryUpload()` = `typeof window.AccenturyBridge?.retryUpload === 'function'`)로 가르므로 브라우저·구버전
+앱에서는 예전 화면이다. iOS는 브리지 객체 자체를 JS 심(`BridgeUserScript`)으로 심으므로 그 객체에 `retryUpload`를 더한 것이 곧 감지 경로다 —
+웹 코드는 바뀌지 않았다. iOS도 같은 단계에서 업로드 상태 바(`UploadStatusBar`)를 걷어냈다.
+
+**왜 생겼나.** 디자인 3 이식(KAN-288 3단계)에서 Android 레벨 테스트 중 업로드 상태 바(「업로드 중 N건」·「업로드 실패 [재시도]」)를
+걷어냈다(Figma 수정 fix-upload — 문항 진행 중에는 업로드를 알리지 않는다). 그 [재시도]가 녹음을 그대로 두고 다시 보내는 유일한
+통로였다. 2026-10-18 사용자 결정: 진행 중에는 계속 숨기고, 업로드 완료를 기다리는 화면에서 실패한 문항만 다시 보내게 한다.
+
+**표시 자리는 음성 문항의 대기 푸터다(`VoiceItemScreen`).** 웹은 `onItemResult`가 와야 다음 문항으로 넘어가므로, 업로드가 실패한 문항은
+결과가 오지 않아 그 문항의 대기 화면(「잠시만요…」 + [녹음 화면 다시 열기])에서 멈춘다. 분석 대기 화면(`AnalysisWaitingScreen`)은
+모든 음성 결과가 도착한 뒤에야 서므로 업로드 실패가 남아 있을 수 없다 — 그래서 실패 표시는 그 문항의 제출 대기에만 보이고,
+「진행 중에는 숨김」 결정과 충돌하지 않는다.
+
+| 방향 | 이름 | payload | 언제 |
+|---|---|---|---|
+| native → web | `onUploadFailed` | `{itemId, attemptId, retryable}` | 대기 시도(`TestFlowController.pendingAttempts`)의 업로드가 `Failed`이고 재녹음 거절(`rerecord`)이 아닐 때. `retryable`은 `Failed.retryable` 그대로. 업로드 목록이 바뀔 때마다·WebView가 돌아올 때 남은 실패를 다시 싣는다(웹에는 무해) |
+| web → native | `retryUpload(attemptId)` | 문자열 | [다시 보내기] 탭 1회. 네이티브는 빈 값만 거르고 `UploadManager.retry`가 그 시도만 재전송한다(재시도할 수 없는 상태면 무시) |
+
+웹 화면: 실패 회신을 받으면 대기 문구 대신 분석 대기 화면과 같은 문항 줄(`.analysis-row`, 디자인 3 시안 24·25) — 왼쪽 「N번 문항」,
+오른쪽 「! 전송 실패」(기호+글자, 색만으로 가르지 않음), 보조 버튼 [다시 보내기](48, `retryable`일 때만). 그 아래 [녹음 화면 다시 열기]는 그대로다.
+[다시 보내기]를 누르면 대기 문구로 돌아가고, 성공하면 결과가 다음 문항을 열고 또 실패하면 회신이 줄을 다시 세운다.
+[녹음 화면 다시 열기]를 누르면 실패 줄을 걷는다(새 녹음이 앞 시도를 밀어내 폐기한다).
+
+재시도 불가 실패(세션 만료·시도 상한)도 `retryable:false`로 싣는다(PR #38 리뷰 P1). 예전 상태 바는 이 실패를 「N번 문항 업로드 실패」로
+보여 줬는데, 상태 바를 걷고 회신에서도 빼면 사용자는 「잠시만요…」 앞에서 까닭 없이 기다린다. 웹은 버튼 없이 「! 전송 실패」만 그리고,
+복구는 [녹음 화면 다시 열기]의 생존 확인이 맡는다(만료면 [다시 테스트하기], KAN-191·KAN-237). 재녹음 거절(rerecord)은 회신 없이
+네이티브가 녹음 화면을 다시 연다(KAN-147).
+
+| 자리 | 내용 |
+|---|---|
+| `web/src/bridge/bridge.ts` | `retryUpload?`·`onUploadFailed?`·`UploadFailed`, 래퍼 `retryUpload`·`canRetryUpload`·`installUploadFailedReceiver` |
+| `web/src/progress/VoiceItemScreen.tsx` | 수신 지점(이 문항 itemId만), 실패 줄·[다시 보내기] |
+| `app/.../bridge/UploadFailedDelivery.kt` | `UploadFailed`·`uploadFailedDeliveryJs` |
+| `app/.../testflow/TestFlowController.kt` | `failedUploads(uploads)` — 대기 시도 중 재녹음 거절이 아닌 실패 |
+| `app/.../web/AccenturyBridge.kt` · `WebViewHost.kt` · `MainActivity.kt` | `retryUpload` → `uploadViewModel.retry`, 결과 전달 이펙트에서 실패 회신 |
+| `ios/AccenturyCore/.../Bridge/UploadFailedDelivery.swift` | `UploadFailed`·`uploadFailedDeliveryJs` (안드로이드와 같은 주입 모양) |
+| `ios/AccenturyCore/.../TestFlow/TestFlowController.swift` | `failedUploads(_:)` — 대기 시도 중 재녹음 거절이 아닌 실패 |
+| `ios/Accentury/Web/BridgeUserScript.swift` · `AccenturyBridge.swift` · `WebViewHost.swift` | 심의 `retryUpload` → `postMessage` → `BridgeDispatcher`(origin·빈 값 거름) → `onRetryUpload` |
+| `ios/Accentury/TestFlow/TestFlowView.swift` | `onRetryUpload` → `uploads.retry`, `deliverResults()`(업로드 목록 변경·WebView 재생성 때 돈다)에서 실패 회신 |

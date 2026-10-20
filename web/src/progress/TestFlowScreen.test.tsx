@@ -522,6 +522,30 @@ describe('문항 진행', () => {
 })
 
 describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
+  it('스냅샷에서 이어진 뒤 들어간 음성 문항도 재조회한 정의의 emotion을 싣는다 (KAN-283)', async () => {
+    // 스냅샷은 itemId만 든다 — 문항 본문(emotion 포함)은 복원 때 다시 받은 정의에서 와야 한다
+    const storage = memoryStorage()
+    storage.setItem(
+      snapshotKey('sess-1'),
+      JSON.stringify({ testVersion: TEST_VERSION, submittedItemIds: ['item-1'] }),
+    )
+    const withEmotion = sevenItemDefinition()
+    withEmotion.items[1] = { ...withEmotion.items[1], emotion: '다급한' } as TestItem
+    const fetchImpl = vi.fn<FetchLike>(
+      async () => ({ ok: true, status: 200, json: async () => withEmotion }) as Response,
+    )
+    const startVoiceItem = stubBridge()
+    renderScreen(fetchImpl, { storage })
+    await findRecordingWait()
+
+    expect(startVoiceItem).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(startVoiceItem.mock.calls[0][0])).toMatchObject({
+      itemId: 'item-2',
+      itemNumber: 2,
+      emotion: '다급한',
+    })
+  })
+
   it('음성 문항에 들어가면 문항 컨텍스트를 실어 네이티브 전환을 호출한다', async () => {
     const startVoiceItem = stubBridge()
     renderScreen(okFetch())

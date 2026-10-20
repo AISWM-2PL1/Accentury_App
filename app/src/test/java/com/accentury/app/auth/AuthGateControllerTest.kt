@@ -1,9 +1,14 @@
 package com.accentury.app.auth
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -620,4 +625,322 @@ class AuthGateControllerTest {
 
         assertEquals(AuthGateState.SignedOut(), gate.state.value)
     }
+
+    @Test
+    fun `탈퇴 204면 토큰을 지우고 IdP 정리 뒤 로그인 화면이며 서버 로그아웃은 부르지 않는다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setResponseCode(204))
+        var idpLoggedOut = false
+
+        val outcome = gate.withdraw { idpLoggedOut = true }
+
+        assertEquals(WithdrawOutcome.Withdrawn, outcome)
+        assertNull(store.tokens)
+        assertTrue(idpLoggedOut)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertEquals("/v0/users/me/withdrawal", server.takeRequest().path)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `탈퇴 401은 이미 탈퇴된 계정이라 탈퇴됨으로 정리한다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        // 실제 로그인 상태에서 시작해 갱신 거절 훅(onSignedOut)이 IdP 정리 전에 로그인 화면으로 돌리는 경로를 겨눈다(KAN-251 리뷰 P1).
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        assertTrue(gate.state.value is AuthGateState.SignedIn)
+        // 탈퇴 401 → Authenticator 갱신 → 서버가 Refresh를 이미 폐기해 401. 갱신 거절이 저장소를 먼저 비워도 IdP 정리는 빠지지 않는다.
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false)))
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        var stateDuringIdp: AuthGateState? = null
+
+        val outcome = gate.withdraw { stateDuringIdp = gate.state.value }
+
+        assertEquals(WithdrawOutcome.Withdrawn, outcome)
+        assertEquals(AuthGateState.SignedOut(), stateDuringIdp)
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertEquals(
+            listOf("/v0/auth/refresh", "/v0/users/me", "/v0/users/me/withdrawal", "/v0/auth/refresh"),
+            List(4) { server.takeRequest().path },
+        )
+        assertEquals(4, server.requestCount)
+    }
+
+    @Test
+    fun `탈퇴 401 뒤 IdP 정리 대기 중에 새로 로그인하면 새 토큰과 상태를 지우지 않는다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(2)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false)))
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+
+        // 탈퇴는 실제 시간 디스패처에서 돌린다 — runTest 가상 시간이면 로그인 네트워크를 기다리는 사이 IdP 상한(5초)을
+        // 건너뛰어 정리가 로그인보다 먼저 끝나, 고치기 전 코드도 통과한다.
+        val withdrawal = async(Dispatchers.Default) {
+            gate.withdraw {
+                entered.complete(Unit)
+                release.await()
+            }
+        }
+        entered.await()
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+        assertNull(store.tokens)
+        gate.login(google, "v1")
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+        release.complete(Unit)
+
+        assertEquals(WithdrawOutcome.Withdrawn, withdrawal.await())
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+    }
+
+    @Test
+    fun `탈퇴 응답을 받는 중에 끝난 새 로그인을 정리가 지우지 않는다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(2)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        // 탈퇴 401의 헤더만 먼저 보내 Authenticator 갱신 거절로 로그인 화면이 뜨게 하고, 본문은 1초 늦춘다 — 그사이 새 로그인을
+        // 끝낸다(KAN-251 리뷰 P1 재검증 3). 정리 시작 때 세대를 잡으면 새 로그인의 세대라 새 토큰을 지운다.
+        server.enqueue(
+            MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false))
+                .setBodyDelay(1, TimeUnit.SECONDS),
+        )
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+
+        val withdrawal = async(Dispatchers.Default) { gate.withdraw() }
+        gate.state.first { it is AuthGateState.SignedOut }
+        gate.login(google, "v1")
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+
+        assertEquals(WithdrawOutcome.Withdrawn, withdrawal.await())
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+    }
+
+    @Test
+    fun `탈퇴 정리가 저장 중인 새 로그인 토큰을 지우지 않는다`() = runTest {
+        val store = HeldSaveTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(2)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_TOKEN_INVALID", false)))
+        server.enqueue(MockResponse().setResponseCode(401).setBody(envelope("AUTH_REFRESH_INVALID", false)))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        val idpEntered = CompletableDeferred<Unit>()
+        val idpRelease = CompletableDeferred<Unit>()
+
+        // 실제 시간 디스패처에서 돌린다 — 가상 시간이면 IdP 상한(5초)을 건너뛰어 정리가 로그인보다 먼저 끝난다.
+        val withdrawal = async(Dispatchers.Default) {
+            gate.withdraw {
+                idpEntered.complete(Unit)
+                idpRelease.await()
+            }
+        }
+        idpEntered.await()
+        // 새 로그인의 저장이 저장소 잠금 안에서 붙잡힌 사이 IdP 정리를 끝낸다(KAN-251 리뷰 P1 재검증 2).
+        store.holdNextSave()
+        val login = async(Dispatchers.Default) { gate.login(google, "v1") }
+        store.saveHeld.await()
+        idpRelease.complete(Unit)
+        withContext(Dispatchers.Default) { delay(200) }
+        store.release.complete(Unit)
+        login.await()
+
+        assertEquals(WithdrawOutcome.Withdrawn, withdrawal.await())
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+    }
+
+    @Test
+    fun `탈퇴 정리 중에 앞서 시작된 갱신이 끝나도 새 로그인이 아니라 정리를 마친다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        server.enqueue(MockResponse().setResponseCode(204))
+        // 탈퇴 전에 시작된 기존 세션 갱신. 응답을 붙잡아 두었다가 IdP 정리 중에 풀어 쌍을 jwt_2로 바꾼다(KAN-251 리뷰 P1 재검증).
+        val held = CompletableDeferred<Unit>()
+        val refresher = TokenRefresher(store) { held.await(); AuthResult.Success(AuthTokens("jwt_2", "rt_2")) }
+        val refreshing = async { refresher.refresh(staleAccess = null) }
+        runCurrent()
+
+        val outcome = gate.withdraw {
+            held.complete(Unit)
+            refreshing.await()
+        }
+
+        assertEquals(WithdrawOutcome.Withdrawn, outcome)
+        assertEquals(RefreshOutcome.Refreshed(AuthTokens("jwt_2", "rt_2")), refreshing.await())
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+
+    @Test
+    fun `탈퇴 429면 탈퇴 안 됨으로 토큰을 두고 대기 시간을 알린다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(
+            MockResponse().setResponseCode(429)
+                .setBody("""{"code":"RATE_LIMITED","message":"m","retryable":true,"retryAfterMs":2100,"correlationId":"c"}"""),
+        )
+        var idpLoggedOut = false
+
+        val outcome = gate.withdraw { idpLoggedOut = true }
+
+        assertEquals(WithdrawOutcome.Failed(AuthFailure(AuthFailureReason.RateLimited, 3)), outcome)
+        assertEquals(AuthTokens("jwt_0", "rt_0"), store.tokens)
+        assertFalse(idpLoggedOut)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `탈퇴 503이면 토큰과 로그인 상태를 그대로 두고 실패를 돌려준다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.bootstrap()
+        val signedIn = gate.state.value
+        server.enqueue(MockResponse().setResponseCode(503).setBody(envelope("AUTH_STORE_UNAVAILABLE", true)))
+        var idpLoggedOut = false
+
+        val outcome = gate.withdraw { idpLoggedOut = true }
+
+        assertEquals(WithdrawOutcome.Failed(AuthFailure(AuthFailureReason.RetryLater)), outcome)
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertFalse(idpLoggedOut)
+        assertTrue(signedIn is AuthGateState.SignedIn)
+        assertEquals(signedIn, gate.state.value)
+    }
+
+    @Test
+    fun `탈퇴 전송이 실패하면 토큰과 상태를 그대로 두고 실패를 돌려준다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.shutdown()
+        var idpLoggedOut = false
+
+        val outcome = gate.withdraw { idpLoggedOut = true }
+
+        assertEquals(WithdrawOutcome.Failed(AuthFailure(AuthFailureReason.Retry)), outcome)
+        assertEquals(AuthTokens("jwt_0", "rt_0"), store.tokens)
+        assertFalse(idpLoggedOut)
+        assertEquals(AuthGateState.Checking, gate.state.value)
+    }
+
+    @Test
+    fun `탈퇴 서버 응답이 상한을 넘기면 탈퇴 안 됨으로 토큰을 둔다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store, logoutServerTimeout = 300.milliseconds)
+        server.enqueue(MockResponse().setResponseCode(204).setHeadersDelay(5, TimeUnit.SECONDS))
+
+        val outcome = gate.withdraw()
+
+        assertEquals(WithdrawOutcome.Failed(AuthFailure(AuthFailureReason.Retry)), outcome)
+        assertEquals(AuthTokens("jwt_0", "rt_0"), store.tokens)
+    }
+
+    @Test
+    fun `진행 중에 다시 탈퇴를 불러도 서버 요청은 한 번이고 같은 결과를 받는다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        val requested = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                requested.countDown()
+                release.await()
+                return MockResponse().setResponseCode(204)
+            }
+        }
+        var idpCalls = 0
+
+        val first = async { gate.withdraw { idpCalls++ } }
+        withContext(Dispatchers.IO) { requested.await() }
+        val second = async { gate.withdraw { idpCalls++ } }
+        runCurrent()
+        release.countDown()
+
+        assertEquals(WithdrawOutcome.Withdrawn, first.await())
+        assertEquals(WithdrawOutcome.Withdrawn, second.await())
+        assertEquals(1, server.requestCount)
+        assertEquals(1, idpCalls)
+        assertNull(store.tokens)
+    }
+
+    @Test
+    fun `탈퇴가 서버 응답 대기 중 취소돼도 IdP 정리와 로컬 정리까지 끝낸다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        val requested = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                requested.countDown()
+                release.await()
+                return MockResponse().setResponseCode(204)
+            }
+        }
+        var idpLoggedOut = false
+
+        val screen = launch { gate.withdraw { idpLoggedOut = true } }
+        withContext(Dispatchers.IO) { requested.await() }
+        screen.cancel()
+        release.countDown()
+        screen.join()
+
+        assertTrue(idpLoggedOut)
+        assertNull(store.tokens)
+        assertEquals(AuthGateState.SignedOut(), gate.state.value)
+    }
+}
+
+/**
+ * 실제 KeystoreTokenStore처럼 save·clear를 한 잠금으로 세우고, 다음 save 한 번을 [release]까지 붙잡는 가짜 (KAN-251 리뷰 P1
+ * 재검증 2). 붙잡힌 save 뒤에 온 clear는 save가 끝난 뒤에 돈다 — 고치기 전 코드의 경합이 이 순서에서 난다.
+ */
+private class HeldSaveTokenStore(initial: AuthTokens?) : TokenStore {
+    private val inner = InMemoryTokenStore(initial)
+    private val mutex = Mutex()
+
+    @Volatile
+    private var holding = false
+    val saveHeld = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+
+    val tokens: AuthTokens? get() = inner.tokens
+
+    fun holdNextSave() {
+        holding = true
+    }
+
+    override suspend fun read(): AuthTokens? = inner.read()
+
+    override suspend fun save(tokens: AuthTokens): Boolean = mutex.withLock {
+        if (holding) {
+            holding = false
+            saveHeld.complete(Unit)
+            release.await()
+        }
+        inner.save(tokens)
+    }
+
+    override suspend fun clear() = mutex.withLock { inner.clear() }
 }

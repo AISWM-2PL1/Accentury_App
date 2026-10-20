@@ -16,8 +16,12 @@
  * 정해져야 하는 값이고, 지금 임의로 정하면 나중에 두 곳이 어긋난다. 실패는 그대로 올려서
  * 화면이 [다시 시도]를 띄우게 한다 — 사용자가 재시도 주체가 되는 편이 정책 미확정 구간에서 안전하다.
  *
- * 304/ETag(§3.2 immutable 캐시)는 별도로 다루지 않는다. 조건부 요청과 캐시 재사용은 브라우저가
- * 알아서 하고, 이 함수는 그 결과인 200 본문만 본다.
+ * **`cache: 'no-cache'`로 매번 ETag 재검증한다 (KAN-283, 2026-10-14 결정).** 세트 응답은
+ * `immutable` + 1년 max-age라 그대로 두면 WebView가 한 번 받은 정의를 서버에 묻지 않고 계속 쓴다.
+ * 그런데 KAN-282가 VOICE 문항에 `emotion`을 더하며 prod 활성 버전 gn-2026.10.2를 제자리에서
+ * 고쳤으므로, 이미 캐시한 WebView는 새 필드를 영영 못 받는다. 그래서 캐시를 쓰되 조건부 요청으로
+ * 확인하게 한다 — 바뀐 게 없으면 서버가 304(KAN-182 세트별 ETag)를 주고 브라우저가 캐시 본문을
+ * 200처럼 돌려주므로, 이 함수가 보는 것은 여전히 200 본문뿐이고 비용은 왕복 한 번이다.
  */
 
 import type { TestDefinition } from './testDefinition'
@@ -64,7 +68,10 @@ export async function fetchTestDefinition(
   const url =
     `${apiBase.replace(/\/+$/, '')}/v0/tests/${encodeURIComponent(testVersion)}` +
     `?voiceSet=${encodeURIComponent(voiceSet.trim())}`
-  const response = await fetchImpl(url, { headers: { Accept: 'application/json' } })
+  const response = await fetchImpl(url, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-cache',
+  })
 
   if (!response.ok) {
     throw new Error(`테스트 정의를 불러오지 못했습니다 (HTTP ${response.status})`)

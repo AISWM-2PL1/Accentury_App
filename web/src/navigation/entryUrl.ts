@@ -51,6 +51,24 @@ export function buildResultUrl(search: string, sessionId: string): string {
   return toQuery(params)
 }
 
+/** 하단 탭 바의 탭 네 곳 (KAN-252). [설정]은 네이티브 화면이라 URL이 없다 */
+export type TabScreen = 'home' | 'intonation' | 'words' | 'translate'
+
+/**
+ * 탭 화면 (`?screen=home|intonation|words|translate`, KAN-252). 단어 학습(KAN-255)·억양 학습(KAN-253) 진입도
+ * 이것이다. 학습 화면 안의 이동(세트·코스·시도 id)은 URL에 싣지 않는다 — 화면 상태로 한다.
+ * 레벨테스트의 `sessionId`·`testVersion`·`voiceSet`은 지운다: 탭 화면은 그 값을 읽지 않고, 남겨 두면 끝난
+ * 세션을 물고 다닌다 ([buildResultUrl]과 같은 이유).
+ */
+export function buildTabUrl(search: string, screen: TabScreen): string {
+  const params = new URLSearchParams(search)
+  params.set('screen', screen)
+  params.delete('sessionId')
+  params.delete('testVersion')
+  params.delete('voiceSet')
+  return toQuery(params)
+}
+
 /** 인트로 — 화면 지정만 걷어낸다 */
 export function buildIntroUrl(search: string): string {
   const params = new URLSearchParams(search)

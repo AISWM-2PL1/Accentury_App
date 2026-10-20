@@ -117,19 +117,7 @@ class OkHttpUploadClient(
             .addPathSegment(request.itemId)
             .addPathSegment(PATH_RECORDING)
             .build()
-        val meta = json.encodeToString(
-            MetaPart.serializer(),
-            MetaPart(durationMs = request.durationMs, clientQuality = request.clientQuality),
-        )
-        val body = MultipartBody.Builder()
-            .setType(MultipartBody.FORM)
-            .addFormDataPart(
-                PART_AUDIO,
-                AUDIO_FILE_NAME,
-                request.wavBytes.toRequestBody(AUDIO_MEDIA_TYPE.toMediaType()),
-            )
-            .addFormDataPart(PART_META, null, meta.toRequestBody(META_MEDIA_TYPE.toMediaType()))
-            .build()
+        val body = recordingMultipart(request.wavBytes, request.durationMs, request.clientQuality)
         return Request.Builder()
             .url(url)
             .post(body)
@@ -171,6 +159,21 @@ class OkHttpUploadClient(
 
     private fun isRetryableStatus(status: Int): Boolean =
         status >= 500 || status == STATUS_REQUEST_TIMEOUT || status == STATUS_TOO_MANY_REQUESTS
+}
+
+/**
+ * 녹음 업로드 multipart 본문 — 파트 `audio`(wav) + `meta`(`{durationMs, clientQuality}`).
+ *
+ * 억양 학습 업로드(KAN-253, `learning/IntonationUploadClient.kt`)도 이것을 쓴다 — 서버가 두 경로를 같은
+ * `VoiceRecordings.read`로 읽으므로 본문 규칙이 두 벌로 갈라지면 한쪽만 400을 받는다.
+ */
+internal fun recordingMultipart(wavBytes: ByteArray, durationMs: Long, clientQuality: ClientQuality): MultipartBody {
+    val meta = Json.encodeToString(MetaPart.serializer(), MetaPart(durationMs = durationMs, clientQuality = clientQuality))
+    return MultipartBody.Builder()
+        .setType(MultipartBody.FORM)
+        .addFormDataPart(PART_AUDIO, AUDIO_FILE_NAME, wavBytes.toRequestBody(AUDIO_MEDIA_TYPE.toMediaType()))
+        .addFormDataPart(PART_META, null, meta.toRequestBody(META_MEDIA_TYPE.toMediaType()))
+        .build()
 }
 
 /** multipart의 meta 파트 본문(§3.3). audio와 함께 둘 다 필수다. */

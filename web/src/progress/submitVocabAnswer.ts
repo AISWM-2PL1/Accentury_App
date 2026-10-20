@@ -19,6 +19,7 @@
  * 판단할 수 있게 한다.
  */
 
+import { readErrorEnvelope } from '../net/errorEnvelope'
 import { isRetryableStatus } from '../net/retryableStatus'
 import type { FetchLike } from './fetchTestDefinition'
 
@@ -134,24 +135,3 @@ export async function submitVocabAnswer(
  * import(`VocabularyItemScreen`)를 건드리지 않기 위해서다.
  */
 export { newIdempotencyKey } from '../net/idempotencyKey'
-
-/** 오류 봉투(§2.3)의 클라이언트 관심 부분. correlationId 등 나머지는 읽지 않는다 */
-interface ErrorEnvelope {
-  code: string
-  message: string
-  retryable: boolean
-}
-
-/** 본문을 봉투로 읽어 본다. JSON이 아니거나 봉투 모양이 아니면 null — 상태 코드 폴백으로 간다 */
-async function readErrorEnvelope(response: Response): Promise<ErrorEnvelope | null> {
-  let parsed: unknown
-  try {
-    parsed = await response.json()
-  } catch {
-    return null
-  }
-  if (typeof parsed !== 'object' || parsed === null) return null
-  const { code, message, retryable } = parsed as Record<string, unknown>
-  if (typeof code !== 'string' || typeof message !== 'string' || typeof retryable !== 'boolean') return null
-  return { code, message, retryable }
-}

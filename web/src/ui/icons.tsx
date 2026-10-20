@@ -33,6 +33,18 @@ export function CheckIcon({ size = 20 }: { size?: number }) {
 }
 
 /**
+ * 오답 표시 (KAN-255 W-4). 정답의 ✓와 **모양이 달라야** 색 없이도 정오가 읽힌다 (NFR-US-03) —
+ * 같은 ✓에 색만 바꾸면 흑백·색각 이상에서 두 표시가 같아진다. 크기·획은 [CheckIcon]과 맞춘다.
+ */
+export function CrossIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
  * 끝난 단계의 표시. 24px 잉크 원 **안에** 들어가므로 획이 더 굵고(3) 크기가 작다(12) —
  * 같은 ✓를 그냥 줄이면 원 안에서 선이 실처럼 얇아져 무엇인지 안 보인다.
  */

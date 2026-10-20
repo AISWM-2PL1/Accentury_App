@@ -40,7 +40,7 @@ import UIKit
 @MainActor
 final class UploadModel: ObservableObject {
 
-    /// 넣은 순서대로의 업로드 상태. 상태 바(``AccenturyCore/summarize(_:)``)가 그대로 받는 모양이다.
+    /// 넣은 순서대로의 업로드 상태.
     @Published private(set) var entries: [UploadEntry] = []
 
     /// 순서가 필요 없는 조회용. 안드로이드 `uploads.value` 자리이고

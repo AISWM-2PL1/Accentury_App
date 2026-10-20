@@ -115,6 +115,40 @@ export interface AccenturyBridge {
    * 그 판단은 네이티브 몫이라 웹은 설정을 묻지 않는다. [getSessionToken]과 같은 이유로 optional이다.
    */
   haptic?(type: string): void
+  /**
+   * 계정 Access 토큰 — 단어 학습 API(KAN-255, 서버 KAN-265)의 Authorization 헤더에 쓴다.
+   * 동기 반환. 로그인 안 됨·로그인 기능을 끈 빌드·origin 불허면 빈 문자열이다.
+   *
+   * [getSessionToken]과 따로 두는 이유: 세션 토큰은 레벨테스트 한 판의 권한이라 계정 API가
+   * 받지 않는다. 계정 토큰과 그 갱신은 네이티브(Android `auth/AuthHttp.kt`의 TokenRefresher)가
+   * 소유하므로 웹은 읽기만 한다. [getSessionToken]과 같은 이유로 optional이다
+   */
+  getAccessToken?(): string
+  /**
+   * 계정 토큰 갱신을 네이티브에 요청한다 (KAN-255). fire-and-forget — 결과는
+   * [AccenturyWeb.onAccessTokenRefreshed]로 온다. 동기로 돌려받지 않는 이유는 갱신이 네트워크를
+   * 타서다: Android `@JavascriptInterface`는 JS 스레드를 막고, iOS 메시지 핸들러는 값을 되돌릴 수
+   * 없다(§6). [getSessionToken]과 같은 이유로 optional이다
+   */
+  refreshAccessToken?(): void
+  /**
+   * 억양 학습 카드 진입(자동)·일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면 (KAN-253). 인자는 [IntonationRecordingStart]의 JSON.
+   * 업로드까지 네이티브가 하고, 성공하면 [AccenturyWeb.onIntonationRecorded]로 회신한다(webview-bridge §12).
+   * [getSessionToken]과 같은 이유로 optional이다
+   */
+  startIntonationRecording?(payloadJson: string): void
+  /**
+   * 하단 탭 바의 [설정] → 네이티브가 기존 설정 화면을 띄운다 (KAN-252). 인자도 회신도 없다 — 설정은 네이티브
+   * 화면이라 웹이 알 결과가 없다. 웹은 메서드 유무로 탭을 그릴지 가른다([canOpenSettings]). [getSessionToken]과
+   * 같은 이유로 optional이다
+   */
+  openSettings?(): void
+  /**
+   * 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 다시 보낸다 (KAN-288 6단계,
+   * webview-bridge §14). 인자는 [AccenturyWeb.onUploadFailed]로 받은 attemptId 그대로다. 회신은 없다 — 성공하면
+   * `onItemResult`, 다시 실패하면 `onUploadFailed`가 온다. 메서드 추가라 optional이다(iOS·구버전 앱엔 없다)
+   */
+  retryUpload?(attemptId: string): void
 }
 
 /**
@@ -169,6 +203,10 @@ export interface SharePayload {
  * @property guideF0 상단 레인에 그릴 정적 가이드 곡선 (KAN-102). 정의가 든 그대로 가공 없이
  *   건넨다 — 곡선을 어떻게 그릴지는 전부 네이티브 사정이라, 여기서 요약하면 렌더링 규칙이
  *   바뀔 때마다 계약도 같이 흔들린다. 필드 추가는 하위호환이라 계약 버전 1을 유지한다 (§5)
+ * @property emotion 말투 감정 (KAN-283, 예: "부탁하는"). 정의 값을 가공 없이 건네고, 정의에
+ *   없으면 키 자체를 보내지 않는다(빈 문자열은 그대로 — 표시 여부 판정은 네이티브 몫).
+ *   「~ 느낌으로 말해주세요!」 문구는 네이티브가 붙인다. 모르는 필드는 구버전 네이티브가 무시하는
+ *   하위호환 추가라 KAN-102 guideF0 선례대로 계약 버전을 올리지 않는다
  */
 export interface VoiceItemStart {
   itemId: string
@@ -177,6 +215,7 @@ export interface VoiceItemStart {
   totalItems: number
   maxDurationMs: number
   guideF0: GuideF0
+  emotion?: string
 }
 
 /**
@@ -212,6 +251,48 @@ export interface AccenturyWeb {
   onItemResult?(payloadJson: string): void
   /** 재응시 실패 (KAN-34). 인자는 [RetestFailure]의 JSON. 성공은 오지 않는다 — 페이지가 리로드된다 */
   onRetestFailed?(payloadJson: string): void
+  /** 계정 토큰 갱신 결과 (KAN-255). 인자는 `'ok' | 'failed'` — JSON이 아니라 문자열 그대로다 */
+  onAccessTokenRefreshed?(result: string): void
+  /** 억양 녹음 업로드 성공 (KAN-253). 인자는 [IntonationRecorded]의 JSON. 실패·취소는 오지 않는다 */
+  onIntonationRecorded?(payloadJson: string): void
+  /** 레벨 테스트 업로드 실패 (KAN-288 6단계). 인자는 [UploadFailed]의 JSON. 같은 실패가 여러 번 올 수 있다 */
+  onUploadFailed?(payloadJson: string): void
+}
+
+/**
+ * 업로드 실패 회신 — 재녹음 거절은 오지 않는다(네이티브가 녹음 화면을 다시 연다). `retryable`이 false인 실패(세션 만료·
+ * 시도 상한)는 [다시 보내기]가 소용없어 표시만 한다 (webview-bridge §14, PR #38 리뷰 P1)
+ */
+export interface UploadFailed {
+  itemId: string
+  attemptId: string
+  retryable: boolean
+}
+
+/**
+ * 억양 학습 녹음 화면에 건넬 카드 컨텍스트 (KAN-253, webview-bridge §12).
+ *
+ * @property prompt 사투리 대사 — 녹음 화면의 큰 글자
+ * @property standard 표준어 원문. 없으면 null — 네이티브는 생략한다
+ * @property maxDurationMs 최대 녹음 길이. 레벨테스트와 같은 10초 컷
+ * @property guideF0 상단 레인 가이드 곡선. [VoiceItemStart.guideF0]와 같은 규칙으로 가공 없이 건넨다
+ * @property itemNumber 코스 안 몇 번째 카드인지(1부터) — 녹음 대기 화면이 A-2 카드 역할을 하며 「n / N」을 그린다
+ * @property totalItems 코스의 카드 수. 1 ≤ itemNumber ≤ totalItems
+ */
+export interface IntonationRecordingStart {
+  cardId: string
+  prompt: string
+  standard: string | null
+  maxDurationMs: number
+  guideF0: GuideF0
+  itemNumber: number
+  totalItems: number
+}
+
+/** 억양 녹음 회신 — 네이티브가 업로드 202를 받은 뒤에만 보낸다. attemptId는 결과 폴링(KAN-254)의 키다 */
+export interface IntonationRecorded {
+  cardId: string
+  attemptId: string
 }
 
 declare global {
@@ -247,6 +328,14 @@ declare global {
  *
  * KAN-258의 `haptic`도 추가라 2를 유지한다. 이 메서드가 없는 앱에서는 래퍼가 false를 주고
  * 버튼은 진동 없이 그대로 눌린다 — 햅틱 하나 때문에 업데이트 안내로 막을 이유가 없다.
+ *
+ * KAN-255의 `getAccessToken`·`refreshAccessToken`·`onAccessTokenRefreshed`도 추가라 2를 유지한다.
+ * 모르는 앱에서는 토큰이 null이라 단어 학습 화면이 로그인 안내로 내려간다.
+ *
+ * KAN-253의 `startIntonationRecording`·`onIntonationRecorded`도 추가라 2를 유지한다. 모르는 앱에서는 [다시 말해 보기]가 비활성이다.
+ * 같은 티켓 5단계의 payload `itemNumber`·`totalItems`도 릴리스 전 계약에 넣은 필드라 2를 유지한다.
+ *
+ * KAN-252의 `openSettings`도 추가라 2를 유지한다. 모르는 앱에서는 탭 바에 [설정] 탭이 없다 — 앱의 기존 톱니가 그대로 남아 있다.
  */
 export const REQUIRED_BRIDGE_VERSION = 2
 
@@ -328,6 +417,89 @@ export function getSessionToken(): string | null {
   if (typeof bridge?.getSessionToken !== 'function') return null
   const token = bridge.getSessionToken()
   return typeof token === 'string' && token.trim() !== '' ? token : null
+}
+
+/**
+ * 계정 Access 토큰을 브리지에서 읽는다 (KAN-255). 정규화는 [getSessionToken]과 같다 — 브리지가
+ * 없거나, 메서드를 모르는 앱이거나, 네이티브가 빈 문자열을 줬으면(로그인 안 됨·origin 불허)
+ * 전부 null이다. 어느 쪽이든 "실을 토큰이 없다"는 같은 사실이라 호출자는 로그인 안내 하나로 간다.
+ */
+export function getAccessToken(): string | null {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.getAccessToken !== 'function') return null
+  const token = bridge.getAccessToken()
+  return typeof token === 'string' && token.trim() !== '' ? token : null
+}
+
+/**
+ * 첫 토큰을 잠깐 기다려 읽는다 (KAN-255 리뷰 P0). 바로 읽히면 그대로, 아니면 **앱 실행일 때만**
+ * (`getAccessToken` 메서드가 있을 때만) 100ms 간격으로 다시 읽어 `timeoutMs` 안에 나오면 돌려준다.
+ *
+ * 왜: iOS는 문서 커밋 때 든 값(첫 문서면 `""`)을 먼저 밀고, Keychain 비동기 읽기가 끝난 뒤에야
+ * 실제 토큰을 다시 민다(webview-bridge §6·§11 iOS 구현 「토큰 읽기」). 그 사이 진입 조회가 나가면
+ * null로 읽혀 로그인 안내에 고착됐다. 브리지·메서드가 없으면(브라우저 단독·구버전 앱) 기다려도
+ * 토큰이 생길 길이 없으니 즉시 null이다. 정말 로그인 안 된 앱은 최대 2초 늦게 안내를 본다.
+ */
+export async function waitForAccessToken(timeoutMs = 2000): Promise<string | null> {
+  for (let waited = 0; ; waited += 100) {
+    const token = getAccessToken()
+    if (token !== null || waited >= timeoutMs) return token
+    if (typeof window.AccenturyBridge?.getAccessToken !== 'function') return null
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
+/**
+ * 네이티브에 실제로 보낸 갱신 작업. 회신이 올 때만 끝나고(슬롯 해제·null), 호출자의 타임아웃으로는
+ * 끝나지 않는다 (KAN-255 리뷰 P1). 예전처럼 타임아웃에서 슬롯을 내리면, 뒤 요청이 다시 설치한 슬롯에
+ * 앞 요청의 늦은 회신이 떨어져 뒤 요청을 자기 회신 없이 완료시켰다(네이티브 호출도 2회).
+ */
+let nativeRefresh: Promise<boolean> | null = null
+
+/**
+ * 계정 토큰 갱신을 네이티브에 요청하고 결과를 기다린다 (KAN-255). 갱신됐으면 true다.
+ *
+ * - 메서드를 모르는 앱·브라우저 단독이면 즉시 false — 갱신할 주체가 없다.
+ * - 회신 `'ok'`만 true다. `'failed'`·계약 밖 문자열·`timeoutMs` 안에 회신 없음은 전부 false다.
+ *   회신이 영영 안 오는 앱(구현이 빠진 빌드)에서 화면이 갇히지 않게 타임아웃을 둔다.
+ * - **네이티브 작업이 진행 중이면 다시 부르지 않고 그것을 기다린다.** 갱신을 두 번 보내면 리프레시
+ *   토큰 회전 때문에 먼저 끝난 쪽이 뒤쪽 토큰을 무효로 만들 수 있다. 회신 슬롯도 하나뿐이다.
+ *   앞 호출자가 타임아웃으로 포기한 뒤에 들어온 요청도 같은 작업을 기다린다 — 그 작업의 늦은
+ *   `'ok'`는 실제로 갱신이 끝났다는 뜻이라 뒤 요청이 true를 받는 것이 맞다(KAN-255 리뷰 P1).
+ * - 대가: 회신이 끝내 안 오면(origin 불허 문서 등) 그 문서의 이후 갱신은 전부 타임아웃 false다.
+ */
+export function refreshAccessToken(timeoutMs = 10_000): Promise<boolean> {
+  if (nativeRefresh === null) {
+    const bridge = window.AccenturyBridge
+    if (typeof bridge?.refreshAccessToken !== 'function') return Promise.resolve(false)
+    const native = new Promise<boolean>((resolve) => {
+      const uninstall = installReceiver('onAccessTokenRefreshed', (result) => {
+        uninstall()
+        resolve(result === 'ok')
+      })
+      try {
+        bridge.refreshAccessToken!()
+      } catch {
+        // 네이티브 쪽 예외면 회신이 오지 않는다 — 작업을 여기서 끝내고 호출자는 "갱신 실패"로 받는다
+        uninstall()
+        resolve(false)
+      }
+    })
+    nativeRefresh = native
+    // 정리를 resolve 옆에서 하지 않는 이유: 브리지 호출이 동기로 던지면 resolve가 이 대입보다 먼저
+    // 돌아, 끝난 작업이 남아 이후 요청이 전부 false를 받는다.
+    void native.then(() => {
+      if (nativeRefresh === native) nativeRefresh = null
+    })
+  }
+  const native = nativeRefresh
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs)
+    void native.then((refreshed) => {
+      clearTimeout(timer)
+      resolve(refreshed)
+    })
+  })
 }
 
 /**
@@ -503,6 +675,99 @@ export function haptic(type: HapticType): boolean {
   if (typeof bridge?.haptic !== 'function') return false
   bridge.haptic(type)
   return true
+}
+
+/**
+ * 억양 학습 녹음 화면을 연다 (KAN-253). 반환 규칙은 [startVoiceItem]과 같다 — 메서드가 없으면 false.
+ */
+export function startIntonationRecording(start: IntonationRecordingStart): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.startIntonationRecording !== 'function') return false
+  bridge.startIntonationRecording(JSON.stringify(start))
+  return true
+}
+
+/**
+ * [startIntonationRecording]을 부를 수 있는 실행인가. [다시 말해 보기]를 미리 비활성으로 그리려고 둔다 —
+ * 학습은 로그인 필수라 앱 전용이고, 웹 녹음기 폴백은 없다 (KAN-253).
+ */
+export function canStartIntonationRecording(): boolean {
+  return typeof window.AccenturyBridge?.startIntonationRecording === 'function'
+}
+
+/**
+ * 네이티브 설정 화면을 연다 (KAN-252). 반환 규칙은 [showInterstitialAd]와 같다 — 메서드가 없으면 false.
+ */
+export function openSettings(): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.openSettings !== 'function') return false
+  bridge.openSettings()
+  return true
+}
+
+/**
+ * [openSettings]를 부를 수 있는 실행인가. 탭 바가 [설정] 탭을 그릴지 정한다 — 누르면 아무 일도 없는 탭을
+ * 세우지 않으려고 미리 본다 ([canStartIntonationRecording]과 같은 판정).
+ */
+export function canOpenSettings(): boolean {
+  return typeof window.AccenturyBridge?.openSettings === 'function'
+}
+
+/**
+ * 억양 녹음 회신 수신 지점 (KAN-253). 반환값은 해제 함수다. 모양이 어긋난 payload는 버린다 —
+ * [installItemResultReceiver]와 같은 규칙.
+ */
+export function installIntonationRecordedReceiver(handler: (recorded: IntonationRecorded) => void): () => void {
+  return installReceiver('onIntonationRecorded', (payloadJson) => {
+    try {
+      const v = JSON.parse(payloadJson) as Partial<IntonationRecorded> | null
+      if (typeof v?.cardId === 'string' && typeof v.attemptId === 'string' && v.attemptId !== '') {
+        handler({ cardId: v.cardId, attemptId: v.attemptId })
+      }
+    } catch {
+      // 깨진 JSON — 회신이 없던 것과 같게 둔다 (사용자는 A-2에 남아 다시 녹음할 수 있다)
+    }
+  })
+}
+
+/**
+ * 실패한 업로드 하나를 다시 보낸다 (KAN-288 6단계). 반환 규칙은 [openSettings]와 같다 — 메서드가 없으면 false.
+ */
+export function retryUpload(attemptId: string): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.retryUpload !== 'function') return false
+  bridge.retryUpload(attemptId)
+  return true
+}
+
+/**
+ * [retryUpload]를 부를 수 있는 실행인가. 대기 화면이 「전송 실패」·[다시 보내기]를 그릴지 정한다 — iOS·구버전 앱·
+ * 브라우저에서는 실패 회신도 오지 않으므로 예전 화면 그대로다 ([canOpenSettings]와 같은 판정).
+ */
+export function canRetryUpload(): boolean {
+  return typeof window.AccenturyBridge?.retryUpload === 'function'
+}
+
+/**
+ * 업로드 실패 수신 지점 (KAN-288 6단계). 반환값은 해제 함수다. 모양이 어긋난 payload는 버린다 —
+ * [installIntonationRecordedReceiver]와 같은 규칙.
+ */
+export function installUploadFailedReceiver(handler: (failed: UploadFailed) => void): () => void {
+  return installReceiver('onUploadFailed', (payloadJson) => {
+    try {
+      const v = JSON.parse(payloadJson) as Partial<UploadFailed> | null
+      if (
+        typeof v?.itemId === 'string' &&
+        typeof v.attemptId === 'string' &&
+        v.attemptId !== '' &&
+        typeof v.retryable === 'boolean'
+      ) {
+        handler({ itemId: v.itemId, attemptId: v.attemptId, retryable: v.retryable })
+      }
+    } catch {
+      // 깨진 JSON — 회신이 없던 것과 같게 둔다 (대기 화면의 [녹음 화면 다시 열기]가 남는다)
+    }
+  })
 }
 
 export function installItemResultReceiver(handler: (result: ItemResult) => void): () => void {

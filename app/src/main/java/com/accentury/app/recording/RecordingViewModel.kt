@@ -88,6 +88,9 @@ class RecordingViewModel(
         startRecording()
     }
 
+    /** 방금 녹음을 지우지 않고 본다 — 확인 단계의 [내 녹음 듣기](KAN-253)용. 제출은 여전히 [consumeRecording]이 가져간다. */
+    fun peekRecording(): ShortArray? = lastPcm
+
     fun consumeRecording(): ShortArray? {
         val pcm = lastPcm
         lastPcm = null

@@ -1126,6 +1126,55 @@ final class TestFlowControllerTests: XCTestCase {
         return restored
     }
 
+    // MARK: - KAN-288 웹에 알리는 실패는 재녹음 거절이 아닌 실패다
+
+    /// 재녹음 거절은 녹음 화면이 다시 열리고, 재시도 불가(세션 만료 등)는 retryable=false로 실려 웹이 [다시 보내기] 없이 표시만 한다.
+    func testFailedUploadsAreNonRerecordFailuresOfPendingAttempts() {
+        let controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(), micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+
+        XCTAssertEqual(
+            [UploadFailed(itemId: "item_1", attemptId: "at_1", retryable: true)],
+            controller.failedUploads(["at_1": .failed(retryable: true, message: "timeout")])
+        )
+        // 재시도 불가 실패도 표시는 한다 — 버튼만 없다 (PR #38 리뷰 P1)
+        XCTAssertEqual(
+            [UploadFailed(itemId: "item_1", attemptId: "at_1", retryable: false)],
+            controller.failedUploads(["at_1": .failed(retryable: false, message: "만료")])
+        )
+        XCTAssertTrue(controller.failedUploads(["at_1": .failed(retryable: false, message: "짧음", rerecord: true)]).isEmpty)
+        XCTAssertTrue(controller.failedUploads(["at_1": .inFlight]).isEmpty)
+        // 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이 기다리는 문항이 아니다
+        XCTAssertTrue(controller.failedUploads(["at_x": .failed(retryable: true, message: "timeout")]).isEmpty)
+    }
+
+    // MARK: - KAN-288 녹음 화면 ✕ [그만두기]는 응시 전체를 버린다
+
+    func testQuitReturnsToWebAndDropsEarlierPendingAttempts() {
+        let controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(itemId: "item_1"), micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+        controller.onStartVoiceItem(voiceItem(itemId: "item_2", number: 2), micGranted: true)
+
+        XCTAssertTrue(controller.onTestQuit())
+
+        XCTAssertEqual(.web, controller.phase)
+        XCTAssertTrue(controller.onUploadsChanged(["at_1": .done(analysisJobId: "job_1")]).isEmpty)
+    }
+
+    func testQuitIsRefusedWhileSubmitting() {
+        let controller = TestFlowController()
+        controller.onStartVoiceItem(voiceItem(), micGranted: true)
+        controller.onRecordingFinished(attemptId: "at_1", durationMs: 3_200, quality: .normal)
+        let before = controller.phase
+        guard case .submitting = before else { return XCTFail("제출 대기여야 한다: \(before)") }
+
+        XCTAssertFalse(controller.onTestQuit())
+
+        XCTAssertEqual(before, controller.phase)
+    }
+
     private func voiceItem(itemId: String = "item_1", number: Int = 1) -> VoiceItemStart {
         VoiceItemStart(
             itemId: itemId,

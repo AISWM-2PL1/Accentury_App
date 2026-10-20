@@ -147,6 +147,7 @@ describe('첫 화면의 정적 footer (KAN-275 2단계)', () => {
 const PAGES: Record<string, number> = {
   'about.html': 400,
   'contact.html': 200,
+  'account-deletion.html': 400,
   'guide/index.html': 200,
   'guide/how-the-test-works.html': 400,
   'guide/five-tiers.html': 400,

@@ -613,6 +613,7 @@ curl -s https://accentury.app/sitemap.xml
 | `/` (`web/index.html`) | 앱 첫 화면. `#root` 뒤 정적 `<footer id="site-footer">`에 소개·사투리 이야기·방침·문의 링크 | 이 레포 |
 | `/about.html` | 서비스 소개(음성·단어 문항, 5등급, 데이터 처리 한 줄, 팀). 3단계에서 "10문항, 모두 목소리로 답한다"를 바로잡음 — 단어 문항은 객관식이고 문항 수는 정의마다 다르다 | 이 레포 `web/public/` |
 | `/contact.html` | 문의(`team2pl1@gmail.com`, 오류·제휴·개인정보 요청) | 이 레포 `web/public/` |
+| `/account-deletion.html` | 앱 계정 삭제(회원 탈퇴) 안내 — 앱 안 경로(설정 → 계정 → [회원 탈퇴] → [탈퇴]), 앱 없이 이메일 요청, 지워지는 것·남는 것. Play Console 「계정 삭제 URL」로 입력하는 주소다(KAN-251 3단계, 2026-10-08). 첫 화면 footer에는 없고 `contact.html`에서 링크한다 | 〃 |
 | `/privacy.html` | 개인정보처리방침 | 서버 레포 `infra/privacy/` |
 | `/guide/index.html` | 사투리 이야기 목차(8편 링크와 한 줄 요약) | 이 레포 `web/public/guide/` |
 | `/guide/how-the-test-works.html` | 테스트 진행 순서(권한·점검·카운트다운·두 문항 유형·분석 대기·결과) | 〃 |
@@ -723,6 +724,11 @@ Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.Acce
   - `web/src/share/shareResult.ts` (앱 브리지 → 브라우저 navigator.share → 링크 복사), `docs/wiki/app-links.md` §1 (링크는 계측 코드 하나만), `privacy.html` 9항(카카오톡 전달 항목, 받은 사람은 새 테스트 시작)
   - `privacy.html` 1항·「테스트 세션」·「계정」(결과 24시간, 지난 결과가 쌓이지 않음), `web/src/result/fetchResult.ts`(만료 410 → [다시 테스트하기])
   - `Accentury_Server` `SessionService.resolveVoiceSet` (세트 무작위)
+- `account-deletion.html` (KAN-251 3단계) — 처리 기한 숫자를 쓰지 않는다(방침의 「지체 없이」만). 음성 선택 동의 처리는 다시 쓰지 않고 방침으로 링크한다(§11.3 교훈)
+  - Play 「계정 삭제 요구사항」(https://support.google.com/googleplay/android-developer/answer/13327111): 앱 밖 웹 링크, 앱/개발자 이름 표기, 이메일 요청 허용, 재설치 요구 금지. 이름은 `play-store-listing.md` §3 앱 이름 행
+  - 앱 경로와 확인 창 문구: `app/.../auth/SettingsScreen.kt`·`ios/Accentury/Auth/SettingsScreen.swift`(톱니는 오른쪽 위, [회원 탈퇴] → 「회원 탈퇴할까요?」 [탈퇴]), Apple 재인증은 `docs/wiki/social-login.md` 「회원 탈퇴 (KAN-251)」
+  - 이메일 요청 절차: 방침 6항(로그인 제공자 + 계정 이메일, 계정 이메일로 못 보내면 따로 안내), 5항 「계정 정보: 탈퇴하시면 지체 없이 파기」
+  - 지워지는 것·남는 것: `Accentury_Server` origin/Dev `auth/AppUser.withdraw`(개인 정보 열 null, 같은 IdP로 다시 로그인하면 새 계정), `WithdrawalService`(세션 `user_id` 끊기, Refresh 전부 폐기), 방침 5항(결과 24시간)
 - `team-story.html`
   - vault `wiki/projects/accentury.md` 「개요」(소속·역할·핵심 차별점)
   - `web/public/about.html` 「만든 사람들」(역할 표기를 그대로 맞춤)
@@ -736,8 +742,17 @@ Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.Acce
 
 | 이런 작업을 하면 | 같이 고칠 글 | 이유 |
 | --- | --- | --- |
-| 개인정보처리방침 개정(서버 레포 `infra/privacy/privacy.html`) | `web/public/guide/voice-data.html` 전체, `web/public/about.html` 데이터 처리 한 줄, `guide/faq.html` 「결과를 나중에 다시 볼 수 있나요?」 | 보관 기간·동의 방식·삭제 시점을 방침과 다른 말로 다시 적었다. 정본은 방침이고 글이 어긋나면 글이 거짓이 된다 |
+| 개인정보처리방침 개정(서버 레포 `infra/privacy/privacy.html`) | `web/public/guide/voice-data.html` 전체, `web/public/about.html` 데이터 처리 한 줄, `guide/faq.html` 「결과를 나중에 다시 볼 수 있나요?」, `account-deletion.html` 「앱 없이 이메일로 요청하기」·「지워지는 것과 남는 것」 | 보관 기간·동의 방식·삭제 시점을 방침과 다른 말로 다시 적었다. 정본은 방침이고 글이 어긋나면 글이 거짓이 된다 |
 | KAN-262 음성 합본 추론(문항별 분석 → 합본) | `guide/how-the-test-works.html` 「분석을 기다리는 동안」, `guide/faq.html` 「분석 대기 화면에 [다시 녹음] 버튼이 나왔어요」 | 둘 다 "실패한 음성 문항만 다시 녹음" 흐름을 전제로 쓰였다. 합본이면 실패 단위가 바뀔 수 있다 |
 | 문항 구성·녹음 상한·카운트다운 변경 | `guide/how-the-test-works.html` | 화면에 보이는 값(녹음 상한 10초, 3초 카운트다운)을 적었다 |
+| 설정 화면·탈퇴 확인 창 변경(톱니 위치, [회원 탈퇴]·[탈퇴] 라벨, Apple 재인증) | `account-deletion.html` 「앱 안에서 탈퇴하기」, `app-store-listing.md` §8 심사 노트 | 화면 라벨과 순서를 그대로 적었다. Play 계정 삭제 URL과 App Store 심사 노트가 이 경로를 가리킨다 |
+
+**방침이 낡은 자리 (KAN-251, 2026-10-08 기록 · 서버 레포는 이 티켓에서 고치지 않음).** 앱 안 탈퇴가 생겨
+`Accentury_Server` `infra/privacy/privacy.html` 두 문장이 사실과 어긋난다. 5항 계정 정보 행의 「앱 안의 탈퇴 기능이
+나오기 전까지는 6항의 방법으로 요청하시면…」(736행 근처)과 6항 둘째 문단의 「앱 안에서 바로 탈퇴하는 기능은 준비하고
+있습니다. 그 전까지는…」(775행 근처)이다. 이메일 요청 경로는 계속 유효하므로(Play 웹 링크가 그 경로다) 「앱 설정에서
+탈퇴하거나, 이메일로 요청」으로 바꾸면 된다. 다음 방침 개정 때 함께 고치고, 그때 `account-deletion.html`을 위 표대로
+같이 맞춘다. 방침 버전을 올리면 앱 상수 `privacyPolicyVersion`·`PRIVACY_POLICY_VERSION`도 같이 바뀌어야 한다
+(`app-store-listing.md` §10 방침 본문 행).
 
 배포되는 `index.html`의 주석은 빌드가 지운다(`web/src/build/stripSourceComments.ts`, `vite.config.ts` 플러그인). 소스 주석에는 내부 파일 경로·행 번호가 있어도 되지만, `web/public/`의 정적 페이지는 Vite가 그대로 복사하므로 §11.1의 주석 한 줄 규칙을 따로 지킨다.

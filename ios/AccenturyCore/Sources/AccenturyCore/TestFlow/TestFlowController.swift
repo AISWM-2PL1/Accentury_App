@@ -448,12 +448,26 @@ public final class TestFlowController {
     /// 다시 시도하겠다는 뜻일 뿐이라, 여기서 앞 문항들의 대기 시도까지 버리면 이미 끝난 업로드의
     /// 결과가 웹에 영영 도착하지 않는다.
     ///
-    /// 녹음 화면의 [나가기] 버튼은 KAN-147에서 없앴고(2026-08-19), KAN-191이 그 뒤를 닫았다:
-    /// 출구는 **막다른 실패 상태에만** 있고 그 자리는 웹의 분석 대기 화면이다 — 진행 중 화면인
-    /// 여기에는 되살리지 않는다 (ux-ui.md §4-D·§4-F).
+    /// 녹음 화면의 [나가기] 버튼은 KAN-147에서 없앴다(2026-08-19). 2026-10-18 사용자 결정으로 되살아난 ✕는
+    /// 문항 하나가 아니라 응시 전체를 버리는 출구라 이 함수가 아니라 ``onTestQuit()``를 탄다 (ux-ui.md §4-D).
     public func onRecordingExit() {
         guard case .recording = phase else { return }
         phase = .web
+    }
+
+    /// 녹음 화면 ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정으로 출구 복귀). 안드로이드 `onTestQuit`의 이식본이다.
+    /// ``onRecordingExit()``와 달리 문항 하나가 아니라 응시 전체를 버린다 — 호출자가 세션도 버리고 인트로로 되감는다
+    /// (`TestFlowModel.backToIntro`). 그래서 기억해 둔 문항 요청·재녹음 대기열(``onSessionReplaced()``)과 대기 시도까지
+    /// 비운다: 버린 세션의 결과가 다음 응시의 웹에 실려 가면 안 된다.
+    ///
+    /// 제출을 기다리는 중에는 받지 않는다(false) — 그 시도는 이미 업로드로 넘어갔다. 화면은 그동안 ✕를 비활성으로 둔다.
+    @discardableResult
+    public func onTestQuit() -> Bool {
+        guard case .recording = phase else { return false }
+        phase = .web
+        pendingAttempts.removeAll()
+        onSessionReplaced()
+        return true
     }
 
     /// 대응 업로드가 없는 대기 시도를 걷어낸다. 복원 직후 한 번 부른다.
@@ -500,6 +514,22 @@ public final class TestFlowController {
             phase = .web
         }
         return delivered
+    }
+
+    /// 웹에 알릴 업로드 실패 — 결과를 기다리는 시도 중 같은 바이트를 다시 보내면 풀리는 것만 (KAN-288, 안드로이드
+    /// `failedUploads`의 이식본).
+    ///
+    /// 웹은 그 문항의 대기 화면에 「전송 실패」를 그리고, 재전송으로 풀리는 것(retryable)이면 [다시 보내기]도 그려
+    /// 누르면 `retryUpload`로 이 attemptId를 돌려준다. 재시도 불가 실패(세션 만료·시도 상한)는 버튼 없이 표시만 하고
+    /// 복구는 웹 대기 화면의 [녹음 화면 다시 열기] 생존 확인이 맡는다 — 빼면 사용자는 실패를 모른 채 기다린다(PR #38
+    /// 리뷰 P1). 재녹음 거절(rerecord)은 빠진다 —
+    /// ``onUploadGivenUp(attemptId:micGranted:message:missingItems:)``이 녹음 화면을 다시 연다. 대기 목록에 없는 시도(밀려나 폐기됐거나 결과가 이미 나간 것)는 웹이
+    /// 기다리는 문항이 아니라 뺀다.
+    public func failedUploads(_ uploads: [String: UploadState]) -> [UploadFailed] {
+        pendingAttempts.compactMap { attempt in
+            guard case .failed(let failure)? = uploads[attempt.meta.attemptId], !failure.rerecord else { return nil }
+            return UploadFailed(itemId: attempt.meta.itemId, attemptId: attempt.meta.attemptId, retryable: failure.retryable)
+        }
     }
 
     /// 결과 주입이 끝났다 — 웹이 ``onUploadsChanged(_:)``가 돌려준 결과를 받아 다음 문항으로

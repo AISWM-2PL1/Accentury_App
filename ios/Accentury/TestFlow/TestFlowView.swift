@@ -12,27 +12,56 @@ import WebKit
 /// ``TestFlowModel``(→ Core ``AccenturyCore/TestFlowController``)이 정하고, 여기는 SwiftUI
 /// 결선만 한다.
 ///
-/// ## 세로 배치
-///
-/// 업로드 상태 바는 오버레이가 아니라 화면 **아래**를 나눠 갖는다 (안드로이드의 `Column`) —
-/// 녹음 중에도 실패한 업로드의 재시도 통로가 가려지지 않아야 한다.
-///
 /// ## 종이색은 화면 끝까지 간다
 ///
-/// 내용(WebView·오버레이·상태 바)은 안전 영역 **안쪽**에 그대로 두고, 배경만
+/// 내용(WebView·오버레이)은 안전 영역 **안쪽**에 그대로 두고, 배경만
 /// `ignoresSafeArea()`로 상태 바·홈 인디케이터 자리까지 넓힌다 — 자세한 이유는 `body`의 주석.
 struct TestFlowView: View {
 
-    /// 웹 위 톱니를 눌렀다 — 설정 화면은 호출자(``AuthGateView``)가 이 위에 덮는다 (KAN-247)
+    /// 웹 위 톱니나 탭 바의 [설정](브리지 `openSettings`, KAN-252)을 눌렀다 — 설정 화면은 호출자(``AuthGateView``)가 이 위에
+    /// 덮는다 (KAN-247)
     private let onOpenSettings: () -> Void
 
-    /// - Parameter anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
-    init(anonymousConsent: AnonymousVoiceConsentStore? = nil, onOpenSettings: @escaping () -> Void) {
+    /// 웹 하단 탭 바로 들어가는 빌드인가 (KAN-252, 로그인 빌드). 켜면 첫 문서가 홈(`screen=home`)이고, 톱니는 레벨 테스트 웹
+    /// 화면(인트로·진행)에만 세우며(``AccenturyCore/showsSettingsGear(_:)``, 나머지는 탭 바가 설정을 연다), 탭 화면·시작 전
+    /// 인트로의 왼쪽 가장자리 스와이프가 홈으로 간다(``AccenturyCore/webBackTarget(currentUrl:startRequested:)``).
+    /// 끄면(익명 빌드) 예전 그대로 인트로 시작·톱니·스와이프 없음이다. 안드로이드 `TestFlow(tabBarEntry)`의 이식본이다
+    private let tabBarEntry: Bool
+
+    /// 호출자가 이 화면 위에 무언가(설정·음성 저장 동의)를 덮었는가 (KAN-252). 덮인 동안은 가장자리 스와이프를 받지 않는다 —
+    /// 안드로이드에서 설정 화면의 BackHandler가 먼저 받는 자리다.
+    private let covered: Bool
+
+    /*
+     * "이번 실행이 시스템 종료 뒤 장면 복원인가" 표시의 `@SceneStorage` 키 (KAN-252 4단계 보완). 호출자(``AuthGateView``의
+     * 로그인 화면·``AnonymousFlowView``)가 이 키로 들고 처음 나타날 때 true로 세운다. 장면 저장소는 시스템이 프로세스를 죽였다
+     * 되살릴 때 돌아오고, 사용자가 장면을 버리면(앱 전환기에서 쓸어 올려 종료) 함께 버려진다 — 안드로이드 `rememberSaveable`
+     * 봉투와 같은 수명이라, 이 표시가 없으면 새 실행으로 보고 저장해 둔 응시를 버린다(``TestFlowModel`` 타입 주석).
+     * 호출자가 드는 이유는 시점이다 — 장면 저장소는 `body`에서만 읽히는데 모델은 이 화면의 `init`에서 만들어진다.
+     * https://developer.apple.com/documentation/swiftui/scenestorage
+     */
+    static let sceneRestorationKey = "TestFlowView.restorable"
+
+    /// - Parameters:
+    ///   - anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
+    ///   - restoresSavedState: 장면 복원 표시(``sceneRestorationKey``)의 지금 값. 모델이 처음 만들어질 때만 쓰인다
+    init(
+        restoresSavedState: Bool,
+        anonymousConsent: AnonymousVoiceConsentStore? = nil,
+        tabBarEntry: Bool,
+        covered: Bool = false,
+        onOpenSettings: @escaping () -> Void
+    ) {
         self.onOpenSettings = onOpenSettings
+        self.tabBarEntry = tabBarEntry
+        self.covered = covered
         // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
         _model = StateObject(
-            wrappedValue: anonymousConsent.map { TestFlowModel(onProfileIncomplete: {}, anonymousConsent: $0) }
-                ?? TestFlowModel()
+            wrappedValue: anonymousConsent.map {
+                TestFlowModel(
+                    restoresSavedState: restoresSavedState, onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry
+                )
+            } ?? TestFlowModel(restoresSavedState: restoresSavedState, tabBarEntry: tabBarEntry)
         )
     }
 
@@ -44,6 +73,27 @@ struct TestFlowView: View {
     @StateObject private var voiceCheck = VoiceCheckModel()
     @StateObject private var uploads = UploadModel()
 
+    /*
+     * 억양 학습 녹음 (KAN-253, webview-bridge.md §12). 녹음 모델은 레벨테스트(`recording`)와 다른 인스턴스다 — 같은 것을 쓰면
+     * 학습이 레벨테스트의 녹음 상태를 되감거나 읽게 된다(§12 「세션 ID·문항 인덱스와 섞지 않는다」). 업로드는 계정 토큰 전송이라
+     * 로그인을 끈 빌드에서는 `startIntonationRecording`을 버려 이 모델이 열리지 않는다(아래 WebViewHost 결선).
+     */
+    @StateObject private var intonation = IntonationRecordingModel(upload: { cardId, key, wav, durationMs, quality in
+        await TestFlowView.intonationUploader.upload(
+            cardId: cardId,
+            idempotencyKey: key,
+            wavBytes: wav,
+            durationMs: durationMs,
+            clientQuality: quality
+        )
+    })
+    @StateObject private var intonationRecording = RecordingModel()
+    /// 학습만 하는 사용자는 시작 게이트의 권한 칸을 지나지 않았을 수 있다 — 화면을 열 때마다 다시 본다.
+    @State private var intonationMicOk = false
+
+    /// 처음 업로드할 때 만든다 — 로그인을 끈 빌드는 여기까지 오지 않아 `AuthHub`를 깨우지 않는다.
+    private static let intonationUploader = AuthHub.clients.intonationUploadClient()
+
     /// 광고 허브 (KAN-196). 프로세스 단위 인스턴스라 `@StateObject`가 아니라 `@ObservedObject`다 —
     /// 미리 받아 둔 광고가 화면 재생성을 넘겨야 해서 뷰가 소유하지 않는다 (``AdsController`` 주석).
     /// 관측하는 값은 `consent` 하나이고, 그것이 바뀌면 `WebViewHost`가 현재 문서에 다시 민다.
@@ -52,6 +102,10 @@ struct TestFlowView: View {
     /// 결과를 웹에 넣으려면 `evaluateJavaScript`를 부를 인스턴스가 필요하다.
     /// 로드 실패 화면·재시도 구간에는 WebView가 아예 없으므로 옵셔널이다.
     @State private var webView: WKWebView?
+
+    /// WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 ``WebViewHost``의
+    /// `onPageStarted`로 갱신된다. ``TestFlowModel/webUrl``(앱이 건 진입 URL)과 다르다 — 탭 이동은 웹이 스스로 한다.
+    @State private var currentWebUrl: String?
 
     /// 지금 화면에 서 있는 오버레이 페이즈. 페이즈가 바뀔 때 녹음을 되감을지 정하는 데 쓴다
     /// (안드로이드 `DisposableEffect(phase) { onDispose { ... } }`의 자리).
@@ -107,6 +161,50 @@ struct TestFlowView: View {
                      */
                     onSetAdConsent: { ads.setConsent($0) },
                     onShowInterstitialAd: { ads.showInterstitial() },
+                    /*
+                     * 계정 토큰 (KAN-255, webview-bridge.md §11). 단어 학습 웹이 Access를 읽고, 401이면 갱신을 청한다.
+                     *
+                     * 로그인을 끈 빌드(익명 모드)는 늘 빈 토큰·'failed'다. `AuthHub`를 아예 깨우지 않는다 — 예전 로그인
+                     * 빌드가 Keychain에 남긴 토큰이 웹으로 새면 익명 빌드에서 계정 API가 열린다 (안드로이드 TestFlow와 같은 이유).
+                     *
+                     * 갱신의 staleAccess로 **지금 저장된 값**을 넘긴다(안드로이드와 같다). 웹이 401을 받은 토큰을 이 자리는
+                     * 모르므로 저장값과 같다고 보고 서버에 묻게 한다. 앱 자체 갱신이 먼저 돌고 있으면 TokenRefresher 줄에서
+                     * 기다리고, 차례가 오면 저장소가 이미 새 값이라 서버에 묻지 않고 그 결과로 회신한다.
+                     */
+                    readAccessToken: {
+                        guard AppConfig.loginEnabled else { return "" }
+                        return await AuthHub.clients.store.read()?.accessToken ?? ""
+                    },
+                    refreshAccessToken: {
+                        guard AppConfig.loginEnabled else { return nil }
+                        let clients = AuthHub.clients
+                        return await clients.refresher.refresh(staleAccess: await clients.store.read()?.accessToken)
+                    },
+                    // 억양 학습 녹음 호출 (KAN-253). 학습은 로그인 필수라 로그인을 끈 빌드는 버린다 — 그 빌드의 웹은 계정
+                    // 토큰이 없어 A-2까지 오지 못한다(안드로이드와 같다).
+                    onStartIntonationRecording: { start in
+                        guard AppConfig.loginEnabled else { return }
+                        intonationMicOk = MicPermission.currentStatus().granted
+                        intonation.open(start)
+                    },
+                    onOpenSettings: onOpenSettings,
+                    // 대기 화면의 [다시 보내기] (KAN-288, §14) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 결과 전달이 싣는다
+                    onRetryUpload: { uploads.retry($0) },
+                    onPageStarted: { currentWebUrl = $0 },
+                    /*
+                     * 왼쪽 가장자리 스와이프 = 뒤로 (KAN-252). 안드로이드 시스템 뒤로가기(BackHandler)의 자리이고 대상과 판정은
+                     * ``AccenturyCore/webBackTarget(currentUrl:startRequested:)``에 있다. 목적지가 없으면(홈·테스트 진행·결과)
+                     * 아무 일도 없다 — KAN-191·KAN-147의 응시 이탈 방지 규칙을 건드리지 않는다. 웹 탭 이동과 같은 결과가 되게
+                     * 문서를 옮긴다. 억양 녹음 화면·호출자의 덮개(설정)가 떠 있으면 인식기 자체를 끈다(`edgeSwipeEnabled`).
+                     * 학습 카드 단계도 screen이 intonation·words라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다(안드로이드와 같다).
+                     */
+                    onEdgeSwipeBack: {
+                        guard let target = webBackTarget(currentUrl: currentWebUrl, startRequested: model.startRequested),
+                              let url = URL(string: target)
+                        else { return }
+                        webView?.load(URLRequest(url: url))
+                    },
+                    edgeSwipeEnabled: tabBarEntry && !covered && intonation.start == nil,
                     onWebViewCreated: { created in
                         webView = created
                         #if DEBUG
@@ -126,29 +224,31 @@ struct TestFlowView: View {
                 overlay
 
                 /*
-                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
+                 * 설정 진입 톱니 (KAN-247, 팀 결정 A안). 익명 빌드는 웹 화면과 녹음 화면에서 선다 — 녹음 화면은 팀장 요청
                  * (2026-10-03)으로 넣었다. 그래서 녹음 도중 설정을 열면 녹음은 멈추지 않고 설정 화면 아래에서
-                 * 계속 돈다(설정은 TestFlowView를 덮을 뿐 내리지 않는다). 시작 게이트 세 칸·문항 권한이 WebView를
+                 * 계속 돈다(설정은 TestFlowView를 덮을 뿐 내리지 않는다).
+                 * 로그인 빌드(탭 바)는 레벨 테스트 웹 화면(인트로·진행)에서만 선다 (KAN-252, 2026-10-13 사용자 결정).
+                 * 탭 바가 없는 화면에만 설정 출구가 필요하고, 녹음 화면(레벨 테스트 VOICE·억양 학습)에서는 빼기로 했다.
+                 * 탭 화면·결과는 탭 바의 [설정]이 설정을 연다(webview-bridge §13). 시작 게이트 세 칸·문항 권한이 WebView를
                  * 덮는 동안은 숨긴다. 조건은 `overlay` 사슬의 해당 분기 조건을 모은 것이라 거기를 고치면 여기도 고친다.
                  * `overlay` 뒤에 놓여 녹음 화면 위에 선다. 녹음 화면 본문은 위 64부터라 톱니(8~56)와 겹치지 않는다.
                  * 안전 영역은 이 ZStack이 이미 안쪽이다.
                  */
-                if !nativeCovering {
+                if gearVisible, !nativeCovering {
                     SettingsGearButton(action: onOpenSettings)
-                        .padding(Papercut.space2)
+                        // 레벨 테스트 녹음 화면은 앱바 오른쪽 끝(본문 여백 24 안)에 ✕가 선다 (KAN-288) — 익명 빌드의 톱니는
+                        // 그 바로 왼쪽으로 비켜 선다(안드로이드와 같다). 겹치면 위에 그린 톱니가 ✕를 가린다.
+                        .padding(.top, Papercut.space2)
+                        .padding(.trailing, overlayStart != nil ? Papercut.space6 + Papercut.touchTargetMin : Papercut.space2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // 세션 전에는 올라간 것도, 실패한 것도 없다 — 상태 바가 설 이유 자체가 없는 구간이다.
-            if model.session != nil {
-                UploadStatusBar(
-                    entries: uploads.entries,
-                    labelOf: { uploads.labelOf($0) },
-                    onRetry: { uploads.retry($0) }
-                )
-            }
+            /*
+             * 업로드 상태 바는 없다 (KAN-288 디자인 3, Figma 수정 fix-upload — 레벨 테스트 진행 중에는 업로드 중·실패를
+             * 알리지 않는다. 안드로이드 3단계와 같다). 재전송으로 풀리는 실패는 웹 대기 화면의 [다시 보내기]가 받는다
+             * (`onUploadFailed`·`retryUpload`, webview-bridge.md §14).
+             */
         }
         /*
          * 종이색을 화면 끝까지 민다.
@@ -225,7 +325,21 @@ struct TestFlowView: View {
          * 정하는데, 빌린 실행 시간은 제때 반납하지 않으면 iOS가 앱을 죽이는 자원이다. `deinit`은
          * 같은 정리를 한 번 더 시도하는 안전망으로 남긴다(반납은 멱등이라 겹쳐도 한 번이다).
          */
-        .onDisappear { uploads.teardown() }
+        .onDisappear {
+            uploads.teardown()
+            // TestFlow가 내려가면(로그아웃) 학습 녹음도 놓는다 — 진행 중 업로드 취소·음성 참조 폐기·마이크 해제.
+            intonation.close()
+            intonationRecording.reset()
+        }
+        /*
+         * 202 → 웹에 한 번 회신하고 화면을 닫는다 (KAN-253, §12). WebView가 없으면 회신 없이 닫는다 — 웹은 A-2 그대로라
+         * 다시 말해 볼 수 있다. 닫기가 상태를 idle로 돌리므로 같은 접수로 두 번 회신하지 않는다.
+         */
+        .onChange(of: intonation.uploadState) { state in
+            guard case .accepted(let recorded) = state else { return }
+            webView?.evaluateJavaScript(intonationRecordedDeliveryJs(recorded), completionHandler: nil)
+            intonation.close()
+        }
         /*
          * 앱이 뒤로 가면 마이크를 놓는다. 녹음 화면이 떠 있는 채로 홈으로 나가는 것은 흔한
          * 일이고, 그동안 마이크가 열려 있는 것은 사용자에게 설명할 수 없는 상태다. 돌아와서
@@ -239,7 +353,10 @@ struct TestFlowView: View {
          * 해제" AC는 그대로 지켜진다.
          */
         .onChange(of: scenePhase) { phase in
-            if phase == .background { recording.reset() }
+            if phase == .background {
+                recording.reset()
+                intonationRecording.reset()
+            }
         }
         /*
          * 자취 없는 제출을 걷는 최후 안전망 (KAN-146). 안드로이드
@@ -337,9 +454,38 @@ struct TestFlowView: View {
     /// 가져간 경우를 뒤 분기가 다시 적지 않는다.
     @ViewBuilder
     private var overlay: some View {
+        // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
+        // 스와이프 닫기 = 회신 없이 A-2로 (§12). ✕는 같은 close 다음 억양 탭 문서를 다시 열어 코스 목록(A-1)으로 간다 —
+        // A-1은 그 문서의 첫 상태라서다(2026-10-13 사용자 결정, 안드로이드와 같다). 권한 화면에서의 닫기도 같다.
+        if let start = intonation.start {
+            IntonationCloseChrome(
+                onClose: { intonation.close() },
+                onCloseButton: {
+                    intonation.close()
+                    guard let target = webTabUrl(currentUrl: currentWebUrl, screen: "intonation"),
+                          let url = URL(string: target)
+                    else { return }
+                    webView?.load(URLRequest(url: url))
+                }
+            ) {
+                if !intonationMicOk {
+                    PermissionGateView(onGranted: { intonationMicOk = true })
+                } else {
+                    IntonationRecordingOverlay(
+                        start: start,
+                        uploader: intonation,
+                        recording: intonationRecording,
+                        centerHz: model.voiceCenterHz.map { Float($0) }
+                    )
+                    // 회신 직후 웹이 다음 카드를 바로 열면(KAN-254 5단계) 닫힘·열림이 한 번에 묶여 화면이 안 걷히고
+                    // 앞 카드의 확인 단계가 남는다 — 카드가 바뀌면 새 화면으로 세워 onDisappear 정리를 태운다
+                    .id(start.cardId)
+                }
+            }
+
         // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던 재응시를
         // 이어 간다. 이번에는 지역이 있어 ``TestFlowModel/startRetest()``가 곧장 세션 요청으로 간다.
-        if model.retestRegionPending {
+        } else if model.retestRegionPending {
             AnonymousRegionScreen(onDone: { code in
                 model.onRetestRegionChosen(code)
                 Task { @MainActor in await proceedRetest() }
@@ -413,6 +559,17 @@ struct TestFlowView: View {
                 },
                 onSubmit: { attemptId, durationMs, quality in
                     submitRecording(start: start, attemptId: attemptId, durationMs: durationMs, quality: quality)
+                },
+                /*
+                 * ✕ → [그만두기] (KAN-288, 2026-10-18 사용자 결정). 안드로이드와 같은 되감기다: 녹음 중단·PCM과 업로드 바이트
+                 * 폐기(FR-DP-02), 그리고 세션 실패 [처음으로]와 같은 인트로 되감기(``TestFlowModel/onTestQuit()``).
+                 * 업로드 폐기는 세션이 비면 `.task(id:)`의 `bind(to: nil)`도 하지만, 그 사이에 끝난 업로드가 결과로 실려
+                 * 나가지 않게 여기서 바로 놓는다(안드로이드 `uploadViewModel.clearAll()` 자리).
+                 */
+                onQuit: {
+                    guard model.onTestQuit() else { return }
+                    recording.reset()
+                    uploads.teardown()
                 }
             )
         }
@@ -425,7 +582,16 @@ struct TestFlowView: View {
         if case .needsPermission = model.phase { return true }
         // 재응시 직전의 지역 화면도 결과 화면을 덮는 동안 톱니를 숨긴다 (KAN-270, PR #22 리뷰).
         if model.retestRegionPending { return true }
+        // 억양 학습의 권한 화면도 웹을 덮는 동안은 숨긴다 (KAN-253, 안드로이드와 같다).
+        if intonation.start != nil, !intonationMicOk { return true }
         return false
+    }
+
+    /// 톱니를 세울 화면인가 (KAN-252). 로그인 빌드는 문서 판정(``AccenturyCore/showsSettingsGear(_:)``)에 더해 녹음 오버레이
+    /// (레벨 테스트 VOICE 녹음·제출, 억양 학습) 위에서 숨긴다. 익명 빌드는 예전 그대로다. ``nativeCovering``은 따로 본다.
+    private var gearVisible: Bool {
+        guard tabBarEntry else { return true }
+        return showsSettingsGear(currentWebUrl) && overlayStart == nil && intonation.start == nil
     }
 
     /// 녹음·제출 두 페이즈는 같은 화면을 쓰고 아래쪽만 다르다 (KAN-146).
@@ -494,8 +660,8 @@ struct TestFlowView: View {
     /// 녹음을 새로 해야 풀리는 실패를 걷고 그 문항의 녹음 화면을 다시 연다 (KAN-147, B안).
     ///
     /// 서버가 녹음 자체를 거절한 건(rerecord)만 여기로 온다 — 그것만이 재전송으로 풀리지 않아
-    /// 복구 경로가 재녹음 하나뿐이다. 전송 실패는 [재시도]가 계속 서 있고, 그 외 서버 거절은
-    /// 서버 문구를 단 실패 행으로 상태 바에 그대로 남는다.
+    /// 복구 경로가 재녹음 하나뿐이다. 재전송으로 풀리는 실패는 웹 대기 화면의 [다시 보내기]로 넘기고
+    /// (KAN-288, ``deliverResults()``), 그 밖의 거절은 웹 대기 화면의 [녹음 화면 다시 열기]로 풀린다.
     ///
     /// 폐기는 컨트롤러가 그 시도를 실제로 거둬갔을 때만 한다 — false는 이미 밀려났거나 모르는
     /// 시도라는 뜻이라, 그때 폐기하면 같은 키를 쓰는 다른 흐름의 상태를 건드릴 수 있다.
@@ -587,6 +753,16 @@ struct TestFlowView: View {
                 guard accepted else { return }
                 Task { @MainActor in model.onResultDelivered(attemptId: result.attemptId) }
             }
+        }
+        /*
+         * 재녹음 거절을 뺀 업로드 실패를 웹에 알린다 (KAN-288, webview-bridge.md §14). 웹은 그 문항의 대기 화면에 「전송 실패」를,
+         * 재전송으로 풀리는 실패면 [다시 보내기]도 그린다 — 문항을 푸는 중에는 알리지 않는다는 결정(상태 바 제거)은 그대로다: 실패한 문항은 결과가 오지
+         * 않아 웹이 다음 문항으로 넘어가지 않으므로, 이 알림이 보이는 자리는 그 문항의 제출 대기뿐이다.
+         * 업로드 목록이 바뀔 때마다·WebView가 돌아올 때마다(이 함수의 두 호출처) 남은 실패를 다시 싣는다. 웹이 같은 실패를
+         * 거듭 받아도 같은 화면이라 무해하고, 수신 지점이 아직 없던 때 놓친 알림을 다시 채운다(안드로이드와 같다).
+         */
+        for failed in model.failedUploads() {
+            webView.evaluateJavaScript(uploadFailedDeliveryJs(failed), completionHandler: nil)
         }
     }
 
@@ -742,11 +918,15 @@ private struct RecordingOverlay: View {
 
     let onSubmit: (_ attemptId: String, _ durationMs: Int64, _ quality: QualityStatus) -> Void
 
+    /// 확인 창에서 [그만두기]를 골랐다 (KAN-288). 정리는 호출자가 한다
+    let onQuit: () -> Void
+
+    @State private var confirmingQuit = false
+
     var body: some View {
         RecordingScreen(
             questionText: start.prompt,
-            questionIndex: start.itemNumber,
-            totalQuestions: start.totalItems,
+            purpose: .levelTest(itemNumber: start.itemNumber, totalItems: start.totalItems, emotion: start.emotion),
             submitting: submitting,
             afterUploadFailure: afterUploadFailure,
             failureMessage: failureMessage,
@@ -755,8 +935,19 @@ private struct RecordingOverlay: View {
             centerHz: centerHz,
             model: recording,
             onRetake: onRetake,
+            onClose: { confirmingQuit = true },
             onNext: onSubmit
         )
+        /*
+         * 확인 창 (KAN-288, 시안 17~20). 설정의 로그아웃·탈퇴 확인과 같은 시스템 알림이다 — iOS 쪽 확인 창은 아직 디자인 3
+         * 종이 창(안드로이드 `ConfirmDialog`)으로 옮기지 않았다. 머무는 쪽 [계속하기]가 취소 역할이라 바깥을 눌러도 머문다.
+         */
+        .alert("테스트를 그만둘까요?", isPresented: $confirmingQuit) {
+            Button("계속하기", role: .cancel) {}
+            Button("그만두기", action: onQuit)
+        } message: {
+            Text("그만두면 처음부터 다시 시작해야 해요")
+        }
         // 화면이 걷히면 마이크를 놓는다. 되감기 판정(`continuesFrom`)은 상위가 하지만, 오버레이
         // 자체가 사라지는 경우(웹으로 돌아감)는 여기서도 한 번 더 막는다 — 상위의 페이즈 변화가
         // 오지 않는 경로(뷰 재구성)에서도 마이크는 반드시 닫혀야 한다.

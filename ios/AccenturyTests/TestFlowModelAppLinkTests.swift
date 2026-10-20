@@ -83,4 +83,35 @@ final class TestFlowModelAppLinkTests: XCTestCase {
         XCTAssertNil(model.campaignToken)
         XCTAssertFalse(model.webUrl.contains("&c="), model.webUrl)
     }
+
+    // MARK: 앱 링크 진입은 인트로 (KAN-252, PR #33 리뷰 P1)
+
+    /// 로그인 빌드의 새 실행(cold). 링크가 씬이 붙은 뒤 오는 순서 그대로 — 모델이 저장분을 지운 다음 ``TestFlowModel/applyAppLink(_:)``.
+    private func freshLoginModel() -> TestFlowModel {
+        TestFlowModel(restoresSavedState: false, defaults: defaults, sessionClient: nil, isMicGranted: { true }, tabBarEntry: true)
+    }
+
+    /// (e) 일반 실행은 홈이다.
+    func test일반_실행은_홈이다() {
+        XCTAssertTrue(freshLoginModel().webUrl.contains("screen=home"))
+    }
+
+    /// (f) 코드 없는 링크·무효 코드 링크도 링크다 — 코드는 nil이지만 홈이 아니라 인트로로 연다.
+    func test코드_없는_링크와_무효_코드_링크는_인트로다() {
+        for link in ["https://accentury.app/t", "https://accentury.app/t?c=kko%20share"] {
+            let model = freshLoginModel()
+
+            model.applyAppLink(URL(string: link))
+
+            XCTAssertNil(model.campaignToken, link)
+            XCTAssertFalse(model.webUrl.contains("screen=home"), "\(link) → \(model.webUrl)")
+        }
+    }
+
+    /// (g) 앞 실행의 링크 진입은 새 실행에 남지 않는다 — 다음 일반 실행은 홈이다.
+    func test링크_진입은_새_실행에서_지워진다() {
+        freshLoginModel().applyAppLink(URL(string: "https://accentury.app/t"))
+
+        XCTAssertTrue(freshLoginModel().webUrl.contains("screen=home"))
+    }
 }

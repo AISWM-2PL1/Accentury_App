@@ -39,21 +39,17 @@
 }
 
 /*
- * 주동작. 화면에서 유일하게 잉크로 꽉 찬 면이라 눈이 먼저 닿는다. 테두리를 면과 같은 색으로
- * 2px 두르는 것은 낭비가 아니다 - 크림 배경 위에서 잉크 면의 가장자리가 종이를 오린 자리처럼
- * 또렷해진다. 라벨은 Jua 20px(`titleSmall`)로, 이 화면에서 CTA가 제목만큼 크다.
+ * 주동작. 디자인 3 (KAN-288)에서 벽돌 면 + 크림 글자 + 본문 글꼴 14/500으로 바꿨다 — 잉크 면 +
+ * Jua 20이었다. 시안은 "지금 누를 것"을 포인트 컬러로 짚고(정본 §7의 포인트 자리), 제목 글꼴은
+ * 제목·대사·점수에만 남긴다. 벽돌 위 크림은 4.6:1이라 14px 500에서도 AA다.
  */
 .btn--primary {
   min-height: var(--control-height-lg);
-  border: 2px solid var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
+  border: 1px solid var(--color-point);
+  background: var(--color-point);
+  color: var(--color-point-foreground);
   box-shadow: var(--shadow-card);
-
-  font-family: var(--font-display);
-  font-size: var(--text-title-sm);
-  font-weight: var(--weight-normal);
-  letter-spacing: 0.02em;
+  font-size: var(--text-label);
 }
 
 /*
@@ -62,10 +58,10 @@
  * 분명하고 주 버튼보다는 가볍다는 자리를 테두리 하나가 잡는다.
  */
 .btn--secondary {
-  border: 1.5px solid var(--color-control-border);
+  border: 1px solid var(--color-control-border);
   background: var(--color-card);
   color: var(--color-secondary-foreground);
-  font-size: var(--text-body-sm);
+  font-size: var(--text-label);
 }
 
 /* 이탈·종료처럼 눌리면 안 되는 쪽. 잉크 글자만 남기고 터치 타겟 48dp는 지킨다 */
@@ -102,6 +98,19 @@
   cursor: not-allowed;
 }
 
+/*
+ * 주 버튼의 비활성은 흐린 벽돌이 아니라 종이 그림자 면 + 흐린 잉크 글자다 (KAN-288 디자인 검수
+ * HIG-A, 동의 전 「동의하고 계속」). 흐린 벽돌은 여전히 "누를 것"처럼 보여 왜 안 눌리는지가 안
+ * 읽혔다. 떠 있지 않으므로 그림자도 걷는다.
+ */
+.btn--primary:disabled {
+  opacity: 1;
+  border-color: var(--color-muted-foreground);
+  background: var(--color-primary-dim);
+  color: var(--color-muted-foreground);
+  box-shadow: none;
+}
+
 /* ── 진척도 ── */
 
 /*
@@ -129,14 +138,16 @@
 .progress-indicator__dot {
   flex: 1 1 0;
   height: var(--progress-dot-height);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-full);
-  background: var(--color-card);
+  /* 디자인 3 (KAN-288): 둥근 캡슐이 아니라 모서리 없는 띠, 지나온 칸은 벽돌이다. 남은 칸은 시안의
+     종이 그림자 면에 흐린 잉크 윤곽을 더해 크림 위에서도 칸 끝이 보이게 한다 */
+  border: 1px solid var(--color-muted-foreground);
+  background: var(--color-primary-dim);
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .progress-indicator__dot[data-state='done'] {
-  background: var(--color-primary);
+  border-color: var(--color-point);
+  background: var(--color-point);
 }
 
 /*
@@ -146,16 +157,29 @@
  */
 .progress-indicator__dot[data-state='current'] {
   border-width: 2px;
-  background: linear-gradient(90deg, var(--color-primary) 50%, var(--color-card) 50%);
+  border-color: var(--color-point);
+  background: linear-gradient(90deg, var(--color-point) 50%, var(--color-card) 50%);
 }
 
 /*
- * 숫자 표기. 오른쪽 아래에 붙는다 - 왼쪽에서 차오르는 도트의 끝과 같은 쪽이라 눈이
- * 도트를 훑고 나온 자리에서 숫자를 만난다.
+ * 이름(왼쪽)과 숫자(오른쪽)가 도트 위 한 줄에 선다 (디자인 3 시안 `.card-progress`, KAN-288).
+ * 숫자가 오른쪽인 것은 그대로다 - 왼쪽에서 차오르는 도트의 끝과 같은 쪽이다.
  */
+.progress-indicator__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.progress-indicator__label {
+  color: var(--color-foreground);
+}
+
 .progress-indicator__count {
+  margin: 0;
   text-align: right;
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
 }
 
 /* ── 대기·오류 블록 ── */
@@ -329,7 +353,7 @@
 }
 
 /*
- * 인트로의 워드마크 + 히어로 + 부제. 셋은 제목에 딸린 줄이라 **한 덩어리로 읽혀야 한다**.
+ * 인트로의 히어로 + 부제. 제목에 딸린 줄이라 **한 덩어리로 읽혀야 한다** (워드마크는 KAN-288부터 앱바에 있다).
  *
  * 히어로는 192px 슬롯 밖에 있다(대기 화면은 `.illustration--waiting`에 그대로 둔다). 슬롯은
  * 그림이 뜨기 전후로 아래가 오르내리지 않게 높이를 미리 잡아 두는 자리인데, 글자에는 늦게
@@ -350,11 +374,6 @@
 
 .intro-screen .screen__body {
   gap: var(--space-4);
-}
-
-.intro-wordmark {
-  color: var(--color-foreground);
-  font-weight: var(--weight-normal);
 }
 
 .intro-heading {
@@ -429,8 +448,8 @@
 /* ── 카드 ── */
 
 /*
- * 컷아웃 카드 (정본 §8). 테두리가 1.5px인 것은 규칙이다 — 카드·선택지·버튼·곡선 레인 상자가
- * 전부 같은 두께를 쓰고, 2px는 "지금 이것"(주 CTA·고른 선택지)만 갖는다. 카드와 배경이 같은
+ * 컷아웃 카드 (정본 §8). 디자인 3 (KAN-288)부터 카드·선택지·보조 버튼 테두리는 1px이고,
+ * 2px는 "지금 이것"(고른 선택지)만 갖는다. 카드와 배경이 같은
  * 크림이라 **카드를 세우는 것은 색이 아니라 테두리와 그늘이다.**
  *
  * 여백을 카드가 직접 갖는다 (KAN-161 3단계). 예전에는 안쪽 칸들이 각자 padding을 들고 카드는
@@ -441,9 +460,123 @@
   width: 100%;
   padding: var(--space-4);
   background: var(--color-card);
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-xl);
+  /* 디자인 3 (KAN-288): 종이 테두리는 1px. 두께 대신 4/5 그림자가 종이를 세운다 */
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
+}
+
+/* ── 홈 카드 (KAN-287) ── */
+
+/* 테스트 후 홈 (KAN-288, 시안 32) — 위에서부터 쌓고 왼쪽 정렬. 카드·버튼은 폭을 꽉 채운다 */
+.home-after {
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: var(--space-3);
+  text-align: left;
+}
+
+/* 등급 카드 — 테이프 붙은 종이, 캐릭터 왼쪽·글자 오른쪽. 테두리는 종이 그림자색(시안 `.practice-sheet`) */
+.home-tier {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  border-color: var(--color-muted);
+}
+
+/* 테이프 한 조각 (시안 `.taped:before`). 벽돌 면은 [억양 학습 시작] 하나라 그림자색이다 */
+.home-tier::before {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: 24px;
+  width: 70px;
+  height: 18px;
+  background: var(--color-muted);
+  transform: rotate(-4deg);
+}
+
+/* 시안 120×150 — 글자 칸이 등급명 「경남 토박이」까지 한 줄로 받게 */
+.illustration--home {
+  flex-shrink: 0;
+  width: 120px;
+  height: 150px;
+}
+
+.home-tier__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.home-tier__text h1 {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.home-tier__rank,
+.home-tier__date {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
+.home-streak {
+  color: var(--color-muted-foreground);
+}
+
+/* 연속 출석 (시안 32 `.attendance`) — 제목·문구·요일 7칸 */
+.home-attendance {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.home-attendance h2,
+.home-attendance .home-streak {
+  margin: 0;
+}
+
+.home-attendance__week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-attendance__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--color-muted-foreground);
+}
+
+.home-attendance__day i {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-foreground);
+  border-radius: 50%;
+  font-style: normal;
+  color: var(--color-foreground);
+}
+
+/* 출석한 날 — 벽돌 테두리·벽돌 ✓ (사용자 요청 2026-10-20). 기호도 ○→✓로 바뀌어 색만으로 가르지 않는다 */
+.home-attendance__day.is-attended i {
+  border: 1.5px solid var(--color-point);
+  color: var(--color-point);
+  font-weight: 700;
 }
 
 /*
@@ -615,10 +748,13 @@
   flex-direction: column;
   justify-content: center;
   gap: var(--space-2);
+  position: relative;
   min-height: var(--prompt-card-min-height);
   padding: var(--prompt-card-padding);
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-xl);
+  /* 디자인 3 (KAN-288): 연습지 한 장. 테두리는 그림자와 같은 종이색이고 그림자가 윤곽을 맡는다 —
+     잉크 테두리면 바로 아래 선택지(흐린 잉크 1px)보다 무거워 카드가 버튼처럼 보였다 */
+  border: 1px solid var(--color-primary-dim);
+  border-radius: var(--radius-lg);
   background: var(--color-prompt-card-start);
   color: var(--color-prompt-card-foreground);
   box-shadow: var(--shadow-prompt);
@@ -666,10 +802,10 @@
   justify-content: center;
   text-align: center;
   white-space: nowrap;
-  font-family: var(--font-display);
-  font-size: var(--text-title-sm);
-  font-weight: var(--weight-normal);
-  letter-spacing: 0.02em;
+  min-height: var(--touch-target-min);
+  /* 디자인 3 (KAN-288): 칩 글자는 Jua가 아니라 본문 14/500 — 주 버튼과 같은 목소리다 */
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
 }
 
 /*
@@ -678,7 +814,7 @@
  * 그림자·체크 셋이 이미 말하므로 굵기는 400에 고정한다.
  */
 .choice-list--columns .choice--selected {
-  font-weight: var(--weight-normal);
+  font-weight: var(--weight-medium);
 }
 
 /*
@@ -705,14 +841,16 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: var(--control-height-lg);
+  min-height: var(--control-height-choice);
   padding: var(--space-3) var(--space-4);
-  border: 1.5px solid var(--color-control-border);
+  /* 고르지 않은 칸은 흐린 잉크 1px (KAN-288 디자인 검수 HIG-B). 종이 그림자색(#cfc5aa)은
+     크림 위 1.46:1이라 칸 경계가 안 보였다 */
+  border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-md);
   background: var(--color-card);
   color: var(--color-foreground);
   font-family: var(--font-body);
-  font-size: var(--text-body);
+  font-size: var(--text-body-sm);
   font-weight: var(--weight-normal);
   text-align: left;
   cursor: pointer;
@@ -721,8 +859,28 @@
     transform var(--duration-press) var(--ease-out);
 }
 
+/* 번호 상자 (디자인 3 시안 `.choice .letter`, KAN-288) — 흐린 잉크 1px 24×24, 글자는 최소 12px */
+.choice__number {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--color-muted-foreground);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-tab-label);
+  line-height: 1;
+}
+
+/* 글자가 남는 폭을 다 가져가 정오 표시·체크가 오른쪽 끝에 붙는다 */
+.choice__text {
+  flex: 1;
+  min-width: 0;
+}
+
 .choice--selected {
   border-width: 2px;
+  border-color: var(--color-control-border);
   box-shadow: var(--shadow-choice);
   font-weight: var(--weight-medium);
 }
@@ -815,9 +973,10 @@
 
 .choice--check input {
   flex-shrink: 0;
-  width: 1.25rem;
-  height: 1.25rem;
-  margin: 0.125rem 0 0;
+  /* 시안 `.check-label input` 24px (KAN-288) */
+  width: 24px;
+  height: 24px;
+  margin: 0;
   accent-color: var(--color-primary);
 }
 
@@ -1020,6 +1179,12 @@
 }
 
 /* 정의·점수 버전 꼬리표. 사용자가 읽을 값이 아니라 문의를 되짚는 값이라 가장 약하게 둔다 */
+/* 점수 카드 아래 추정치 고지 (KAN-288 HIG-B) — 흐린 잉크 13px, 시안 26 */
+.result-estimate {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
 .result-version {
   color: var(--color-muted-foreground);
 }
@@ -1059,23 +1224,26 @@
 }
 
 .analysis-progress__bar {
-  height: var(--progress-bar-height);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-full);
-  background: var(--color-card);
+  /* 디자인 3 (KAN-288): 테두리 없는 4px 띠 — 남은 칸은 종이 그림자 면 (시안 `.progress`) */
+  height: 4px;
+  background: var(--color-primary-dim);
   overflow: hidden;
 }
 
 .analysis-progress__fill {
   height: 100%;
-  background: var(--color-primary);
+  /* 디자인 3 (KAN-288): 진행 막대의 채움은 벽돌 — 문항 진행 도트와 같은 색이다 */
+  background: var(--color-point);
   transition: width var(--duration-base) var(--ease-out);
 }
 
 /* 숫자는 오른쪽 아래 — 왼쪽에서 차오르는 막대의 끝과 같은 쪽이라 눈이 막대를 훑고 나온
    자리에서 숫자를 만난다 (진행 도트의 표기와 같은 규칙) */
 .analysis-progress__count {
-  text-align: right;
+  /* 디자인 3 (KAN-288): 막대 위 왼쪽 한 줄 「7문항 중 6개 완료」 (시안 `.small-caption`) */
+  order: -1;
+  margin: 0;
+  text-align: left;
   color: var(--color-muted-foreground);
 }
 
@@ -1103,7 +1271,10 @@
 }
 
 .analysis-body--centered {
-  justify-content: center;
+  /* 디자인 3 (KAN-288): 가운데가 아니라 위에서부터 흐른다 — 시안은 막대 아래 여백 뒤 제목이 왼쪽 정렬로 선다.
+     클래스는 기다리는 분기 표식으로 남긴다 */
+  justify-content: flex-start;
+  padding-top: var(--space-8);
 }
 
 /*
@@ -1114,11 +1285,11 @@
 .analysis-waiting {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-6);
+  align-items: stretch;
+  gap: var(--space-3);
   width: 100%;
   max-width: var(--content-max-width);
-  text-align: center;
+  text-align: left;
 }
 
 /*
@@ -1130,20 +1301,37 @@
  * 폭을 280으로 묶는 이유: 세 칸이 화면 폭을 다 쓰면 동그라미 사이가 멀어져 "이어진 한 줄"이
  * 아니라 따로 놓인 표시 셋으로 보인다. 이어져 있어야 순서가 읽힌다.
  */
+/* 디자인 3 (KAN-288, 시안 `.screen-title` + `.lead`): 「분석 중입니다」는 왼쪽 정렬 제목 크기, 그 아래 진행 문장은 흐린 잉크 */
+.analysis-waiting__hero {
+  height: auto;
+}
+
+.analysis-waiting__hero .text-hero {
+  padding: 0;
+  font-size: var(--text-title);
+  text-align: left;
+}
+
+.analysis-waiting__lead {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
 .analysis-steps {
+  /* 디자인 3 (KAN-288, 시안 `.steps`): 세로 목록, 칸마다 아래 파선 */
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   width: 100%;
-  max-width: 280px;
+  margin: var(--space-4) 0;
 }
 
 .analysis-step {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  flex: 0 0 auto;
-  width: 72px;
+  gap: var(--space-3);
+  min-height: var(--touch-target-min);
+  padding: var(--space-3) 0;
+  border-bottom: 1px dashed var(--color-primary-dim);
 }
 
 /*
@@ -1156,29 +1344,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1.5px solid var(--color-primary);
+  flex-shrink: 0;
+  width: 29px;
+  height: 29px;
+  border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-full);
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: var(--text-tab-label);
   line-height: 1;
 }
 
 .analysis-step[data-state='todo'] .analysis-step__dot {
-  background: var(--color-card);
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
 }
 
 .analysis-step__label {
   color: var(--color-foreground);
-  white-space: nowrap;
+  font-size: var(--text-label);
 }
 
 .analysis-step[data-state='todo'] .analysis-step__label {
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
 }
 
 /*
@@ -1186,15 +1373,20 @@
  * 동그라미에 닿는다 — 닿지 않으면 세 칸이 이어진 한 줄로 보이지 않는다.
  * 지나온 구간은 잉크, 아직인 구간은 흐린 잉크다.
  */
+/* 지금 칸은 벽돌로 찬 동그라미, 지나온 칸은 ✓ — 색 말고 채움·글리프로도 갈린다 */
+.analysis-step[data-state='current'] .analysis-step__dot {
+  border-color: var(--color-point);
+  background: var(--color-point);
+  color: var(--color-point-foreground);
+}
+
 .analysis-step-line {
-  flex: 1 1 0;
-  height: 1px;
-  margin: 12px -16px 0;
-  background: var(--color-muted-foreground);
+  /* 디자인 3 (KAN-288): 세로 목록에서는 칸 사이 선 대신 칸 아래 파선이 구분한다 */
+  display: none;
 }
 
 .analysis-step-line[data-state='done'] {
-  background: var(--color-primary);
+  display: none;
 }
 
 /*
@@ -1240,11 +1432,15 @@
   /* 안에 보조 버튼(48)이 들어오는 줄이라 이미 이 높이지만, 버튼 없는 줄도 같은 높이여야
      목록이 들쭉날쭉해 보이지 않는다 */
   min-height: var(--touch-target-min);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-card);
-  color: var(--color-card-foreground);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  /* 디자인 3 (KAN-288, 시안 `.analysis-items .row`): 상자 대신 아래 파선 한 줄 */
+  padding: var(--space-3) 0;
+  border-bottom: 1px dashed var(--color-primary-dim);
+  color: var(--color-foreground);
+}
+
+/* 음성 문항 대기 푸터의 전송 실패 줄 (KAN-288 6단계). 푸터는 블록이라 아래 [녹음 화면 다시 열기]와의 간격을 여기서 둔다 */
+.upload-failed-row {
+  margin-bottom: var(--space-3);
 }
 
 /*
@@ -1267,9 +1463,13 @@
 /* 남는 폭을 먹으면서 필요하면 줄어든다. `min-width: 0`이 없으면 flex 자식의 기본
    `min-width: auto`가 min-content 아래로 못 줄어들게 막아 행이 넘친다 */
 .analysis-row__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
   flex: 1 1 auto;
   min-width: 0;
-  color: var(--color-muted-foreground);
+  color: var(--color-foreground);
   text-align: right;
 }
 
@@ -1392,6 +1592,8 @@ a.btn {
  */
 .curve-lane {
   position: relative;
+  /* 캔버스의 margin-top(24)이 레인 밖으로 새면(마진 상쇄) 레인째 24px 내려가 라벨이 캔버스 위에 얹힌다 (KAN-254 에뮬 확인) */
+  display: flow-root;
   height: var(--curve-lane-height);
 }
 
@@ -1546,7 +1748,7 @@ a.btn {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
 /*
@@ -1563,12 +1765,14 @@ a.btn {
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
-  padding: var(--space-6) var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding: 28px var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
   background: var(--color-card);
   color: var(--color-card-foreground);
-  border: 1.5px solid var(--color-border);
-  border-bottom: none;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  /* 디자인 3 (KAN-288, 시안 `.paper-modal`): 위 테두리 1px 잉크 + 위로 8 올린 종이 그림자 한 겹.
+     막 위에 종이 한 장이 올라온 것처럼 보이게 한다. 28은 시안의 위 여백이다 */
+  border-top: 1px solid var(--color-border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -8px 0 var(--color-primary-dim);
 }
 
 .ad-consent-title {
@@ -1591,15 +1795,15 @@ a.btn {
   margin: 0;
 }
 
-/* 다시 열었을 때의 상태 한 줄. 흐린 잉크로 적어 고지 본문과 구분한다 */
+/* 다시 열었을 때의 상태 한 줄, 사업자·바꾸는 길 문단, iOS ATT 예고. 흐린 잉크로 적어 고지 본문(수집·영향)과 구분한다 */
+.ad-consent-muted,
 .ad-consent-current {
   color: var(--color-muted-foreground);
 }
 
 /*
- * 버튼 둘을 세로로 쌓는다. 가로로 나란히 두면 각 버튼이 반 폭이 되어 「맞춤형 광고 허용」
- * 여섯 자가 Jua 20px에서 두 줄로 갈린다. 주버튼이 위인 이유는 초점이 먼저 가는 자리이고
- * 엄지가 먼저 닿는 자리이기 때문이다 — 아래는 시트 가장자리라 오히려 닿기 어렵다.
+ * 버튼 둘을 세로로 쌓는다. 가로로 나란히 두면 각 버튼이 반 폭이 되어 「맞춤형 광고 받기」가
+ * 좁은 칸에서 두 줄로 갈린다. 둘 다 같은 보조 버튼이고(KAN-288 HIG-A) 초점이 먼저 가는 위가 받기다.
  */
 .ad-consent-actions {
   display: flex;
@@ -1645,7 +1849,7 @@ a.btn {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
 /*
@@ -1663,12 +1867,13 @@ a.btn {
   width: 100%;
   max-height: calc(100dvh - var(--space-8));
   overflow-y: auto;
-  padding: var(--space-6) var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding: 28px var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
   background: var(--color-card);
   color: var(--color-card-foreground);
-  border: 1.5px solid var(--color-border);
-  border-bottom: none;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  /* `.ad-consent-panel`과 같은 시안 `.paper-modal` 규칙 (KAN-288) */
+  border-top: 1px solid var(--color-border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -8px 0 var(--color-primary-dim);
 }
 
 .feedback-title {
@@ -1705,6 +1910,7 @@ a.btn {
 .feedback-rating {
   display: flex;
   align-items: center;
+  gap: var(--space-1);
 }
 
 /*
@@ -1718,12 +1924,29 @@ a.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 1;
   min-width: var(--touch-target-min);
   min-height: var(--touch-target-min);
+  /* 시안 28: 별 칸마다 흐린 잉크 1px 테두리 (KAN-288 디자인 검수 HIG-B) */
+  border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-sm);
   font-size: var(--text-headline);
   line-height: 1;
   cursor: pointer;
+}
+
+.feedback-rating__star:has(input:checked) {
+  border: 2px solid var(--color-control-border);
+}
+
+/* 고른 별까지 ★가 벽돌, 남은 ☆는 흐린 잉크 (시안 28). 별 모양(★/☆)이 이미 갈라 주므로 색은 덤이다 */
+.feedback-rating__star {
+  color: var(--color-muted-foreground);
+}
+
+.feedback-rating__star:has(input:checked),
+.feedback-rating__star:has(~ .feedback-rating__star input:checked) {
+  color: var(--color-point);
 }
 
 .feedback-rating__star:has(input:focus-visible) {
@@ -1732,7 +1955,7 @@ a.btn {
 }
 
 /*
- * 글을 적는 칸 둘. 보조 버튼(`.btn--secondary`)과 같은 테두리 1.5px·같은 반경이라, 화면에
+ * 글을 적는 칸 둘. 보조 버튼(`.btn--secondary`)과 같은 테두리 1px·같은 반경이라, 화면에
  * 「누를 것」과 「적을 것」이 같은 굵기의 선으로 그려진다 — 팔레트가 잉크 한 색이라 선의
  * 굵기와 모양이 곧 위계다. 포커스 링은 전역 `:focus-visible` 규칙이 그대로 준다.
  */
@@ -1740,7 +1963,8 @@ a.btn {
 .feedback-input {
   width: 100%;
   padding: var(--space-3);
-  border: 1.5px solid var(--color-border);
+  /* 시안 `.field`: 흐린 잉크 1px (KAN-288) */
+  border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-md);
   background: var(--color-card);
   color: var(--color-card-foreground);
@@ -1790,36 +2014,25 @@ a.btn {
 }
 
 /*
- * 결과 화면의 재응시 버튼만 포인트색으로 채우고 Jua로 (사용자 결정 2026-09-15).
+ * 결과 화면의 재응시 버튼만 포인트색으로 채우고 Jua로 (사용자 결정 2026-09-15, 디자인 3에서도 유지).
  *
- * 결과를 다 본 사람에게 남은 출구는 공유와 재응시 둘이다. 주버튼인 공유가 잉크로 꽉 찬 종이라
- * 재응시를 테두리만 두른 선 버튼으로 두면 두 번째 출구가 첫 번째의 그림자처럼 읽힌다. 그래서
- * 이 화면에서 색이 하나뿐인 자리 — 점수 링·억양 곡선의 벽돌색(`--color-point`) — 를 빌려 면을
- * 통째로 채운다. 화면의 유일한 강조색이라 잉크와 무게를 겨루는 것이 아니라, 서로 다른 목소리로
- * 나란히 선 두 장의 종이가 된다.
+ * 결과를 다 본 사람에게 남은 출구는 공유와 재응시 둘이다. 재응시를 테두리만 두른 선 버튼으로 두면
+ * 두 번째 출구가 첫 번째의 그림자처럼 읽혀, 이 화면의 포인트색 — 점수 링·억양 곡선의 벽돌색
+ * (`--color-point`) — 을 빌려 면을 통째로 채운다.
  *
- * 글자는 주버튼과 같은 크림(`--color-primary-foreground`)이다 — 사용자는 "흰색"이라고 했지만
- * 순백은 이 팔레트에 없는 색이고(정본 §2는 잉크·크림·종이 그림자·흐린 잉크 넷이 전부다), 크림
- * 이어야 벽돌 면이 종이에서 오려낸 자리로 읽힌다. 벽돌 위 크림은 대비 4.6:1이라 본문 크기
- * 기준 AA를 넘는다.
+ * 디자인 3(KAN-288)에서 주버튼(공유)도 벽돌이 되어 "화면당 벽돌 면 하나" 규칙과 부딪힌다. 2단계에서
+ * 한때 보조 버튼으로 내렸지만 사용자가 2026-10-18 원복을 결정해 이 자리는 그 규칙의 예외다
+ * (design-tokens.md에 명시). 높이는 여전히 주버튼만 갖는다 — 그림자를 주지 않아 떠 있는 종이는 하나다.
  *
- * 그림자는 주지 않는다. 채운 면이 됐다고 `--shadow-card`까지 얹으면 떠 있는 종이가 둘이 되어
- * 어느 쪽을 눌러야 하는지가 흐려진다 (`ux-ui.md`, `.btn--secondary`(64행) 주석). 떠 있는 종이는
- * 주버튼 하나다 — 색으로 나란히 서되 높이는 주버튼이 갖는다.
- *
- * 글자체도 주버튼과 같은 제목 글자체(Jua)로 맞추고, Jua는 굵기가 하나뿐이라 `.btn--primary`와
- * 같이 `--weight-normal` + 자간 0.02em을 쓴다.
+ * 글자는 주버튼과 같은 크림(`--color-primary-foreground`), 벽돌 위 크림은 대비 4.6:1로 본문 AA를 넘는다.
+ * 글자체도 주버튼과 같은 Jua, 굵기는 `--weight-normal` + 자간 0.02em.
  *
  * 전 화면 `.btn--secondary`가 아니라 결과 화면 한정인 이유: 대기·오류 화면의 재응시는 실패에서
- * 빠져나오는 복구 수단이라 눈에 띄면 안 된다 — 그 화면에서 색을 가져갈 자리는 [다시 시도]와 앱
- * 다운로드다.
- *
- * `.btn--secondary`(64행)와 특이도가 같으므로 파일 뒤쪽인 이 자리에 둬야 이긴다. 덮어쓰는 것은
- * 배경·테두리색·글자색뿐이고 테두리 굵기 1.5px·반경·눌림 transform은 그대로 상속한다.
- * 비활성(`.btn:disabled`)도 불투명도 0.6만 얹으므로 채운 벽돌이 흐린 벽돌로 남아 크림 배경과
- * 계속 갈린다 — 선 버튼일 때보다 오히려 형태가 또렷하다.
+ * 빠져나오는 복구 수단이라 눈에 띄면 안 된다. `.btn--secondary`와 특이도가 같아 파일 뒤쪽인 이 자리에
+ * 둬야 이긴다. 덮어쓰는 것은 배경·테두리색·글자색·글자체뿐이고 반경·눌림·비활성은 그대로 상속한다.
  */
 .result-retest__button {
+  width: 100%;
   background: var(--color-point);
   border-color: var(--color-point);
   color: var(--color-primary-foreground);
@@ -1831,37 +2044,21 @@ a.btn {
 }
 
 /*
- * 결과 화면 하단의 진입 자리 (KAN-211). 글자 버튼이라 `.btn--text`가 생김새를 다 정하고,
- * 여기서는 폭과 밑줄만 얹는다 — 위의 공유·재응시 버튼이 100%라 이 줄만 좁으면 가운데 뜬 것처럼
+ * 결과 화면 하단의 글자 버튼 둘 — 억양 학습 진입(KAN-252)과 후기(KAN-211). `.btn--text`가 생김새를
+ * 정하고 여기서는 폭과 밑줄만 얹는다 — 위의 공유·재응시 버튼이 100%라 이 줄만 좁으면 가운데 뜬 것처럼
  * 보인다.
  *
- * 밑줄은 이 버튼에만 긋는다 (사용자 요청 2026-09-15). 글자 버튼은 테두리도 배경도 없어 눌리는
- * 자리라는 것이 모양에 드러나지 않는데, 이 줄은 푸터 맨 아래 홀로 놓여 옆 버튼과 견줄 상대도
- * 없다. 그래서 `.text-link`의 관습을 그대로 빌려 밑줄 하나로 어포던스를 준다 — 값(offset
- * 0.2em, 한글 받침이 밑줄에 붙지 않게)도 거기에 맞추고 색은 글자색을 따른다. 테두리를 둘러
- * 보조 버튼으로 올리지 않는 이유는 `ResultScreen.tsx`의 이 자리 주석에 있다.
+ * 밑줄은 사용자 요청(2026-09-15)이다. 글자 버튼은 테두리도 배경도 없어 눌리는 자리라는 것이 모양에
+ * 드러나지 않아 `.text-link`의 관습(offset 0.2em, 한글 받침이 밑줄에 붙지 않게)을 빌린다.
  *
- * 글자체는 밑줄만으로 모자란 자리를 마저 메운다 (사용자 결정 2026-09-15). 본문 글자체로 두면
- * 이 줄이 바로 위 버전 표기나 보낸 뒤의 인사 한 줄과 같은 부류 — 읽는 글 — 로 묶여, 눌리는
- * 자리라는 것이 밑줄 하나에만 걸린다. 그래서 주버튼·등급명과 같은 Jua로 맞춰 푸터 안에서 같은
- * 목소리를 내되, 크기는 주버튼(20)보다 한 급 작은 본문 크기로 두어 주동작 자리는 넘보지 않는다.
- * Jua는 굵기가 하나뿐이라 `.btn--primary`와 같이 `--weight-normal` + 자간 0.02em을 쓴다.
- *
- * 색은 `.btn--text`가 주는 잉크(`--color-foreground`)를 그대로 쓴다 (사용자 결정
- * 2026-09-15). 포인트색은 재검사 버튼이 가져갔다 (위 `.result-retest__button`) — 벽돌색이
- * 푸터 안에서 둘로 나뉘면 이 화면의 유일한 강조색이라는 성질이 사라져 어느 쪽도 눈에 걸리지
- * 않는다. 후기는 잉크 글자 + 밑줄로 남는다. 밑줄색은 `currentColor`라 글자색을 저절로
- * 따라오므로 `text-decoration-color`를 따로 두지 않는다.
+ * 글자체는 디자인 3(KAN-288)에서 Jua 대신 본문 글자체로 내렸다 — Jua는 제목·대사·점수·등급만 쓴다
+ * (시안 `.btn.text`). 색은 `.btn--text`의 잉크 그대로다.
  */
 .result-feedback__open {
   width: 100%;
   text-decoration: underline;
   text-underline-offset: 0.2em;
-
-  font-family: var(--font-display);
-  font-size: var(--text-body);
-  font-weight: var(--weight-normal);
-  letter-spacing: 0.02em;
+  font-size: var(--text-label);
 }
 
 /* 보낸 뒤 버튼 자리에 남는 한 줄. 더 누를 것이 없다는 뜻이라 가장 약하게 둔다 */
@@ -1908,4 +2105,165 @@ a.btn {
   position: static;
   bottom: auto;
   padding-bottom: var(--space-4);
+}
+
+/* 앱 홈 카드 (KAN-288, 시안 31) — 제목·설명·버튼을 종이 한 장에 */
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-4);
+}
+
+/* 시안 31 `.home-test-icon` — 앱 아이콘 */
+.home-card__icon {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-lg);
+}
+
+.home-card__lead {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted-foreground);
+}
+
+/*
+ * 하단 탭 바 (KAN-252). 앱 안의 목록 화면에만 선다 (`ui/TabBar.tsx` 머리 주석).
+ *
+ * 바닥에 고정한다 — 목록이 길어 스크롤해도 다른 탭으로 가는 길이 화면 밖으로 나가지 않게. 위 경계는
+ * 같은 종이 그림자색 1px 한 줄이고(KAN-288) 그림자는 없다: 바닥에 붙은 띠라 떠 있는 종이가 아니다.
+ *
+ * 안전 영역을 더한다. 지금 viewport에 `viewport-fit=cover`가 없어 값이 0이지만(결과 푸터 주석), 그걸 켜는 날
+ * 홈 인디케이터에 깔리는 첫 요소가 바닥 고정인 이 띠다.
+ */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom));
+  /* 디자인 3 (KAN-288): 위 경계는 종이 그림자색 1px — 지금 탭은 아래 벽돌 띠가 짚으므로 경계선이
+     잉크일 필요가 없다 */
+  border-top: 1px solid var(--color-primary-dim);
+  background: var(--color-background);
+}
+
+.tab-bar__item {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: var(--touch-target-min);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-muted-foreground);
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+/* 지금 여기 — 포인트 컬러의 자리다 (tokens.css `--color-point`). 색만으로 가르지 않게 라벨 굵기도 올린다 */
+.tab-bar__item[aria-current='page'] {
+  color: var(--color-point);
+}
+
+/* 지금 탭 위의 벽돌 띠 30×3 (시안 `.tab.active:before`). 바의 위 경계선에 얹히도록 바 위 여백(8)과
+   경계(1)만큼 올린다 — 색 말고 모양으로도 "여기"를 말한다 */
+.tab-bar__item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: calc(-1 * var(--space-2) - 1px);
+  left: 50%;
+  width: 30px;
+  height: 3px;
+  margin-left: -15px;
+  background: var(--color-point);
+}
+
+.tab-bar__item[aria-current='page'] .tab-bar__label {
+  font-weight: var(--weight-medium);
+}
+
+.tab-bar__item:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+.tab-bar__label {
+  font-size: var(--text-tab-label);
+  font-weight: var(--weight-normal);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/*
+ * 탭 바가 선 화면은 본문 아래에 탭 바 높이만큼 더 띄운다 — 마지막 행·버튼이 띠 밑에 깔리지 않게.
+ * 높이 = 위아래 여백 + 칸 최소 높이 + 안전 영역이다(위 `.tab-bar`와 같은 값). 화면마다 클래스를 다는 대신
+ * `:has`로 한 곳에서 건다 — 탭 바를 세울지 정하는 쪽이 여백까지 챙길 필요가 없게.
+ */
+body:has(.tab-bar) main {
+  padding-bottom: calc(var(--space-8) + var(--touch-target-min) + 2 * var(--space-2) + env(safe-area-inset-bottom));
+}
+
+/*
+ * 상단 워드마크 앱바 (KAN-288, `ui/AppBar`, 시안 `.appbar` padding 8 24·min-height 56, `.appbrand` Jua 20/23).
+ *
+ * 화면 위에 고정한다 — 본문이 길어 스크롤해도 띠가 남고, 본문은 `--screen-padding-top`(앱바 + 8)만큼 내려 시작한다.
+ * 크림 면이라 스크롤된 본문이 비치지 않는다. 쌓임은 시트(`z-index: 1`)와 같은 층이고 DOM에서 앞이라 시트가 덮는다.
+ * 상단 안전 영역을 더한다 — 지금은 두 앱이 WebView를 안전 영역 안에 두어 0이지만(`TestFlowView` 주석,
+ * Android `Scaffold` innerPadding), viewport-fit=cover를 켜는 날 상태 바 밑으로 들어가지 않게.
+ */
+.app-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: calc(var(--app-bar-height) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--space-6) 0;
+  background: var(--color-background);
+}
+
+.app-bar__brand {
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  font-weight: var(--weight-normal);
+  line-height: 23px;
+}
+
+/*
+ * 닫기 ✕ (KAN-252, `ui/CloseButton`). 네이티브 억양 녹음 ✕와 같은 모양(크림 원 + 잉크 그림)이다. 디자인 3(KAN-288)부터
+ * 앱바 오른쪽 끝에 앉는다 — 48×48(HIG 수정)을 앱바 56 안 세로 가운데에, 오른쪽은 네이티브 `PaperAppBar`와 같은 12.
+ * 앱바보다 DOM에서 뒤라 같은 층(`z-index: 1`)에서 위에 그려진다.
+ */
+.close-button {
+  position: fixed;
+  top: calc((var(--app-bar-height) - var(--touch-target-min)) / 2 + env(safe-area-inset-top));
+  right: var(--space-3);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-background);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.close-button:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
 }

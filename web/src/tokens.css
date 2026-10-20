@@ -82,6 +82,9 @@
   --text-body-sm: 15px;
   --text-label: 14px;
   --text-caption: 13px;
+  /* 하단 탭 바 라벨 (KAN-288 디자인 검수 HIG-A). 다섯 칸에 「사투리 번역기」가 한 줄로 들어가는
+     크기이자 최소 글자 11px 규칙 위의 값이다. 행간은 16 고정 */
+  --text-tab-label: 12px;
   /* 녹음 타이머·8초 경고 캡슐 (KAN-161 4단계). Jua 16 — 숫자 두 자리가 초마다 바뀌는 자리라
      본문 글꼴로 적으면 "지금 몇 초"가 문단의 한 낱말처럼 읽힌다. 앱은 M3의 titleSmall 슬롯이
      이 값을 든다 (Type.kt) */
@@ -105,21 +108,29 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  /* 디자인 3 (KAN-288)의 4/6/10 체계. sm은 칩·별점 칸, md는 버튼·선택지·입력칸, lg는 카드·시트다.
+     xl은 따로 두지 않고 lg와 같은 10으로 접는다 — 시안에 10보다 큰 종이 모서리가 없다 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
   --radius-full: 9999px;
 
-  /* 화면 위쪽 여백 (KAN-161 3단계, 네이티브 반영 4단계). 좌우(24)·아래(32)와 달리 이 값만
-     8의 배수 밖에 서는 이유는 배치이기 때문이다 — 첫 요소를 이만큼 내려야 그림과 제목이
-     세로 가운데에 앉는다. 앱은 `Dimens.screenPaddingTop`이 같은 값을 든다 */
-  --screen-padding-top: 64px;
+  /* 상단 워드마크 앱바 높이 (KAN-288, 시안 `.appbar` min-height 56). `ui/AppBar`가 화면 위에 고정으로 선다 */
+  --app-bar-height: 56px;
+
+  /* 화면 위쪽 여백 (KAN-161 3단계, 네이티브 반영 4단계). 64는 그대로이고, 디자인 3(KAN-288)부터는 그 자리를
+     앱바(56)가 채우고 본문은 앱바 아래 8에서 시작한다 — 앱 안 화면의 세로 배치가 앱바 전과 한 픽셀도 달라지지
+     않게 64를 앱바 + 8로 나눴다. 상단 안전 영역은 지금 0이지만(viewport-fit=cover 없음) 켜는 날 앱바와 같이 내려간다.
+     앱은 `Dimens.screenPaddingTop`이 같은 값을 든다 */
+  --screen-padding-top: calc(var(--app-bar-height) + var(--space-2) + env(safe-area-inset-top));
 
   --touch-target-min: 48px;
   /* 화면의 주 컨트롤 높이 — 주 버튼과 선택지가 같이 쓴다. 48은 손가락이 닿는 최소선이고
      이 값은 시안이 "이 화면에서 누를 것"에 준 크기다 */
-  --control-height-lg: 56px;
+  --control-height-lg: 48px;
+  /* 선택지 한 칸 (KAN-288). 버튼(48)보다 6 높다 — 시안의 선택지는 글 한 줄 + 위아래 여백 14다 */
+  --control-height-choice: 54px;
   --prompt-card-min-height: 152px;
   --content-max-width: 320px;
   --opacity-disabled: 0.6;
@@ -143,8 +154,9 @@
      어긋난 거리를 따로 토큰으로 둔 이유는 눌림이다: 누르면 그림자가 사라지고 본체가
      정확히 이만큼 오른쪽·아래로 내려가 그림자 자리를 덮는다. 두 값이 갈리면 종이가
      바닥에 닿지 않고 어긋난 채로 멈춘다. */
-  --paper-shadow-x: 3px;
-  --paper-shadow-y: 4px;
+  /* 디자인 3 (KAN-288)에서 3/4 → 4/5. 반경이 작아진 만큼 종이 두께를 한 칸 늘려 떠 있는 것이 읽히게 */
+  --paper-shadow-x: 4px;
+  --paper-shadow-y: 5px;
   --shadow-card: var(--paper-shadow-x) var(--paper-shadow-y) 0 var(--color-primary-dim);
   --shadow-prompt: var(--paper-shadow-x) var(--paper-shadow-y) 0 var(--color-primary-dim);
   --shadow-hero: var(--paper-shadow-x) var(--paper-shadow-y) 0 var(--color-primary-dim);
@@ -159,31 +171,10 @@
 }
 
 /*
- * 브라우저 단독 실행에서만 화면 위쪽 여백을 좌우와 같은 24로 내린다 (KAN-199 #3).
- *
- * 64는 **앱 기준값**이다 — 앱은 화면 꼭대기부터가 우리 자리라 첫 요소를 그만큼 내려야 그림과
- * 제목이 세로 가운데에 앉는다(정본 §4). 브라우저에서는 그 위를 이미 브라우저 크롬이 차지하고
- * 있어서 같은 값이 크롬 아래에 한 번 더 얹히고, 뷰포트는 그 크롬만큼 짧아진 상태다.
- *
- * 실측(2026-09-09, 폭 393px 고정, 문항 화면):
- *
- * | 런타임 | 뷰포트 | 문서 높이 | |
- * |---|---|---|---|
- * | iOS Safari | 659 | 732 | 넘침 73 |
- * | Android Chrome | 719 | 732 | 넘침 13 |
- * | iOS 앱(WKWebView) | 812 | 812 | 들어감 |
- * | Android 앱(WebView) | 803 | 803 | 들어감 |
- *
- * **넘치는 것은 브라우저뿐이다.** 그 화면에서 상단 64는 배치가 아니라 손실이라 24로 내려
- * 40을 돌려준다. 남는 넘침은 스크롤이 받는다 — 조작부가 `position: sticky`로 바닥에 붙어
- * 있어(`.item-screen__footer`) 넘쳐도 [녹음]이 화면 밖으로 나가지 않는다.
- *
- * 판정은 `ui/runtime.ts`가 렌더 전에 <html data-runtime>으로 심는다. 값이 없으면 앱 쪽
- * 64가 그대로 선다 — 판정이 실패해도 앱 화면이 먼저 지켜지는 방향이다.
+ * 브라우저 단독 실행에서 위쪽 여백을 24로 내리던 분기(KAN-199 #3)는 디자인 3(KAN-288)에서 걷었다 — 그 40을
+ * 이제 워드마크 앱바가 차지해 브라우저에서도 본문은 앱바 아래에서 시작해야 한다. 브라우저의 넘침(실측 iOS Safari
+ * 73·Android Chrome 13, 2026-09-09)은 스크롤이 받고, 조작부는 바닥에 붙어(`.item-screen__footer`) 밀리지 않는다.
  */
-:root[data-runtime='browser'] {
-  --screen-padding-top: var(--space-6);
-}
 
 /*
  * 다크 분기가 없다 (KAN-161). 시스템이 다크여도 크림 화면 그대로 간다 — 네이티브
