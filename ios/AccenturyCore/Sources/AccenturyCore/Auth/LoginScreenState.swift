@@ -7,7 +7,7 @@ import Foundation
 /// `infra/privacy/privacy.html`의 `accentury-policy-version` 메타)의 버전이고, 서버는 이 값과 정확히 같은
 /// 동의만 받는다(다르면 400 AUTH_CONSENT_REQUIRED). 방침이 개정되면 두 플랫폼을 같은 커밋에서 올린다.
 /// 지금 값은 학습 홈의 출석 기록을 반영한 개정본(KAN-286)의 버전이다. 그 앞은 음성 저장 선택 동의 개정본(KAN-269)의 2026-10-04다.
-public let privacyPolicyVersion = "2026-10-15"
+public let privacyPolicyVersion = "2026-10-20"
 
 /// 방침 문서 주소. 웹·안드로이드와 같은 값이고 같은 이유로 **환경과 무관하게 prod 문서다** — 디버그의
 /// WEB_URL(로컬 Vite)에는 이 정적 파일이 없고, 법적 고지는 정본이 하나여야 한다.
