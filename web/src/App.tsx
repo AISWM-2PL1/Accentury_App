@@ -866,29 +866,26 @@ function HomeScreen({
             </Button>
           </>
         )}
-        {streak !== undefined &&
-          (levelTest === null ? (
-            <p className="home-streak type-body">{streakText(streak)}</p>
-          ) : (
-            <section className="home-attendance" aria-labelledby="home-attendance-title">
-              <h2 id="home-attendance-title" className="type-label">
-                연속 출석
-              </h2>
-              <p className="home-streak type-body-sm">{streakText(streak)}</p>
-              {/* 출석한 날은 벽돌 ✓, 아닌 날은 잉크 ○ — 색과 기호를 함께 바꿔 색만으로 가르지 않는다 */}
-              <ol className="home-attendance__week">
-                {attendanceWeek(streak).map((day) => (
-                  <li key={day.label} className={day.attended ? 'home-attendance__day is-attended' : 'home-attendance__day'}>
-                    <span aria-hidden="true">{day.label}</span>
-                    <i aria-hidden="true">{day.attended ? '✓' : '○'}</i>
-                    <span className="sr-only">
-                      {day.label}요일 {day.attended ? '출석' : '출석 전'}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ))}
+        {streak !== undefined && (
+          <section className="home-attendance" aria-labelledby="home-attendance-title">
+            <h2 id="home-attendance-title" className="type-label">
+              연속 출석
+            </h2>
+            <p className="home-streak type-body-sm">{streakText(streak)}</p>
+            {/* 출석한 날은 벽돌 ✓, 아닌 날은 잉크 ○ — 색과 기호를 함께 바꿔 색만으로 가르지 않는다 */}
+            <ol className="home-attendance__week">
+              {attendanceWeek(streak).map((day) => (
+                <li key={day.label} className={day.attended ? 'home-attendance__day is-attended' : 'home-attendance__day'}>
+                  <span aria-hidden="true">{day.label}</span>
+                  <i aria-hidden="true">{day.attended ? '✓' : '○'}</i>
+                  <span className="sr-only">
+                    {day.label}요일 {day.attended ? '출석' : '출석 전'}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
     </main>
   )
