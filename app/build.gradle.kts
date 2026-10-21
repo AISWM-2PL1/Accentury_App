@@ -290,11 +290,12 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 8인 이유는 iOS 사정이다: TestFlight에 1.0 빌드 7까지 올라가 있어 다음 업로드는 8부터여야
-        // 받아진다. 빌드 7(2026-09-23)은 소셜 로그인 게이트(KAN-224) 이전 커밋이라 심사에 제출할 수
-        // 없고, 8이 현재 Dev(로그인·가입 동의·세션 만료 출구·실패 재응시 포함)를 싣는 첫 빌드다
-        // (xcconfig 주석). Play에는 아직 아무것도 올라가지 않았다.
-        versionCode = 8
+        // 9인 이유는 iOS 사정이다: 빌드 8은 2026-10-06과 2026-10-20 Release 푸시에서 같은 번호로
+        // 두 번 산출돼 스토어에 이미 쓰였을 수 있어 재업로드가 막힌다. 9가 2026-10-20 Dev(KAN-286
+        // 방침 2026-10-20·KAN-288 홈 출석 포함)를 싣는 제출 빌드다 (xcconfig 주석). Play Console에도
+        // 빌드 8이 올라가 프로덕션 심사 신청 중(2026-10-21)이라 Android도 9부터 받는다. iOS·Android는
+        // 같은 번호를 쓴다.
+        versionCode = 9
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
