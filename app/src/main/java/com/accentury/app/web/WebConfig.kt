@@ -127,6 +127,32 @@ fun webTabUrl(currentUrl: String?, screen: String): String? {
 }
 
 /**
+ * 앱 안 이동을 문서 로드 대신 웹 SPA 라우터에 맡기는 JS (KAN-290). 웹이 `window.accenturyNavigate(u)`로 처리하면 `true`로
+ * 평가되고, 함수가 없거나(구버전 웹) 거절·예외면 false — 호출자는 그때 loadUrl로 폴백한다.
+ */
+fun spaNavigateJs(url: String): String =
+    "(function(u){try{return typeof window.accenturyNavigate===\"function\"&&window.accenturyNavigate(u)===true}" +
+        "catch(e){return false}})(${jsStringLiteral(url)})"
+
+/** JS 문자열 리터럴 (KAN-290). org.json 없이 JVM 테스트하려고 직접 이스케이프한다 — `<`는 `</script>` 대비. */
+private fun jsStringLiteral(value: String): String = buildString {
+    append('"')
+    for (c in value) {
+        when (c) {
+            '\\' -> append("\\\\")
+            '"' -> append("\\\"")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\u2028' -> append("\\u2028")
+            '\u2029' -> append("\\u2029")
+            '<' -> append("\\u003c")
+            else -> append(c)
+        }
+    }
+    append('"')
+}
+
+/**
  * 로그인 빌드에서 WebView 위 설정 톱니를 세울 문서인가 (KAN-252, 2026-10-13 사용자 결정). 레벨 테스트 웹 화면 —
  * 인트로(`screen` 없음)와 진행(`screen=test`) — 만 true다. 이 화면들엔 탭 바가 없어 설정으로 갈 길이 톱니뿐이다.
  * 탭 화면(home·intonation·words·translate)과 결과(`screen=result`)는 탭 바의 [설정]이 있어 false다.

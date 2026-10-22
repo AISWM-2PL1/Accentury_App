@@ -64,6 +64,8 @@ sealed interface WebLoadState {
  * @param onRetryUpload 대기 화면의 [다시 보내기] (KAN-288 6단계). 빈 값이 아닌 attemptId가 메인 스레드로 온다
  * @param onPageStarted 메인 프레임 문서가 바뀌었다 — 웹의 탭 이동은 `location.href` 대입이라 문서마다 온다.
  *   상위가 시스템 뒤로가기를 문서의 `screen`으로 판정하는 데 쓴다 (KAN-252, [webBackTarget])
+ * @param onLocationChanged 웹의 SPA 화면 전환 뒤 새 href (KAN-290, 브리지 `onLocationChanged`). 문서가 안 바뀌어
+ *   [onPageStarted]가 오지 않는 이동이다. 메인 스레드로 온다
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
  */
@@ -90,6 +92,7 @@ fun WebViewHost(
     onOpenSettings: () -> Unit = {},
     onRetryUpload: (String) -> Unit = {},
     onPageStarted: (String?) -> Unit = {},
+    onLocationChanged: (String) -> Unit = {},
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
     onWebViewReleased: (WebView) -> Unit = {},
@@ -202,6 +205,7 @@ fun WebViewHost(
                                 onStartIntonationRecording = onStartIntonationRecording,
                                 onOpenSettings = onOpenSettings,
                                 onRetryUpload = onRetryUpload,
+                                onLocationChanged = onLocationChanged,
                             ),
                             "AccenturyBridge",
                         )
@@ -255,4 +259,11 @@ private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier
         onButtonClick = onRetry,
         modifier = modifier,
     )
+}
+
+/**
+ * 앱 안 이동 (KAN-290). 웹 SPA 라우터([spaNavigateJs])가 처리하면 문서를 다시 읽지 않고, 아니면(구버전 웹 등) loadUrl로 폴백한다.
+ */
+fun WebView.navigateInApp(url: String) {
+    evaluateJavascript(spaNavigateJs(url)) { if (it != "true") loadUrl(url) }
 }

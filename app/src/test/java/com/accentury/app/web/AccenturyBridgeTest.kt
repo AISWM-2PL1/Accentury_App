@@ -1068,4 +1068,44 @@ class AccenturyBridgeTest {
     fun `빈 attemptId는 버린다`() {
         assertEquals(emptyList<String>(), retryUpload(" "))
     }
+
+    /** onLocationChanged를 한 번 부르고 콜백이 받은 URL들을 돌려준다 (KAN-290). */
+    private fun locationChanged(url: String, allowed: Boolean = true): List<String> {
+        val queue = FakeMainQueue()
+        val urls = mutableListOf<String>()
+        val bridge = AccenturyBridge(
+            postToMain = queue::post,
+            isCurrentUrlAllowed = { allowed },
+            isOriginAllowedNow = { false },
+            sessionToken = { "" },
+            onRequestMicPermission = {},
+            onStartVoiceItem = {},
+            onStartRetest = {},
+            onStartRetestAfterFailure = {},
+            onShareResult = {},
+            onLogEvent = { _, _ -> },
+            onOpenExternalUrl = {},
+            readAdConsent = { AdConsent.Unknown },
+            onSetAdConsent = {},
+            onShowInterstitialAd = {},
+            onHaptic = {},
+            accessToken = { "" },
+            onRefreshAccessToken = {},
+            onLocationChanged = { urls += it },
+        )
+        bridge.onLocationChanged(url)
+        queue.drain()
+        return urls
+    }
+
+    @Test
+    fun `SPA 화면 전환 href를 그대로 URL 추적 콜백으로 넘긴다`() {
+        val url = "https://web.example.com/?bridge=2&app=1.0&screen=words"
+        assertEquals(listOf(url), locationChanged(url))
+    }
+
+    @Test
+    fun `allowlist 밖 origin의 화면 전환 알림은 버린다`() {
+        assertEquals(emptyList<String>(), locationChanged("https://evil.example.com/", allowed = false))
+    }
 }
