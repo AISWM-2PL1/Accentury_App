@@ -290,10 +290,11 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 12인 이유: 빌드 11은 2026-10-22 TestFlight 업로드로 번호가 소모됐다. 12가 KAN-290 화면 전환
-        // SPA화(브리지 onLocationChanged·accenturyNavigate)를 실은 제출 빌드다 - 구버전 웹/앱 폴백은 있지만
-        // 네이티브 수신 코드가 들어가야 끊김이 사라진다(xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
-        versionCode = 12
+        // 13인 이유: 빌드 12(KAN-290 화면 전환 SPA화)는 2026-10-22 16:34 TestFlight 업로드로 번호가
+        // 소모됐다. 13이 KAN-224 iOS 외관 라이트 고정(다크 모드 생년월일 달력 흰 글자 수정)을 더한 제출
+        // 빌드다 - 2026-10-22 Dev 기준 로그인 포함·곡선 포인트 컬러·SPA 전환·라이트 고정이 전부 실렸다
+        // (xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
+        versionCode = 13
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
