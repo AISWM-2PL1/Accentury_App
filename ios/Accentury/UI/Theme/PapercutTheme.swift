@@ -26,7 +26,7 @@ enum Papercut {
 
     // MARK: - 색 (정본 §2)
 
-    /// 잉크. 텍스트·선·버튼 면·F0 곡선이 전부 이 한 색이다.
+    /// 잉크. 텍스트·선·버튼 면·F0 가이드 곡선이 이 색이다. 내 억양 곡선만 ``point``다.
     static let ink = Color(red: 0x1c / 255, green: 0x1a / 255, blue: 0x17 / 255)
     /// 크림. 배경이자 카드 면이다 — 카드를 세우는 것은 색이 아니라 테두리와 그늘이다.
     static let cream = Color(red: 0xf3 / 255, green: 0xec / 255, blue: 0xd9 / 255)
@@ -38,7 +38,7 @@ enum Papercut {
     static let muted = Color(red: 0x6b / 255, green: 0x64 / 255, blue: 0x59 / 255)
     /// 포인트 컬러 — 종이에 얹은 두 번째 잉크다 (정본 §2 `point`, 안드로이드 `LightPoint`). 인트로 히어로 밑줄처럼
     /// 지금 여기를 짚는 자리에만 쓰고 상태(오류·정오답)에는 쓰지 않는다 (정본 §7). 네이티브 첫 사용처는 로그인
-    /// 화면의 히어로 밑줄이다 (KAN-224).
+    /// 화면의 히어로 밑줄이고 (KAN-224), 녹음 화면의 내 억양 곡선(선·망점)도 이 색이다 (KAN-288).
     static let point = Color(red: 0xa8 / 255, green: 0x50 / 255, blue: 0x3a / 255)
 
     // MARK: - 간격 (정본 §4)
