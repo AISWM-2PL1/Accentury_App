@@ -97,4 +97,9 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(1, schemes(".google").count)
         XCTAssertFalse(schemes(".google").joined().contains("$("))
     }
+
+    /// 외관 라이트 고정 (KAN-224). 키가 빠지면 다크 모드에서 시스템 컨트롤 글자가 크림 배경에 흰색으로 나온다.
+    func testInterfaceStyleIsPinnedToLight() {
+        XCTAssertEqual(Bundle.main.infoDictionary?["UIUserInterfaceStyle"] as? String, "Light")
+    }
 }
