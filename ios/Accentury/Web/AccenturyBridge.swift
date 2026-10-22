@@ -7,7 +7,7 @@ import WebKit
 ///
 /// 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
 /// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)·햅틱(KAN-258)·
-/// 계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)까지 필요한 열일곱 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
+/// 계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 주소 알림(KAN-290)까지 필요한 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
 /// 그중 값을 돌려주는 넷(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`)은 여기로 오지
 /// 않는다 — JS 안에서 끝난다 (``BridgeUserScript`` 참고).
 ///
@@ -76,6 +76,10 @@ struct BridgeDispatcher {
     /// 대기 화면의 [다시 보내기] (KAN-288, webview-bridge.md §14). 빈 값이 아닌 attemptId만 온다 — 그 시도가 지금 재전송할 수
     /// 있는 실패인지는 창구 너머(`UploadManager.retry`)가 판정한다. 기본값은 ``onStartIntonationRecording``과 같은 이유다.
     var onRetryUpload: (String) -> Void = { _ in }
+
+    /// 웹의 SPA 화면 전환 뒤 새 주소 (KAN-290). 문서가 바뀌지 않아 `didStartProvisionalNavigation`이 안 도는 이동을
+    /// 창구 너머가 `onPageStarted`와 똑같이 받는다. 기본값은 ``onStartIntonationRecording``과 같은 이유다.
+    var onLocationChanged: (String) -> Void = { _ in }
 
     /// 메시지 한 건을 처리한다. 조건에 맞지 않으면 **조용히** 아무 일도 하지 않는다.
     ///
@@ -245,6 +249,12 @@ struct BridgeDispatcher {
                 return
             }
             onRetryUpload(attemptId)
+
+        case "onLocationChanged":
+            // 웹이 history로 화면을 옮긴 뒤 새 href (KAN-290). 문서 전환의 `onPageStarted(url)`과 같은 자리로 보낸다 —
+            // 뒤로 스와이프·탭 판정이 읽는 `currentWebUrl`이 이것으로 갱신된다. 문자열이 아니면 다른 case처럼 버린다.
+            guard let url = payload as? String else { return }
+            onLocationChanged(url)
 
         default:
             // 모르는 메서드. 신버전 웹이 구버전 앱에 보낸 호출일 수도 있고(메서드 추가는

@@ -1,3 +1,4 @@
+import JavaScriptCore
 import XCTest
 @testable import AccenturyCore
 
@@ -376,5 +377,40 @@ final class WebConfigTests: XCTestCase {
     /// 문서가 아직 없으면 톱니가 없다.
     func testGearHiddenWithoutDocument() {
         XCTAssertFalse(showsSettingsGear(nil))
+    }
+
+    // MARK: - spaNavigateJs: 앱 안 이동을 웹 라우터에 맡기기 (KAN-290)
+
+    /// `setup`으로 `window`를 꾸민 JSContext에서 식을 평가한다. 식 하나여야 결과가 그대로 돌아온다.
+    private func evalSpa(_ url: String, setup: String) -> (JSValue?, JSContext) {
+        let ctx = JSContext()!
+        ctx.evaluateScript("var window = this; var got = null; \(setup)")
+        return (ctx.evaluateScript(spaNavigateJs(url: url)), ctx)
+    }
+
+    /// 라우터가 true를 돌려주면 true이고, 따옴표·역슬래시·`</script>`·줄 종결자가 든 URL도 한 글자도 안 바뀌고 도착한다.
+    func testSpaNavigateDeliversTheExactUrlAndReturnsTrue() {
+        let url = "https://w.example/?screen=home&q=\"x\\y</script>\n\u{2028}"
+        let js = spaNavigateJs(url: url)
+        XCTAssertTrue(js.contains("window.accenturyNavigate"))
+        XCTAssertFalse(js.contains("</script>"))
+        let (result, ctx) = evalSpa(url, setup: "window.accenturyNavigate = function(u){ got = u; return true; };")
+        XCTAssertEqual(true, result?.toBool())
+        XCTAssertNil(ctx.exception)
+        XCTAssertEqual(url, ctx.objectForKeyedSubscript("got")?.toString())
+    }
+
+    /// 라우터가 없거나·던지거나·true가 아닌 값을 주면 false — 호출자가 문서 로드로 폴백한다.
+    func testSpaNavigateIsFalseWithoutAWillingRouter() {
+        for setup in [
+            "",
+            "window.accenturyNavigate = function(){ throw new Error('x'); };",
+            "window.accenturyNavigate = function(){ return 'true'; };",
+        ] {
+            let (result, ctx) = evalSpa("https://w.example/?screen=home", setup: setup)
+            XCTAssertTrue(result?.isBoolean ?? false, setup)
+            XCTAssertEqual(false, result?.toBool(), setup)
+            XCTAssertNil(ctx.exception, setup)
+        }
     }
 }

@@ -136,6 +136,18 @@ public func webTabUrl(currentUrl: String?, screen: String) -> String? {
     return "\(base)?" + (kept.map(String.init) + ["screen=\(screen)"]).joined(separator: "&")
 }
 
+/// 앱 안 이동을 웹 라우터에 맡기는 JS 식 하나 (KAN-290, 세 플랫폼 공통 계약). 웹이 `window.accenturyNavigate(u) === true`로
+/// 받았을 때만 `true`로 평가된다 — 구버전 웹·예외면 `false`라 호출자가 문서 로드로 폴백한다. URL은 데이터라
+/// ``jsonStringLiteral(_:)``을 거치고 U+2028·U+2029도 막는다(``webDeliveryJs(method:payloadJson:)``와 같은 규칙). `</`는 HTML에 실릴 때를 대비해 `<\\/`로 끊는다.
+public func spaNavigateJs(url: String) -> String {
+    let literal = jsonStringLiteral(url)
+        .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+        .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+        .replacingOccurrences(of: "</", with: "<\\/")
+    return "(function(u){try{return typeof window.accenturyNavigate===\"function\"&&window.accenturyNavigate(u)===true}"
+        + "catch(e){return false}})(\(literal))"
+}
+
 /// 로그인 빌드에서 WebView 위 설정 톱니를 세울 문서인가 (KAN-252, 2026-10-13 사용자 결정). 안드로이드 `showsSettingsGear`의
 /// 이식본이다. 레벨 테스트 웹 화면 — 인트로(`screen` 없음)와 진행(`screen=test`) — 만 true다. 이 화면들엔 탭 바가 없어
 /// 설정으로 갈 길이 톱니뿐이다. 탭 화면(home·intonation·words·translate)과 결과(`screen=result`)는 탭 바의 [설정]이 있어 false다.

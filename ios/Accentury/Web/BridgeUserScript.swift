@@ -157,7 +157,8 @@ enum BridgeUserScript {
             refreshAccessToken: function(){ post("refreshAccessToken"); },
             startIntonationRecording: function(json){ post("startIntonationRecording", String(json)); },
             openSettings: function(){ post("openSettings"); },
-            retryUpload: function(id){ post("retryUpload", String(id)); }
+            retryUpload: function(id){ post("retryUpload", String(id)); },
+            onLocationChanged: function(u){ post("onLocationChanged", String(u)); }
           });
         })();
         """
