@@ -47,5 +47,5 @@
 // FAKE_IDP = YES
 
 // --- 로그인 관문 (KAN-270 6단계, Debug·Release 공통) ---
-// 기본은 꺼짐(익명 모드). 로그인 관문·계정 설정을 켜려면 주석을 푼다.
-// LOGIN_ENABLED = YES
+// 기본은 켜짐(KAN-274). 로그인 관문·계정 설정을 끄고 익명 모드로 보려면 주석을 푼다.
+// LOGIN_ENABLED = NO

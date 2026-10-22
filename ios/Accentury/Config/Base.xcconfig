@@ -13,14 +13,13 @@ PRODUCT_BUNDLE_IDENTIFIER = com.accentury.app
 // 한쪽만 올리면 `AccenturyCoreTests/ReleaseVersionParityTests`가 두 파일을 직접 읽어 대조하다
 // 실패한다 — 두 스토어에 서로 다른 버전이 나가는 것을 커밋 전에 막으려는 검사다.
 //
-// **왜 9인가.** App Store Connect는 같은 `MARKETING_VERSION` 안에서 빌드 번호가 단조 증가할
-// 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7). 빌드 8은 2026-10-06과 2026-10-20 Release
-// 푸시에서 같은 번호로 두 번 산출돼 스토어에 이미 쓰였을 수 있어 재업로드가 막힌다. 9가
-// 2026-10-20 Dev(KAN-286 방침 2026-10-20·KAN-288 홈 출석 포함)를 싣는 제출 빌드다. Play Console에도
-// 빌드 8이 올라가 프로덕션 심사 신청 중(2026-10-21)이라 Android도 9부터 받는다. iOS·Android는
-// 같은 번호를 쓴다.
+// **왜 10인가.** App Store Connect는 같은 `MARKETING_VERSION` 안에서 빌드 번호가 단조 증가할
+// 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7). 빌드 9는 2026-10-22 App Store Connect에
+// 업로드(TestFlight)돼 번호가 소모됐다. 10이 로그인·가입을 포함한 첫 제출 빌드다(2026-10-22 팀
+// 결정, KAN-274). Play AAB 9도 올라갔을 수 있어 Android도 10부터 받는다. iOS·Android는 같은
+// 번호를 쓴다.
 MARKETING_VERSION = 1.0
-CURRENT_PROJECT_VERSION = 9
+CURRENT_PROJECT_VERSION = 10
 
 // minSdk 29(Android 10, 2019)와 대략 같은 시기·보급률 대의 하한.
 IPHONEOS_DEPLOYMENT_TARGET = 16.0
@@ -91,11 +90,12 @@ NAVER_URL_SCHEME =
 // Debug.xcconfig 주석 참고. Info-Release.plist에는 키 자체가 없고 읽는 코드도 `#if DEBUG`다.
 FAKE_IDP = NO
 
-// 로그인 관문 (KAN-270 6단계). 기본 NO = 익명 모드 — 관문·앱 시작 Refresh 확인·계정 설정이 빠지고 음성 저장 동의는
-// 설치당 한 번 묻는다. FAKE_IDP와 달리 Debug·Release 모두 이 값을 본다(릴리스 허용). 그래서 아래 Local.xcconfig
-// include '앞'에 두어 로컬 파일의 `LOGIN_ENABLED = YES`가 두 구성 모두를 덮고, Release.xcconfig는 다시 못 박지 않는다.
-// 안드로이드 `-PloginEnabled=true`(local.properties `loginEnabled=true`) 자리다. `xcodebuild ... LOGIN_ENABLED=YES`도 된다.
-LOGIN_ENABLED = NO
+// 로그인 관문 (KAN-270 6단계). 기본 YES (2026-10-22 팀 결정: 첫 스토어 심사부터 로그인 포함, KAN-274). NO면 익명
+// 모드 — 관문·앱 시작 Refresh 확인·계정 설정이 빠지고 음성 저장 동의는 설치당 한 번 묻는다. FAKE_IDP와 달리
+// Debug·Release 모두 이 값을 본다. 그래서 아래 Local.xcconfig include '앞'에 두어 로컬 파일의 `LOGIN_ENABLED = NO`가
+// 두 구성 모두를 덮고, Release.xcconfig는 다시 못 박지 않는다. 스토어 빌드는 ios-release.yml이 YES를 요구한다.
+// 안드로이드 `-PloginEnabled=false`(local.properties `loginEnabled=false`) 자리다. `xcodebuild ... LOGIN_ENABLED=NO`도 된다.
+LOGIN_ENABLED = YES
 
 // App Store Connect 앱 레코드의 숫자 Apple ID (KAN-288). 업데이트 필요 화면의 [업데이트하기]가
 // `https://apps.apple.com/app/id<값>`을 연다(AccenturyCore `appStoreProductUrl`). **빈 값이 정상**이다 — 게시 전이라

@@ -108,9 +108,9 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 빌드에서 익명 세션으로는 동의를 실을 길이 없었다. 5단계(Android)에서 플래그를 두고 웹과 같은 방식으로 본문에
 버전을 싣는다. 서버 변경은 없다. 6단계(iOS)가 같은 계약을 옮겼다 — 아래 「iOS 대응」.
 
-- **플래그 `LOGIN_ENABLED`**: 기본 `false`(익명 모드). `-PloginEnabled=true` 또는 `local.properties`
-  `loginEnabled=true`로 켠다. `FAKE_IDP`와 달리 debug·release 모두 이 값을 보고, 두 값 다 릴리스에 허용된다
-  (`app-release.yml`의 `FAKE_IDP` 가드와 무관). 레시피는 `social-login.md` §5.
+- **플래그 `LOGIN_ENABLED`**: 기본 `true`(2026-10-22 팀 결정, KAN-274). `-PloginEnabled=false` 또는 `local.properties`
+  `loginEnabled=false`로 끄면 익명 모드다. `FAKE_IDP`와 달리 debug·release 모두 이 값을 보고, 스토어 빌드는
+  `app-release.yml`이 `true`를 요구한다. 레시피는 `social-login.md` §5.
 - **설치당 한 번**: 시작 게이트가 권한 → **동의** → 점검 → 세션 순서로 선다(웹 순서). 선택은
   SharedPreferences `voice_consent_anonymous`(키 `asked`·`consented`, `AnonymousVoiceConsentStore`)에 남고, 이후
   첫 응시·재응시마다 `anonymousVoiceConsentVersion(consented)`로 본문을 정한다. 기본은 미동의다.
@@ -149,7 +149,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 - **폴백에서 region은 유지한다 (KAN-274)**: 400 `VALIDATION_FAILED`로 동의 없이 다시 만들 때 동의 버전만 빼고
   `region`은 그대로 싣는다. 지역은 동의와 무관한 값이고, 동의 없는 익명 세션도 서버가 점수와 지역을 남긴다. 웹과 같다.
 
-| | 계정 모드 (`LOGIN_ENABLED=true`) | 익명 모드 (기본) |
+| | 계정 모드 (`LOGIN_ENABLED=true`, 기본) | 익명 모드 |
 |---|---|---|
 | 첫 화면 | 로그인 관문, 스플래시가 Refresh 확인을 기다림 | 곧장 인트로, 앱 시작 확인 없음 |
 | 동의 저장 | 서버 계정 (`PUT\|DELETE /v0/users/me/voice-consent`) | 기기 로컬 prefs |
@@ -167,7 +167,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 
 | Android | iOS |
 |---|---|
-| `build.gradle.kts` `loginEnabled()` → `BuildConfig.LOGIN_ENABLED` | xcconfig `LOGIN_ENABLED`(기본 `NO`, `Base.xcconfig`의 Local include 앞) → `Info-Debug.plist`·`Info-Release.plist` 둘 다 → `AppConfig.loginEnabled`(`#if DEBUG` 없음). 켜는 법은 `social-login.md` §5 |
+| `build.gradle.kts` `loginEnabled()` → `BuildConfig.LOGIN_ENABLED` | xcconfig `LOGIN_ENABLED`(기본 `YES`, `Base.xcconfig`의 Local include 앞) → `Info-Debug.plist`·`Info-Release.plist` 둘 다 → `AppConfig.loginEnabled`(`#if DEBUG` 없음). 끄는 법은 `social-login.md` §5 |
 | `AccenturyApplication` `if (LOGIN_ENABLED) authGate.retry()` | `AccenturyApp.init` `if AppConfig.loginEnabled { bootstrap }` — `AuthHub` static let을 깨우지 않아 Keychain 접근도 없다 |
 | `MainActivity` `AuthGate` / `AnonymousFlow` 분기 | `ContentView.rootScreen`: `AuthGateView` / `AnonymousFlowView`(`Auth/AuthGateView.swift`) |
 | `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`·`region`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`·`.region`, `@MainActor ObservableObject`) |
