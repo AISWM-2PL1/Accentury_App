@@ -615,11 +615,10 @@ curl -s https://accentury.app/sitemap.xml
 | `/contact.html` | 문의(`team2pl1@gmail.com`, 오류·제휴·개인정보 요청) | 이 레포 `web/public/` |
 | `/account-deletion.html` | 앱 계정 삭제(회원 탈퇴) 안내 — 앱 안 경로(설정 → 계정 → [회원 탈퇴] → [탈퇴]), 앱 없이 이메일 요청, 지워지는 것·남는 것. Play Console 「계정 삭제 URL」로 입력하는 주소다(KAN-251 3단계, 2026-10-08). 첫 화면 footer에는 없고 `contact.html`에서 링크한다 | 〃 |
 | `/privacy.html` | 개인정보처리방침 | 서버 레포 `infra/privacy/` |
-| `/guide/index.html` | 사투리 이야기 목차(8편 링크와 한 줄 요약) | 이 레포 `web/public/guide/` |
+| `/guide/index.html` | 사투리 이야기 목차(7편 링크와 한 줄 요약) | 이 레포 `web/public/guide/` |
 | `/guide/how-the-test-works.html` | 테스트 진행 순서(권한·점검·카운트다운·두 문항 유형·분석 대기·결과) | 〃 |
 | `/guide/five-tiers.html` | 점수 세 개(억양·단어·종합)의 뜻과 다섯 등급 이름. 공식·가중치·경계값은 뺐다 | 〃 |
 | `/guide/pitch-curve.html` | 실시간 '내 억양' 곡선의 파이프라인(코드 상수는 뺐다) | 〃 |
-| `/guide/choosing-pitch-model.html` | RMVPE 벤치마크 기록(비교 방식, 잡음 조건 결론, 한계) — 출처는 "팀 내부 측정 기록 기준" 한 줄 | 〃 |
 | `/guide/recording-environment.html` | 녹음 형식, 브라우저 통화 처리 끄기, 녹음 직후 품질 검사 | 〃 |
 | `/guide/voice-data.html` | 음성·결과 처리(방침 2026-10-04 풀어쓰기, 정본은 `/privacy.html`) | 〃 |
 | `/guide/faq.html` | 자주 묻는 질문(권한, 재녹음, 분석 대기, 공유, 보관) | 〃 |
@@ -630,6 +629,16 @@ curl -s https://accentury.app/sitemap.xml
 한 줄만 둔다. 하단 `<nav>`는 모든 페이지가 같다(홈·소개·사투리 이야기·개인정보처리방침·문의, 테스트가 검사). 새 `.html`은
 sitemap에 올리지 않으면 `staticPages.test.ts`가 깨지고(역방향 검사), `PAGES`에 넣으면 본문 하한과 내부 링크의
 파일 실재까지 검사한다.
+
+**사투리 이야기 디자인 개편 (KAN-291, 2026-10-22).** `guide/` 글 7편은 같은 글 틀을 쓴다. 상단 워드마크
+「Accentury」(홈 링크), Jua 400 제목(곡선 밑줄·h2 앞 막대는 2026-10-22 사용자 요청으로 뺌), 카드 없이 크림
+바탕 본문, 테두리 상자 목록, 칩 없이 가운데 정렬한 글자 링크 내비(밑줄 유지, 패딩으로 터치 48px, 「사투리 이야기」에
+`aria-current`)다. 색은 `#F3ECD9` `#CFC5AA` `#6B6459` `#1C1A17` `#A8503A` 다섯 개만 쓰고 JS는 없다. CSS는 공용 파일 없이 각
+html `<style>`에 인라인으로 둔다 — `web-deploy.yml`이 no-cache로 올리는 것은 `*.html`(과 robots·sitemap)뿐이고 이름 고정
+css는 1년 immutable로 가므로, 공용 css를 고쳐도 방문자에게 나가지 않는다. 글꼴·캐릭터 그림 같은 자산은
+`/guide/assets/`에 두는데 이름이 고정이라 역시 immutable로 캐시된다. 내용을 바꿀 때는 파일을 덮어쓰지 말고 파일명을
+바꾸고 참조도 함께 고친다. 목록(`guide/index.html`)은 랜딩형이다 — 스크롤에 고정되는 폰 목업이 있지만 JS가 꺼져도 본문이
+다 보이고, `prefers-reduced-motion`이면 움직임을 멈춘다.
 
 **글 작성 원칙 (팀 결정 2026-10-07).** 전문가 검수가 없으므로 언어학·방언학 일반론(지역 억양 특징, 사투리 역사)과
 효능 주장, 타 서비스 비교를 쓰지 않는다. 우리가 직접 만들고 잰 것에 관한 1차 사실만 쓰고, 근거를 못 찾은 문장은
@@ -673,7 +682,7 @@ Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.Acce
   `/privacy.html`(서버 레포 `infra/privacy/privacy.html`).
 - `team-story.html`: 비즈니스 모델·매출·멘토 실명·일정은 쓰지 않는다(KAN-275 3단계 지시).
 - `recording-environment.html`: 일반 음향학 조언은 쓰지 않고, 권하는 말은 우리 검사 문구와 잡음 실험에서 나온 것만 쓴다.
-- `choosing-pitch-model.html`: 표현 규칙은 `benchmark-plan.md` 3.2를 따른다 — "RMVPE보다 정확"이 아니라 "RMVPE와 일치".
+- `choosing-pitch-model.html`(음정 추출 모델을 고르기까지): KAN-291(2026-10-22)에서 글 삭제. sitemap·`staticPages.test.ts`의 `PAGES`에서도 뺐다.
 - `index.html` head 인라인 스크립트(리뷰 P1): 앱 WebView에서 번들 전 첫 페인트에 footer가 비치지 않게 `data-runtime`을
   먼저 심는다. 서버 레포 edge CSP가 Report-Only(`default-src 'self'`)라 지금은 보고만 되고, enforce로 바꾸면 이 스크립트가
   막혀 첫 프레임 깜빡임이 돌아온다(기능은 `markRuntime`이 뒤에서 심어 그대로). 그때는 해시(`'sha256-…'`)를 CSP에 넣는다.
@@ -703,9 +712,7 @@ Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.Acce
   - `docs/wiki/ondevice-f0.md` (자체 YIN 구현, 정밀 채점은 서버 몫, 무성 판별, 에너지 게이트)
   - `~/accentury/docs/wiki/audio-capture.md` (16kHz mono, 억양 = F0 곡선의 오르내림)
   - `web/src/audio/yin.ts`·`recording/userCurve.ts` (웹도 같은 규칙)
-- `choosing-pitch-model.html` — 측정값·데이터 구성 수치는 근거 문서에만 둔다
-  - `~/accentury/docs/wiki/benchmark-plan.md` 「실행 결과」 두 회차(기준선·육안 검수, 잡음 조건 비교, 카페 사용 전제, FFE는 절대 정확도 아님), 「3.2」 후보 목록, 같은 레포 벤치마크 묶음의 측정 보고서(매칭 기준, 한계)
-  - `~/accentury/docs/wiki/ai-pipeline.md` (서버 F0 추출기 RMVPE)
+- `choosing-pitch-model.html` — KAN-291(2026-10-22)에서 글 삭제. 근거였던 `~/accentury/docs/wiki/benchmark-plan.md`는 code wiki에 그대로 있다
 - `recording-environment.html` — 샘플링 숫자·검사 임계값·실험 배율은 쓰지 않는다
   - `~/accentury/docs/wiki/audio-capture.md` 「확정 오디오 스펙」(16kHz mono), `mvp-spec.md` NFR-CP-03
   - `web/src/audio/resample.ts` 머리 주석 (기기 샘플링 → 16kHz, 줄이기 전 고역 제거)

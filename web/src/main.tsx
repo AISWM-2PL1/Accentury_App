@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App'
+import { AppRoot } from './AppRoot'
 import { installGa4Tag } from './analytics/ga4'
 import { isStandaloneWeb } from './bridge/bridge'
 import { AppBar } from './ui/AppBar'
@@ -31,6 +31,6 @@ if (isStandaloneWeb(window.location.search)) installGa4Tag()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppBar />
-    <App />
+    <AppRoot />
   </StrictMode>,
 )

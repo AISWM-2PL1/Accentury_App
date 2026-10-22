@@ -210,17 +210,17 @@ fun fakeIdp(): Boolean {
 }
 
 /**
- * 로그인 관문 스위치 (KAN-270 5단계). `-PloginEnabled=true` → local.properties의 `loginEnabled=true` 순 - [fakeIdp]와
- * 같은 꼴이다. **기본 꺼짐(익명 모드)**이고, [fakeIdp]와 달리 debug·release 모두 이 값을 본다(두 값 다 릴리스 허용).
- * 꺼지면 로그인 관문·앱 시작 Refresh 확인·계정 설정이 전부 빠지고, 음성 저장 동의는 설치당 한 번 묻고 기기에 둔다.
+ * 로그인 관문 스위치 (KAN-270 5단계). `-PloginEnabled=false` → local.properties의 `loginEnabled=false` 순 - [fakeIdp]와
+ * 같은 꼴이다. **기본 켜짐**(2026-10-22 팀 결정: 첫 스토어 심사부터 로그인 포함, KAN-274)이고, [fakeIdp]와 달리
+ * debug·release 모두 이 값을 본다. 릴리스는 app-release.yml이 true를 요구한다. 꺼지면(익명 모드) 로그인 관문·앱 시작 Refresh 확인·계정 설정이 전부 빠지고, 음성 저장 동의는 설치당 한 번 묻고 기기에 둔다.
  */
 fun loginEnabled(): Boolean {
     (project.findProperty("loginEnabled") as String?)?.let { return it.toBoolean() }
     val local = rootProject.file("local.properties")
-    if (!local.exists()) return false
+    if (!local.exists()) return true
     val props = Properties()
     local.inputStream().use { props.load(it) }
-    return props.getProperty("loginEnabled")?.toBoolean() ?: false
+    return props.getProperty("loginEnabled")?.toBoolean() ?: true
 }
 
 /**
@@ -290,11 +290,10 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 8인 이유는 iOS 사정이다: TestFlight에 1.0 빌드 7까지 올라가 있어 다음 업로드는 8부터여야
-        // 받아진다. 빌드 7(2026-09-23)은 소셜 로그인 게이트(KAN-224) 이전 커밋이라 심사에 제출할 수
-        // 없고, 8이 현재 Dev(로그인·가입 동의·세션 만료 출구·실패 재응시 포함)를 싣는 첫 빌드다
-        // (xcconfig 주석). Play에는 아직 아무것도 올라가지 않았다.
-        versionCode = 8
+        // 12인 이유: 빌드 11은 2026-10-22 TestFlight 업로드로 번호가 소모됐다. 12가 KAN-290 화면 전환
+        // SPA화(브리지 onLocationChanged·accenturyNavigate)를 실은 제출 빌드다 - 구버전 웹/앱 폴백은 있지만
+        // 네이티브 수신 코드가 들어가야 끊김이 사라진다(xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
+        versionCode = 12
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -355,8 +354,8 @@ android {
         buildConfigField("String", "NAVER_CLIENT_SECRET", "\"$naverClientSecret\"")
         // 가짜 IdP는 기본 꺼짐이고 debug만 fakeIdp()를 본다 - release는 이 false를 그대로 쓴다.
         buildConfigField("boolean", "FAKE_IDP", "false")
-        // 로그인 관문 (KAN-270 5단계). debug·release 공통 - 예: ./gradlew :app:installDebug -PloginEnabled=true
-        // (또는 local.properties에 loginEnabled=true). 기본 false = 익명 모드.
+        // 로그인 관문 (KAN-270 5단계). debug·release 공통, 기본 true(KAN-274). 익명 모드로 끄려면
+        // ./gradlew :app:installDebug -PloginEnabled=false (또는 local.properties에 loginEnabled=false).
         buildConfigField("boolean", "LOGIN_ENABLED", "${loginEnabled()}")
 
         /*

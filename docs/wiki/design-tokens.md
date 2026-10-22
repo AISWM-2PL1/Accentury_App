@@ -321,7 +321,8 @@ F0 곡선·컨트롤 경계는 텍스트가 아니라 WCAG 2.1 **1.4.11 비텍�
 "일러스트 전용"이라는 경계가 무너진다. 그래서 토큰이 아니라 상수다.
 
 **다크 분기를 라이트로 고정.** `Theme.kt`는 `isSystemInDarkTheme()`을 보지 않고,
-`tokens.css`에는 `prefers-color-scheme` 블록이 없다. 이유는 둘이다. 한 세션 안에서
+`tokens.css`에는 `prefers-color-scheme` 블록이 없다. iOS는 `Info-*.plist`의
+`UIUserInterfaceStyle = Light`로 같은 고정을 건다(KAN-224 — 없으면 시스템 컨트롤만 다크 글자색이 된다). 이유는 둘이다. 한 세션 안에서
 네이티브와 WebView 화면이 번갈아 나오는데 한쪽만 뒤집히면 화면 경계에서 색이 튄다.
 그리고 Papercut은 크림 종이에 잉크를 얹은 그림이라 명암을 뒤집으면 같은 디자인의 어두운
 판이 아니라 다른 물건이 된다 — 검은 종이에 크림 잉크는 종이가 아니라 칠판이다.

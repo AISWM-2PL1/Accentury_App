@@ -20,6 +20,7 @@ import {
   waitForAccessToken,
 } from './bridge/bridge'
 import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, type TabScreen } from './navigation/entryUrl'
+import { assignHref } from './navigation/spaNavigate'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
 import type { RegionCode } from './region/regions'
@@ -50,9 +51,10 @@ const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ?? (import.meta.env.DEV ? 'http://10.0.2.2:8080' : '')
 
 /**
- * 문서를 옮기는 지점 (테스트 주입용). 기본값은 `location.href` 대입인데, jsdom은 그 대입을
- * 구현하지 않아 "어디로 보내려 했는지"를 확인할 수 없다. 주입 지점을 하나 두면 화면 전환을
- * 실제 이동 없이 검사할 수 있다 (진입 쿼리 조립 자체는 `navigation/entryUrl`이 소유한다).
+ * 화면을 옮기는 지점 (테스트 주입용). 실행에서는 `AppRoot`가 [spaNavigate](SPA 전환, 구버전 앱은 문서 이동
+ * 폴백, KAN-290)를 넘긴다. 기본값은 문서 이동([assignHref])인데, jsdom은 그 대입을 구현하지 않아 "어디로 보내려
+ * 했는지"를 확인할 수 없다. 주입 지점을 하나 두면 화면 전환을 실제 이동 없이 검사할 수 있다 (진입 쿼리 조립 자체는
+ * `navigation/entryUrl`이 소유한다).
  *
  * `replace`는 히스토리에 새 항목을 쌓는 대신 지금 항목을 덮어쓴다. 뒤로 가기가 돌아가면
  * **안 되는** 전환에만 쓴다 ([goToResult] 참고).
@@ -724,9 +726,8 @@ function ResultRoute({
 /**
  * 분석이 끝났다 — 결과 화면으로 넘긴다 (KAN-14 → KAN-29).
  *
- * 남기고 지우는 규칙은 [buildResultUrl]이 소유한다. 같은 문서를 다시 로드하는 이유는
- * [goToIntro]와 같다 — 진행 화면이 들고 있던 상태(폴링 타이머·스냅샷 참조)를 확실히
- * 버리기 위해서다.
+ * 남기고 지우는 규칙은 [buildResultUrl]이 소유한다. SPA 전환이어도 `AppRoot`가 화면마다 `App`을 새로
+ * 마운트하므로 진행 화면이 들고 있던 상태(폴링 타이머·스냅샷 참조)는 예전 문서 재로드처럼 버려진다 (KAN-290).
  *
  * ## 이 전환만 히스토리를 덮어쓴다
  *
@@ -763,33 +764,18 @@ function goToResult(sessionId: string, navigate: Navigate): void {
  * 사용자가 시작도 누르기 전에 세션이 하나 생긴다.
  */
 function goToIntro(navigate: Navigate): void {
-  // 같은 문서를 다시 로드한다 — 결과 화면이 들고 있던 상태를 확실히 버리기 위해서다.
+  // 결과 화면 상태는 `AppRoot`의 화면별 재마운트로 버려진다 (SPA 전환, 구버전 앱은 문서 재로드 - KAN-290).
   navigate(window.location.pathname + buildIntroUrl(window.location.search))
 }
 
 /**
- * 탭 화면 전환 (KAN-252). [goToIntro]처럼 같은 문서를 다시 로드하고, 남기고 지우는 규칙은 [buildTabUrl]이
- * 소유한다 — 앱 표식(`bridge`·`app`)이 남아야 다음 문서도 앱 실행으로 판정된다.
+ * 탭 화면 전환 (KAN-252). SPA로 옮기고(구버전 앱은 문서 재로드, KAN-290), 남기고 지우는 규칙은 [buildTabUrl]이
+ * 소유한다 — 앱 표식(`bridge`·`app`)이 남아야 다음 화면도 앱 실행으로 판정된다.
  *
  * 히스토리는 쌓는다(`replace` 아님). 앱 안의 뒤로가기는 네이티브가 자기 규칙으로 다룬다 ([goToResult] 주석).
  */
 function goToTab(tab: TabScreen, navigate: Navigate): void {
   navigate(window.location.pathname + buildTabUrl(window.location.search, tab))
-}
-
-/**
- * [AppProps.navigate]의 기본값. 대입 한 줄을 함수로 감싸 두면 화면 전환 지점이 전부
- * `navigate` 하나를 거치게 되어, 테스트가 갈아끼울 자리가 한 곳으로 모인다.
- *
- * 두 갈래가 하는 일은 같다 — 문서를 옮긴다. 히스토리에 지금 항목을 남기느냐 덮어쓰느냐만
- * 다르다.
- */
-function assignHref(url: string, options?: { replace?: boolean }): void {
-  if (options?.replace === true) {
-    window.location.replace(url)
-    return
-  }
-  window.location.href = url
 }
 
 /**

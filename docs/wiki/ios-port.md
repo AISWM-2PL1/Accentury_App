@@ -96,6 +96,17 @@ allowlist를 통과한 문서뿐이고, `force`는 그 문을 열지 못한다. 
 정책 취소면 `WebKitErrorDomain` 102) 그걸 실패로 접으면 링크 한 번 막을 때마다 화면이 오류로
 뒤집힌다. 안드로이드에는 없던 구분이다.
 
+### SPA 화면 전환 (KAN-290)
+
+웹이 탭·뒤로를 문서 로드 대신 history로 옮기면 `didStartProvisionalNavigation`이 돌지 않는다. 그래서 주소 추적과 앱발 이동을 브리지로 돌린다.
+
+| 방향 | 이름 | iOS 처리 |
+|---|---|---|
+| 웹 → 네이티브 | `onLocationChanged(url)` | `BridgeDispatcher`가 문자열만 받아 `onPageStarted`와 같은 콜백으로 넘긴다. `TestFlowView.currentWebUrl`이 갱신된다 |
+| 네이티브 → 웹 | `window.accenturyNavigate(url)` | `WKWebView.navigateInApp(to:)`가 `spaNavigateJs`(AccenturyCore)를 평가한다. 결과가 `true`가 아니면(구버전 웹·예외·nil) `load(URLRequest)`로 폴백한다 |
+
+쓰는 자리는 왼쪽 가장자리 스와이프 뒤로와 억양 녹음 ✕(억양 탭 진입) 둘이다. 첫 진입(`WebViewHost.updateUIView`)과 `?screen=test` 시작은 문서 로드로 남는다.
+
 ## 3. 단계별로 안드로이드와 갈린 것
 
 각 항목의 근거는 그 단계 커밋 본문에 있다 (`git log 9a1bfa4^..`).

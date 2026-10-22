@@ -148,6 +148,7 @@ import com.accentury.app.web.TestEntry
 import com.accentury.app.web.WebViewHost
 import com.accentury.app.web.appLinkOrigins
 import com.accentury.app.web.buildWebUrl
+import com.accentury.app.web.navigateInApp
 import com.accentury.app.web.parseAppLink
 import com.accentury.app.web.showsSettingsGear
 import com.accentury.app.web.startsAtHome
@@ -971,6 +972,7 @@ private fun TestFlow(
                      * (KAN-34 2단계). 재응시는 새 세션을 **손에 든 채** 인트로로 돌아가는 흐름이라,
                      * 세션의 존재만으로 진입 URL을 만들면 인트로가 뜰 새도 없이 테스트가 다시 열린다.
                      * "세션이 있다"는 응시할 준비가 됐다는 뜻이고, "시작을 눌렀다"가 들어가겠다는 뜻이다.
+                     * 시작 게이트의 `screen=test` 진입은 SPA 이동(KAN-290 navigateInApp) 범위 밖이라 문서 로드 그대로다.
                      */
                     testEntry = if (startRequested) {
                         session?.let { TestEntry(it.testVersion, it.voiceSet, it.sessionId) }
@@ -1041,6 +1043,8 @@ private fun TestFlow(
                 // 대기 화면의 [다시 보내기] (KAN-288 6단계) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 위 전달 이펙트가 싣는다
                 onRetryUpload = { attemptId -> uploadViewModel?.retry(attemptId) },
                 onPageStarted = { webUrl = it },
+                // SPA 화면 전환 (KAN-290) — 문서 로드가 없어 onPageStarted 대신 온다. 추적은 같다
+                onLocationChanged = { webUrl = it },
                 onWebViewCreated = { webView = it },
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.
@@ -1056,7 +1060,7 @@ private fun TestFlow(
              */
             val backTarget = if (tabBarEntry) webBackTarget(webUrl, startRequested) else null
             BackHandler(enabled = backTarget != null && webView != null) {
-                backTarget?.let { webView?.loadUrl(it) }
+                backTarget?.let { webView?.navigateInApp(it) }
             }
 
             // 오버레이는 WebView 위, 업로드 상태 바 아래다 — 녹음 중에도 실패한 업로드의
@@ -1125,7 +1129,7 @@ private fun TestFlow(
                     IntonationCloseButton(
                         onClick = {
                             intonation.close()
-                            webTabUrl(webUrl, "intonation")?.let { webView?.loadUrl(it) }
+                            webTabUrl(webUrl, "intonation")?.let { webView?.navigateInApp(it) }
                         },
                         modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
                     )

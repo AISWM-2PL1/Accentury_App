@@ -374,4 +374,27 @@ class WebConfigTest {
     fun `문서가 아직 없으면 톱니가 없다`() {
         assertFalse(showsSettingsGear(null))
     }
+
+    // --- spaNavigateJs: 앱 안 이동을 웹 SPA 라우터에 맡기는 JS (KAN-290) ---
+
+    @Test
+    fun `SPA 이동 JS는 accenturyNavigate를 URL 리터럴로 부른다`() {
+        val js = spaNavigateJs("https://web.example.com/?screen=home")
+        assertTrue(js.contains("window.accenturyNavigate"))
+        assertTrue(js.endsWith("(\"https://web.example.com/?screen=home\")"))
+    }
+
+    @Test
+    fun `SPA 이동 JS는 따옴표·역슬래시·script 닫는 태그를 이스케이프한다`() {
+        val js = spaNavigateJs("a\"b\\c</script>")
+        assertTrue(js.endsWith("(\"a\\\"b\\\\c\\u003c/script>\")"))
+        assertFalse(js.contains("</script>"))
+    }
+
+    @Test
+    fun `SPA 이동 JS는 줄바꿈과 줄 구분자를 이스케이프한다`() {
+        val js = spaNavigateJs("a\nb\rc\u2028d\u2029e")
+        assertTrue(js.endsWith("(\"a\\nb\\rc\\u2028d\\u2029e\")"))
+        assertFalse(js.contains('\n'))
+    }
 }

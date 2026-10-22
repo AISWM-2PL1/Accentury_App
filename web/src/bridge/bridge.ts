@@ -149,6 +149,11 @@ export interface AccenturyBridge {
    * `onItemResult`, 다시 실패하면 `onUploadFailed`가 온다. 메서드 추가라 optional이다(iOS·구버전 앱엔 없다)
    */
   retryUpload?(attemptId: string): void
+  /**
+   * 웹이 SPA로 화면을 옮긴 뒤 새 URL을 알린다 (KAN-290). 문서 로드가 없으니 네이티브는 이 통지로 지금 화면을
+   * 안다(탭 강조·뒤로가기 판단). 회신은 없다. 이 메서드를 아는 앱만 SPA 전환을 받는다([supportsSpaNavigation])
+   */
+  onLocationChanged?(url: string): void
 }
 
 /**
@@ -816,4 +821,23 @@ function installReceiver(
     else remaining[slot] = previous
     window.AccenturyWeb = Object.keys(remaining).length === 0 ? undefined : remaining
   }
+}
+
+/**
+ * SPA 전환 뒤 네이티브에 새 URL을 알린다 (KAN-290). 메서드가 없으면(브라우저 단독·구버전 앱) false.
+ */
+export function notifyLocationChanged(url: string): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.onLocationChanged !== 'function') return false
+  bridge.onLocationChanged(url)
+  return true
+}
+
+/**
+ * SPA 전환을 해도 되는 실행인가 (KAN-290). 브리지가 없으면(브라우저 단독) 알릴 상대가 없으니 된다. 브리지가 있는데
+ * `onLocationChanged`를 모르는 구버전 앱(빌드 11 이하)은 문서 로드로 화면을 알아채므로 문서 이동을 유지한다.
+ */
+export function supportsSpaNavigation(): boolean {
+  const bridge = window.AccenturyBridge
+  return bridge === undefined || typeof bridge.onLocationChanged === 'function'
 }

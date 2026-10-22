@@ -152,7 +152,6 @@ const PAGES: Record<string, number> = {
   'guide/how-the-test-works.html': 400,
   'guide/five-tiers.html': 400,
   'guide/pitch-curve.html': 400,
-  'guide/choosing-pitch-model.html': 400,
   'guide/recording-environment.html': 400,
   'guide/voice-data.html': 400,
   'guide/faq.html': 400,

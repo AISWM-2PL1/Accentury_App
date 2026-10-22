@@ -49,6 +49,12 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<!-- 외관을 라이트로 고정 (KAN-224). Papercut은 라이트 단일 팔레트라 Android Theme.kt가 다크 분기를
+	     라이트로 고정한 것과 같은 이유다. 이 키가 없으면 다크 모드 폰에서 시스템이 그리는 컨트롤
+	     (graphical DatePicker·alert·키보드)만 어두운 글자색으로 바뀌고 배경은 크림으로 남아, 생년월일
+	     달력 글자가 흰색으로 나와 안 보인다(2026-10-22 TestFlight 빌드 11). -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
 
 	<!-- 번들 폰트 등록 (KAN-178). Info-Debug.plist와 같은 값이다 — 디버그 전용 자산이 아니라
 	     화면 자체가 쓰는 서체라 릴리스에도 그대로 실린다 (FAKE_MIC_ASSET과 갈리는 지점). -->
@@ -139,7 +145,7 @@
 	<key>NAVER_URL_SCHEME</key>
 	<string>$(NAVER_URL_SCHEME)</string>
 
-	<!-- 로그인 관문 스위치 (KAN-270 6단계). 값의 출처는 Config/Base.xcconfig이고 기본 NO(익명 모드)다. FAKE_IDP와 달리
+	<!-- 로그인 관문 스위치 (KAN-270 6단계). 값의 출처는 Config/Base.xcconfig이고 기본 YES다(KAN-274). FAKE_IDP와 달리
 	     이 plist에도 있다 — 릴리스에서도 켤 수 있는 값이다(AppConfig.loginEnabled). -->
 	<key>LOGIN_ENABLED</key>
 	<string>$(LOGIN_ENABLED)</string>

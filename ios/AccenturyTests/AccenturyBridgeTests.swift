@@ -32,6 +32,7 @@ final class AccenturyBridgeTests: XCTestCase {
         var intonationStarts: [IntonationRecordingStart] = []
         var openSettingsCalls = 0
         var retriedUploads: [String] = []
+        var locations: [String] = []
     }
 
     private func makeDispatcher(
@@ -53,7 +54,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onRefreshAccessToken: { sink.refreshAccessTokenCalls += 1 },
             onStartIntonationRecording: { sink.intonationStarts.append($0) },
             onOpenSettings: { sink.openSettingsCalls += 1 },
-            onRetryUpload: { sink.retriedUploads.append($0) }
+            onRetryUpload: { sink.retriedUploads.append($0) },
+            onLocationChanged: { sink.locations.append($0) }
         )
     }
 
@@ -616,6 +618,25 @@ final class AccenturyBridgeTests: XCTestCase {
         let sink = Sink()
         makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }).handle(method: "retryUpload", payload: " ")
         XCTAssertEqual([], sink.retriedUploads)
+    }
+
+    // MARK: onLocationChanged (KAN-290)
+
+    func testLocationChangedPassesTheHrefThrough() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+            .handle(method: "onLocationChanged", payload: "https://w.example/?screen=home")
+        XCTAssertEqual(["https://w.example/?screen=home"], sink.locations)
+    }
+
+    func testLocationChangedIsIgnoredOutsideTheAllowlistOrWithoutAString() {
+        let sink = Sink()
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false })
+            .handle(method: "onLocationChanged", payload: "https://w.example/?screen=home")
+        let allowed = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true })
+        allowed.handle(method: "onLocationChanged", payload: nil)
+        allowed.handle(method: "onLocationChanged", payload: ["url": "x"])
+        XCTAssertEqual([], sink.locations)
     }
 
     // MARK: openSettings (KAN-252)

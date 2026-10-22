@@ -333,12 +333,13 @@ IdP 콘솔 없이 게이트·추가 정보 화면을 돌리는 길이다. 서버
 
 `false`면 로그인 관문·앱 시작 Refresh 확인(`authGate.retry()`)·스플래시 유지·계정 설정·계정 동의 오버레이가
 전부 빠진 익명 모드다. 세션은 plain 클라이언트로 만들고 음성 저장 동의는 설치당 한 번 기기에 둔다
-(`voice-consent.md` 「익명 모드」). **기본값과 릴리스 기본값이 `false`다.**
+(`voice-consent.md` 「익명 모드」). **기본값과 릴리스 기본값이 `true`다** (2026-10-22 팀 결정: 첫 심사부터 로그인 포함, KAN-274).
+스토어 빌드는 `app-release.yml`·`ios-release.yml`이 켜짐을 단언해, 끈 채로는 릴리스 워크플로가 실패한다.
 
-| 어디 | 켜는 법 |
+| 어디 | 끄는 법 (익명 모드) |
 |---|---|
-| Android | `./gradlew :app:installDebug -PloginEnabled=true`, 또는 `local.properties`에 `loginEnabled=true`. `FAKE_IDP`와 달리 release도 이 값을 본다 |
-| iOS | `ios/Accentury/Config/Local.xcconfig`에 `LOGIN_ENABLED = YES`(Debug·Release 공통, 예시는 `Local.xcconfig.example`), 또는 `xcodebuild ... LOGIN_ENABLED=YES`. `FAKE_IDP`와 달리 Release.xcconfig가 다시 못 박지 않는다 (KAN-270 6단계) |
+| Android | `./gradlew :app:installDebug -PloginEnabled=false`, 또는 `local.properties`에 `loginEnabled=false`. `FAKE_IDP`와 달리 release도 이 값을 본다 |
+| iOS | `ios/Accentury/Config/Local.xcconfig`에 `LOGIN_ENABLED = NO`(Debug·Release 공통, 예시는 `Local.xcconfig.example`), 또는 `xcodebuild ... LOGIN_ENABLED=NO`. `FAKE_IDP`와 달리 Release.xcconfig가 다시 못 박지 않는다 (KAN-270 6단계) |
 
 ## 6. 실기기 실증표
 

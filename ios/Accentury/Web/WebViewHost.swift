@@ -221,8 +221,8 @@ struct WebViewHost: View {
     /// 대기 화면의 [다시 보내기] (KAN-288, webview-bridge.md §14). 빈 값이 아닌 attemptId가 메인 스레드로 온다.
     var onRetryUpload: (String) -> Void = { _ in }
 
-    /// 메인 프레임 문서가 바뀌었다 (KAN-252, 안드로이드 `onPageStarted` 자리) — 웹의 탭 이동은 `location.href` 대입이라 문서마다
-    /// 온다. 상위가 뒤로가기·톱니를 문서의 `screen`으로 판정하는 데 쓴다 (``AccenturyCore/webBackTarget(currentUrl:startRequested:)``).
+    /// 메인 프레임 문서가 바뀌었다 (KAN-252, 안드로이드 `onPageStarted` 자리) — 브리지 `onLocationChanged`(웹의 SPA
+    /// 이동, KAN-290)도 이 콜백으로 온다. 상위가 뒤로가기·톱니를 문서의 `screen`으로 판정하는 데 쓴다 (``AccenturyCore/webBackTarget(currentUrl:startRequested:)``).
     var onPageStarted: (String?) -> Void = { _ in }
 
     /// 화면 왼쪽 가장자리에서 오른쪽으로 끌었다 (KAN-252). iOS에는 시스템 뒤로 버튼이 없어 이 몸짓이 안드로이드 시스템 뒤로가기
@@ -596,7 +596,9 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
             onRefreshAccessToken: { [weak self] in self?.refreshAccessTokenForWeb() },
             onStartIntonationRecording: { [weak self] in self?.onStartIntonationRecording($0) },
             onOpenSettings: { [weak self] in self?.onOpenSettings() },
-            onRetryUpload: { [weak self] in self?.onRetryUpload($0) }
+            onRetryUpload: { [weak self] in self?.onRetryUpload($0) },
+            // SPA 이동은 문서 전환과 같은 URL 추적으로 접는다 (KAN-290).
+            onLocationChanged: { [weak self] in self?.onPageStarted($0) }
         )
     )
 
@@ -1043,5 +1045,17 @@ private struct LoadFailureScreen: View {
         }
         // 워드마크 앱바 (KAN-288 디자인 3, 안드로이드 `PaperFailureScreen`)
         .paperAppBar()
+    }
+}
+
+extension WKWebView {
+    /// 앱 안 화면 이동 (KAN-290). 웹 라우터(`window.accenturyNavigate`)가 받으면 문서를 갈지 않고, 받지 못하면(구버전 웹·오류·nil)
+    /// 예전처럼 문서를 로드한다. URL 추적은 웹이 `onLocationChanged`로, 폴백이면 `onPageStarted`로 알린다.
+    /// 첫 진입(`WebViewHost.updateUIView`의 load)과 `?screen=test` 시작 경로는 문서 로드로 남긴다 — 범위 밖.
+    @MainActor
+    func navigateInApp(to url: URL) {
+        evaluateJavaScript(spaNavigateJs(url: url.absoluteString)) { [weak self] result, _ in
+            if (result as? Bool) != true { self?.load(URLRequest(url: url)) }
+        }
     }
 }
