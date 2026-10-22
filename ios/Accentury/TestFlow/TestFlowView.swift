@@ -104,7 +104,7 @@ struct TestFlowView: View {
     @State private var webView: WKWebView?
 
     /// WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 ``WebViewHost``의
-    /// `onPageStarted`로 갱신된다. ``TestFlowModel/webUrl``(앱이 건 진입 URL)과 다르다 — 탭 이동은 웹이 스스로 한다.
+    /// `onPageStarted`(문서 전환)와 브리지 `onLocationChanged`(SPA 이동, KAN-290)로 갱신된다. ``TestFlowModel/webUrl``(앱이 건 진입 URL)과 다르다 — 탭 이동은 웹이 스스로 한다.
     @State private var currentWebUrl: String?
 
     /// 지금 화면에 서 있는 오버레이 페이즈. 페이즈가 바뀔 때 녹음을 되감을지 정하는 데 쓴다
@@ -195,14 +195,14 @@ struct TestFlowView: View {
                      * 왼쪽 가장자리 스와이프 = 뒤로 (KAN-252). 안드로이드 시스템 뒤로가기(BackHandler)의 자리이고 대상과 판정은
                      * ``AccenturyCore/webBackTarget(currentUrl:startRequested:)``에 있다. 목적지가 없으면(홈·테스트 진행·결과)
                      * 아무 일도 없다 — KAN-191·KAN-147의 응시 이탈 방지 규칙을 건드리지 않는다. 웹 탭 이동과 같은 결과가 되게
-                     * 문서를 옮긴다. 억양 녹음 화면·호출자의 덮개(설정)가 떠 있으면 인식기 자체를 끈다(`edgeSwipeEnabled`).
+                     * 웹 라우터로 옮기고, 구버전 웹이면 문서를 옮긴다 (KAN-290). 억양 녹음 화면·호출자의 덮개(설정)가 떠 있으면 인식기 자체를 끈다(`edgeSwipeEnabled`).
                      * 학습 카드 단계도 screen이 intonation·words라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다(안드로이드와 같다).
                      */
                     onEdgeSwipeBack: {
                         guard let target = webBackTarget(currentUrl: currentWebUrl, startRequested: model.startRequested),
                               let url = URL(string: target)
                         else { return }
-                        webView?.load(URLRequest(url: url))
+                        webView?.navigateInApp(to: url)
                     },
                     edgeSwipeEnabled: tabBarEntry && !covered && intonation.start == nil,
                     onWebViewCreated: { created in
@@ -465,7 +465,7 @@ struct TestFlowView: View {
                     guard let target = webTabUrl(currentUrl: currentWebUrl, screen: "intonation"),
                           let url = URL(string: target)
                     else { return }
-                    webView?.load(URLRequest(url: url))
+                    webView?.navigateInApp(to: url)
                 }
             ) {
                 if !intonationMicOk {

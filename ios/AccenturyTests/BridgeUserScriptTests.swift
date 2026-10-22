@@ -46,6 +46,7 @@ final class BridgeUserScriptTests: XCTestCase {
             "startIntonationRecording",
             "openSettings",
             "retryUpload",
+            "onLocationChanged",
         ] {
             XCTAssertTrue(source.contains("\(method):"), "브리지 객체에 \(method)이(가) 없다")
         }
