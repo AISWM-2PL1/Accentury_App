@@ -58,12 +58,17 @@
 | `startIntonationRecording(payloadJson)` | KAN-253 | 억양 학습 카드 진입(코스 열기·[다음 카드] 직후 웹이 자동 1회)과 일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면(A-3). payload = `{cardId, prompt, standard, maxDurationMs, guideF0, itemNumber, totalItems}`. 업로드까지 네이티브가 하고 성공하면 `onIntonationRecorded`로 회신 (§12) | 래퍼 false — 자동 호출은 조용히 넘어가고 A-2가 그대로 보인다. 웹은 `canStartIntonationRecording()`이 false면 [다시 말해 보기]를 비활성으로 그리고 「앱에서 녹음할 수 있어요」 — 웹 녹음기 폴백 없음 |
 | `retryUpload(attemptId)` | KAN-288 | 음성 문항 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 재전송. 인자는 `onUploadFailed`로 받은 attemptId 그대로. **회신 없음** — 성공하면 `onItemResult`, 또 실패하면 `onUploadFailed` (§14). Android: `AccenturyBridge.retryUpload` → `uploadViewModel.retry`. iOS: `BridgeUserScript`의 `retryUpload` → `BridgeDispatcher` `case "retryUpload"` → `TestFlowView`의 `uploads.retry` | 래퍼 false. 웹은 `canRetryUpload()`가 false면 `onUploadFailed` 수신 지점도 걸지 않고 「전송 실패」 줄을 그리지 않는다 — 예전 대기 화면 그대로 |
 | `openSettings()` | KAN-252 | 하단 탭 바의 [설정] → 네이티브의 기존 설정 화면을 띄운다. **인자도 반환도 회신도 없다** (§13) | 래퍼 false. 웹은 `canOpenSettings()`가 false면 [설정] 탭을 그리지 않는다 — 구버전 앱은 WebView 위 톱니가 그대로 남아 있다 |
+| `onLocationChanged(url)` | KAN-290 | SPA 화면 전환 직후 새 `location.href` 전체를 알린다. 문서 로드가 없으니 네이티브는 이 통지로 지금 화면을 안다. **회신 없음**. 하위호환 추가라 계약 버전 그대로(2) | 메서드가 없는 앱(빌드 11 이하)이면 웹이 SPA 전환을 하지 않고 예전처럼 문서를 옮긴다(`location.href`·`replace`) |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
 서버가 앞서 보관한 음성을 잃어 업로드를 거절했을 때 앞 문항 녹음 화면을 다시 여는 일은 이 표에 메서드를 더하지 않고 양쪽이 각자 한다 (§10).
 
 ## 3. native → web (`window.AccenturyWeb`)
+
+`window.accenturyNavigate(url) → true` (KAN-290)는 `AccenturyWeb` 슬롯이 아니라 전역 함수다. 루트가 마운트된 뒤 정의되고, 네이티브가 evaluate하면 웹이 SPA로 옮긴 뒤 `true`를 돌려준다. 결과가 `true`가 아니면(아직 없음·예외) 네이티브는 문서 로드로 폴백한다.
+
+**화면 전환 (KAN-290).** 탭·홈·뒤로가기 이동은 `pushState` + 루트 재마운트(`<App key={search}>`)라 화면 상태는 예전 문서 로드처럼 초기화된다. 구버전 앱(빌드 11 이하)은 문서 로드 그대로다. 시작 게이트의 `?screen=test` 진입은 계속 네이티브의 문서 로드다.
 
 | 슬롯 | 티켓 | 하는 일 |
 |---|---|---|
