@@ -19,7 +19,7 @@ import com.accentury.app.ui.components.Haptic
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
  * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
- * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)까지 필요한 열여덟 메서드만 둔다.
+ * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 화면 전환 알림(KAN-290)까지 필요한 열아홉 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -64,6 +64,8 @@ import com.accentury.app.ui.components.Haptic
  *   정한다 (webview-bridge.md §13). 기본값은 [onStartIntonationRecording]과 같은 이유다
  * @param onRetryUpload 대기 화면의 [다시 보내기] (KAN-288 6단계). 빈 값이 아닌 attemptId만 온다 — 그 시도가 지금 재전송할 수
  *   있는 실패인지는 창구 너머(UploadManager.retry)가 판정한다 (webview-bridge.md §14). 기본값은 [onStartIntonationRecording]과 같은 이유다
+ * @param onLocationChanged 웹의 SPA 화면 전환 뒤 새 href (KAN-290). 문서가 바뀌지 않아 onPageStarted가 안 오는 이동을
+ *   창구 너머가 같은 URL 추적에 싣는다. 기본값은 [onStartIntonationRecording]과 같은 이유다
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -86,6 +88,7 @@ class AccenturyBridge(
     private val onStartIntonationRecording: (IntonationRecordingStart) -> Unit = {},
     private val onOpenSettings: () -> Unit = {},
     private val onRetryUpload: (String) -> Unit = {},
+    private val onLocationChanged: (String) -> Unit = {},
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -396,6 +399,17 @@ class AccenturyBridge(
                 return@postToMain
             }
             onRetryUpload(attemptId)
+        }
+    }
+
+    /**
+     * 웹이 SPA로 화면을 옮긴 뒤 새 href를 알린다 (KAN-290). 문서 로드가 없어 onPageStarted가 오지 않으므로 그 대신이다.
+     * 메인 스레드로 넘긴 뒤 그 시점 origin으로 판정한다(§5) — 값은 뒤로가기·톱니 판정용 URL 추적에만 쓰인다.
+     */
+    @JavascriptInterface
+    fun onLocationChanged(url: String) {
+        postToMain {
+            if (isCurrentUrlAllowed()) onLocationChanged.invoke(url)
         }
     }
 }
