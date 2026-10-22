@@ -290,10 +290,10 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 10인 이유: 빌드 9는 2026-10-22 App Store Connect에 업로드(TestFlight)돼 번호가 소모됐고,
-        // Play AAB 9도 올라갔을 수 있다. 10이 로그인·가입을 포함한 첫 제출 빌드다(2026-10-22 팀 결정,
-        // KAN-274, xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
-        versionCode = 10
+        // 11인 이유: 빌드 10(로그인 포함 첫 빌드)은 2026-10-22 TestFlight 업로드로 번호가 소모됐다.
+        // 11이 iOS 내 억양 곡선 포인트 컬러 수정(KAN-288)을 실은 제출 빌드다(xcconfig 주석).
+        // iOS·Android는 같은 번호를 쓴다.
+        versionCode = 11
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
