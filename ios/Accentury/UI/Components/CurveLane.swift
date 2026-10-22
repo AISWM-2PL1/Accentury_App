@@ -126,6 +126,9 @@ struct CurveLaneView: View {
     /// ``HalftoneGrid``가 레인 크기별로 들고 있는 `Path` 하나다.
     private func draw(_ context: inout GraphicsContext, size: CGSize) {
         let isUser = variant == .user
+        // 내 억양만 포인트 컬러, 가이드는 잉크다 — 웹 `--color-user-curve`, 안드로이드 `userCurve`와 같다.
+        // 선·고립점·망점이 전부 이 한 색이다(안드로이드 `drawHalftone(..., lineColor, ...)`).
+        let color = isUser ? Papercut.point : Papercut.ink
         let shapes = shapeCache.shapes(
             for: segments,
             size: size,
@@ -141,20 +144,20 @@ struct CurveLaneView: View {
             clipped.clip(to: fill)
             clipped.fill(
                 halftone.dotsPath(size: size, step: halftoneStep, radius: halftoneDotRadius),
-                with: .color(Papercut.ink.opacity(halftoneAlpha))
+                with: .color(color.opacity(halftoneAlpha))
             )
         }
 
-        // 점선은 가이드에만 쓴다 — 색이 아니라 선 모양으로 두 곡선을 가르므로 색각 이상에서도
-        // 어느 쪽이 내 곡선인지 알 수 있다 (WCAG 1.4.1).
+        // 점선은 가이드에만 쓴다 — 두 곡선은 색과 선 모양이 함께 다르다. 색만으로 가르지 않으므로
+        // 색각 이상에서도 어느 쪽이 내 곡선인지 알 수 있다 (WCAG 1.4.1).
         let style = isUser ? userCurveStrokeStyle : guideCurveStrokeStyle
         for outline in shapes.outlines {
-            context.stroke(outline, with: .color(Papercut.ink), style: style)
+            context.stroke(outline, with: .color(color), style: style)
         }
 
         // 점이 하나뿐인 선분들. 안드로이드 `drawCircle(radius = stroke)`과 같은 크기다.
         if let dots = shapes.dots {
-            context.fill(dots, with: .color(Papercut.ink))
+            context.fill(dots, with: .color(color))
         }
 
         #if DEBUG
