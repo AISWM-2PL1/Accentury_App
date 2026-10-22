@@ -34,7 +34,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
-| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **10**. 빌드 9는 2026-10-22 App Store Connect에 업로드(TestFlight)돼 번호가 소모됐고, 10이 로그인·가입을 포함한 첫 제출 빌드다(2026-10-22 팀 결정, KAN-274). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
+| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **11**. 빌드 10(로그인 포함 첫 빌드)은 2026-10-22 TestFlight 업로드로 번호가 소모됐고, 11이 iOS 내 억양 곡선 포인트 컬러 수정(KAN-288)을 실은 제출 빌드다. Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
 
 **개인 계정이라 나중에 옮기려면 App Transfer 절차를 밟는다.** 팀·법인 명의로 넘기는 것은
 계정 사이의 앱 이전이고, 애플이 요구하는 조건(미해결 계약 없음, 양쪽 계정의 법적 동의 등)을

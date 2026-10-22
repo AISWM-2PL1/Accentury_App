@@ -73,13 +73,13 @@ PR에서 `ios/**`가 바뀌면 `.github/workflows/test.yml`의 `ios-test` 잡이
 | iOS (`Accentury/Config/Base.xcconfig`) | Android (`app/build.gradle.kts`) | 지금 값 |
 |---|---|---|
 | `MARKETING_VERSION` | `versionName` | `1.0` |
-| `CURRENT_PROJECT_VERSION` | `versionCode` | `10` |
+| `CURRENT_PROJECT_VERSION` | `versionCode` | `11` |
 
 **같은 커밋에서 같이 올린다.** 한쪽만 올리면 `AccenturyCoreTests/ReleaseVersionParityTests`가
 두 파일을 직접 읽어 대조하다 실패한다 (`swift test`). App Store Connect는 같은 마케팅 버전 안에서
-빌드 번호가 단조 증가할 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7). 10인 이유는 빌드 9가
-2026-10-22 App Store Connect에 업로드(TestFlight)돼 번호가 소모됐기 때문이다. 10이 로그인·가입을
-포함한 첫 제출 빌드다(2026-10-22 팀 결정, KAN-274).
+빌드 번호가 단조 증가할 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7). 11인 이유는 빌드 10(로그인
+포함 첫 빌드)이 2026-10-22 TestFlight 업로드로 번호가 소모됐기 때문이다. 11이 iOS 내 억양 곡선
+포인트 컬러 수정(KAN-288)을 실은 제출 빌드다.
 
 ### 아카이브 → export
 
