@@ -6,108 +6,552 @@
     <title>사투리 이야기 - Accentury</title>
     <meta
       name="description"
-      content="Accentury 사투리 억양 테스트를 만들며 직접 정하고 측정한 내용을 모은 글 목록입니다. 테스트 진행 방식, 점수와 등급, 피치 곡선, 모델 벤치마크, 녹음 환경, 음성 데이터 처리를 다룹니다."
+      content="Accentury 사투리 억양 테스트를 만들며 직접 정하고 측정한 내용을 모은 글 목록입니다. 테스트 진행 방식, 점수와 등급, 피치 곡선, 녹음 환경, 음성 데이터 처리를 다룹니다."
     />
     <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
+    <!-- KAN-291: JS가 돌 때만 등장 애니메이션 시작 상태(.js .reveal 등)를 건다. JS가 꺼지면 본문이 처음부터 보인다 -->
+    <script>document.documentElement.classList.add("js")</script>
+    <!-- KAN-291: 글꼴은 아래 style의 url()로만 불려 정적 검사(고아 파일)가 못 본다. preload로 첫 페인트도 당긴다 -->
+    <link rel="preload" href="/guide/assets/Jua-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- KAN-291: CSS·JS 인라인. 배포가 *.html만 no-cache로 올려 이름 고정 css/js는 1년 immutable에 묶이고,
+         staticPages.test.ts가 public/ 글의 외부 스크립트를 막는다 -->
     <style>
-      :root {
-        color-scheme: light;
-      }
-      body {
-        margin: 0;
-        padding: 2.5rem 1.25rem 4rem;
-        background: #f3ecd9;
-        color: #2b2723;
-        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
-          "Malgun Gothic", sans-serif;
-        line-height: 1.7;
-      }
-      main,
-      nav {
-        max-width: 42rem;
-        margin: 0 auto;
-      }
-      h1 {
-        font-size: 1.5rem;
-        margin: 0 0 1rem;
-      }
-      h2 {
-        font-size: 1.15rem;
-        margin: 2.5rem 0 0.75rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid #d9cdb0;
-      }
-      p,
-      ol,
-      ul {
-        margin: 0 0 1rem;
-      }
-      ol,
-      ul {
-        padding-left: 1.2rem;
-      }
-      a {
-        color: #2b2723;
-      }
-      nav {
-        margin-top: 3rem;
-        padding-top: 1rem;
-        border-top: 1px solid #d9cdb0;
-        font-size: 0.92rem;
-      }
-      nav a {
-        margin-right: 1rem;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>사투리 이야기</h1>
+@font-face {
+  font-family: Jua;
+  src: url('/guide/assets/Jua-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  color-scheme: light;
+  --cream: #F3ECD9;
+  --paper: #CFC5AA;
+  --muted: #6B6459;
+  --ink: #1C1A17;
+  --brick: #A8503A;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0 24px 64px;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+main, .masthead, nav { max-width: 42rem; margin-inline: auto; }
+.masthead {
+  display: flex;
+  align-items: center;
+  min-height: 80px;
+  border-bottom: 1px solid var(--paper);
+  margin-bottom: 52px;
+}
+a { color: inherit; text-underline-offset: 0.22em; text-decoration-thickness: 1px; }
+a:focus-visible { outline: 3px solid var(--brick); outline-offset: 5px; }
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  font-family: Jua, sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  text-decoration: none;
+}
+.wordmark::before { content: 'Accentury'; }
+h1, h2, .story-title { font-family: Jua, sans-serif; font-weight: 400; font-synthesis: none; }
+h1 { margin: 0 0 24px; font-size: 42px; line-height: 1.25; letter-spacing: -0.025em; }
+p { margin: 0 0 20px; }
+.guide-index h1 { position: relative; padding-top: 30px; }
+.guide-index h1::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 2px;
+  width: 70px;
+  height: 18px;
+  background: var(--paper);
+  transform: rotate(-4deg);
+}
+.guide-index main > p { color: var(--muted); margin-bottom: 36px; }
+.story-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.story-list li { min-width: 0; display: flex; }
+.story-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-height: 172px;
+  padding: 24px;
+  border: 1px solid var(--muted);
+  border-radius: 8px;
+  box-shadow: 4px 5px 0 var(--paper);
+  text-decoration: none;
+}
+.story-title { font-size: 23px; line-height: 1.4; }
+.story-description { color: var(--muted); font-size: 16px; line-height: 1.7; }
+.story-card:hover { border-color: var(--ink); }
+.story-card:hover .story-title { color: var(--brick); }
+.story-card:active { transform: translate(4px, 5px); box-shadow: none; }
+.guide-article h1 { max-width: 620px; margin-bottom: 4px; }
+.title-underline { display: block; width: 200px; height: 12px; margin: 8px 0 32px; }
+h2 { display: flex; align-items: baseline; gap: 12px; margin: 42px 0 16px; font-size: 27px; line-height: 1.4; }
+h2::before { content: ''; flex: 0 0 18px; height: 4px; background: var(--brick); align-self: center; }
+.guide-article main > ul, .guide-article main > ol, table {
+  padding: 24px 24px 24px 44px;
+  border: 1px solid var(--muted);
+  border-radius: 8px;
+  box-shadow: 4px 5px 0 var(--paper);
+  margin: 24px 0;
+}
+table { width: 100%; padding: 12px; border-spacing: 0; }
+th, td { padding: 8px; border-bottom: 1px solid var(--paper); text-align: left; }
+nav { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--paper); }
+nav a { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 8px 16px; border: 1px solid var(--muted); border-radius: 6px; }
+nav a[aria-current] { border-color: var(--brick); color: var(--brick); }
+nav a:hover { box-shadow: 4px 5px 0 var(--paper); }
+@media (max-width: 600px) {
+  body { padding-inline: 24px; padding-bottom: 40px; }
+  .masthead { min-height: 64px; margin-bottom: 38px; }
+  h1 { font-size: 34px; }
+  .story-list { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .story-card { min-height: 48px; padding: 22px; gap: 10px; }
+  .story-title { font-size: 23px; }
+  h2 { font-size: 25px; margin-top: 36px; }
+  nav { margin-top: 40px; gap: 10px; }
+}
 
-      <p>
+/* Landing page; comparison pages retain their existing styles. */
+.guide-landing { padding-inline: 32px; }
+.guide-landing main,
+.guide-landing .masthead,
+.guide-landing .landing-footer { max-width: 1040px; margin-inline: auto; }
+.guide-landing .masthead { min-height: 96px; margin-bottom: 0; }
+.guide-landing .wordmark { font-family: inherit; font-weight: 700; letter-spacing: -0.04em; font-size: 24px; }
+.landing-hero { display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; gap: 64px; padding-block: 88px 96px; }
+.guide-landing h1 { font-size: clamp(64px, 7.5vw, 96px); line-height: 1.12; margin-bottom: 32px; letter-spacing: -0.035em; }
+.hero-emphasis { display: inline-block; position: relative; padding-bottom: 14px; }
+.hero-emphasis svg { position: absolute; bottom: 0; left: 0; width: 100%; height: 12px; }
+.hero-subtitle { font-size: 20px; margin-bottom: 16px; }
+.hero-stats { display: flex; gap: 0; padding: 0; margin: 0 0 28px; list-style: none; font-size: 14px; color: var(--muted); }
+.hero-stats li + li { border-left: 1px solid var(--paper); padding-left: 16px; margin-left: 16px; }
+.landing-cta { display: inline-flex; justify-content: center; align-items: center; min-height: 56px; padding: 14px 26px; border: 1px solid var(--brick); border-radius: 8px; background: var(--brick); color: var(--cream); font-weight: 700; text-decoration: none; }
+.landing-cta:hover { box-shadow: 4px 5px 0 var(--paper); }
+.hero-paper { justify-self: center; position: relative; width: 280px; height: 300px; display: grid; place-items: center; border: 1px solid var(--muted); border-radius: 4px; box-shadow: 7px 8px 0 var(--paper); transform: rotate(5deg); }
+.hero-paper::before { content: ''; position: absolute; top: -12px; left: 98px; width: 80px; height: 26px; background: var(--paper); transform: rotate(-10deg); }
+.hero-paper img { width: 192px; height: 192px; object-fit: contain; transform: rotate(-5deg); }
+.landing-about { padding: 40px 0; border-block: 1px solid var(--paper); }
+.landing-about p { margin: 0; font-size: 18px; line-height: 1.9; }
+.landing-tiers, .landing-stories { padding-top: 76px; }
+.guide-landing h2 { display: block; font-size: 34px; margin: 0 0 24px; }
+.guide-landing h2::before { content: none; }
+.landing-tiers > p, .landing-stories > p { color: var(--muted); margin-bottom: 36px; }
+.tier-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; list-style: none; margin: 0; padding: 0; }
+.tier-grid li { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px 8px; border: 1px solid var(--paper); border-radius: 8px; text-align: center; }
+.tier-grid img { display: block; width: 100%; max-width: 144px; height: auto; aspect-ratio: 1; object-fit: contain; }
+.tier-grid span { font-size: 16px; font-weight: 600; }
+.guide-landing .story-list { gap: 20px; }
+.guide-landing .story-card { min-height: 174px; }
+.landing-footer { margin-top: 72px; text-align: center; }
+.landing-footer nav { justify-content: center; gap: 16px 24px; }
+.guide-landing nav { max-width: none; margin-top: 0; }
+.guide-landing .landing-footer nav a { min-width: 48px; min-height: 48px; padding: 10px 16px; border: 0; background: transparent; border-radius: 0; box-shadow: none; text-decoration: underline; }
+.landing-privacy { max-width: 760px; margin-inline: auto; margin-top: 28px; color: var(--muted); font-size: 13px; }
+.landing-privacy p { margin: 0; }
+.landing-privacy a { display: inline-flex; align-items: center; min-height: 48px; }
+@media (max-width: 760px) {
+  .guide-landing { padding-inline: 24px; }
+  .guide-landing .masthead { min-height: 76px; }
+  .landing-hero { grid-template-columns: minmax(0, 1fr); padding-block: 56px; gap: 0; }
+  .hero-paper { display: none; }
+  .guide-landing h1 { font-size: 72px; }
+  .hero-subtitle { font-size: 18px; }
+  .landing-about { padding-block: 32px; }
+  .landing-about p { font-size: 16px; }
+  .landing-tiers, .landing-stories { padding-top: 52px; }
+  .guide-landing h2 { font-size: 29px; }
+  .tier-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tier-grid li { padding: 16px 8px; gap: 12px; }
+  .tier-grid img { max-width: 120px; }
+  .landing-footer { margin-top: 48px; }
+}
+@media (min-width: 601px) and (max-width: 760px) {
+  .tier-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Second concept: paper, pitch, and a five-scene scroll story. */
+.hero-line { display: block; width: fit-content; }
+.hero-emphasis { padding-bottom: 14px; }
+.landing-hero { gap: 64px; }
+.hero-demo { width: 100%; max-width: 430px; padding: 32px; border: 1px solid var(--muted); border-radius: 8px; box-shadow: 8px 9px 0 var(--paper); transform: rotate(2deg); }
+.pitch { width: 100%; }
+.pitch > span { display: block; font-size: 13px; color: var(--muted); }
+.pitch svg { display: block; width: 100%; height: auto; margin: 8px 0 20px; border-bottom: 1px solid var(--paper); }
+.guide-curve { fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 6 5; }
+.live-curve { fill: none; stroke: var(--brick); stroke-width: 3; }
+.pitch-fill { transform-origin: left; animation: pitch-sweep 4s ease-in-out infinite; }
+.live-curve { stroke-dasharray: 420; animation: draw-pitch 4s ease-in-out infinite; }
+.hero-emphasis path { stroke-dasharray: 210; animation: underline-in 1s .65s both; }
+.js .hero-line { animation: fade-up .8s both; }
+.js .hero-line:nth-child(2) { animation-delay: .18s; }
+.js .hero-subtitle, .js .hero-stats, .js .landing-cta { animation: fade-up .8s .4s both; }
+.js .reveal { opacity: 0; transform: translateY(24px); transition: transform .75s, opacity .75s; }
+.js .reveal.is-visible { opacity: 1; transform: none; }
+.test-story { margin-top: 100px; }
+.story-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 100px; align-items: start; }
+.phone-stage { position: sticky; top: 28px; display: flex; align-items: center; flex-direction: column; padding: 16px 8px 24px; }
+.step-progress { display: flex; gap: 12px; margin-top: 28px; }
+.step-progress span { display: grid; place-items: center; width: 28px; height: 28px; border-bottom: 2px solid var(--paper); font-size: 12px; }
+.step-progress .is-active { border-color: var(--brick); font-weight: 700; }
+.steps { list-style: none; margin: 0; padding: 0; }
+.step { min-height: 85vh; display: flex; flex-direction: column; justify-content: center; padding: 64px 0; border-top: 1px solid var(--paper); }
+.step-number { font-size: 14px; color: var(--muted); }
+.step h3 { margin: 16px 0 24px; font-family: Jua, sans-serif; font-size: 32px; line-height: 1.4; font-weight: 400; }
+.step p { color: var(--muted); }
+.step.is-active .step-number { color: var(--brick); text-decoration: underline; text-underline-offset: 8px; }
+.js .stamp { transform: scale(.86) rotate(-5deg); transition-timing-function: cubic-bezier(.2,.8,.3,1.3); }
+.tier-grid li:nth-child(2) { transition-delay: .1s; }
+.tier-grid li:nth-child(3) { transition-delay: .2s; }
+.tier-grid li:nth-child(4) { transition-delay: .3s; }
+.tier-grid li:nth-child(5) { transition-delay: .4s; }
+.phone-screen:not(.is-active) *, .phone-screen:not(.is-active) .pitch-fill { animation-play-state: paused; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes underline-in { from { stroke-dashoffset: 210; } to { stroke-dashoffset: 0; } }
+@keyframes draw-pitch { 0%,100% { stroke-dashoffset: 420; } 45%,65% { stroke-dashoffset: 0; } }
+@keyframes pitch-sweep { 0%,100% { transform: scaleX(0); } 45%,65% { transform: scaleX(1); } }
+@keyframes levels { to { transform: scaleY(.95); } }
+@keyframes count { 0%,30% { opacity: 1; transform: translateY(0); } 33%,100% { opacity: 0; transform: translateY(-4px); } }
+@keyframes choice-check { 0%,40% { opacity: 0; transform: scale(.6); } 55%,100% { opacity: 1; transform: scale(1); } }
+@keyframes analysis-check { 0%,15% { opacity: 0; transform: scale(.6); } 35%,100% { opacity: 1; transform: scale(1); } }
+@keyframes stamp { 0% { opacity: 0; transform: scale(1.25) rotate(-8deg); } 65% { opacity: 1; transform: scale(.96) rotate(2deg); } 100% { opacity: 1; transform: none; } }
+@media (max-width: 720px) {
+  .landing-hero { gap: 40px; }
+  .hero-demo { max-width: 360px; padding: 24px; justify-self: center; }
+  .test-story { margin-top: 64px; }
+  .story-layout { display: block; }
+  .phone-stage { top: 0; z-index: 2; background: var(--cream); border-bottom: 1px solid var(--paper); padding: 16px 0 10px; }
+  .phone { width: auto; height: 49vh; max-width: 100%; }
+  .step-progress { margin-top: 16px; gap: 10px; }
+  .step-progress span { height: 20px; }
+  .step { min-height: 65vh; padding: 48px 0; scroll-margin-top: 60vh; justify-content: center; }
+  .step h3 { font-size: 27px; margin-block: 12px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .js .reveal { opacity: 1; transform: none; }
+  .live-curve, .hero-emphasis path { stroke-dashoffset: 0; }
+  .pitch-fill { transform: none; }
+  .countdown span { opacity: 0; }
+  .countdown span:first-child { opacity: 1; }
+}
+/* App previews use capture proportions: 360 × 800, without the system status bar. */
+.phone { position: relative; width: min(100%, 330px, 36vh); aspect-ratio: 9 / 20; height: auto; border: 2px solid var(--ink); border-radius: 30px; background: var(--cream); box-shadow: 8px 9px 0 var(--paper); container-type: inline-size; overflow: hidden; }
+.phone-screen { position: absolute; inset: 0; opacity: 0; transition: opacity .45s; pointer-events: none; font-size: 3.9cqw; line-height: 1.45; word-break: normal; overflow-wrap: normal; }
+.phone-screen.is-active { opacity: 1; }
+.phone-screen h3 { font-family: Jua, sans-serif; font-weight: 400; line-height: 1.25; margin: 0; font-size: 6.2cqw; }
+.phone-screen p { margin: 0; font-size: 3.9cqw; }
+.app-brand { position: absolute; top: 5cqw; left: 5.8cqw; font-family: Jua, sans-serif; font-size: 5cqw; }
+.app-settings,.app-close { position: absolute; right: 5.8cqw; top: 4.8cqw; font-size: 6cqw; line-height: 1; }
+.app-card { border: .2cqw solid var(--paper); border-radius: 2.5cqw; box-shadow: 1cqw 1.3cqw 0 var(--paper); background: var(--cream); }
+.app-button { display: flex; align-items: center; justify-content: center; height: 11.8cqw; border-radius: 1.5cqw; background: var(--brick); color: var(--cream); box-shadow: 1cqw 1.3cqw 0 var(--paper); font-size: 3.9cqw; }
+.app-button.secondary { border: .25cqw solid var(--ink); color: var(--ink); background: var(--cream); box-shadow: none; }
+.app-home-card { position: absolute; top: 39cqw; left: 11%; width: 78%; height: 79cqw; border-color: var(--ink); text-align: center; padding: 10cqw 4cqw 8cqw; }
+.app-home-card img { width: 21cqw; height: 21cqw; object-fit: contain; margin-bottom: 4cqw; }
+.app-home-card h3 { font-size: 6.5cqw; white-space: nowrap; margin-bottom: 5cqw; }
+.app-home-card p { color: var(--muted); font-size: 3.8cqw; white-space: nowrap; margin-bottom: 7cqw; }
+.app-attendance { position: absolute; top: 128cqw; left: 11%; width: 78%; text-align: center; }
+.app-attendance b { font-weight: 500; }
+.app-attendance p { color: var(--muted); margin: 3cqw 0 5cqw; }
+.app-attendance > div { display: flex; justify-content: space-between; color: var(--muted); font-size: 3.5cqw; }
+.app-attendance i { display: grid; place-items: center; font-style: normal; width: 7.8cqw; height: 7.8cqw; border: .2cqw solid var(--ink); border-radius: 50%; margin-top: 3.5cqw; font-size: 2.4cqw; }
+.app-tabs { position: absolute; bottom: 4cqw; left: 0; right: 0; display: flex; border-top: .2cqw solid var(--paper); height: 16cqw; padding-top: 3cqw; color: var(--muted); }
+.app-tabs > div { position: relative; width: 20%; display: flex; align-items: center; flex-direction: column; gap: 1cqw; }
+.app-tabs svg { width: 5cqw; height: 5cqw; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.app-tabs span { font-size: 3cqw; white-space: nowrap; }
+.app-tabs .active { color: var(--brick); }
+.app-tabs .active::before { content: ''; position: absolute; top: -3.4cqw; width: 7.2cqw; height: .7cqw; background: var(--brick); }
+.app-check,.app-count,.app-voice,.app-word { position: absolute; inset: 0; }
+.app-check-title { position: absolute; top: 18cqw; left: 5.8%; }
+.app-check-sub { position: absolute; top: 28cqw; left: 5.8%; color: var(--muted); }
+.app-check-card { position: absolute; top: 37cqw; left: 5.8%; width: 87.5%; height: 37cqw; padding: 12cqw 5cqw; }
+.app-check-card label,.app-word-card label { color: var(--muted); font-size: 3.6cqw; }
+.app-check-card h3 { margin-top: 1cqw; }
+.app-pitch { border: .35cqw solid var(--paper); border-radius: 1.5cqw; overflow: hidden; }
+.app-lane { position: relative; height: 29cqw; padding-top: 6cqw; }
+.app-lane + .app-lane { border-top: .2cqw solid var(--muted); }
+.app-lane label { position: absolute; top: .3cqw; left: 2.6cqw; color: var(--muted); font-size: 3.5cqw; }
+.app-lane svg { display: block; width: 100%; height: 100%; overflow: hidden; }
+.app-guide { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-dasharray: 5 5; stroke-linecap: round; stroke-linejoin: round; }
+.app-curve { fill: none; stroke: var(--brick); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.app-check .app-pitch { position: absolute; top: 79cqw; left: 5.8%; width: 88.4%; }
+.app-live g { clip-path: inset(0 0 0 0); }
+.app-check .app-live g { animation: app-grow 2s linear infinite; }
+.app-level { position: absolute; top: 112cqw; left: 5.8%; width: 88.4%; height: 2cqw; border: .25cqw solid var(--ink); border-radius: 2cqw; }
+.app-level i { display: block; margin-left: 44%; height: 100%; border-left: .4cqw solid var(--muted); }
+.app-notice { border: .25cqw dashed var(--muted); border-radius: 1.2cqw; padding: 4cqw 3.6cqw; font-size: 4cqw; }
+.app-check > .app-notice { position: absolute; top: 118cqw; left: 5.8%; width: 88.4%; }
+.app-check-footer { position: absolute; bottom: 8cqw; width: 100%; padding: 3cqw 5.8% 0; border-top: .2cqw solid var(--paper); text-align: center; }
+.app-check-footer p { color: var(--muted); margin-top: 4cqw; font-size: 3.4cqw; }
+.app-count { display: none; }
+.app-count-body { position: absolute; top: 74cqw; width: 100%; text-align: center; }
+.app-count-body h3 { font-size: 8.8cqw; }
+.app-count-body p { margin: 5cqw 0 9cqw; }
+.app-count-ring { display: grid; place-items: center; width: 38cqw; height: 38cqw; margin: auto; border: 2.5cqw solid var(--ink); border-radius: 50%; font-family: Jua, sans-serif; font-size: 14cqw; }
+.app-progress { position: absolute; top: 17cqw; left: 5.8%; width: 88.4%; font-size: 3.7cqw; }
+.app-progress span { float: right; }
+.app-segments { display: flex; gap: 1cqw; margin-top: 2cqw; height: 1.6cqw; }
+.app-segments i { flex: 1; background: var(--paper); }
+.app-segments i:first-child,.word-segments i:nth-child(-n+3) { background: var(--brick); }
+.word-segments i:nth-child(3) { background: linear-gradient(to right,var(--brick) 50%,var(--cream) 50%); border: .35cqw solid var(--brick); }
+.app-prompt { position: absolute; top: 30cqw; left: 5.8%; width: 87.5%; height: 38.5cqw; padding: 3.5cqw 5cqw; }
+.app-prompt > span { border: .25cqw solid var(--muted); border-radius: 5cqw; padding: .8cqw 2.7cqw; font-size: 3.5cqw; display: inline-block; margin-bottom: 1.4cqw; }
+.app-prompt h3 { font-size: 5.8cqw; line-height: 1.3; }
+.app-voice > .app-pitch { position: absolute; top: 76cqw; left: 5.8%; width: 88.4%; }
+.app-voice .app-live { visibility: hidden; }
+.app-mic { position: absolute; top: 170cqw; width: 100%; text-align: center; }
+.app-mic > div { width: 20cqw; height: 20cqw; margin: auto auto 3cqw; border: 1.7cqw solid var(--cream); outline: .1cqw solid var(--paper); box-shadow: 1cqw 1.3cqw 0 var(--paper); background: var(--brick); border-radius: 50%; display: grid; place-items: center; }
+.app-mic svg { width: 8cqw; height: 8cqw; fill: none; stroke: var(--cream); stroke-width: 3; }
+.app-mic p { color: var(--muted); font-size: 3.5cqw; }
+.app-recorded { display: none; position: absolute; bottom: 12cqw; left: 5.8%; width: 87.5%; }
+.app-notice small { display: block; margin-top: 1cqw; color: var(--muted); font-size: 3.5cqw; }
+.app-actions { display: flex; gap: 4cqw; margin-top: 4cqw; }
+.app-actions > div { flex: 1; }
+.app-word { display: none; }
+.app-word-card { position: absolute; top: 30cqw; left: 5.8%; width: 88.4%; height: 37cqw; padding: 7cqw 5.8cqw; }
+.app-word-card h3 { font-size: 7cqw; margin-top: 2cqw; line-height: 1.25; }
+.app-choices { position: absolute; top: 73cqw; left: 5.8%; width: 88.4%; display: grid; gap: 3cqw; }
+.app-choices > div { height: 13cqw; border: .2cqw solid var(--muted); border-radius: 1.5cqw; display: flex; align-items: center; gap: 3cqw; padding: 0 4cqw; font-size: 4cqw; }
+.app-choices span { border: .2cqw solid var(--muted); border-radius: .8cqw; width: 5.8cqw; height: 5.8cqw; display: grid; place-items: center; font-size: 3cqw; }
+.app-choices b { margin-left: auto; font-size: 5cqw; visibility: hidden; }
+.app-word-next { position: absolute; bottom: 11cqw; left: 5.8%; width: 88.4%; background: var(--paper); color: var(--muted); box-shadow: none; border: .2cqw solid var(--muted); }
+.phone[data-phase="recorded"] .app-mic { display: none; }
+.phone[data-phase="recorded"] .app-recorded { display: block; }
+.phone[data-phase="recorded"] .app-voice .app-live { visibility: visible; }
+.phone[data-phase="recorded"] .app-voice .app-live g { animation: app-grow 1.7s both; }
+.phone[data-phase="word"] .app-voice,.phone[data-phase="selected"] .app-voice { display: none; }
+.phone[data-phase="word"] .app-word,.phone[data-phase="selected"] .app-word { display: block; }
+.phone[data-phase="selected"] .app-choices > div:nth-child(3) { border: .5cqw solid var(--ink); box-shadow: 1cqw 1.3cqw 0 var(--paper); }
+.phone[data-phase="selected"] .app-choices b { visibility: visible; }
+.phone[data-phase="selected"] .app-word-next { background: var(--brick); color: var(--cream); border-color: var(--brick); box-shadow: 1cqw 1.3cqw 0 var(--paper); }
+.phone[data-phase="count"] .app-check { display: none; }
+.phone[data-phase="count"] .app-count { display: block; }
+.app-analysis { position: absolute; top: 18cqw; left: 5.8%; width: 88.4%; }
+.app-analysis label { font-size: 3.3cqw; color: var(--muted); }
+.app-analysis-bar { height: 1.2cqw; background: var(--paper); margin-top: 2cqw; }
+.app-analysis-bar i { display: block; width: 43%; height: 100%; background: var(--brick); transition: width .5s; }
+.app-analysis h3 { margin-top: 9cqw; font-size: 7cqw; }
+.app-analysis .app-analysis-lead { color: var(--muted); margin-top: 3cqw; }
+.app-analysis-steps { margin: 6cqw 0; }
+.app-analysis-steps > div { display: flex; align-items: center; gap: 3.3cqw; padding: 3.3cqw 0; border-bottom: .2cqw dashed var(--paper); }
+.app-analysis-steps span { width: 8cqw; height: 8cqw; border: .2cqw solid var(--muted); border-radius: 50%; display: grid; place-items: center; }
+.app-analysis-steps .current span { background: var(--brick); border-color: var(--brick); color: var(--cream); }
+.app-analysis-steps .done span { background: var(--ink); color: var(--cream); }
+.app-analysis > p { color: var(--muted); }
+.app-analysis-rows { list-style: none; padding: 0; margin: 8cqw 0 0; }
+.app-analysis-rows li { display: flex; justify-content: space-between; padding: 4cqw 0; border-bottom: .2cqw solid var(--paper); }
+.app-result { position: absolute; inset: 16cqw 11% 20cqw; text-align: center; }
+.result-stamp img { display: block; width: 59cqw; height: 59cqw; object-fit: contain; margin: auto; }
+.result-stamp h3 { font-size: 9cqw; margin-top: 5cqw; }
+.result-stamp p { color: var(--muted); font-size: 3.5cqw; margin-top: 3cqw; }
+.is-active .result-stamp { animation: stamp .65s both; }
+.app-comment { margin: 4cqw -1cqw 6cqw !important; }
+.app-score { display: flex; align-items: center; gap: 5cqw; padding: 4cqw; height: 32cqw; border-color: var(--ink); text-align: left; }
+.app-score-ring { position: relative; width: 23cqw; flex-shrink: 0; }
+.app-score-ring svg { display: block; width: 100%; fill: none; }
+.app-score-ring circle { stroke: var(--ink); stroke-width: .8; stroke-dasharray: 3 4; }
+.app-score-ring .score-arc { stroke: var(--brick); stroke-width: 8; stroke-dasharray: 45 283; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
+.app-score-ring strong { position: absolute; inset: 0; display: grid; place-items: center; font: 6cqw Jua,sans-serif; }
+.app-score-bars { flex: 1; font-size: 3.7cqw; }
+.app-score-bars b { float: right; font: 4.7cqw Jua,sans-serif; }
+.app-score-bars i { display: block; border: .2cqw solid var(--ink); border-radius: 2cqw; height: 1.9cqw; overflow: hidden; margin: 2.5cqw 0 4cqw; }
+.app-score-bars > div:last-child i { margin-bottom: 0; }
+.app-score-bars em { display: block; height: 100%; background: var(--brick); border-radius: inherit; }
+.app-score-note { color: var(--muted); font-size: 3.4cqw !important; margin: 6cqw -2cqw 0 !important; white-space: nowrap; }
+.app-share { position: absolute; bottom: 0; width: 100%; }
+.hero-demo .app-pitch { width: 100%; border: 0; border-radius: 0; }
+.hero-demo .app-lane { height: 130px; padding-top: 26px; }
+.hero-demo .app-lane label { font-size: 14px; left: 0; top: 0; }
+.hero-demo .app-lane + .app-lane { border-top: 1px solid var(--muted); padding-top: 30px; }
+.hero-demo .app-live g { animation: app-grow 5s infinite; }
+@keyframes app-grow { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@media (max-width: 720px) { .phone { width: auto; height: 49vh; aspect-ratio: 9 / 20; max-width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .app-live g { clip-path: none; } }
+.app-settings svg { display: block; width: 5cqw; height: 5cqw; fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+.app-share-icon { width: 4cqw; height: 4cqw; margin-right: 2cqw; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+    /* 폰 폭에서도 하단 내비 다섯 개를 한 줄로 (KAN-291, 2026-10-22 사용자 요청), 터치 높이 48px 유지 */
+@media (max-width: 600px) {
+  .guide-landing .landing-footer nav { flex-wrap: nowrap; gap: 0; }
+  .guide-landing .landing-footer nav a { padding: 8px 6px; font-size: 14px; white-space: nowrap; }
+}
+</style>
+  </head>
+  <body class="guide-landing">
+    <header class="masthead"><a class="wordmark" href="/" aria-label="Accentury"></a></header>
+    <main>
+      <section class="landing-hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title"><span class="hero-line">사투리</span><span class="hero-emphasis hero-line">좀 치나?<svg viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden="true"><path d="M 4 3.5 Q 100 13.5 196 3.5" stroke="#a8503a" stroke-width="7" stroke-linecap="round" fill="none"/></svg></span></h1>
+          <p class="hero-subtitle">내 목소리로 확인하는 사투리 억양</p>
+          <ul class="hero-stats" aria-label="테스트"><li>7문항</li><li>~3분</li></ul>
+          <a class="landing-cta" href="/">내 억양 테스트하기 →</a>
+        </div>
+        <div class="hero-demo" aria-hidden="true"><div class="app-pitch"><div class="app-lane"><label>가이드</label><svg viewBox="0 0 340 100"><path class="app-guide" d="M0 28 C4 3 7 28 12 39 S23 58 29 70 C35 85 29 36 38 29 S47 17 52 23 C62 16 67 36 72 38 S81 65 88 75 S101 99 106 90 C112 85 106 58 114 58 C119 14 128 48 134 51 S144 87 148 77 C153 69 145 39 157 33 S166 51 170 60 S176 76 182 74 C190 94 190 47 201 36 C207 22 209 56 218 52 L224 59 L227 29 C231 48 237 45 243 54 S252 71 258 68 C268 64 261 21 272 24 L277 20 L283 23 L287 17 L291 23 L295 19 C308 27 300 76 312 74 C319 84 315 40 323 53 S333 92 336 91 L340 88"/></svg></div><div class="app-lane"><label>내 억양</label><svg class="app-live" viewBox="0 0 340 100"><defs><pattern id="hero-real-dots" width="4.5" height="4.5" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".85" fill="var(--brick)"/></pattern></defs><g><path fill="url(#hero-real-dots)" d="M12 61 C20 64 22 60 28 49 S37 14 42 18 C50 13 51 40 59 49 S69 61 77 60 L89 59 C95 60 101 96 105 83 C109 58 113 53 122 50 S133 21 143 29 S152 47 160 36 S167 21 171 18 L171 100 H12Z"/><path class="app-curve" d="M12 61 C20 64 22 60 28 49 S37 14 42 18 C50 13 51 40 59 49 S69 61 77 60 L89 59 C95 60 101 96 105 83 C109 58 113 53 122 50 S133 21 143 29 S152 47 160 36 S167 21 171 18"/></g></svg></div></div></div>
+      </section>
+      <section class="landing-about reveal" aria-label="Accentury 소개">
+        <p>
+        Accentury(악센투리)는 내 말투가 얼마나 경남 사투리인지 목소리로 재 보는 테스트입니다. 부산을
+        중심으로 한 경남 사투리의 억양과 단어를 문제로 내고, 직접 소리 내어 답한 결과로 등급을 매깁니다.
+        Android 앱, iOS 앱, 그리고 웹(accentury.app)에서 같은 테스트를 할 수 있습니다.
+      </p>
+      </section>
+      <section class="test-story" aria-labelledby="test-title"><h2 id="test-title">사투리 억양 테스트는 어떻게 진행되나</h2><div class="story-layout"><div class="phone-stage"><div class="phone" aria-hidden="true"><div class="phone-screen is-active" data-screen="0"><div class="app-brand">Accentury</div><div class="app-home-card app-card"><img src="/icon-192-v2.png" alt=""><h3>내 사투리 레벨 테스트</h3><p>억양과 단어로 내 사투리 등급을 알아봐요</p><div class="app-button ">레벨 테스트 시작</div></div><div class="app-attendance"><b>연속 출석</b><p>오늘 학습하면 출석이 시작돼요</p><div><span>월<i>○</i></span><span>화<i>○</i></span><span>수<i>○</i></span><span>목<i>○</i></span><span>금<i>○</i></span><span>토<i>○</i></span><span>일<i>○</i></span></div></div><div class="app-tabs"><div class=""><svg viewBox="0 0 36 36"><rect x="7" y="4" width="18" height="25" rx="2"/><path d="M7 24h18"/></svg><span>단어 학습</span></div><div class=""><svg viewBox="0 0 36 36"><path d="M2 22 Q7 2 12 18 T23 17 T30 13"/></svg><span>억양 학습</span></div><div class="active"><svg viewBox="0 0 36 36"><path d="M3 15 16 3 29 15v15H20V20h-8v10H3Z"/></svg><span>홈</span></div><div class=""><svg viewBox="0 0 36 36"><path d="M3 4h22v16H12l-7 6v-6H3Z M14 23h8l7 6V12"/></svg><span>사투리 번역기</span></div><div class=""><svg viewBox="0 0 36 36"><path d="m12 3 8 0 1 5 5 3 5-1 2 8-5 3-1 5-5 0-3 4-7-3-1-5-5-2 2-8 5-1Z"/><circle cx="17" cy="17" r="6"/></svg><span>설정</span></div></div></div><div class="phone-screen " data-screen="1"><div class="app-check"><div class="app-brand">Accentury</div><h3 class="app-check-title">목소리를 확인할게요</h3><p class="app-check-sub">아래 말을 편하게 해 주세요</p><div class="app-check-card app-card"><label>목소리 점검</label><h3>안녕하세요</h3></div><div class="app-pitch"><div class="app-lane"><label>내 억양</label><svg class="app-live" viewBox="0 0 340 100"><defs><pattern id="check-dots" width="4.5" height="4.5" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".85" fill="var(--brick)"/></pattern></defs><g><path fill="url(#check-dots)" d="M65 62 C95 63 107 65 142 52 L142 100 H65Z"/><path class="app-curve" d="M65 62 C95 63 107 65 142 52"/></g></svg></div></div><div class="app-level"><i></i></div><div class="app-notice">좋아요, 목소리가 잘 들려요</div><div class="app-check-footer"><div class="app-button ">다음</div><p>이 소리는 저장하거나 보내지 않아요</p></div></div><div class="app-count"><div class="app-brand">Accentury</div><span class="app-settings"><svg viewBox="0 0 36 36"><path d="m12 3 8 0 1 5 5 3 5-1 2 8-5 3-1 5-5 0-3 4-7-3-1-5-5-2 2-8 5-1Z"/><circle cx="17" cy="17" r="6"/></svg></span><div class="app-count-body"><h3>곧 시작합니다</h3><p>당신의 경남 사투리 실력을 보여주세요!</p><div class="app-count-ring">3</div></div></div></div><div class="phone-screen " data-screen="2"><div class="app-voice"><div class="app-brand">Accentury</div><span class="app-close">×</span><div class="app-progress"><div>문항 진행률 <span>1 / 7 · 음성</span></div><div class="app-segments "><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="app-prompt app-card"><span>뿌듯한 느낌으로 말해주세요!</span><h3>여기는 봄만 되면 진달래하고 참나리가 온데만데 피가 억수로 이뻐예.</h3></div><div class="app-pitch"><div class="app-lane"><label>가이드</label><svg viewBox="0 0 340 100"><path class="app-guide" d="M0 28 C4 3 7 28 12 39 S23 58 29 70 C35 85 29 36 38 29 S47 17 52 23 C62 16 67 36 72 38 S81 65 88 75 S101 99 106 90 C112 85 106 58 114 58 C119 14 128 48 134 51 S144 87 148 77 C153 69 145 39 157 33 S166 51 170 60 S176 76 182 74 C190 94 190 47 201 36 C207 22 209 56 218 52 L224 59 L227 29 C231 48 237 45 243 54 S252 71 258 68 C268 64 261 21 272 24 L277 20 L283 23 L287 17 L291 23 L295 19 C308 27 300 76 312 74 C319 84 315 40 323 53 S333 92 336 91 L340 88"/></svg></div><div class="app-lane"><label>내 억양</label><svg class="app-live" viewBox="0 0 340 100"><defs><pattern id="voice-dots" width="4.5" height="4.5" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".85" fill="var(--brick)"/></pattern></defs><g><path fill="url(#voice-dots)" d="M12 61 C20 64 22 60 28 49 S37 14 42 18 C50 13 51 40 59 49 S69 61 77 60 L89 59 C95 60 101 96 105 83 C109 58 113 53 122 50 S133 21 143 29 S152 47 160 36 S167 21 171 18 L171 100 H12Z"/><path class="app-curve" d="M12 61 C20 64 22 60 28 49 S37 14 42 18 C50 13 51 40 59 49 S69 61 77 60 L89 59 C95 60 101 96 105 83 C109 58 113 53 122 50 S133 21 143 29 S152 47 160 36 S167 21 171 18"/></g></svg></div></div><div class="app-mic"><div><svg viewBox="0 0 40 40"><rect x="16" y="6" width="8" height="19" rx="4"/><path d="M11 20v3a9 9 0 0 0 18 0v-3 M20 32v7"/></svg></div><p>버튼을 눌러 녹음</p></div><div class="app-recorded"><div class="app-notice">녹음 상태가 좋아요<small>녹음 길이 2.5초</small></div><div class="app-actions"><div class="app-button secondary">재녹음</div><div class="app-button ">다음</div></div></div></div><div class="app-word"><div class="app-brand">Accentury</div><span class="app-settings"><svg viewBox="0 0 36 36"><path d="m12 3 8 0 1 5 5 3 5-1 2 8-5 3-1 5-5 0-3 4-7-3-1-5-5-2 2-8 5-1Z"/><circle cx="17" cy="17" r="6"/></svg></span><div class="app-progress"><div>문항 진행률 <span>3 / 7 · 단어</span></div><div class="app-segments word-segments"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="app-word-card app-card"><label>3 / 7 · 이 말은 무슨 뜻일까요?</label><h3>'정구지'는 표준어로 무엇일까요?</h3></div><div class="app-choices"><div><span>1</span>구기자</div><div><span>2</span>젓국</div><div><span>3</span>부추<b>✓</b></div><div><span>4</span>정과</div></div><div class="app-button app-word-next">다음</div></div></div><div class="phone-screen " data-screen="3"><div class="app-brand">Accentury</div><div class="app-analysis"><label class="app-analysis-count">7문항 중 3개 완료</label><div class="app-analysis-bar"><i></i></div><h3>분석 중입니다</h3><p class="app-analysis-lead">결과를 만들고 있어요</p><div class="app-analysis-steps"><div class="current"><span>1</span>곡선 추출</div><div><span>2</span>분포 비교</div><div><span>3</span>등급 계산</div></div><p>잠시만 기다려 주세요</p><ul class="app-analysis-rows"><li>1번 문항 <span>◷ 분석 중</span></li><li>2번 문항 <span>◷ 분석 중</span></li><li>4번 문항 <span>◷ 분석 중</span></li><li>6번 문항 <span>◷ 분석 중</span></li></ul></div></div><div class="phone-screen " data-screen="4"><div class="app-brand">Accentury</div><div class="app-result"><div class="result-stamp"><img src="/guide/assets/outsider.webp" alt=""><h3>외지인</h3><p>5개 등급 중 1번째</p></div><p class="app-comment">단어는 좋았어요! 억양만 조금 더 살리면 여행객까지 한 걸음이에요.</p><div class="app-score app-card"><div class="app-score-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45"/><circle class="score-arc" cx="50" cy="50" r="45"/></svg><strong>16점</strong></div><div class="app-score-bars"><div>억양 <b>11점</b><i><em style="width:11%"></em></i></div><div>단어 <b>25점</b><i><em style="width:25%"></em></i></div></div></div><p class="app-score-note">경남 토박이 녹음과 비교한 AI 추정치예요</p><div class="app-button app-share"><svg class="app-share-icon" viewBox="0 0 24 24"><path d="M12 16V2m-5 5 5-5 5 5 M5 12H3v10h18V12h-2"/></svg>친구에게 공유하기</div></div><div class="app-tabs"><div class=""><svg viewBox="0 0 36 36"><rect x="7" y="4" width="18" height="25" rx="2"/><path d="M7 24h18"/></svg><span>단어 학습</span></div><div class=""><svg viewBox="0 0 36 36"><path d="M2 22 Q7 2 12 18 T23 17 T30 13"/></svg><span>억양 학습</span></div><div class=""><svg viewBox="0 0 36 36"><path d="M3 15 16 3 29 15v15H20V20h-8v10H3Z"/></svg><span>홈</span></div><div class=""><svg viewBox="0 0 36 36"><path d="M3 4h22v16H12l-7 6v-6H3Z M14 23h8l7 6V12"/></svg><span>사투리 번역기</span></div><div class=""><svg viewBox="0 0 36 36"><path d="m12 3 8 0 1 5 5 3 5-1 2 8-5 3-1 5-5 0-3 4-7-3-1-5-5-2 2-8 5-1Z"/><circle cx="17" cy="17" r="6"/></svg><span>설정</span></div></div></div></div><div class="step-progress" aria-hidden="true"><span class="is-active">1</span><span class="">2</span><span class="">3</span><span class="">4</span><span class="">5</span></div></div><ol class="steps"><li class="step is-active" data-step="0"><span class="step-number">01</span><h3>시작하기 전에</h3><p>시작 버튼을 누르면 브라우저가 마이크 사용 권한을 묻습니다.</p></li><li class="step " data-step="1"><span class="step-number">02</span><h3>목소리 점검과 카운트다운</h3><p>첫 문항 전에 "안녕하세요"를 한 번 말하는 점검 화면이 있습니다.</p></li><li class="step " data-step="2"><span class="step-number">03</span><h3>음성 문항과 단어 문항</h3><p>문항은 두 종류가 섞여 나옵니다.</p></li><li class="step " data-step="3"><span class="step-number">04</span><h3>분석을 기다리는 동안</h3><p>음성 문항의 녹음은 [다음]을 누를 때 서버로 올라갑니다.</p></li><li class="step " data-step="4"><span class="step-number">05</span><h3>결과 화면</h3><p>결과 화면에는 다섯 등급 가운데 내 등급과 캐릭터, 억양 점수와 단어 점수가 나옵니다.</p></li></ol></div></section>
+      <section class="landing-tiers" aria-labelledby="tiers-title">
+        <h2 id="tiers-title">테스트는 이렇게 진행됩니다</h2>
+        <p>
+        문제는 억양을 보는 음성 문항과 사투리 단어를 묻는 단어 문항이 섞여 나옵니다. 음성 문항은 화면의
+        문장을 소리 내어 읽어 녹음하고, 단어 문항은 보기 가운데 하나를 고릅니다. 문항을 다 풀면 서버가
+        억양 점수와 단어 점수를 합산해 다음 다섯 등급 가운데 하나로 판정합니다.
+      </p>
+        <ol class="tier-grid">
+            <li class="stamp reveal"><img src="/guide/assets/outsider.webp" alt="외지인" width="160" height="160" loading="lazy" /><span>외지인</span></li>
+            <li class="stamp reveal"><img src="/guide/assets/traveler.webp" alt="여행객" width="160" height="160" loading="lazy" /><span>여행객</span></li>
+            <li class="stamp reveal"><img src="/guide/assets/wannabe.webp" alt="사투리 호소인" width="160" height="160" loading="lazy" /><span>사투리 호소인</span></li>
+            <li class="stamp reveal"><img src="/guide/assets/honorary.webp" alt="명예주민" width="160" height="160" loading="lazy" /><span>명예주민</span></li>
+            <li class="stamp reveal"><img src="/guide/assets/native.webp" alt="경남 토박이" width="160" height="160" loading="lazy" /><span>경남 토박이</span></li>
+        </ol>
+      </section>
+      <section class="landing-stories" aria-labelledby="stories-title">
+        <h2 id="stories-title">사투리 이야기</h2>
+        <p>
         Accentury를 만들면서 우리가 직접 정하고 측정한 것들을 글로 정리했습니다. 테스트가 어떤 순서로
         진행되는지, 점수와 등급은 어떻게 정해지는지, 녹음한 목소리는 어떻게 다루는지를 실제 서비스에
         적용된 기준 그대로 적었습니다.
       </p>
-
-      <ul>
-        <li>
-          <a href="/guide/how-the-test-works.html">사투리 억양 테스트는 어떻게 진행되나</a> — 마이크
+        <ul class="story-list">
+        <li><a class="story-card" href="/guide/how-the-test-works.html"><span class="story-title">사투리 억양 테스트는 어떻게 진행되나</span><span class="story-description">마이크
           점검부터 결과 화면까지 화면 순서대로
-        </li>
-        <li>
-          <a href="/guide/five-tiers.html">다섯 등급은 어떻게 나뉘나</a> — 억양·단어·종합 점수와 다섯
+        </span></a></li>
+        <li><a class="story-card" href="/guide/five-tiers.html"><span class="story-title">다섯 등급은 어떻게 나뉘나</span><span class="story-description">억양·단어·종합 점수와 다섯
           등급
-        </li>
-        <li>
-          <a href="/guide/pitch-curve.html">목소리에서 억양을 꺼내는 법 — 피치 곡선</a> — 녹음 화면의 실시간
+        </span></a></li>
+        <li><a class="story-card" href="/guide/pitch-curve.html"><span class="story-title">목소리에서 억양을 꺼내는 법</span><span class="story-description">녹음 화면의 실시간
           곡선이 만들어지는 과정
-        </li>
-        <li>
-          <a href="/guide/choosing-pitch-model.html">음정 추출 모델을 고르기까지 — RMVPE 벤치마크 기록</a> —
-          잡음을 섞어 후보 모델을 비교한 측정 기록
-        </li>
-        <li>
-          <a href="/guide/recording-environment.html">녹음 환경이 결과에 미치는 영향</a> — 녹음 형식과
+        </span></a></li>
+        <li><a class="story-card" href="/guide/recording-environment.html"><span class="story-title">녹음 환경이 결과에 미치는 영향</span><span class="story-description">녹음 형식과
           녹음 직후 검사하는 항목
-        </li>
-        <li>
-          <a href="/guide/voice-data.html">내 목소리는 저장되나 — 음성 데이터 처리</a> — 음성이 지워지는
+        </span></a></li>
+        <li><a class="story-card" href="/guide/voice-data.html"><span class="story-title">내 목소리는 저장되나</span><span class="story-description">음성이 지워지는
           시점과 선택 동의
-        </li>
-        <li><a href="/guide/faq.html">자주 묻는 질문</a> — 마이크 권한, 다시 녹음, 결과 공유와 보관</li>
-        <li>
-          <a href="/guide/team-story.html">Accentury를 만든 이유</a> — 무엇을 만들고 싶었나
-        </li>
+        </span></a></li>
+        <li><a class="story-card" href="/guide/faq.html"><span class="story-title">자주 묻는 질문</span><span class="story-description">마이크 권한, 다시 녹음, 결과 공유와 보관</span></a></li>
+        <li><a class="story-card" href="/guide/team-story.html"><span class="story-title">Accentury를 만든 이유</span><span class="story-description">무엇을 만들고 싶었나
+        </span></a></li>
       </ul>
+      </section>
     </main>
-
-    <nav aria-label="사이트">
+    <footer class="landing-footer">
+      <nav aria-label="사이트">
       <a href="/">홈</a>
       <a href="/about.html">소개</a>
-      <a href="/guide/index.html">사투리 이야기</a>
+      <a href="/guide/index.html" aria-current="page">사투리 이야기</a>
       <a href="/privacy.html">개인정보처리방침</a>
       <a href="/contact.html">문의</a>
     </nav>
+      <div class="landing-privacy"><p>
+        녹음한 음성은 따로 동의하지 않으면 분석이 끝난 뒤 바로 삭제하고, 테스트 결과는 24시간만
+        보관합니다. 자세한 내용은 <a href="/privacy.html">개인정보처리방침</a>에 적어 두었습니다.
+      </p></div>
+    </footer>
+    <script>
+      /* KAN-291: IntersectionObserver가 없으면 .js를 떼 숨김 상태를 풀고, reduced-motion이면 미리보기를 멈춘 첫 장면으로 둔다 */
+(() => {
+  const reveals = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) {
+    document.documentElement.classList.remove('js');
+    return;
+  }
+  const revealObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.classList.add('is-visible');
+      revealObserver.unobserve(entry.target);
+    }
+  }, { threshold: 0.12 });
+  reveals.forEach(element => revealObserver.observe(element));
+
+  const steps = [...document.querySelectorAll('.step')];
+  const screens = [...document.querySelectorAll('.phone-screen')];
+  const progress = [...document.querySelectorAll('.step-progress span')];
+  const visible = new Map();
+  let observer;
+  const phone = document.querySelector('.phone');
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let activeIndex = -1;
+  let cycleStart = performance.now();
+  function preview(now) {
+    const elapsed = (now - cycleStart) / 1000;
+    let phase = '';
+    if (activeIndex === 1 && !motion.matches) {
+      const t = elapsed % 6;
+      if (t >= 2) phase = 'count';
+      phone.querySelector('.app-count-ring').textContent = String(Math.max(1, 3 - Math.floor(t - 2)));
+    }
+    if (activeIndex === 2) {
+      const t = motion.matches ? 0 : elapsed % 16;
+      phase = t < 3 ? 'voice' : t < 8 ? 'recorded' : t < 12 ? 'word' : 'selected';
+    }
+    if (phone.dataset.phase !== phase) phone.dataset.phase = phase;
+    if (activeIndex === 3) {
+      const stage = motion.matches ? 1 : Math.min(3, Math.floor((elapsed % 9) / 2.5) + 1);
+      const completed = [3, 4, 6][stage - 1];
+      phone.querySelector('.app-analysis-count').textContent = `7문항 중 ${completed}개 완료`;
+      phone.querySelector('.app-analysis-bar i').style.width = `${completed / 7 * 100}%`;
+      phone.querySelectorAll('.app-analysis-steps > div').forEach((row, i) => {
+        row.className = i + 1 < stage ? 'done' : i + 1 === stage ? 'current' : '';
+        row.firstElementChild.textContent = i + 1 < stage ? '✓' : String(i + 1);
+      });
+      phone.querySelectorAll('.app-analysis-rows span').forEach((row, i) => {
+        row.textContent = i < completed - 3 ? '✓ 완료' : '◷ 분석 중';
+      });
+    }
+  }
+  setInterval(() => preview(performance.now()), 100);
+  motion.addEventListener('change', () => { cycleStart = performance.now(); preview(cycleStart); });
+  function activate(index) {
+    if (activeIndex !== index) {
+      activeIndex = index;
+      cycleStart = performance.now();
+      preview(cycleStart);
+    }
+    steps.forEach((step, i) => step.classList.toggle('is-active', i === index));
+    screens.forEach((screen, i) => screen.classList.toggle('is-active', i === index));
+    progress.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+  }
+  function observeSteps() {
+    observer?.disconnect();
+    visible.clear();
+    // The mobile observation band sits below the sticky phone.
+    const mobile = window.matchMedia('(max-width: 720px)').matches;
+    observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) visible.set(entry.target, entry.boundingClientRect.top);
+        else visible.delete(entry.target);
+      });
+      if (!visible.size) return;
+      const target = [...visible.keys()].sort((a, b) =>
+        Math.abs(a.getBoundingClientRect().top - innerHeight * (mobile ? .65 : .4)) -
+        Math.abs(b.getBoundingClientRect().top - innerHeight * (mobile ? .65 : .4))
+      )[0];
+      activate(Number(target.dataset.step));
+    }, { rootMargin: mobile ? '-60% 0px -10% 0px' : '-25% 0px -35% 0px', threshold: 0 });
+    steps.forEach(step => observer.observe(step));
+  }
+  observeSteps();
+  window.matchMedia('(max-width: 720px)').addEventListener('change', observeSteps);
+})();
+    </script>
   </body>
 </html>
