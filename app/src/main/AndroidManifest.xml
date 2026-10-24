@@ -135,6 +135,21 @@
                     android:scheme="${kakaoScheme}" />
             </intent-filter>
         </activity>
+        <!--
+          네이버 로그인 창의 화면 방향 고정 해제 (KAN-292). Play Console 「다음 출시 버전을 위한 발견 항목」
+          (2026-10-24)이 Android 15 큰 화면 deprecated 경고를 냈다 - targetSdk 35+에서 큰 화면(sw600dp+)은
+          화면 방향 고정 속성을 무시하는데, 그 속성을 선언한 액티비티가 있다는 지적이다.
+          범인은 우리 매니페스트가 아니라 네이버 로그인 SDK 5.12.0의 매니페스트가 이 액티비티에 넣는
+          방향 값 "behind"다 (merged manifest 기준). 이 주석에 속성 이름을 쓰지 않는 이유: 병합 결과에
+          주석이 그대로 실려서, 릴리스 merged manifest를 grep -c로 0건 확인하는 검증이 주석에 걸린다.
+          로그인 창의 방향 고정만 지우고
+          액티비티 선언 자체는 SDK 것을 그대로 병합한다(tools:node="merge").
+          https://developer.android.com/build/manage-manifests#attribute_markers
+        -->
+        <activity
+            android:name="com.navercorp.nid.oauth.activity.NidOAuthCustomTabActivity"
+            tools:node="merge"
+            tools:remove="android:screenOrientation" />
     </application>
 
 </manifest>

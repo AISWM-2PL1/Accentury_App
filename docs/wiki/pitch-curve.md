@@ -159,7 +159,7 @@ Android Studio의 Run 버튼은 gradle 프로퍼티를 넘길 수 없어서, `lo
 | 포맷 | 16kHz 모노 16bit 고정. 리샘플·다운믹스를 하지 않는다 — 조용히 변환해 주면 실제 마이크와 다른 조건에서 곡선을 보게 된다 |
 | 페이스 | 마이크와 같은 512샘플 단위, 청크가 담는 시간만큼 쉬어 가며 흘린다(`realtime = true`). 그래야 스무딩 계수와 체감 지연을 평가할 수 있다 |
 | 모니터 | 파일 소스일 때만 `MonitoredPcmSource`가 씌워져 지나가는 청크를 스피커로도 낸다. 곡선이 이상할 때 파일 탓인지 분석 탓인지 귀로 가른다 |
-| 소스셋 | `FilePcmSource`·`MonitoredPcmSource`와 디버그 쪽 `defaultPcmSource`는 `app/src/debug/java/`에만 있다 — **릴리스 DEX에 없다**(`strings classes*.dex | grep -c 'FilePcmSource\|MonitoredPcmSource'` = 0). 릴리스는 `app/src/release/java/`의 같은 시그니처 `defaultPcmSource`가 `AudioRecorder()`만 돌려준다. 실행 중 `BuildConfig.DEBUG` 분기로 막지 않는 이유는 릴리스가 `optimization.enable = false`라 죽은 분기도 코드로 남기 때문이다 — 없는 클래스는 남을 수가 없다 |
+| 소스셋 | `FilePcmSource`·`MonitoredPcmSource`와 디버그 쪽 `defaultPcmSource`는 `app/src/debug/java/`에만 있다 — **릴리스 DEX에 없다**(`strings classes*.dex | grep -c 'FilePcmSource\|MonitoredPcmSource'` = 0). 릴리스는 `app/src/release/java/`의 같은 시그니처 `defaultPcmSource`가 `AudioRecorder()`만 돌려준다. 실행 중 `BuildConfig.DEBUG` 분기로 막지 않는 이유는 소스셋 분리가 R8 설정과 무관하게 성립하기 때문이다 — R8이 꺼져 있던 때는 죽은 분기도 코드로 남았고(KAN-292 전), 없는 클래스는 설정과 상관없이 남을 수가 없다 |
 
 ## 7. 실기기 튜닝 체크리스트
 

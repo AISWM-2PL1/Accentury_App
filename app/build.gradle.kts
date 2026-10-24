@@ -428,8 +428,15 @@ android {
             // FAKE_MIC_ASSET은 여기에 없다. 이 필드를 읽는 코드가 src/debug에만 있어서다
             // (audio/PcmSources.kt) - 릴리스에는 파일 재생 경로가 상수 ""로 죽어 있는 게
             // 아니라 아예 존재하지 않는다.
+            // R8 코드 축소·난독화 + 리소스 축소 (KAN-292). Play Console(2026-10-24)이 DEX 난독화 1%를
+            // 지적했다(기한 2027-02). AGP 9.3 새 DSL은 enable 하나로 코드·리소스 최적화를 함께 켜고,
+            // 기본 규칙(구 proguard-android-optimize.txt 상당)도 자동으로 붙는다 - 구 DSL의
+            // isMinifyEnabled·isShrinkResources·proguardFiles(getDefaultProguardFile(...))가 할 일을 이
+            // 블록이 다 한다. 우리 keep 규칙은 proguardFiles가 아니라 src/main/keepRules/*.keep에서 읽는다.
+            // https://developer.android.com/topic/performance/app-optimization/enable-app-optimization
+            // https://developer.android.com/build/releases/agp-9-3-0-release-notes
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
