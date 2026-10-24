@@ -48,6 +48,7 @@ AGP 9.3부터 `optimization` 블록 하나가 코드 축소·난독화·최적�
 | WebView JS 브리지 | 없음 | 기본 규칙에 `-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }`가 있다(`mapping/release/configuration.txt`에서 확인) |
 | 네이버 oauth 5.12.0, OkHttp, Credential Manager 1.6.0, googleid 1.2.1 | 없음 | 각 AAR이 `proguard.txt`를 동봉한다 |
 | Room (WorkManager 내부 DB) | `-keep class * extends androidx.room.RoomDatabase { <init>(); }` | play-services-ads-api 25.4.0 → work-runtime 2.7.0 → room-runtime 2.2.5로 옛 Room이 들어온다. 2.2.5 동봉 규칙은 클래스만 keep해 R8 full mode가 `WorkDatabase_Impl.<init>()`을 지웠다(`mapping/release/usage.txt`에 기록). Room이 리플렉션으로 생성자를 부르다 실패해 릴리스 APK가 시작 직후 크래시했다(2026-10-24 에뮬레이터 스모크) |
+| Retrofit 서비스 인터페이스 (네이버 SDK 등) | `-keepclasseswithmembers,allowobfuscation interface * { @retrofit2.http.* <methods>; }` | 앱이 안 쓰는 SDK API는 메서드가 전부 지워져 Retrofit의 `-if interface * { @retrofit2.http.* <methods>; }` 규칙에 걸리지 않는다. 네이버 oauth 5.12.0의 `NidProfileService`가 그랬다(`usage.txt`에 메서드 2개 제거 기록). R8 full mode는 구현체 없는 인터페이스로 보고 `Retrofit.create()` 결과의 checkcast를 ClassCastException으로 바꿨고, `NidServiceLocator.<clinit>`이 죽어 네이버 로그인 탭에서 크래시했다(2026-10-24 에뮬레이터 스모크) |
 
 규칙 동봉 여부는 Gradle 캐시의 아티팩트를 열어 확인했다(2026-10-24). SDK 버전을 올리면 다시 본다.
 
