@@ -56,13 +56,16 @@ AGP 9.3부터 `optimization` 블록 하나가 코드 축소·난독화·최적�
 unzip -l ~/.gradle/caches/modules-2/files-2.1/<group>/<artifact>/<ver>/*/<artifact>-<ver>.aar | grep proguard.txt
 ```
 
-## 4. 검증 지표 (2026-10-24, 1단계)
+## 4. 검증 지표 (2026-10-24)
+
+측정 시점: ad5cb53 빌드(Room·Retrofit keep 규칙 포함). 규칙이 바뀌면 수치도 달라진다.
 
 | 항목 | 값 |
 |---|---|
-| R8 이름 변경 클래스 비율 (mapping.txt 전체) | 96.4% (12,069개 중 437개만 원래 이름) |
-| `com.accentury` 클래스 | 432개 중 2개만 원래 이름 (`AccenturyApplication`, `MainActivity` — 매니페스트 진입점) |
+| R8 이름 변경 클래스 비율 (mapping.txt 전체) | 96.5% (12,379개 중 11,942개, 437개만 원래 이름) |
+| `com.accentury` 클래스 | 433개 중 2개만 원래 이름 (`AccenturyApplication`, `MainActivity` — 매니페스트 진입점) |
 | JS 브리지 메서드 | 19개 모두 DEX에 원래 이름으로 남음 |
+| `mapping.txt` 크기 | 102,343,390 bytes |
 | 릴리스 merged manifest의 `screenOrientation` | 0건 |
 
 확인 명령:
@@ -97,3 +100,5 @@ J=$(ls ~/.gradle/caches/modules-2/files-2.1/com.android.tools.build/builder/9.3.
 **Crashlytics는 아직 자동 업로드가 안 된다.** Crashlytics Gradle 플러그인 3.0.8은 새 `optimization` DSL을
 축소 켜짐으로 인식하지 못해 `uploadCrashlyticsMappingFileRelease` 태스크를 등록하지 않는다(2026-10-24 확인).
 Crashlytics 콘솔 스택은 지금 난독화된 채로 보인다. 해결은 KAN-292 후속에서 정한다.
+
+**CI에 축소 release APK 에뮬레이터 스모크가 없다.** 기동·로그인 SDK 초기화·JS 브리지를 실제로 돌려 보는 단계가 없어, 이번 Room 생성자·Retrofit 인터페이스 같은 런타임 결함은 빌드 성공으로는 잡히지 않는다(2026-10-24 수동 스모크에서 발견). 후속 티켓에서 정한다.
