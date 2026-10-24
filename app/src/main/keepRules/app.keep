@@ -37,3 +37,10 @@
 -if interface * { @retrofit2.http.* public *** *(...); }
 -keep,allowoptimization,allowshrinking,allowobfuscation class <3>
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
+
+# Room 생성자 (KAN-292, 2026-10-24 에뮬레이터 스모크에서 시작 직후 크래시).
+# play-services-ads-api 25.4.0 -> work-runtime 2.7.0 -> room-runtime 2.2.5로 옛 Room이 들어온다.
+# 2.2.5가 동봉한 규칙은 `-keep class * extends androidx.room.RoomDatabase`로 클래스만 지키고 생성자는
+# 지키지 않아, R8 full mode가 WorkDatabase_Impl.<init>()을 제거했다(usage.txt). Room은 이 생성자를
+# 리플렉션으로 부르므로 WorkManagerInitializer에서 "Failed to create an instance of WorkDatabase"로 죽는다.
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
