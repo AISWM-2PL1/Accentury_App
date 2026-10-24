@@ -15,7 +15,7 @@ Accentury(경남 사투리 레벨 테스트)의 프론트 쪽 레포다. 2026-09
 
 | 무엇 | 어디 |
 | --- | --- |
-| Android | 루트에서 `./gradlew :app:testDebugUnitTest`. 서명과 릴리스는 [`docs/wiki/android-release-signing.md`](docs/wiki/android-release-signing.md) |
+| Android | 루트에서 `./gradlew :app:testDebugUnitTest`. 서명과 릴리스는 [`docs/wiki/android-release-signing.md`](docs/wiki/android-release-signing.md), R8 축소·난독화는 [`docs/wiki/android-r8.md`](docs/wiki/android-r8.md) |
 | iOS | [`ios/README.md`](ios/README.md) |
 | 웹 | [`web/README.md`](web/README.md) |
 | 로컬 풀스택 (DB + 가짜 AI + BE) | Accentury_Server를 옆에 받아 그 루트에서 `docker compose up -d --build`. 앱과 웹은 그 스택을 겨눈다 (`web/README.md` "스택 띄우기") |

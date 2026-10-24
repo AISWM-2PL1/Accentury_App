@@ -1,0 +1,39 @@
+# Accentury 앱 R8 keep 규칙 (KAN-292).
+#
+# AGP 9.3 새 optimization DSL은 이 디렉터리(src/main/keepRules/*.keep)만 읽는다 - proguard-rules.pro를
+# 만들어도 proguardFiles로 걸지 않으면 무시된다.
+# https://developer.android.com/topic/performance/app-optimization/enable-app-optimization
+#
+# 규칙은 최소로 둔다. 아래에 없는 의존성은 AAR/JAR이 consumer 규칙을 동봉하고 있어 따로 넣지 않는다
+# (2026-10-24 Gradle 캐시의 아티팩트에서 확인):
+#   - kotlinx-serialization 1.9.0: META-INF/com.android.tools/r8/*.pro 동봉. 우리 @Serializable 클래스에
+#     이름 붙은 companion이 없어 README의 추가 규칙도 필요 없다.
+#     https://github.com/Kotlin/kotlinx.serialization/blob/master/README.md#android
+#   - 네이버 로그인 oauth 5.12.0, OkHttp(okhttp-android), Credential Manager 1.6.0(+play-services-auth),
+#     googleid 1.2.1: proguard.txt 동봉.
+#   - WebView JS 브리지(web/AccenturyBridge.kt)의 @JavascriptInterface 메서드: 기본 규칙
+#     (proguard-android-optimize.txt 상당)이 keepclassmembers로 남긴다.
+
+# 크래시 스택 역난독화. 줄 번호를 남기고 원래 파일명은 숨긴다. Play Console은 AAB 안의 매핑을 자동으로
+# 읽는다. Crashlytics 플러그인 3.0.8은 새 optimization DSL에서 매핑을 올리지 않아, Crashlytics 스택은
+# mapping.txt + R8 retrace로 손으로 되돌린다 (docs/wiki/android-r8.md §5).
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# 카카오 SDK 2.24.0 - v2-share·v2-common·v2-auth·v2-network AAR은 규칙을 동봉하지 않고(v2-user만 두 줄),
+# 공식 문서가 아래 규칙을 앱에 넣으라고 한다. 모델 클래스는 Gson이 필드 이름으로 역직렬화한다.
+# https://developers.kakao.com/docs/latest/ko/android/getting-started#project-pro-guard
+-keep class com.kakao.sdk.**.model.* { <fields>; }
+
+# https://github.com/square/okhttp/pull/6792
+-dontwarn org.bouncycastle.jsse.**
+-dontwarn org.conscrypt.*
+-dontwarn org.openjsse.**
+
+# refrofit2 (with r8 full mode)
+-if interface * { @retrofit2.http.* <methods>; }
+-keep,allowobfuscation interface <1>
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+-if interface * { @retrofit2.http.* public *** *(...); }
+-keep,allowoptimization,allowshrinking,allowobfuscation class <3>
+-keep,allowobfuscation,allowshrinking class retrofit2.Response

@@ -242,7 +242,7 @@ Crashlytics는 **첫 리포트가 도착해야** 콘솔 대시보드가 열린�
   Release·아카이브만 dSYM을 만들므로(Debug는 `DEBUG_INFORMATION_FORMAT=dwarf`) Debug 빌드에서는
   «Unable to process …dSYM» 경고 한 줄이 나오고 지나가는 것이 정상이다.
   아카이브 뒤 콘솔 → Crashlytics → dSYM 상태에서 «누락된 dSYM 없음»을 확인한다.
-- **Android**: mapping 파일 업로드는 crashlytics 플러그인이 릴리스 빌드에서 자동으로 한다.
+- **Android**: crashlytics 플러그인 3.0.8은 AGP 9.3 새 `optimization` DSL에서 mapping 업로드 태스크를 만들지 않는다(KAN-292, 2026-10-24 확인). 역난독화 경로는 `docs/wiki/android-r8.md` §5.
 
 ### 6-3. GA4 맞춤 정의 등록 — **이 절차 없이는 대시보드에 값이 안 보인다**
 
