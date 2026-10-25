@@ -290,11 +290,12 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 13인 이유: 빌드 12(KAN-290 화면 전환 SPA화)는 2026-10-22 16:34 TestFlight 업로드로 번호가
-        // 소모됐다. 13이 KAN-224 iOS 외관 라이트 고정(다크 모드 생년월일 달력 흰 글자 수정)을 더한 제출
-        // 빌드다 - 2026-10-22 Dev 기준 로그인 포함·곡선 포인트 컬러·SPA 전환·라이트 고정이 전부 실렸다
+        // 14인 이유: 빌드 13(KAN-224 iOS 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐다(스토어
+        // 스크린샷 KAN-175도 13 기준). 14가 KAN-292 Play Console 발견 항목 대응(릴리스 R8 난독화 켬·keep
+        // 규칙, 네이버 로그인 창 screenOrientation 제거)을 더한 제출 빌드다 - Play Console 난독화 1%
+        // (기한 2027-02)·fragment 구버전·Android 15 큰 화면 경고 3건이 이 번들에서 사라져야 한다
         // (xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
-        versionCode = 13
+        versionCode = 14
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
