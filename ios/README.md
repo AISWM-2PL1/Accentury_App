@@ -73,14 +73,14 @@ PR에서 `ios/**`가 바뀌면 `.github/workflows/test.yml`의 `ios-test` 잡이
 | iOS (`Accentury/Config/Base.xcconfig`) | Android (`app/build.gradle.kts`) | 지금 값 |
 |---|---|---|
 | `MARKETING_VERSION` | `versionName` | `1.0` |
-| `CURRENT_PROJECT_VERSION` | `versionCode` | `13` |
+| `CURRENT_PROJECT_VERSION` | `versionCode` | `14` |
 
 **같은 커밋에서 같이 올린다.** 한쪽만 올리면 `AccenturyCoreTests/ReleaseVersionParityTests`가
 두 파일을 직접 읽어 대조하다 실패한다 (`swift test`). App Store Connect는 같은 마케팅 버전 안에서
-빌드 번호가 단조 증가할 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7). 13인 이유는 빌드 12(KAN-290
-화면 전환 SPA화)가 2026-10-22 16:34 TestFlight 업로드로 번호가 소모됐기 때문이다. 13이 KAN-224 iOS 외관
-라이트 고정(다크 모드 생년월일 달력 흰 글자 수정)을 더한 제출 빌드다 — 2026-10-22 Dev 기준 로그인 포함·
-곡선 포인트 컬러·SPA 전환·라이트 고정이 전부 실렸다.
+빌드 번호가 단조 증가할 때만 업로드를 받는다 (`docs/wiki/ios-port.md` §7). 14인 이유는 빌드 13(KAN-224
+iOS 라이트 고정)이 2026-10-22 제출 빌드로 번호가 소모됐기 때문이다(스토어 스크린샷 KAN-175도 13 기준).
+14가 KAN-292 Play Console 발견 항목 대응(릴리스 R8 난독화 켬·keep 규칙, 네이버 로그인 창
+screenOrientation 제거)을 더한 제출 빌드다 — iOS 쪽엔 R8 변경이 없지만 같은 번호를 쓰는 규칙이라 같이 올린다.
 
 ### 아카이브 → export
 

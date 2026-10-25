@@ -34,7 +34,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
-| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **13**. 빌드 12(KAN-290 화면 전환 SPA화)는 2026-10-22 16:34 TestFlight 업로드로 번호가 소모됐고, 13이 KAN-224 iOS 외관 라이트 고정(다크 모드 생년월일 달력 흰 글자 수정)을 더한 제출 빌드다 — 2026-10-22 Dev 기준 로그인 포함·곡선 포인트 컬러·SPA 전환·라이트 고정이 전부 실렸다. Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
+| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **14**. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고(스토어 스크린샷 KAN-175도 13 기준), 14가 KAN-292 Play Console 발견 항목 대응(릴리스 R8 난독화 켬·keep 규칙, 네이버 로그인 창 screenOrientation 제거)을 더한 제출 빌드다 — iOS 쪽엔 R8 변경이 없지만 같은 번호를 쓰는 규칙이라 같이 올렸다. Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
 
 **개인 계정이라 나중에 옮기려면 App Transfer 절차를 밟는다.** 팀·법인 명의로 넘기는 것은
 계정 사이의 앱 이전이고, 애플이 요구하는 조건(미해결 계약 없음, 양쪽 계정의 법적 동의 등)을
