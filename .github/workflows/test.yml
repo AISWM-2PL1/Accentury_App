@@ -104,6 +104,24 @@ jobs:
           fi
           xcrun simctl list devices available | grep "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          # 선부팅 - 빌드 끝에서 첫 테스트까지 3.9분이 시뮬레이터 부팅·앱 설치였다. 여기서
+          # 부팅을 걸어 두면 SPM 받기·컴파일(약 5분) 동안 부팅이 같이 진행된다.
+          # bootstatus -b는 부팅이 끝날 때까지 기다리므로 그 시간이 그대로 직렬로 남는다 -
+          # 그래서 boot만 걸고 바로 넘어간다. 실패(이미 Booted 등)는 무시해도 된다: 부팅이
+          # 안 됐으면 xcodebuild가 test 전에 스스로 부팅하니 지금과 같은 경로로 돌 뿐이다.
+          xcrun simctl boot "$udid" || echo "선부팅 건너뜀 - xcodebuild가 부팅한다"
+
+      # SPM 의존성 캐시. 캐시가 없으면 매 실행 21개 레포를 새로 clone해 2.6분이 들었다
+      # (안드로이드 app-test는 setup-gradle이 의존성을 캐시해서 job 전체가 3분).
+      # -clonedSourcePackagesDirPath로 clone 위치를 DerivedData 밖 ios/SourcePackages에
+      # 고정해야 캐시할 경로가 생긴다. 키는 Package.resolved - 버전이 바뀌면 새 키로 저장하고,
+      # restore-keys로 직전 캐시를 받아 바뀐 패키지만 다시 받는다.
+      - name: SPM 캐시
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ios/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('ios/Accentury.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
 
       # CODE_SIGNING_ALLOWED=NO - 팀 ID가 든 Local.xcconfig는 gitignore라 CI에 없고, 그게
       # 정상 상태다. 시뮬레이터 빌드는 서명이 필요 없으므로 이 한 줄로 넘어간다.
@@ -118,6 +136,7 @@ jobs:
           run_tests() {
             xcodebuild -project Accentury.xcodeproj -scheme Accentury -configuration Debug \
               -destination "id=$SIM_UDID" CODE_SIGNING_ALLOWED=NO \
+              -clonedSourcePackagesDirPath SourcePackages \
               -resultBundlePath TestResults.xcresult test
           }
           if command -v xcbeautify >/dev/null; then
