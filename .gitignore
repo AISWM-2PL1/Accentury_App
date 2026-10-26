@@ -37,9 +37,6 @@ ios/**/*.xcuserstate
 ios/**/.build/
 ios/**/.swiftpm/
 ios/DerivedData/
-# xcodebuild -clonedSourcePackagesDirPath 산출물. CI(test.yml의 ios-test)가 SPM clone을
-# 여기 모아 actions/cache로 캐시한다.
-ios/SourcePackages/
 # xcodebuild -resultBundlePath 산출물. CI(test.yml의 ios-test)는 실패했을 때만 아티팩트로
 # 올리고, 로컬에서 같은 명령을 돌리면 여기 남는다.
 ios/TestResults.xcresult/
