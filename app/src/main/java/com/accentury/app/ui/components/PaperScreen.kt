@@ -75,11 +75,13 @@ fun PaperAppBar(modifier: Modifier = Modifier, onClose: (() -> Unit)? = null, cl
 
 /**
  * 화면 틀. 본문은 스크롤하고 [footer]는 바닥에 고정된다 — 글꼴을 키운 기기에서 본문이 자라도 누를 버튼은
- * 화면 밖으로 밀리지 않는다. [footer]가 null이면 바닥 줄도 없다.
+ * 화면 밖으로 밀리지 않는다. [footer]가 null이면 바닥 줄도 없다. [appBar]를 끄면 워드마크 앱바 없이 본문만 선다
+ * (로그인 — 워드마크가 가운데 히어로 안에 있다).
  */
 @Composable
 fun PaperScreen(
     modifier: Modifier = Modifier,
+    appBar: Boolean = true,
     onClose: (() -> Unit)? = null,
     closeEnabled: Boolean = true,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
@@ -87,11 +89,13 @@ fun PaperScreen(
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize()) {
-            PaperAppBar(
-                modifier = Modifier.padding(start = Spacing.x6, end = Spacing.x3, top = Spacing.x2),
-                onClose = onClose,
-                closeEnabled = closeEnabled,
-            )
+            if (appBar) {
+                PaperAppBar(
+                    modifier = Modifier.padding(start = Spacing.x6, end = Spacing.x3, top = Spacing.x2),
+                    onClose = onClose,
+                    closeEnabled = closeEnabled,
+                )
+            }
             // 최소 높이를 뷰포트에 맞춰야 본문 안의 weight 스페이서가 세로 가운데 정렬을 한다 — 스크롤 안의 Column은
             // 최대 높이가 무한이라 weight가 최소 높이를 기준으로 나뉜다. 넘치면 그대로 늘어나 스크롤된다.
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
