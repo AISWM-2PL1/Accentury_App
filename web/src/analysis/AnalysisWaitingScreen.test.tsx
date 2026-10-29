@@ -803,6 +803,14 @@ describe('텍스트 히어로 (KAN-178)', () => {
     // 히어로는 "분석 중" 한 상태를 붙박이로 말하고, 제목은 그 안에서 무엇이 진행 중인지를 말한다
     expect(screen.getByRole('heading', { level: 1, name: '결과를 만들고 있어요' })).toBeInTheDocument()
   })
+
+  it('기다리는 중에는 히어로 아래에 억양 곡선 루프가 그려진다 (KAN-302)', async () => {
+    const { container } = await renderScreen({
+      fetchImpl: fetchFor({ analyses: () => jsonResponse(200, statusesBody(Array(3).fill('PROCESSING'))) }),
+    })
+
+    expect(container.querySelector('.analysis-waiting .intonation-curve')).toHaveAttribute('aria-hidden', 'true')
+  })
 })
 
 describe('재녹음 계측 (KAN-33)', () => {
