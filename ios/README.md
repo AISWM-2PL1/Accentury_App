@@ -36,13 +36,14 @@ xcodebuild -project Accentury.xcodeproj -scheme Accentury \
 ```
 
 PR에서 `ios/**`가 바뀌면 `.github/workflows/test.yml`의 `ios-test` 잡이 macos-26 러너에서 위
-`test` 명령을 그대로 돌린다. 로컬과 다른 점은 하나뿐이다 — 기기를 이름으로 고르지 않고 러너의
+`test` 명령을 그대로 돌린다. 결과에 영향을 주는 차이는 하나뿐이다 — 기기를 이름으로 고르지 않고 러너의
 가용 목록에서 골라 `-destination "id=<UDID>"`로 준다. 이미지마다 깔린 시뮬레이터가 달라
 이름을 박아 두면 언젠가 destination을 못 찾기 때문이다.
 
-고른 기기는 컴파일 전에 `xcrun simctl boot`로 미리 부팅해 둔다(KAN-37). 부팅·설치 대기가 컴파일과
-겹쳐 빌드 끝→첫 테스트가 3.9분에서 1분 안쪽으로 줄었다(잡 전체 12분→8.3분, PR #53 최종 런). SPM 캐시는 macOS 러너
-복원이 clone보다 느려 측정 후 뺐다 — 이유는 `test.yml` 주석에 있다.
+속도만 바꾸는 차이도 하나 있다. 고른 기기를 컴파일 전에 `xcrun simctl boot`로 미리 부팅해 둔다(KAN-37).
+부팅·설치 대기가 컴파일과 겹쳐 빌드 끝→첫 테스트가 3.9분에서 1분 안쪽으로 줄었다. 잡 전체 시간은 SPM
+resolve에 따라 크게 흔들린다(PR #53 8.3분, PR #55 12.8분). SPM 캐시는 복원(4.1분)이 캐시로 아끼는
+시간(1.8분)보다 길어 측정 후 뺐다 — 근거는 `test.yml` 주석에 있다.
 
 ## Local.xcconfig
 
