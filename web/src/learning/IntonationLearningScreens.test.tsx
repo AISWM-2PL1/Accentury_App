@@ -14,6 +14,7 @@ import {
   IntonationFeedbackScreen,
   IntonationLearningRoute,
   IntonationSummaryScreen,
+  IntonationWaitingScreen,
 } from './IntonationLearningScreens'
 import type { CardResult } from './useIntonationLearning'
 import type { IntonationCourse, PitchFeedbackItem } from './intonationApi'
@@ -654,6 +655,11 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     await act(async () => {})
     expect(screen.getByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
     expect(listCalls).toHaveBeenCalledTimes(2)
+  })
+
+  it('대기 화면은 제목 아래에 레벨 테스트 대기와 같은 억양 곡선 루프를 그린다 (KAN-302)', () => {
+    const { container } = render(<IntonationWaitingScreen />)
+    expect(container.querySelector('.analysis-waiting .intonation-curve')).toHaveAttribute('aria-hidden', 'true')
   })
 })
 
