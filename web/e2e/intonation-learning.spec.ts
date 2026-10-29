@@ -175,6 +175,62 @@ async function openFirstCourse(page: Page): Promise<void> {
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
 }
 
+/**
+ * 억양 곡선 루프가 실제로 움직이는지 (KAN-302, Codex 교차 검증 P1 2026-10-29). jsdom은 CSS 애니메이션을
+ * 돌리지 않아 vitest로는 점 추종·85% 정지·레이아웃 고정을 증명하지 못한다 — 실브라우저(Chromium)에서
+ * `getComputedStyle`로 진행 중인 값을 읽는다.
+ *
+ * 셀렉터가 역할·텍스트가 아니라 클래스인 이유: 곡선은 장식이라 `aria-hidden`이고(이름 없음), 접근성
+ * 트리에서 잡을 길이 없다. 그 aria-hidden 자체가 계약이라 같이 단언한다.
+ *
+ * 표본 간격 300ms × 최대 3회. 선은 2.4초 중 85%까지 긋고 정지하므로, 두 표본이 우연히 정지 구간(0px)에
+ * 함께 걸려도 셋째 표본은 다음 주기의 긋는 구간에 들어간다. 점의 `offset-distance`는 `@supports`가 참인
+ * Chromium 전제다(미지원 브라우저는 점이 끝점에 서 있다 — 컴포넌트 머리 주석).
+ */
+async function expectIntonationCurveRunning(page: Page): Promise<void> {
+  const curve = page.locator('.analysis-waiting .intonation-curve')
+  await expect(curve).toBeVisible()
+  await expect(curve).toHaveAttribute('aria-hidden', 'true')
+
+  const sample = () =>
+    page.evaluate(() => {
+      const line = document.querySelector('.analysis-waiting .intonation-curve__line')
+      const dot = document.querySelector('.analysis-waiting .intonation-curve__dot')
+      const steps = document.querySelector('.analysis-waiting .analysis-steps')
+      if (!line || !dot || !steps) return null
+      return {
+        dashoffset: getComputedStyle(line).strokeDashoffset,
+        offsetDistance: getComputedStyle(dot).offsetDistance,
+        stepsTop: steps.getBoundingClientRect().top,
+      }
+    })
+
+  const samples = [await sample()]
+  await page.waitForTimeout(300)
+  samples.push(await sample())
+  if (samples[0]?.dashoffset === samples[1]?.dashoffset) {
+    await page.waitForTimeout(300)
+    samples.push(await sample())
+  }
+  expect(samples, '대기 화면이 표본을 다 뽑기 전에 넘어갔다').not.toContain(null)
+  const taken = samples as NonNullable<(typeof samples)[number]>[]
+  expect(new Set(taken.map((s) => s.dashoffset)).size, '선이 그려지는 중이어야 한다').toBeGreaterThan(1)
+  expect(taken.some((s) => s.offsetDistance !== '100%'), '점이 곡선을 따라가는 중이어야 한다').toBe(true)
+  for (const s of taken) expect(s.stepsTop).toBeCloseTo(taken[0].stepsTop, 0)
+
+  // reduced-motion — tokens.css 전역 규칙이 0.01ms·1회로 접어 기본값(다 그은 선, 끝점의 점)에 멈춘다
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  try {
+    await page.waitForTimeout(300)
+    const still = [await sample()]
+    await page.waitForTimeout(300)
+    still.push(await sample())
+    for (const s of still) expect(s).toMatchObject({ dashoffset: '0px', offsetDistance: '100%' })
+  } finally {
+    await page.emulateMedia({ reducedMotion: null })
+  }
+}
+
 test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에서 다시 자동 호출 - 브리지 payload가 서버 상세의 카드와 같다', async ({
   page,
   request,
@@ -432,6 +488,7 @@ test('실채점 - 카드를 연속으로 올리면 결과 목록의 평균·행 
   expect(await intonationCalls(page)).toHaveLength(course.cardCount)
   // 마지막 카드는 막 올렸으니 아직 분석 중이다 — 대기를 거쳐 목록
   await expect(page.getByText('분석 중이에요', { exact: true })).toBeVisible()
+  await expectIntonationCurveRunning(page)
 
   await expect(page.getByRole('heading', { level: 1, name: `${course.title} 코스를 마쳤어요` })).toBeVisible({ timeout: 90_000 })
   const attempts = await Promise.all(attemptIds.map((id) => fetchAttempt(request, token, id)))
