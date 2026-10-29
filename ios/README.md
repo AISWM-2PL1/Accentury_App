@@ -40,6 +40,10 @@ PR에서 `ios/**`가 바뀌면 `.github/workflows/test.yml`의 `ios-test` 잡이
 가용 목록에서 골라 `-destination "id=<UDID>"`로 준다. 이미지마다 깔린 시뮬레이터가 달라
 이름을 박아 두면 언젠가 destination을 못 찾기 때문이다.
 
+고른 기기는 컴파일 전에 `xcrun simctl boot`로 미리 부팅해 둔다(KAN-37). 부팅·설치 대기가 컴파일과
+겹쳐 빌드 끝→첫 테스트가 3.9분에서 1분 안쪽으로 줄었다(잡 전체 12분→8.3분, PR #53 최종 런). SPM 캐시는 macOS 러너
+복원이 clone보다 느려 측정 후 뺐다 — 이유는 `test.yml` 주석에 있다.
+
 ## Local.xcconfig
 
 `Accentury/Config/Local.xcconfig.example`를 같은 폴더에 `Local.xcconfig`로 복사해서 쓴다
