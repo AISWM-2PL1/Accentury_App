@@ -315,15 +315,27 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # 매핑 파일은 선택이다. 지금 release는 optimization.enable = false라(app/build.gradle.kts)
-      # R8이 돌지 않아 생기지 않는다. 나중에 축소를 켜면 크래시 역난독화에 필요해지므로 미리
-      # 챙겨 두되, 없다고 실패시키지는 않는다. 필수 산출물과 조건이 달라 스텝을 나눴다.
-      - name: 아티팩트 업로드 (매핑, 있으면)
+      # upload-artifact의 if-no-files-found: error는 디렉터리에 파일이 하나라도 있으면 통과한다. 매핑
+      # 디렉터리에는 usage.txt·seeds.txt 같은 부산물도 생기므로, 정작 mapping.txt가 없거나 비어도 다음
+      # 스텝은 성공한다. 역난독화 열쇠인 mapping.txt 자체를 여기서 확인한다 (KAN-292, Codex 리뷰 2026-10-24).
+      - name: R8 매핑 확인
+        run: |
+          test -s app/build/outputs/mapping/release/mapping.txt || {
+            echo "::error title=매핑 없음::R8이 켜졌는데 app/build/outputs/mapping/release/mapping.txt가 없거나 비어 있습니다. release의 optimization.enable 또는 매핑 경로가 바뀌었는지 확인하세요 (KAN-292)." >&2
+            exit 1
+          }
+          echo "R8 매핑 확인 ($(du -h app/build/outputs/mapping/release/mapping.txt | cut -f1))"
+
+      # 매핑 파일도 필수다 (KAN-292). release가 optimization.enable = true라(app/build.gradle.kts)
+      # R8이 클래스·메서드 이름을 바꾸고, 이 스토어 빌드의 크래시 스택을 되돌리는 열쇠는 이 빌드의
+      # mapping.txt뿐이다 - 다시 빌드해서 얻은 매핑은 맞는다는 보장이 없다. 없으면 R8이 꺼졌거나 경로가
+      # 바뀐 것이라 실패시킨다. AAB와 아티팩트 이름을 나눈 이유는 받는 쪽이 달라서다(스토어 vs 역난독화).
+      - name: 아티팩트 업로드 (R8 매핑)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: accentury-app-release-${{ steps.meta.outputs.sha7 }}-mapping
           path: app/build/outputs/mapping/release/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 90
 
       # 스토어 업로드가 수동이라 사람이 이 표를 보고 판단한다. 버전은 gradle 값을 그대로 믿지 않고

@@ -104,6 +104,17 @@ jobs:
           fi
           xcrun simctl list devices available | grep "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          # 선부팅 - 빌드 끝에서 첫 테스트까지 3.9분이 시뮬레이터 부팅·앱 설치였다. 여기서
+          # 부팅을 걸어 두면 SPM 받기·컴파일(약 5분) 동안 부팅이 같이 진행돼 0.7분으로 줄었다.
+          # bootstatus -b는 부팅이 끝날 때까지 기다리므로 그 시간이 그대로 직렬로 남는다 -
+          # 그래서 boot만 걸고 바로 넘어간다. 실패(이미 Booted 등)는 무시해도 된다: 부팅이
+          # 안 됐으면 xcodebuild가 test 전에 스스로 부팅하니 지금과 같은 경로로 돌 뿐이다.
+          xcrun simctl boot "$udid" || echo "선부팅 건너뜀 - xcodebuild가 부팅한다"
+
+      # SPM 캐시는 쓰지 않는다. 2026-10-26 PR #53에서 actions/cache로 ios/SourcePackages
+      # (598 MB)를 캐시해 봤더니 적중해도 복원이 4.1분(다운로드 2.3분 + 압축 해제)인데
+      # resolve·컴파일 절감은 1.8분(7.2분→5.4분)이라 순손실 2.3분이었다. 덩치는 Firebase·
+      # gRPC·abseil·GoogleMobileAds 바이너리 xcframework라 줄일 수 없다.
 
       # CODE_SIGNING_ALLOWED=NO - 팀 ID가 든 Local.xcconfig는 gitignore라 CI에 없고, 그게
       # 정상 상태다. 시뮬레이터 빌드는 서명이 필요 없으므로 이 한 줄로 넘어간다.

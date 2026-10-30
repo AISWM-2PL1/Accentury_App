@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +35,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accentury.app.R
@@ -78,12 +80,13 @@ fun LoginScreen(
     // 로그인 SDK는 Activity 위에 자기 화면을 띄운다. 이 화면은 늘 MainActivity 안에서 돈다.
     val activity = checkNotNull(LocalActivity.current)
 
-    // 시안 03·04 배치 (KAN-288 디자인 3): 워드마크 앱바, 왼쪽 정렬 히어로, 동의 줄 → 로그인 버튼 → 실패 안내 순.
-    // 동의를 버튼 위로 올린 것은 버튼이 동의 전에는 눌리지 않기 때문이다 — 막힌 버튼보다 막은 이유가 먼저 보여야 한다.
-    PaperScreen(modifier = modifier) {
-        Spacer(Modifier.height(Spacing.x8))
-        IntroHero()
-        Spacer(Modifier.height(Spacing.x6))
+    // 히어로는 워드마크를 품고 가로 가운데, 아래 묶음 위 남은 칸의 세로 가운데에 선다 (2026-09-28 팀장 결정, iOS와 같은 배치).
+    // 디자인 3(KAN-288)에서 앱바 워드마크·왼쪽 정렬로 바뀌었다가 사용자 결정(2026-10-29)으로 되돌렸다. 위아래 가중치가 같아서
+    // 어느 화면 높이에서도 가운데다. 동의를 버튼 위에 둔 것은 버튼이 동의 전에는 눌리지 않기 때문이다 — 막은 이유가 먼저 보여야 한다.
+    PaperScreen(modifier = modifier, appBar = false) {
+        Spacer(Modifier.weight(1f))
+        IntroHero(modifier = Modifier.align(Alignment.CenterHorizontally))
+        Spacer(Modifier.weight(1f).heightIn(min = Spacing.x6))
         ConsentRow(
             checked = state.consented,
             onCheckedChange = { state.consented = it },
@@ -129,15 +132,21 @@ private val CssLineHeight = LineHeightStyle(alignment = LineHeightStyle.Alignmen
 
 /**
  * 웹 인트로의 상단 블록을 옮겼다 (KAN-224, `web/src/intro/IntroScreen.tsx` `.intro-hero`) — 앱 첫 화면이
- * 테스트 인트로와 같은 얼굴이어야 한다. 디자인 3(KAN-288)에서 왼쪽 정렬이 됐고 워드마크는 앱바로 올라갔다.
+ * 테스트 인트로와 같은 얼굴이어야 한다. 워드마크·제목·부제 모두 가운데 정렬이다.
  * 화면 이름은 두 줄 히어로 하나만 heading이다(웹 h1). 밑줄은 장식이라 의미론이 없다.
  */
 @Composable
-private fun IntroHero() {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
+private fun IntroHero(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.x2),
+    ) {
+        Text("Accentury", style = MaterialTheme.typography.titleMedium.copy(lineHeightStyle = CssLineHeight), color = MaterialTheme.colorScheme.onBackground)
         // 밑줄 폭 = 제목 글자 폭 (웹 `.intro-heading`이 글자 폭으로 줄고 svg가 width 100%).
         Column(
             modifier = Modifier.width(IntrinsicSize.Max),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.x1),
         ) {
             Text(
@@ -145,6 +154,7 @@ private fun IntroHero() {
                 // text-intro-hero 56 · leading-tight 1.15 — 네이티브 타입 슬롯에 없는 웹 전용 크기라 여기서만 덮는다
                 style = MaterialTheme.typography.displayLarge.copy(fontSize = 56.sp, lineHeight = 64.sp, lineHeightStyle = CssLineHeight),
                 color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() },
             )
             // 웹 svg viewBox 0 0 200 12, `M 4 3.5 Q 100 13.5 196 3.5`, preserveAspectRatio none + non-scaling-stroke:
@@ -163,6 +173,7 @@ private fun IntroHero() {
             "내 목소리로 확인하는 사투리 억양",
             style = MaterialTheme.typography.bodyMedium.copy(lineHeightStyle = CssLineHeight),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }

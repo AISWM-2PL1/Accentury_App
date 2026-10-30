@@ -11,6 +11,7 @@ import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
 import { Button, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckSmallIcon } from '../ui/icons'
+import { IntonationCurveLoop } from '../ui/IntonationCurveLoop'
 import { TextHero } from '../ui/TextHero'
 import { CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
 import type { IntonationCourse, IntonationCourseSummary, PitchFeedbackItem } from './intonationApi'
@@ -312,11 +313,13 @@ export function IntonationWaitingScreen() {
   const stage = waitingStage(elapsedMs)
 
   // 단계 마크업·클래스는 레벨테스트 대기 화면(AnalysisWaitingScreen)과 같다. 세션 10문항에 묶인 그 화면 대신 카드 1건용
+  // 제목 아래 억양 곡선 루프도 같은 부품이다 — 두 대기 화면이 같은 모양으로 기다린다 (KAN-302)
   return (
     <main className="screen">
       <div className="analysis-body analysis-body--centered">
         <div className="analysis-waiting">
           <h1 className="type-headline">분석 중이에요</h1>
+          <IntonationCurveLoop />
           <div className="analysis-steps">
             {WAITING_STAGES.map((label, i) => {
               const step = i + 1

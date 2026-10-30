@@ -1317,6 +1317,87 @@
   color: var(--color-muted-foreground);
 }
 
+/* ── 억양 곡선 루프 (KAN-302) ── */
+
+/*
+ * 대기 화면 제목 아래 곡선 (`IntonationCurveLoop`). 선을 왼쪽부터 긋고 벽돌 점이 펜 끝처럼
+ * 따라간다 — 2.4초 중 85%까지 긋고 나머지는 다 그은 채로 멈췄다가 다시 시작한다. 멈춤이 없으면
+ * 다 그은 곡선이 눈에 들어올 틈 없이 지워져 "그리는 중"이 아니라 깜빡임으로 읽힌다.
+ *
+ * 높이 40px 고정: 레이아웃이 애니메이션에 따라 튀지 않게, 간격은 `.analysis-waiting`의 gap만
+ * 쓴다. `overflow: visible`은 양 끝의 둥근 선 끝과 반지름 4짜리 점이 viewBox 밖으로 조금 나가서다.
+ *
+ * 이 레포의 두 번째 `@keyframes`다(첫 번째는 KAN-216 `test-start-pop`). 여기는 상태 변화가 아니라
+ * 끝없이 도는 루프라 transition으로는 그릴 수 없다. `.test-start`와 같은 이유로 **이 블록에도
+ * reduced-motion 미디어쿼리가 따로 없다** — `tokens.css`의 전역 규칙이 0.01ms·1회로 접고,
+ * fill-mode를 두지 않았으므로 접힌 뒤에는 기본값(선 전체가 그어진 `stroke-dashoffset: 0`, 점이
+ * 오른쪽 끝인 `offset-distance: 100%`)으로 돌아간다. 움직이지 않는 곡선 한 줄이 남는 셈이다.
+ */
+.intonation-curve {
+  display: block;
+  width: 100%;
+  max-width: 312px;
+  height: 40px;
+  overflow: visible;
+}
+
+.intonation-curve__guide {
+  fill: none;
+  stroke: var(--color-primary-dim);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+}
+
+/* `pathLength=100`이라 대시 하나(100)가 곡선 전체다 — 오프셋 100→0이 곧 0%→100% 긋기다 */
+.intonation-curve__line {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  animation: intonation-curve-draw 2.4s linear infinite;
+}
+
+/*
+ * 점의 경로(`offset-path`)는 컴포넌트가 인라인으로 넣는다 — 선의 d와 같은 상수를 쓰려고다.
+ * 기본 위치는 속성 `cx`/`cy`(곡선 끝점)이고, offset-path를 아는 브라우저에서만 원점으로 옮겨
+ * 경로를 따라가게 한다 (Safari 16+, 컴포넌트 머리 주석). 모르는 브라우저는 끝점에 서 있는다.
+ */
+.intonation-curve__dot {
+  fill: var(--color-point);
+}
+
+@supports (offset-path: path('M0 0')) {
+  .intonation-curve__dot {
+    cx: 0;
+    cy: 0;
+    offset-distance: 100%;
+    offset-rotate: 0deg;
+    animation: intonation-curve-dot 2.4s linear infinite;
+  }
+}
+
+@keyframes intonation-curve-draw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  85%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes intonation-curve-dot {
+  0% {
+    offset-distance: 0%;
+  }
+  85%,
+  100% {
+    offset-distance: 100%;
+  }
+}
+
 .analysis-steps {
   /* 디자인 3 (KAN-288, 시안 `.steps`): 세로 목록, 칸마다 아래 파선 */
   display: flex;

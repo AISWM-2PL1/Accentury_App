@@ -53,6 +53,15 @@
  * 브리지가 없어야 그려지므로, 한 실행에서 둘이 같이 보이는 경로가 없다. 슬롯은 문항 목록 아래(디자인 3, KAN-288),
  * 기다리는 중(`waiting`)에만 선다: 오류·행동 요구 상태에서는 히어로 블록째 그리지 않으므로
  * 사용자가 무엇을 해야 하는지를 광고가 밀어내지 않는다.
+ *
+ * ## 히어로 아래의 억양 곡선 (KAN-302)
+ *
+ * 기다리는 중에는 히어로 바로 아래에서 억양 곡선이 계속 그려진다 ([IntonationCurveLoop]).
+ * ux-ui.md §F 「분석 대기」가 원래 "곡선이 그려지는 애니메이션"으로 설계했는데 구현에서 빠져
+ * 있던 것을 되살렸다. 이 앱이 다루는 것이 억양 곡선이라 같은 모양이 "내 목소리를 분석하는 중"을
+ * 말하고, 분석이 길어져 단계 표시가 한동안 그대로여도 화면이 움직이므로 "멈춘 것인지" 묻지 않게
+ * 된다. 단계 목록은 정적으로 둔다 — 그쪽은 폴링에서 파생한 실제 진행이라, 거기까지 움직이면
+ * 장식과 사실이 구분되지 않는다.
  */
 
 import { Fragment, useEffect, useRef } from 'react'
@@ -61,6 +70,7 @@ import { showInterstitialAdOnce } from '../ads/interstitial'
 import type { RetakeReason } from '../analytics/events'
 import { Button, StatusBlock } from '../ui'
 import { CheckSmallIcon } from '../ui/icons'
+import { IntonationCurveLoop } from '../ui/IntonationCurveLoop'
 import { TextHero } from '../ui/TextHero'
 import { ANALYSIS_STAGES, analysisStage } from './analysisStage'
 import type { VoiceItem } from '../progress/testDefinition'
@@ -344,6 +354,8 @@ export function AnalysisWaitingScreen({
             <div className="illustration--waiting analysis-waiting__hero">
               <TextHero>분석 중입니다</TextHero>
             </div>
+            {/* 움직이는 장식은 이 곡선 하나다 — 아래 단계 목록은 정적이다 (KAN-302, 머리 주석) */}
+            <IntonationCurveLoop />
             {/*
               대기 문구가 StatusBlock의 본문에서 제목(h1)으로 올라왔다. 이 화면에는 다른 제목이
               없어 이 문장이 곧 화면의 이름이고, 시안도 히어로 아래 가장 큰 글자로 둔다.

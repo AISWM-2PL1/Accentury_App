@@ -290,10 +290,12 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 12인 이유: 빌드 11은 2026-10-22 TestFlight 업로드로 번호가 소모됐다. 12가 KAN-290 화면 전환
-        // SPA화(브리지 onLocationChanged·accenturyNavigate)를 실은 제출 빌드다 - 구버전 웹/앱 폴백은 있지만
-        // 네이티브 수신 코드가 들어가야 끊김이 사라진다(xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
-        versionCode = 12
+        // 14인 이유: 빌드 13(KAN-224 iOS 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐다(스토어
+        // 스크린샷 KAN-175도 13 기준). 14가 KAN-292 Play Console 발견 항목 대응(릴리스 R8 난독화 켬·keep
+        // 규칙, 네이버 로그인 창 screenOrientation 제거)을 더한 제출 빌드다 - Play Console 난독화 1%
+        // (기한 2027-02)·fragment 구버전·Android 15 큰 화면 경고 3건이 이 번들에서 사라져야 한다
+        // (xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
+        versionCode = 14
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -427,8 +429,15 @@ android {
             // FAKE_MIC_ASSET은 여기에 없다. 이 필드를 읽는 코드가 src/debug에만 있어서다
             // (audio/PcmSources.kt) - 릴리스에는 파일 재생 경로가 상수 ""로 죽어 있는 게
             // 아니라 아예 존재하지 않는다.
+            // R8 코드 축소·난독화 + 리소스 축소 (KAN-292). Play Console(2026-10-24)이 DEX 난독화 1%를
+            // 지적했다(기한 2027-02). AGP 9.3 새 DSL은 enable 하나로 코드·리소스 최적화를 함께 켜고,
+            // 기본 규칙(구 proguard-android-optimize.txt 상당)도 자동으로 붙는다 - 구 DSL의
+            // isMinifyEnabled·isShrinkResources·proguardFiles(getDefaultProguardFile(...))가 할 일을 이
+            // 블록이 다 한다. 우리 keep 규칙은 proguardFiles가 아니라 src/main/keepRules/*.keep에서 읽는다.
+            // https://developer.android.com/topic/performance/app-optimization/enable-app-optimization
+            // https://developer.android.com/build/releases/agp-9-3-0-release-notes
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
