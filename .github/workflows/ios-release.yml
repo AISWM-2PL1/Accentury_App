@@ -612,7 +612,7 @@ jobs:
       # 크래시를 나중에 심볼화할 수 있게 아카이브의 dSYMs를 아티팩트로 챙겨 둔다.
       # export 쪽 *.dSYM은 method·옵션에 따라 나오기도 안 나오기도 해서 없어도 넘어간다.
       - name: 아티팩트 업로드 (.ipa + dSYM)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: accentury-ios-release-${{ steps.meta.outputs.sha7 }}
           path: |
