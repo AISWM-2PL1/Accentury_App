@@ -6,7 +6,15 @@
  * - 입력을 고치면 결과·오류를 지우고, 그 전에 보낸 요청의 늦은 응답도 버린다(`requestId` 가드 —
  *   단어 학습의 `attemptId` 가드와 같은 방식). 옛 결과가 새 입력의 번역처럼 보이면 안 된다.
  * - 입력은 어디에도 저장하지 않는다(localStorage 등 금지, ux-ui 결정 — Gemini 무료 등급 전송이라).
+ *   localStorage에 남는 것은 Gemini 전송 동의 여부뿐이다(`translatorConsentStore`, KAN-304).
  * - 탭 바는 모든 상태에서 선다. `CLIENT_NOT_SIGNED_IN`이면 App의 `useAccountTabs`가 토큰이 없어 그리지 않는다.
+ *
+ * KAN-304: App Store 심사(1.0 빌드 13)가 5.1.1(i)·5.1.2(i)로 거절했다(2026-10-30) — 입력 문장이 Google LLC의
+ * Gemini API로 가는데 누구에게 보내는지 밝히지 않고, 보내기 전 허락도 받지 않았다는 것이다. 그래서 미동의
+ * 상태의 첫 [바꾸기]는 요청 대신 동의 시트(`TranslatorConsentSheet`)를 띄우고, [동의하고 보내기]를 눌러야
+ * 그 입력을 보낸다. 동의는 기기마다 한 번이다. 입력창 아래 상시 고지도 받는 곳(Google Gemini API)을 말한다.
+ * 방침 고지로 동의를 갈음한 2026-10-08 결정은 2026-11-02 팀장 결정으로 철회됐다. [다시 시도]는 이미 동의한
+ * 뒤에만 닿는 자리라 다시 묻지 않는다.
  */
 
 import { useRef, useState, type ReactNode } from 'react'
@@ -14,6 +22,9 @@ import { PrivacyPolicyLink } from '../legal/PrivacyPolicyLink'
 import { CLIENT_NOT_SIGNED_IN, WordLearningError, type WordApiDeps } from '../learning/wordApi'
 import { shareResult } from '../share/shareResult'
 import { Button } from '../ui'
+import { TranslatorConsentSheet } from './TranslatorConsentSheet'
+import { readTranslatorConsent, writeTranslatorConsent } from './translatorConsentStore'
+import { TRANSLATOR_NOTICE } from './translatorConsentText'
 import {
   TRANSLATION_REJECTED,
   TRANSLATION_TOO_LONG,
@@ -55,6 +66,8 @@ export interface TranslatorScreenProps {
 export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProps) {
   const [text, setText] = useState('')
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  /** 동의 시트가 떠 있는 동안 보낼 입력. null이면 시트가 없다 */
+  const [consentPending, setConsentPending] = useState<string | null>(null)
   const requestId = useRef(0)
 
   const length = [...text].length
@@ -83,6 +96,19 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
     )
   }
 
+  const onSubmit = () => {
+    const input = text.trim()
+    if (readTranslatorConsent()) run(input)
+    else setConsentPending(input)
+  }
+
+  const onAgree = () => {
+    const input = consentPending
+    writeTranslatorConsent()
+    setConsentPending(null)
+    if (input !== null) run(input)
+  }
+
   return (
     <>
       <main className="item-screen">
@@ -100,15 +126,17 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
           <p className={`type-caption ${tooLong ? 'feedback-message' : 'feedback-counter'}`}>{`${length}/${MAX_CHARS}`}</p>
           {tooLong && <p className="type-caption feedback-message">{TOO_LONG_MESSAGE}</p>}
           <p className="type-caption feedback-hint">
-            개인정보나 민감한 내용은 넣지 마세요 · <PrivacyPolicyLink />
+            {TRANSLATOR_NOTICE}
+            <PrivacyPolicyLink />
           </p>
-          <Button disabled={!canSubmit} onClick={() => run(text.trim())}>
+          <Button disabled={!canSubmit} onClick={onSubmit}>
             바꾸기
           </Button>
           <TranslatorStatus status={status} onRetry={run} />
         </div>
       </main>
       {tabBar}
+      {consentPending !== null && <TranslatorConsentSheet onAgree={onAgree} onCancel={() => setConsentPending(null)} />}
     </>
   )
 }

@@ -7,6 +7,9 @@
  * 2. **브리지 계정 토큰이 실제 요청 헤더에 실린다** — 화면이 보낸 요청을 `page.route`에서 그대로 읽는다.
  * 3. **진짜 클립보드·브리지 공유** — Chromium의 `navigator.clipboard`와 브리지 `shareResult`가 받은 JSON.
  *
+ * Gemini 전송 동의 시트(KAN-304)는 「번역 성공」 테스트가 실제로 거친다. 그 뒤 테스트들은 [consented]로
+ * 동의 값을 미리 심어 시트 없이 시작한다.
+ *
  * 서버는 `page.route`로 가로챈다(백엔드 없이 돈다). 앱 실행 흉내는 `learning-entry` 스펙과 같다 —
  * URL의 `bridge=2`와 `addInitScript`로 먼저 심은 브리지.
  */
@@ -51,6 +54,11 @@ async function stubTranslations(page: Page, respond: (route: Route, n: number) =
   return requests
 }
 
+/** 이 기기에서 Gemini 전송에 이미 동의한 상태로 연다 (`translatorConsentStore`의 키·값) */
+async function consented(page: Page): Promise<void> {
+  await page.addInitScript(() => localStorage.setItem('accentury:translatorConsent', 'granted'))
+}
+
 const tabBar = (page: Page) => page.getByRole('navigation', { name: '주 메뉴' })
 const input = (page: Page) => page.getByLabel('표준어 문장')
 const submit = (page: Page) => page.getByRole('button', { name: '바꾸기', exact: true })
@@ -71,7 +79,7 @@ test('탭 바 「사투리 번역기」 - 홈 문서에서 누르면 번역기 �
   expect(requests).toHaveLength(0)
 })
 
-test('번역 성공 - 대기 문구 뒤 결과·AI 고지가 서고, 요청은 {text} + Bearer 1건이다(연타해도). 입력을 고치면 결과가 지워진다', async ({
+test('번역 성공 - 첫 [바꾸기]는 Gemini 전송 동의 시트, [동의하고 보내기] 뒤 대기 문구·결과·AI 고지가 서고, 요청은 {text} + Bearer 1건이다. 입력을 고치면 결과가 지워진다', async ({
   page,
 }) => {
   await asApp(page)
@@ -84,14 +92,22 @@ test('번역 성공 - 대기 문구 뒤 결과·AI 고지가 서고, 요청은 {
   })
   await page.goto(TRANSLATE_URL)
 
-  // 개인정보 안내 + 처리방침 링크는 입력 단계부터 있다
-  await expect(page.getByText('개인정보나 민감한 내용은 넣지 마세요', { exact: false })).toBeVisible()
+  // 받는 곳(Google Gemini API) 상시 고지 + 처리방침 링크는 입력 단계부터 있다
+  await expect(page.getByText('입력한 문장은 번역을 위해 Google Gemini API로 보내요', { exact: false })).toBeVisible()
   await expect(page.getByRole('link', { name: '개인정보처리방침' })).toBeVisible()
 
   await input(page).fill('밥 먹었니?')
   await expect(page.getByText('6/100', { exact: true })).toBeVisible()
-  // 연타 — 첫 클릭이 버튼을 잠그므로 둘째는 아무 일도 하지 않아야 한다
-  await submit(page).dblclick()
+  // 미동의 첫 [바꾸기] — 요청 대신 동의 시트가 뜬다 (KAN-304)
+  await submit(page).click()
+  const sheet = page.getByRole('dialog', { name: '문장을 Google Gemini로 보내도 될까요?' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByText('Google LLC의 Gemini API', { exact: false })).toBeVisible()
+  await expect(sheet.getByRole('link', { name: '개인정보처리방침' })).toBeVisible()
+  expect(requests).toHaveLength(0)
+  // 동의가 곧 전송이다. 대기 중 [바꾸기] 연타가 요청 한 번인 것은 vitest가 본다(「대기 중엔 …」)
+  await sheet.getByRole('button', { name: '동의하고 보내기', exact: true }).click()
+  await expect(sheet).toHaveCount(0)
   await expect(page.getByText('바꾸는 중이에요', { exact: true })).toBeVisible()
   await expect(submit(page)).toBeDisabled()
   await expect(input(page)).toHaveValue('밥 먹었니?')
@@ -115,6 +131,7 @@ test('번역 성공 - 대기 문구 뒤 결과·AI 고지가 서고, 요청은 {
 test('[복사] - 클립보드에 사투리 문장이 들어가고 라벨이 「복사했어요」로 바뀐다', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await asApp(page)
+  await consented(page)
   await stubTranslations(page, (route) => route.fulfill({ json: { dialect: '밥 뭇나?' } }))
   await page.goto(TRANSLATE_URL)
 
@@ -128,6 +145,7 @@ test('[복사] - 클립보드에 사투리 문장이 들어가고 라벨이 「�
 
 test('[공유] - 브리지 shareResult가 「표준어 → 사투리」 문구와 https 링크·이미지를 받는다', async ({ page }) => {
   await asApp(page)
+  await consented(page)
   await stubTranslations(page, (route) => route.fulfill({ json: { dialect: '밥 뭇나?' } }))
   await page.goto(TRANSLATE_URL)
 
@@ -145,6 +163,7 @@ test('[공유] - 브리지 shareResult가 「표준어 → 사투리」 문구�
 
 test('입력 검증 - 빈 입력·공백만이면 [바꾸기] 비활성, 101자(코드 포인트)면 비활성 + 「100자까지 쓸 수 있어요」', async ({ page }) => {
   await asApp(page)
+  await consented(page)
   const requests = await stubTranslations(page, (route) => route.fulfill({ json: { dialect: '밥 뭇나?' } }))
   await page.goto(TRANSLATE_URL)
 
@@ -167,6 +186,7 @@ test('입력 검증 - 빈 입력·공백만이면 [바꾸기] 비활성, 101자(
 
 test('422 TRANSLATION_REJECTED - 「올바른 문장을 넣어주세요」, 입력을 고치면 문구가 사라진다', async ({ page }) => {
   await asApp(page)
+  await consented(page)
   await stubTranslations(page, (route) => route.fulfill({ status: 422, json: envelope('TRANSLATION_REJECTED', false) }))
   await page.goto(TRANSLATE_URL)
 
@@ -183,6 +203,7 @@ test('422 TRANSLATION_REJECTED - 「올바른 문장을 넣어주세요」, 입�
 
 test('503 TRANSLATION_UNAVAILABLE - 오류 + [다시 시도], 같은 입력으로 다시 보내 결과가 뜬다', async ({ page }) => {
   await asApp(page)
+  await consented(page)
   const requests = await stubTranslations(page, (route, n) =>
     n === 1
       ? route.fulfill({ status: 503, json: envelope('TRANSLATION_UNAVAILABLE', true) })

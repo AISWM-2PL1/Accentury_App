@@ -1,9 +1,10 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { WordApiDeps } from '../learning/wordApi'
 import { shareResult } from '../share/shareResult'
 import { TranslatorScreen } from './TranslatorScreen'
+import { resetTranslatorConsentMemory, TRANSLATOR_CONSENT_KEY, writeTranslatorConsent } from './translatorConsentStore'
 
 vi.mock('../share/shareResult', () => ({ shareResult: vi.fn(() => 'bridge') }))
 
@@ -38,6 +39,14 @@ function deferredFetch() {
 
 beforeEach(() => {
   vi.mocked(shareResult).mockClear()
+  resetTranslatorConsentMemory()
+  try {
+    localStorage.clear()
+  } catch {
+    // localStorage가 없는 런타임(로컬 Node 26 jsdom) — 메모리 사본만으로 돈다
+  }
+  // 대부분의 케이스는 동의를 마친 화면을 본다. 미동의 흐름은 「Gemini 전송 동의」 describe가 다시 비우고 시작한다
+  writeTranslatorConsent()
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -52,9 +61,9 @@ describe('입력 상태 (ux-ui 「사투리 번역기 화면」 상태 표)', ()
     expect(screen.getByRole('navigation', { name: '주 메뉴' })).toBeInTheDocument()
   })
 
-  it('개인정보 안내와 처리방침 링크가 입력창 아래에 있다', () => {
+  it('입력창 아래 상시 고지가 받는 곳(Google Gemini API)과 처리방침 링크를 말한다', () => {
     setup(vi.fn())
-    expect(screen.getByText(/개인정보나 민감한 내용은 넣지 마세요/)).toBeInTheDocument()
+    expect(screen.getByText(/입력한 문장은 번역을 위해 Google Gemini API로 보내요/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '개인정보처리방침' })).toBeInTheDocument()
   })
 
@@ -229,5 +238,73 @@ describe('오류 상태', () => {
     submit()
     expect(await screen.findByText('로그인이 만료됐어요. 다시 로그인해 주세요')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+  })
+})
+
+describe('Gemini 전송 동의 (KAN-304)', () => {
+  const ok = () => vi.fn<FetchLike>(async () => jsonResponse(200, { dialect: '밥 뭇나?' }))
+
+  beforeEach(() => {
+    resetTranslatorConsentMemory()
+    try {
+      localStorage.clear()
+    } catch {
+      // 위 beforeEach와 같다
+    }
+  })
+
+  it('미동의 첫 [바꾸기]는 요청 대신 시트를 띄운다 — Google LLC·Gemini API·처리방침 링크', () => {
+    const fetchImpl = ok()
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    const dialog = screen.getByRole('dialog', { name: '문장을 Google Gemini로 보내도 될까요?' })
+    expect(dialog).toHaveTextContent('Google LLC의 Gemini API')
+    expect(dialog).toHaveTextContent('자사 제품 개선에 쓸 수 있어요')
+    expect(within(dialog).getByRole('link', { name: '개인정보처리방침' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '동의하고 보내기' })).toHaveFocus()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('[취소]는 시트만 닫는다 — 요청 없음, 입력 그대로, [바꾸기] 다시 활성', async () => {
+    const fetchImpl = ok()
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    fireEvent.click(screen.getByRole('button', { name: '취소' }))
+    await act(async () => {})
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(input()).toHaveValue('밥 먹었어?')
+    expect(screen.getByRole('button', { name: '바꾸기' })).toBeEnabled()
+  })
+
+  it('[동의하고 보내기]는 그 입력을 보내고 동의를 남긴다 — 다시 [바꾸기]해도 시트 없음', async () => {
+    const fetchImpl = ok()
+    setup(fetchImpl)
+    type('  밥 먹었어?  ')
+    submit()
+    fireEvent.click(screen.getByRole('button', { name: '동의하고 보내기' }))
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?' }))
+
+    type('어디 가?')
+    submit()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
+  })
+
+  it('저장된 동의가 있으면 처음부터 시트 없이 바로 보낸다', async () => {
+    const fetchImpl = ok()
+    const storage = { getItem: (key: string) => (key === TRANSLATOR_CONSENT_KEY ? 'granted' : null), setItem: () => {} }
+    vi.stubGlobal('localStorage', storage)
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 })
