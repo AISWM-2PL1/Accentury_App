@@ -586,7 +586,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
 
     /*
      * 네이티브 설정 「맞춤형 광고 설정」 → 홈 + `adConsent=open` (KAN-315, 2026-11-03 팀 결정). 이미 골랐어도 시트를
-     * 현재 값 줄과 함께 다시 열고, 고르면 플래그를 replace로 걷어낸다.
+     * 현재 값 줄과 함께 다시 열고, 고르면 플래그를 history.replaceState로 걷어낸다(재마운트 없음).
      */
     it('adConsent=open이면 이미 골랐어도(granted) 현재 값 줄·설정 탭 안내와 함께 시트가 뜨고 배경·탭 바가 inert', () => {
       setSearch(`${APP}&screen=home&adConsent=open`)
@@ -600,7 +600,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       expect(tabBar()?.closest('[inert]')).not.toBeNull()
     })
 
-    it('adConsent=open에서 고르면 시트가 닫히고 URL에서 adConsent만 replace로 걷어낸다', () => {
+    it('adConsent=open에서 고르면 시트가 닫히고 URL에서 adConsent만 빠지며 navigate는 호출되지 않는다', () => {
       setSearch(`${APP}&screen=home&adConsent=open&c=kko_share`)
       const { setAdConsent } = adBridge('granted')
       const navigate = vi.fn()
@@ -609,14 +609,12 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       fireEvent.click(screen.getByRole('button', { name: '일반 광고만 보기' }))
       expect(setAdConsent).toHaveBeenCalledWith('denied')
       expect(dialog()).toBeNull()
-      expect(navigate).toHaveBeenCalledTimes(1)
-      const [url, options] = navigate.mock.calls[0]
-      const next = queryOf(url)
+      expect(navigate).not.toHaveBeenCalled()
+      const next = new URLSearchParams(window.location.search)
       expect(next.get('adConsent')).toBeNull()
       expect(next.get('screen')).toBe('home')
       expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
       expect(next.get('c')).toBe('kko_share')
-      expect(options).toEqual({ replace: true })
     })
 
     it('첫 실행(unknown) 시트는 플래그가 없으니 고른 뒤 URL을 건드리지 않는다', () => {
