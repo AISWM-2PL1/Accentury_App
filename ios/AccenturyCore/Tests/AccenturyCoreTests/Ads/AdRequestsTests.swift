@@ -61,11 +61,22 @@ final class AdRequestsTests: XCTestCase {
     // MARK: shouldOpenTrackingSettings — ATT 거부 뒤 재허용은 설정 앱으로 (KAN-315, ads-admob.md §7.5)
 
     func testOpenTrackingSettingsTable() {
-        // granted × denied 한 칸만 설정 앱을 연다. 나머지는 프롬프트(notDetermined)거나 할 일이 없다.
+        // 재열기(previous ≠ unknown)의 granted × denied만 설정 앱을 연다. 나머지는 프롬프트(notDetermined)거나 할 일이 없다.
+        // 첫 실행 시트(previous == unknown)는 denied여도 열지 않는다 — 전역 추적 요청 꺼짐과 구분할 수 없다(PR #60 리뷰).
         let statuses: [TrackingStatus] = [.notDetermined, .restricted, .denied, .authorized]
-        for status in statuses {
-            XCTAssertEqual(shouldOpenTrackingSettings(consent: .granted, status: status), status == .denied, "granted × \(status)")
-            XCTAssertFalse(shouldOpenTrackingSettings(consent: .denied, status: status), "denied × \(status)")
+        let previouses: [AdConsent] = [.unknown, .granted, .denied]
+        for previous in previouses {
+            for status in statuses {
+                XCTAssertEqual(
+                    shouldOpenTrackingSettings(previous: previous, next: .granted, status: status),
+                    previous != .unknown && status == .denied,
+                    "\(previous) → granted × \(status)"
+                )
+                XCTAssertFalse(
+                    shouldOpenTrackingSettings(previous: previous, next: .denied, status: status),
+                    "\(previous) → denied × \(status)"
+                )
+            }
         }
     }
 }

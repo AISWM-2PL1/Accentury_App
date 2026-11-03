@@ -61,12 +61,14 @@ internal fun providerName(provider: Provider): String = when (provider) {
 }
 
 /**
- * 「맞춤형 광고 설정」 행의 현재 값 줄 (KAN-315). 값은 설정을 열 때 [AdConsent] 저장소에서 읽은 것이다.
+ * 「맞춤형 광고 설정」 행의 보조 줄 (KAN-315). 값은 설정을 열 때 [AdConsent] 저장소에서 읽은 것이다.
+ * 행이 비활성(테스트 진행·시작 게이트 중, PR #60 리뷰)이면 값 대신 언제 바꿀 수 있는지를 보인다.
  */
-internal fun adConsentSettingValue(consent: AdConsent): String = when (consent) {
-    AdConsent.Granted -> "맞춤형 광고 허용"
-    AdConsent.Denied -> "일반 광고만 보기"
-    AdConsent.Unknown -> "아직 고르지 않음"
+internal fun adConsentSettingValue(consent: AdConsent, enabled: Boolean): String = when {
+    !enabled -> "테스트가 끝난 뒤 바꿀 수 있어요"
+    consent == AdConsent.Granted -> "맞춤형 광고 허용"
+    consent == AdConsent.Denied -> "일반 광고만 보기"
+    else -> "아직 고르지 않음"
 }
 
 /**
@@ -112,6 +114,7 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
  * @param onOpenPrivacy 방침 문서 (LoginScreen과 같은 호출)
  * @param adConsent 맞춤형 광고 동의 현재 값 (KAN-315). 설정을 열 때 읽은 값이면 된다 — 시트에서 바꿀 때 설정은 이미 닫혀 있다
  * @param onOpenAdConsent 「맞춤형 광고 설정」을 눌렀다 (KAN-315). 호출자가 설정을 닫고 웹 홈의 광고 동의 시트로 옮긴다
+ * @param adConsentEnabled 지금 광고 동의 시트를 다시 열 수 있나 (PR #60 리뷰). 테스트 진행·시작 게이트 중엔 false라 행이 비활성이다
  */
 @Composable
 fun SettingsScreen(
@@ -125,6 +128,7 @@ fun SettingsScreen(
     onOpenPrivacy: () -> Unit,
     adConsent: AdConsent,
     onOpenAdConsent: () -> Unit,
+    adConsentEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -182,7 +186,7 @@ fun SettingsScreen(
                 onReload = onReloadVoiceConsent,
                 onOpenPrivacy = onOpenPrivacy,
             ) {
-                AdConsentRow(consent = adConsent, enabled = !busy, onClick = onOpenAdConsent)
+                AdConsentRow(consent = adConsent, available = adConsentEnabled, enabled = !busy && adConsentEnabled, onClick = onOpenAdConsent)
             }
         }
     }
@@ -362,7 +366,7 @@ private fun VoiceConsentSection(
  * 글자는 [VoiceConsentSection]의 라벨(bodyLarge)·캡션(bodyMedium, 보조색)을 따르고, 줄 전체가 48dp 버튼 하나로 눌린다.
  */
 @Composable
-private fun AdConsentRow(consent: AdConsent, enabled: Boolean, onClick: () -> Unit) {
+private fun AdConsentRow(consent: AdConsent, available: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -372,7 +376,7 @@ private fun AdConsentRow(consent: AdConsent, enabled: Boolean, onClick: () -> Un
     ) {
         Text("맞춤형 광고 설정", style = MaterialTheme.typography.bodyLarge)
         Text(
-            adConsentSettingValue(consent),
+            adConsentSettingValue(consent, available),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -52,6 +52,8 @@ struct SettingsScreen: View {
     let onReloadVoiceConsent: () async -> Void
     /// 방침 문서 (로그인 화면과 같은 호출)
     let onOpenPrivacy: () -> Void
+    /// 지금 광고 동의 시트를 다시 열 수 있나 (PR #60 리뷰). 테스트 진행·시작 게이트 중엔 false라 행이 비활성이다
+    let adConsentEnabled: Bool
     /// 「맞춤형 광고 설정」 행 (KAN-315). 호출자가 이 화면을 닫고 웹 홈의 광고 동의 시트를 연다
     let onOpenAdConsent: () -> Void
 
@@ -113,7 +115,7 @@ struct SettingsScreen: View {
                     },
                     onReload: onReloadVoiceConsent,
                     onOpenPrivacy: onOpenPrivacy,
-                    extra: AnyView(AdConsentRow(action: onOpenAdConsent))
+                    extra: AnyView(AdConsentRow(enabled: adConsentEnabled && !busy, available: adConsentEnabled, action: onOpenAdConsent))
                 )
 
                 AccenturyButton(text: "로그아웃", variant: .secondary, enabled: !busy, fillsWidth: true) {
@@ -192,6 +194,9 @@ struct SettingsScreen: View {
 /// 로그인 빌드만이다(익명 ``AnonymousSettingsScreen``에는 없다).
 private struct AdConsentRow: View {
 
+    let enabled: Bool
+    /// false면(테스트 진행·시작 게이트 중) 값 대신 언제 바꿀 수 있는지를 보인다 — 안드로이드 `adConsentSettingValue`와 같은 문구
+    let available: Bool
     let action: () -> Void
 
     @ObservedObject private var ads = AdsController.shared
@@ -206,9 +211,11 @@ private struct AdConsentRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 
     private var caption: String {
+        if !available { return "테스트가 끝난 뒤 바꿀 수 있어요" }
         switch ads.consent {
         case .granted: return "맞춤형 광고 허용"
         case .denied: return "일반 광고만 보기"

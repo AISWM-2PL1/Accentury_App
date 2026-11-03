@@ -324,6 +324,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             var settingsOpen by rememberSaveable { mutableStateOf(false) }
             // 설정 「맞춤형 광고 설정」 (KAN-315) → TestFlow가 WebView를 홈+광고 동의 플래그로 옮기고 내린다.
             var adConsentRequested by rememberSaveable { mutableStateOf(false) }
+            // 지금 화면에서 광고 동의를 다시 열 수 있나 (PR #60 리뷰) — 테스트 진행·시작 게이트 중엔 설정 행이 비활성이다.
+            var adConsentAvailable by rememberSaveable { mutableStateOf(false) }
             /*
              * 음성 저장 선택 동의 (KAN-270). 설정 화면과 같은 이유로 TestFlow 위에 덮는다. 로그인·추가 정보를 마친
              * 미동의 계정에 한 번만 — 건너뛰어도 다시 띄우지 않는다(팀 결정 2026-10-06). 표시 기록은 계정 id별
@@ -344,6 +346,7 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                     tabBarEntry = true,
                     adConsentRequested = adConsentRequested,
                     onAdConsentHandled = { adConsentRequested = false },
+                    onAdConsentAvailable = { adConsentAvailable = it },
                 )
                 if (!consentPromptDone && shouldPromptVoiceConsent(state, promptStore.wasPrompted(state.user.id))) {
                     val finish = {
@@ -383,6 +386,7 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         onOpenPrivacy = onOpenPrivacy,
                         // 열 때 한 번 읽는다 (KAN-315) — 시트에서 바꿀 때는 설정이 이미 닫혀 있다.
                         adConsent = remember { AdsController.from(context).consentStore.read() },
+                        adConsentEnabled = adConsentAvailable,
                         onOpenAdConsent = {
                             settingsOpen = false
                             adConsentRequested = true
@@ -455,7 +459,10 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
  *   탭 화면·시작 전 인트로의 시스템 뒤로가기가 홈으로 간다([webBackTarget]).
  *   끄면(익명 빌드) 예전 그대로 인트로 시작·톱니·뒤로 = 앱 종료다
  * @param adConsentRequested 설정 「맞춤형 광고 설정」을 눌렀다 (KAN-315). 서면 WebView를 [webAdConsentUrl]로 옮기고
- *   [onAdConsentHandled]로 내린다 — 이동은 시스템 뒤로가기 홈 이동과 같은 [navigateInApp]이다
+ *   [onAdConsentHandled]로 내린다 — 이동은 시스템 뒤로가기 홈 이동과 같은 [navigateInApp]이다. 목적지가 없는 화면이면
+ *   옮기지 않고 내리기만 한다
+ * @param onAdConsentAvailable 지금 문서에서 [webAdConsentUrl]이 목적지를 주는가 (PR #60 리뷰). 문서·시작 게이트가 바뀔 때마다
+ *   알린다 — 호출자가 설정 「맞춤형 광고 설정」 행을 켜고 끈다
  */
 @Composable
 private fun TestFlow(
@@ -468,6 +475,7 @@ private fun TestFlow(
     modifier: Modifier = Modifier,
     adConsentRequested: Boolean = false,
     onAdConsentHandled: () -> Unit = {},
+    onAdConsentAvailable: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -1082,8 +1090,11 @@ private fun TestFlow(
             LaunchedEffect(adConsentRequested, webView) {
                 val view = webView ?: return@LaunchedEffect
                 if (!adConsentRequested) return@LaunchedEffect
-                webAdConsentUrl(webUrl)?.let { view.navigateInApp(it) }
+                webAdConsentUrl(webUrl, startRequested)?.let { view.navigateInApp(it) }
                 onAdConsentHandled()
+            }
+            LaunchedEffect(webUrl, startRequested) {
+                onAdConsentAvailable(tabBarEntry && webAdConsentUrl(webUrl, startRequested) != null)
             }
 
             // 오버레이는 WebView 위, 업로드 상태 바 아래다 — 녹음 중에도 실패한 업로드의

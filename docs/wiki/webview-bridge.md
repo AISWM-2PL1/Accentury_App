@@ -764,6 +764,17 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 
 - **네이티브** — 행을 누르면 설정을 닫고 WebView를 `webTabUrl(current, "home")` 결과에 `adConsent=open`을 더한 URL로 옮긴다. 이동은
   KAN-290 SPA 경로다(`window.accenturyNavigate(u)` 성공이면 문서 재로드 없음, 실패면 `loadUrl` 폴백).
+- **허용 화면 (PR #60 리뷰)** — `webAdConsentUrl(current, startRequested)`는 아래 화면에서만 URL을 주고 나머지는 null이다. 테스트 중 홈으로
+  옮기면 KAN-288 「테스트를 그만둘까요?」 확인과 녹음·업로드 정리를 건너뛰기 때문이다(뒤로가기 `webBackTarget` 표에 홈만 더한 것).
+
+  | 현재 문서 | 재열기 |
+  |---|---|
+  | `screen=home`, `intonation`·`words`·`translate` | 허용 |
+  | 인트로(`screen` 없음), 시작 전 | 허용 |
+  | 인트로, 시작 게이트 중(`startRequested`) · `screen=test` · `screen=result` · 문서 모름 | 금지 |
+
+  금지 화면에서는 설정 행이 비활성이고 보조 줄이 「테스트가 끝난 뒤 바꿀 수 있어요」다. TestFlow가 문서·시작 게이트가 바뀔 때마다 판정을
+  호출자에 올린다(Android `onAdConsentAvailable`, iOS `Binding`). 그래도 요청이 오면 옮기지 않고 요청만 내린다.
 - **웹** — `AppRoot`가 이동마다 `App`을 다시 마운트하므로, 홈이 이미 떠 있어도 이동이 오면 `HomeScreen`이 새로 뜬다.
   `adConsent=open`이면 `consent`가 `granted`/`denied`여도 `AdConsentSheet`를 현재 값 줄과 함께 연다(`web/src/App.tsx` `HomeScreen`).
   문구의 바꾸는 길은 「설정 탭의 「맞춤형 광고 설정」」이다(인트로는 「첫 화면 아래」 그대로).

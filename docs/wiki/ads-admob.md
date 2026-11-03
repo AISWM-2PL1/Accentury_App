@@ -272,11 +272,14 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
   iOS가 다시 띄우지 않으므로 부르지 않는다
 - **로그인 앱 경로 (KAN-304·KAN-315)**: 홈 첫 진입에 `unknown`이면 시트(KAN-304) → 이후 변경은 설정 「맞춤형 광고 설정」 행 → 홈 + `adConsent=open`으로
   시트 재열기(KAN-315, `webAdConsentUrl`, [`webview-bridge.md`](webview-bridge.md) §13) → `setAdConsent` → 위 규칙 그대로. 재열기에서 다시 `granted`를
-  골라도 ATT는 `notDetermined`일 때만 뜨고, 이미 거부했으면 아래 규칙대로 설정 앱이 열린다(시트 캡션이 안내)
+  골라도 ATT는 `notDetermined`일 때만 뜨고, 이미 거부했으면 아래 규칙대로 설정 앱이 열린다(시트 캡션이 안내).
+  테스트 진행·시작 게이트 중에는 재열기를 막는다 — 설정 행이 비활성이고 보조 줄이 「테스트가 끝난 뒤 바꿀 수 있어요」다(PR #60 리뷰, 허용 화면 표는 `webview-bridge.md` §13)
 - **ATT `denied`면 iOS 설정 앱으로 보낸다 (KAN-315, 팀장 결정 2026-11-03)**: 재열기 시트에서 `granted`를 골랐는데 ATT를 이미 거부했으면
   프롬프트가 다시 안 떠 막다른 길이라, `AdsController.setConsent`가 `UIApplication.openSettingsURLString`(이 앱 설정 화면)을 연다. 판정은 Core
-  `shouldOpenTrackingSettings(consent:status:)`(`granted && denied`)이고 `setAdConsent` 직후·프롬프트 **전** 상태로 한 번만 한다 — 방금 뜬 프롬프트의
+  `shouldOpenTrackingSettings(previous:next:status:)`(`previous != unknown && granted && denied`)이고 `setAdConsent` 직후·프롬프트 **전** 상태로 한 번만 한다 — 방금 뜬 프롬프트의
   거부 결과에는 반응하지 않고(첫 실행에 거부 직후 설정 앱이 튀어나오지 않게), SDK 시작 경로에서도 판정하지 않는다. `authorized`·`restricted`는 아무 것도 안 한다.
+  **첫 실행 시트에서는 열지 않고 재열기에서만 연다(PR #60 리뷰)** — 전역 「앱이 추적을 요청하도록 허용」이 꺼진 기기는 첫 실행부터 `denied`인데
+  그 화면의 토글도 비활성이라 막다른 길이다. 전역 꺼짐과 개별 거부를 구분할 수 없는 한계라 첫 실행(`previous == unknown`)은 뺀다.
   프리로드는 그대로 npa로 간다. Android는 ATT가 없어 변경 없음
 - 맞춤형 프리로드는 ATT 답이 난 **뒤**에 건다 — 프롬프트 중에 나간 요청은 IDFA 없이 나가 첫 광고가 비맞춤이 된다
 - 프롬프트는 앱이 active일 때만 뜬다. 앱 시작 경로는 `didBecomeActive`를 한 번 기다린다 (`TrackingAuthorization.whenActive`).
