@@ -296,6 +296,34 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
   })
 
+  it('시트가 뜬 동안 입력을 바꾸면 시트가 닫힌다 — 요청 없음, 다시 [바꾸기]하면 새 입력으로 시트', async () => {
+    const fetchImpl = ok()
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    type('어디 가?')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    submit()
+    fireEvent.click(screen.getByRole('button', { name: '동의하고 보내기' }))
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '어디 가?' }))
+  })
+
+  it('시트가 뜬 동안 배경(main·탭 바)은 inert다 — 닫히면 풀린다', () => {
+    setup(ok())
+    type('밥 먹었어?')
+    const main = document.querySelector('main')
+    const tabBarWrapper = screen.getByRole('navigation', { name: '주 메뉴' }).parentElement
+    expect(main).not.toHaveAttribute('inert')
+    submit()
+    expect(main).toHaveAttribute('inert')
+    expect(tabBarWrapper).toHaveAttribute('inert')
+    fireEvent.click(screen.getByRole('button', { name: '취소' }))
+    expect(main).not.toHaveAttribute('inert')
+    expect(tabBarWrapper).not.toHaveAttribute('inert')
+  })
+
   it('저장된 동의가 있으면 처음부터 시트 없이 바로 보낸다', async () => {
     const fetchImpl = ok()
     const storage = { getItem: (key: string) => (key === TRANSLATOR_CONSENT_KEY ? 'granted' : null), setItem: () => {} }
