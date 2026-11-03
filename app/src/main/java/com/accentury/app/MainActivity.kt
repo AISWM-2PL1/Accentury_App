@@ -152,6 +152,7 @@ import com.accentury.app.web.navigateInApp
 import com.accentury.app.web.parseAppLink
 import com.accentury.app.web.showsSettingsGear
 import com.accentury.app.web.startsAtHome
+import com.accentury.app.web.webAdConsentUrl
 import com.accentury.app.web.webBackTarget
 import com.accentury.app.web.webOrigin
 import com.accentury.app.web.webTabUrl
@@ -321,6 +322,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
              * 다음 로그인이 설정 화면부터 열리지 않는다. 회전에는 남는다.
              */
             var settingsOpen by rememberSaveable { mutableStateOf(false) }
+            // 설정 「맞춤형 광고 설정」 (KAN-315) → TestFlow가 WebView를 홈+광고 동의 플래그로 옮기고 내린다.
+            var adConsentRequested by rememberSaveable { mutableStateOf(false) }
             /*
              * 음성 저장 선택 동의 (KAN-270). 설정 화면과 같은 이유로 TestFlow 위에 덮는다. 로그인·추가 정보를 마친
              * 미동의 계정에 한 번만 — 건너뛰어도 다시 띄우지 않는다(팀 결정 2026-10-06). 표시 기록은 계정 id별
@@ -339,6 +342,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                     onOpenSettings = { settingsOpen = true },
                     // 하단 탭 바 진입 (KAN-252) — 홈으로 시작하고, 설정은 탭 바가 열며, 탭 화면의 뒤로는 홈이다.
                     tabBarEntry = true,
+                    adConsentRequested = adConsentRequested,
+                    onAdConsentHandled = { adConsentRequested = false },
                 )
                 if (!consentPromptDone && shouldPromptVoiceConsent(state, promptStore.wasPrompted(state.user.id))) {
                     val finish = {
@@ -376,6 +381,12 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         },
                         onReloadVoiceConsent = gate::reloadVoiceConsent,
                         onOpenPrivacy = onOpenPrivacy,
+                        // 열 때 한 번 읽는다 (KAN-315) — 시트에서 바꿀 때는 설정이 이미 닫혀 있다.
+                        adConsent = remember { AdsController.from(context).consentStore.read() },
+                        onOpenAdConsent = {
+                            settingsOpen = false
+                            adConsentRequested = true
+                        },
                     )
                 }
             }
@@ -443,6 +454,8 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
  *   톱니는 레벨 테스트 웹 화면(인트로·진행)에만 세우며([showsSettingsGear], 나머지는 탭 바가 설정을 연다),
  *   탭 화면·시작 전 인트로의 시스템 뒤로가기가 홈으로 간다([webBackTarget]).
  *   끄면(익명 빌드) 예전 그대로 인트로 시작·톱니·뒤로 = 앱 종료다
+ * @param adConsentRequested 설정 「맞춤형 광고 설정」을 눌렀다 (KAN-315). 서면 WebView를 [webAdConsentUrl]로 옮기고
+ *   [onAdConsentHandled]로 내린다 — 이동은 시스템 뒤로가기 홈 이동과 같은 [navigateInApp]이다
  */
 @Composable
 private fun TestFlow(
@@ -453,6 +466,8 @@ private fun TestFlow(
     onOpenSettings: () -> Unit,
     tabBarEntry: Boolean,
     modifier: Modifier = Modifier,
+    adConsentRequested: Boolean = false,
+    onAdConsentHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -1061,6 +1076,14 @@ private fun TestFlow(
             val backTarget = if (tabBarEntry) webBackTarget(webUrl, startRequested) else null
             BackHandler(enabled = backTarget != null && webView != null) {
                 backTarget?.let { webView?.navigateInApp(it) }
+            }
+
+            // 설정 「맞춤형 광고 설정」 (KAN-315). WebView가 아직 없으면 생길 때까지 요청을 들고 있는다.
+            LaunchedEffect(adConsentRequested, webView) {
+                val view = webView ?: return@LaunchedEffect
+                if (!adConsentRequested) return@LaunchedEffect
+                webAdConsentUrl(webUrl)?.let { view.navigateInApp(it) }
+                onAdConsentHandled()
             }
 
             // 오버레이는 WebView 위, 업로드 상태 바 아래다 — 녹음 중에도 실패한 업로드의

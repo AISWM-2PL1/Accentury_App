@@ -77,6 +77,9 @@ private val BACK_TO_HOME_SCREENS = setOf("intonation", "words", "translate")
 /** 홈 문서로 옮길 때 지우는 레벨테스트 값. 웹 `buildTabUrl`이 지우는 것과 같다. */
 private val TEST_QUERY_KEYS = setOf("sessionId", "testVersion", "voiceSet")
 
+/** 홈 문서에 광고 동의 시트를 열라는 일회성 플래그 키 (KAN-315). 탭 이동이 들고 가지 않게 [webTabUrl]이 지운다. */
+private const val AD_CONSENT_KEY = "adConsent"
+
 /**
  * 첫 문서를 홈(`screen=home`)으로 열까 (KAN-252). 세 조건을 다 넘어야 홈이다 — 탭 바 빌드(로그인 빌드)이고, 재응시가 인트로를
  * 요청하지 않았고, **앱 링크로 들어오지 않았다.** 앱 링크는 계측 코드가 없거나 무효여도(campaignToken null) 링크로 친다 —
@@ -114,17 +117,25 @@ fun webBackTarget(currentUrl: String?, startRequested: Boolean): String? {
 
 /**
  * 현재 문서를 탭 [screen] 문서로 옮긴 URL (KAN-252). 웹 탭 이동(`buildTabUrl`)과 같은 쿼리 규칙이다 — `screen`만 바꾸고
- * 레벨테스트 값을 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다. [webBackTarget](홈)과 억양 녹음 ✕
- * (억양 탭, 2026-10-13 사용자 결정)가 같이 쓴다. 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
+ * 레벨테스트 값과 광고 동의 플래그(`adConsent`, KAN-315)를 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다.
+ * [webBackTarget](홈)과 억양 녹음 ✕ (억양 탭, 2026-10-13 사용자 결정)가 같이 쓴다. 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
  */
 fun webTabUrl(currentUrl: String?, screen: String): String? {
     if (currentUrl == null) return null
     val withoutFragment = currentUrl.substringBefore('#')
     val base = withoutFragment.substringBefore('?')
     val params = withoutFragment.substringAfter('?', "").split('&').filter { it.isNotEmpty() }
-    val kept = params.filter { it.substringBefore('=').let { key -> key != "screen" && key !in TEST_QUERY_KEYS } }
+    val kept = params.filter { it.substringBefore('=').let { key -> key != "screen" && key != AD_CONSENT_KEY && key !in TEST_QUERY_KEYS } }
     return "$base?" + (kept + "screen=$screen").joinToString("&")
 }
+
+/**
+ * 설정 「맞춤형 광고 설정」의 목적지 (KAN-315, 팀 결정 2026-11-03). 홈 문서([webTabUrl])에 `adConsent=open`을 붙인다 —
+ * 웹이 이 플래그를 보고 광고 동의 시트를 현재 값으로 연다. 이미 붙어 있던 플래그는 [webTabUrl]이 지워 겹치지 않는다.
+ * 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
+ */
+fun webAdConsentUrl(currentUrl: String?): String? =
+    webTabUrl(currentUrl, HOME_SCREEN)?.let { "$it&$AD_CONSENT_KEY=open" }
 
 /**
  * 앱 안 이동을 문서 로드 대신 웹 SPA 라우터에 맡기는 JS (KAN-290). 웹이 `window.accenturyNavigate(u)`로 처리하면 `true`로
