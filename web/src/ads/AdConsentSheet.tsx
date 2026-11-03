@@ -73,11 +73,18 @@ export interface AdConsentSheetProps {
    * 위해서다 — 고지 문안은 빠뜨린 쪽이 기본이 되면 안 된다.
    */
   vendor?: AdVendor
+  /** 바꾸는 길 안내 문구. 기본은 인트로 기준 [AD_CONSENT_CHANGE_HINT], 앱 홈은 설정 탭 문구를 넘긴다 (KAN-315) */
+  changeHint?: string
 }
 
 const TITLE_ID = 'ad-consent-title'
 
-export function AdConsentSheet({ current, onChoose, vendor = 'admob' }: AdConsentSheetProps) {
+export function AdConsentSheet({
+  current,
+  onChoose,
+  vendor = 'admob',
+  changeHint = AD_CONSENT_CHANGE_HINT,
+}: AdConsentSheetProps) {
   return (
     <div className="ad-consent-sheet">
       <div className="ad-consent-panel" role="dialog" aria-modal="true" aria-labelledby={TITLE_ID}>
@@ -90,7 +97,7 @@ export function AdConsentSheet({ current, onChoose, vendor = 'admob' }: AdConsen
           <p className="ad-consent-muted">{AD_CONSENT_WHY[vendor]}</p>
           <p>{AD_CONSENT_EFFECT[vendor]}</p>
           <p className="ad-consent-muted">
-            {AD_CONSENT_CHANGE_HINT} {AD_CONSENT_DETAIL_LEAD} <PrivacyPolicyLink />
+            {changeHint} {AD_CONSENT_DETAIL_LEAD} <PrivacyPolicyLink />
             {AD_CONSENT_DETAIL_TAIL}
           </p>
         </div>

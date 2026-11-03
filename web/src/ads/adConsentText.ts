@@ -51,6 +51,9 @@ export const AD_CONSENT_EFFECT: Record<AdVendor, string> = {
 /** 철회·재동의 경로. 링크 이름([AD_CONSENT_SETTINGS_LINK])을 그대로 적어 찾을 수 있게 한다 */
 export const AD_CONSENT_CHANGE_HINT = '선택은 첫 화면 아래 「맞춤형 광고 설정」에서 언제든 바꿀 수 있어요.'
 
+/** 앱 홈(탭 바가 있는 실행)의 철회·재동의 경로 — 네이티브 설정 탭의 행 (KAN-315). 인트로는 위 문구 그대로 */
+export const AD_CONSENT_CHANGE_HINT_APP = '선택은 설정 탭의 「맞춤형 광고 설정」에서 언제든 바꿀 수 있어요.'
+
 /** 방침 링크 앞의 말. 링크 자체는 `legal/PrivacyPolicyLink`가 그린다 */
 export const AD_CONSENT_DETAIL_LEAD = '자세한 내용은'
 export const AD_CONSENT_DETAIL_TAIL = '을 봐 주세요.'
