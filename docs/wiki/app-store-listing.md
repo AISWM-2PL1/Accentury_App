@@ -907,7 +907,8 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 ### 메모 (한국어 원안)
 
 ```
-이 앱은 경남 사투리 억양을 재는 테스트입니다.
+이 앱의 핵심 기능은 경남 사투리 억양을 재는 레벨 테스트입니다. 로그인 뒤에는 하단 탭에서 억양 학습,
+단어 학습, 사투리 번역기를 쓸 수 있고, 홈에서 연속 출석 기록을 볼 수 있습니다.
 
 [로그인]
 구글, 카카오, 네이버, 애플 중 하나로 로그인해야 테스트를 시작할 수 있습니다. 심사에는
@@ -924,13 +925,14 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 소리 내어 읽어 주세요. 시뮬레이터나 마이크가 없는 환경에서는 음성 문항을 통과할 수 없습니다.
 
 [진행 경로 — 7문항, 약 3분]
-로그인 → 추가 정보(신규 계정만) → 인트로 → 광고 동의 시트(첫 실행) → 마이크 권한 →
+로그인 → 추가 정보(신규 계정만) → 홈 → [레벨 테스트 시작] → 마이크 권한 →
 목소리 점검 → 음성 3문항·어휘 4문항(섞여 나옴) → 분석 대기 → 결과
 
 [마이크 권한을 거부하면]
 안내 화면과 [설정 열기] 버튼이 나오고, 설정에서 허용하고 돌아오면 앱을 다시 켜지 않아도
-이어서 진행됩니다. 마이크 없이 테스트를 건너뛰는 경로는 없습니다. 목소리를 분석하는 것이
-이 앱의 유일한 기능이기 때문입니다.
+이어서 진행됩니다. 레벨 테스트의 핵심이 목소리 분석이라 마이크 없이 테스트를 건너뛰는 경로는
+없습니다. 마이크 권한은 [레벨 테스트 시작]을 누를 때와 억양 학습의 녹음 화면을 열 때만 묻고,
+단어 학습과 사투리 번역기는 마이크 권한 없이 쓸 수 있습니다.
 
 [추적 허용(ATT) 프롬프트]
 첫 실행 동의 시트에서 맞춤형 광고를 허용한 경우에만 ATT 프롬프트가 뜹니다. 허용하지 않아도
@@ -974,7 +976,9 @@ Google LLC의 Gemini API로 전송되며, 보내는 것은 사용자가 입력�
 ### 메모 (영어 — 콘솔에 넣는 것은 이쪽)
 
 ```
-This app measures how strongly a speaker's accent matches the Gyeongnam dialect of Korean.
+The core of this app is a level test that measures how strongly a speaker's accent matches the
+Gyeongnam dialect of Korean. After sign-in, the bottom tab bar also offers accent lessons, vocabulary
+lessons and a dialect translator, and the home tab shows the user's attendance streak.
 
 [Sign-in]
 A sign-in is required before the test. Four providers are offered: Google, Kakao, Naver and
@@ -992,14 +996,16 @@ on-screen sentences aloud in a quiet place. The voice questions cannot be comple
 simulator or on a device without a working microphone.
 
 [Walkthrough - 7 questions, about 3 minutes]
-Sign-in -> additional info (new accounts only) -> intro -> ad consent sheet (first launch) ->
+Sign-in -> additional info (new accounts only) -> home -> 레벨 테스트 시작 (Start level test) ->
 microphone permission -> voice check -> 3 voice questions and 4 vocabulary questions (mixed
 order) -> analysis wait -> result
 
 [If microphone permission is denied]
 An explanation screen appears with an "Open Settings" button. Granting permission in Settings
 and returning to the app resumes the flow without a restart. There is no path that skips the
-microphone, because analyzing the user's voice is the app's only function.
+microphone in the level test, because voice analysis is the core of the test. Microphone permission
+is requested only when the user taps 레벨 테스트 시작 (Start level test) or opens a recording screen in
+the accent lessons; the vocabulary lessons and the dialect translator work without it.
 
 [App Tracking Transparency prompt]
 The ATT prompt appears only if the user allows personalized ads in the first-launch consent
@@ -1061,6 +1067,15 @@ https://accentury.app/account-deletion.html
 > 문단이다. 빌드 13 거절(§11) 때 애플이 요구한 네 가지, 곧 무엇을 보내는지·누구에게 보내는지·
 > 보내기 전 허락·방침 고지를 심사관이 메모만 읽고 확인할 수 있게 적었다. 번역기 화면 문구가 바뀌면
 > 두 메모와 §11 회신문을 같이 고친다(문구 상수는 `web/src/translator/translatorConsentText.ts`).
+> 이튿날 Codex 2단계 검증 지적으로 세 곳을 더 고쳤다(2026-11-03). 메모가 레벨 테스트만 있던 KAN-175 때
+> 앱 기준이라, 새로 넣은 번역기 문단과 마이크 거부 문단의 「앱의 기능은 목소리 분석뿐」이라는 문장이 부딪혔다. 첫 줄은 레벨
+> 테스트가 핵심이고 로그인 뒤 하단 탭에 억양 학습·단어 학습·사투리 번역기·홈 출석이 있다고 적었고
+> (KAN-252/253/255/256/287), 마이크 거부 문단은 「레벨 테스트의 핵심이 목소리 분석」으로 범위를 좁힌 뒤
+> 단어 학습·번역기는 마이크 없이 쓴다는 사실을 더했다. 마이크 게이트는 홈 진입이 아니라 [레벨 테스트 시작]
+> (Android `MainActivity.kt` `startRequested`, iOS `TestFlowView.swift` `model.startRequested`)과 억양 녹음
+> 진입(`intonationMicOk`)에서만 선다. 진행 경로는 로그인 앱의 실제 흐름인 홈 → [레벨 테스트 시작]으로
+> 바꿨고(KAN-252, 홈 시작은 인트로를 건너뜀), 광고 동의 시트는 인트로(`web/src/intro/IntroScreen.tsx`)에만
+> 있어 이 경로에 나오지 않으므로 뺐다.
 
 권한 거부 분기는 실제 코드 그대로 적었다 —
 `ios/Accentury/Permission/PermissionGateView.swift:85-87`이 `permanentlyDenied` 상태에서
