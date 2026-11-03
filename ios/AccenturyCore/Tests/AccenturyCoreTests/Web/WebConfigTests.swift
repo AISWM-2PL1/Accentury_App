@@ -359,6 +359,28 @@ final class WebConfigTests: XCTestCase {
         XCTAssertNil(webTabUrl(currentUrl: nil, screen: "intonation"))
     }
 
+    /// 탭 이동은 광고 동의 플래그를 떼어 시트가 탭을 따라 다시 열리지 않는다 (KAN-315).
+    func testTabUrlDropsAdConsentFlag() {
+        XCTAssertEqual("\(app)&screen=words", webTabUrl(currentUrl: "\(app)&screen=home&adConsent=open", screen: "words"))
+    }
+
+    // MARK: - webAdConsentUrl: 설정 「맞춤형 광고 설정」의 목적지 (KAN-315, 2026-11-03)
+
+    /// 어느 화면에서든 홈 문서 + adConsent=open이고, 레벨테스트 값·fragment는 지우고 계측 코드는 남긴다. 플래그는 한 번만 붙는다.
+    func testAdConsentUrlTable() {
+        let cases: [(current: String?, expected: String?)] = [
+            (home, "\(home)&adConsent=open"),
+            (app, "\(home)&adConsent=open"),
+            ("\(app)&screen=translate", "\(home)&adConsent=open"),
+            ("\(app)&screen=result&sessionId=s-1&c=abc#x", "\(app)&c=abc&screen=home&adConsent=open"),
+            ("\(home)&adConsent=open", "\(home)&adConsent=open"),
+            (nil, nil),
+        ]
+        for (current, expected) in cases {
+            XCTAssertEqual(expected, webAdConsentUrl(currentUrl: current), current ?? "nil")
+        }
+    }
+
     // MARK: - showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13)
 
     /// 톱니는 인트로와 테스트 진행에서만 선다.

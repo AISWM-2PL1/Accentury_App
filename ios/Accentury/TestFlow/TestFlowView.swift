@@ -32,6 +32,11 @@ struct TestFlowView: View {
     /// 안드로이드에서 설정 화면의 BackHandler가 먼저 받는 자리다.
     private let covered: Bool
 
+    /// 설정 「맞춤형 광고 설정」을 누른 횟수 (KAN-315). 값이 바뀔 때마다 WebView를 홈 + `adConsent=open`
+    /// (``AccenturyCore/webAdConsentUrl(currentUrl:)``)으로 옮긴다 — 가장자리 스와이프 홈 이동과 같은 길(`navigateInApp`)이다.
+    /// 횟수인 이유는 같은 요청을 두 번 눌러도 매번 바뀐 값으로 보이게 하려는 것이다.
+    private let adConsentRequests: Int
+
     /*
      * "이번 실행이 시스템 종료 뒤 장면 복원인가" 표시의 `@SceneStorage` 키 (KAN-252 4단계 보완). 호출자(``AuthGateView``의
      * 로그인 화면·``AnonymousFlowView``)가 이 키로 들고 처음 나타날 때 true로 세운다. 장면 저장소는 시스템이 프로세스를 죽였다
@@ -50,9 +55,11 @@ struct TestFlowView: View {
         anonymousConsent: AnonymousVoiceConsentStore? = nil,
         tabBarEntry: Bool,
         covered: Bool = false,
+        adConsentRequests: Int = 0,
         onOpenSettings: @escaping () -> Void
     ) {
         self.onOpenSettings = onOpenSettings
+        self.adConsentRequests = adConsentRequests
         self.tabBarEntry = tabBarEntry
         self.covered = covered
         // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
@@ -374,6 +381,10 @@ struct TestFlowView: View {
         // 결과 공유 (KAN-30, KAN-180). 웹이 공유를 요청하면 통로부터 정한다 — 카톡이면
         // 카카오 카드가 나가고, 아니면 아래 시트가 뜬다 (`routeShare`).
         .onChange(of: model.pendingShare) { payload in routeShare(payload) }
+        .onChange(of: adConsentRequests) { _ in
+            guard let target = webAdConsentUrl(currentUrl: currentWebUrl), let url = URL(string: target) else { return }
+            webView?.navigateInApp(to: url)
+        }
         .sheet(
             isPresented: Binding(
                 get: { sheetShare != nil },
