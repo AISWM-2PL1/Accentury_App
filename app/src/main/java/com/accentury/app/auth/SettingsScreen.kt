@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.accentury.app.R
+import com.accentury.app.ads.AdConsent
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.ConfirmDialog
@@ -57,6 +58,15 @@ internal fun providerName(provider: Provider): String = when (provider) {
     Provider.KAKAO -> "카카오"
     Provider.NAVER -> "네이버"
     Provider.APPLE -> "애플"
+}
+
+/**
+ * 「맞춤형 광고 설정」 행의 현재 값 줄 (KAN-315). 값은 설정을 열 때 [AdConsent] 저장소에서 읽은 것이다.
+ */
+internal fun adConsentSettingValue(consent: AdConsent): String = when (consent) {
+    AdConsent.Granted -> "맞춤형 광고 허용"
+    AdConsent.Denied -> "일반 광고만 보기"
+    AdConsent.Unknown -> "아직 고르지 않음"
 }
 
 /**
@@ -100,6 +110,8 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
  * @param onVoiceConsentChange [AuthGateController.setVoiceConsent]
  * @param onReloadVoiceConsent [AuthGateController.reloadVoiceConsent]
  * @param onOpenPrivacy 방침 문서 (LoginScreen과 같은 호출)
+ * @param adConsent 맞춤형 광고 동의 현재 값 (KAN-315). 설정을 열 때 읽은 값이면 된다 — 시트에서 바꿀 때 설정은 이미 닫혀 있다
+ * @param onOpenAdConsent 「맞춤형 광고 설정」을 눌렀다 (KAN-315). 호출자가 설정을 닫고 웹 홈의 광고 동의 시트로 옮긴다
  */
 @Composable
 fun SettingsScreen(
@@ -111,6 +123,8 @@ fun SettingsScreen(
     onVoiceConsentChange: suspend (Boolean) -> AuthResult<Account>,
     onReloadVoiceConsent: suspend () -> Unit,
     onOpenPrivacy: () -> Unit,
+    adConsent: AdConsent,
+    onOpenAdConsent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -167,7 +181,9 @@ fun SettingsScreen(
                 onChange = { onVoiceConsentChange(it) is AuthResult.Success },
                 onReload = onReloadVoiceConsent,
                 onOpenPrivacy = onOpenPrivacy,
-            )
+            ) {
+                AdConsentRow(consent = adConsent, enabled = !busy, onClick = onOpenAdConsent)
+            }
         }
     }
 
@@ -254,6 +270,7 @@ private fun GroupLabel(text: String) {
  * @param consented 지금 값. null이면(계정 모드에서 상태를 못 받음) 스위치 대신 [다시 시도]
  * @param onChange 새 값을 남긴다. true면 성공
  * @param caption 스위치 아래 안내. 익명 모드는 [VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS]
+ * @param extra 안내 아래·방침 링크 위에 같은 절로 붙는 행 (KAN-315 로그인 빌드의 「맞춤형 광고 설정」)
  */
 @Composable
 private fun VoiceConsentSection(
@@ -262,6 +279,7 @@ private fun VoiceConsentSection(
     onReload: suspend () -> Unit,
     onOpenPrivacy: () -> Unit,
     caption: String = VOICE_CONSENT_SETTING_CAPTION,
+    extra: @Composable () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var pending by remember { mutableStateOf<Boolean?>(null) }
@@ -334,7 +352,30 @@ private fun VoiceConsentSection(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        extra()
         AccenturyButton(text = "개인정보처리방침", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
+    }
+}
+
+/**
+ * 「맞춤형 광고 설정」 행 (KAN-315, 팀 결정 2026-11-03). 광고 동의 시트를 다시 여는 유일한 네이티브 경로다.
+ * 글자는 [VoiceConsentSection]의 라벨(bodyLarge)·캡션(bodyMedium, 보조색)을 따르고, 줄 전체가 48dp 버튼 하나로 눌린다.
+ */
+@Composable
+private fun AdConsentRow(consent: AdConsent, enabled: Boolean, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTargetMin)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("맞춤형 광고 설정", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            adConsentSettingValue(consent),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

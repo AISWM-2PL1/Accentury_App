@@ -355,6 +355,34 @@ class WebConfigTest {
         assertNull(webTabUrl(null, "intonation"))
     }
 
+    @Test
+    fun `탭 문서는 광고 동의 플래그를 들고 가지 않는다`() {
+        assertEquals("$app&screen=words", webTabUrl("$home&adConsent=open", "words"))
+    }
+
+    // --- webAdConsentUrl: 설정 「맞춤형 광고 설정」의 목적지 (KAN-315) ---
+
+    @Test
+    fun `광고 동의 목적지는 어느 문서에서든 홈에 플래그를 붙인다`() {
+        listOf(app, home, "$app&screen=words", "$app&screen=result&sessionId=s-1").forEach { from ->
+            assertEquals(from, "$home&adConsent=open", webAdConsentUrl(from))
+        }
+    }
+
+    @Test
+    fun `광고 동의 플래그는 겹쳐 붙지 않고 계측 코드는 남는다`() {
+        assertEquals("$home&adConsent=open", webAdConsentUrl("$home&adConsent=open"))
+        assertEquals(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=home&adConsent=open",
+            webAdConsentUrl("$app&adConsent=open&c=abc&screen=intonation#x"),
+        )
+    }
+
+    @Test
+    fun `문서가 아직 없으면 광고 동의 목적지도 없다`() {
+        assertNull(webAdConsentUrl(null))
+    }
+
     // --- showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13) ---
 
     @Test
