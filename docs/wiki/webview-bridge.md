@@ -767,8 +767,9 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 - **웹** — `AppRoot`가 `key={search}`로 URL마다 `App`을 다시 마운트하므로, 홈이 이미 떠 있어도 URL이 바뀌면 `HomeScreen`이 새로 뜬다.
   `adConsent=open`이면 `consent`가 `granted`/`denied`여도 `AdConsentSheet`를 현재 값 줄과 함께 연다(`web/src/App.tsx` `HomeScreen`).
   문구의 바꾸는 길은 「설정 탭의 「맞춤형 광고 설정」」이다(인트로는 「첫 화면 아래」 그대로).
-- **고르면** — `setAdConsent(state)` 뒤 시트를 닫고 `buildTabUrl(search, 'home')`로 `navigate(…, { replace: true })`해 플래그를 걷어낸다.
-  히스토리가 쌓이지 않고 새로고침·재진입에 또 뜨지 않는다.
+- **고르면** — `setAdConsent(state)` 뒤 시트를 닫고 `buildTabUrl(search, 'home')` 결과로 `history.replaceState`해 플래그를 걷어낸다.
+  `AppRoot`는 `replaceState`를 듣지 않아 재마운트·홈 재조회가 없고, 히스토리가 쌓이지 않으며 새로고침·재진입에 또 뜨지 않는다.
+  `navigate(…, { replace: true })`를 쓰면 `App`이 재마운트돼 네이티브 저장 전에 `getAdConsent`를 다시 읽는 경쟁이 생긴다.
 - **플래그는 따라가지 않는다** — 웹 `buildTabUrl`·`buildIntroUrl`(`web/src/navigation/entryUrl.ts`)과 네이티브 `webTabUrl`이
   `adConsent`를 지운다. 탭을 옮겼다 홈으로 돌아와도 시트가 다시 뜨지 않는다.
 - **구버전 실행** — 브리지에 `getAdConsent`가 없어 `consent === null`이면 플래그가 있어도 시트를 열지 않는다(기존 규칙).

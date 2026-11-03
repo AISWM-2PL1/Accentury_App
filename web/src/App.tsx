@@ -211,8 +211,9 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
         onStartLearning={() => goToTab('intonation', navigate)}
         tabBar={tabBar('home')}
         adConsentRequested={params.get('adConsent') === 'open'}
+        // navigate(replace)는 AppRoot를 재마운트해 네이티브 저장 전에 getAdConsent를 다시 읽고 홈도 다시 조회한다
         onAdConsentReopenDone={() =>
-          navigate(window.location.pathname + buildTabUrl(window.location.search, 'home'), { replace: true })
+          window.history.replaceState(null, '', window.location.pathname + buildTabUrl(window.location.search, 'home'))
         }
       />
     )
@@ -808,7 +809,7 @@ function HomeScreen({
   tabBar?: ReactNode
   /** URL에 `adConsent=open`이 있다 — 네이티브 설정 「맞춤형 광고 설정」이 시트를 다시 열라고 보냈다 (KAN-315) */
   adConsentRequested?: boolean
-  /** 다시 연 시트에서 고른 뒤 URL에서 `adConsent`를 replace로 걷어낸다 (KAN-315) */
+  /** 다시 연 시트에서 고른 뒤 `history.replaceState`로 URL에서 `adConsent`만 걷어낸다 — 재마운트 없음 (KAN-315) */
   onAdConsentReopenDone?: () => void
 }) {
   const [home, setHome] = useState<LearningHome | null>(null)
@@ -821,7 +822,8 @@ function HomeScreen({
    * 다시 여는 길은 네이티브 설정 화면의 「맞춤형 광고 설정」 행이다 (KAN-315, 2026-11-03 팀 결정). 네이티브가 홈 URL에
    * `adConsent=open`을 붙여 옮기면 `granted`/`denied`여도 시트를 현재 값 줄과 함께 연다. `AppRoot`가 `key={search}`로
    * URL마다 `App`을 다시 마운트하므로(KAN-290 SPA 전환 포함) 마운트 때 한 번 읽으면 URL 변화를 따라간다. 고르면
-   * 플래그를 replace로 걷어내 새로고침·재진입에 또 뜨지 않게 한다(webview-bridge §13).
+   * replaceState로 URL만 걷어내 재마운트 없이 새로고침·재진입에 또 뜨지 않게 한다(webview-bridge §13). navigate를 쓰면
+   * 재마운트된 홈이 네이티브 저장보다 먼저 getAdConsent를 다시 읽는 경쟁이 생기고 홈도 다시 조회한다.
    */
   const { consent, choose: chooseConsent, vendor: adVendor } = useAdConsent()
   const [consentSheetOpen, setConsentSheetOpen] = useState(consent === 'unknown' || adConsentRequested)
