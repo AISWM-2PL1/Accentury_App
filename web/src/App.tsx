@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAdConsent } from './ads/adConsent'
 import { AdConsentSheet } from './ads/AdConsentSheet'
+import { AD_CONSENT_CHANGE_HINT_APP } from './ads/adConsentText'
 import { overallBucket } from './analytics/events'
 import { clearTestId, ensureTestId } from './analytics/testId'
 import { track } from './analytics/track'
@@ -209,6 +210,10 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
         onStartTest={() => requestMicPermission() || goToIntro(navigate)}
         onStartLearning={() => goToTab('intonation', navigate)}
         tabBar={tabBar('home')}
+        adConsentRequested={params.get('adConsent') === 'open'}
+        onAdConsentReopenDone={() =>
+          navigate(window.location.pathname + buildTabUrl(window.location.search, 'home'), { replace: true })
+        }
       />
     )
   }
@@ -793,12 +798,18 @@ function HomeScreen({
   onStartTest,
   onStartLearning,
   tabBar,
+  adConsentRequested = false,
+  onAdConsentReopenDone,
 }: {
   apiBase: string
   onStartTest: () => void
   onStartLearning: () => void
   /** 하단 탭 바 (KAN-252). 동의 시트가 떠 있는 동안 함께 `inert`로 막으려고 홈이 그린다 */
   tabBar?: ReactNode
+  /** URL에 `adConsent=open`이 있다 — 네이티브 설정 「맞춤형 광고 설정」이 시트를 다시 열라고 보냈다 (KAN-315) */
+  adConsentRequested?: boolean
+  /** 다시 연 시트에서 고른 뒤 URL에서 `adConsent`를 replace로 걷어낸다 (KAN-315) */
+  onAdConsentReopenDone?: () => void
 }) {
   const [home, setHome] = useState<LearningHome | null>(null)
   /*
@@ -806,10 +817,14 @@ function HomeScreen({
    * 인트로의 동의 시트가 한 번도 안 떴고, 그래서 ATT 창도 안 떴다 — 심사 메모는 「첫 실행 동의 시트에서 허용하면
    * ATT」라 적는다. 홈이 이 실행의 첫 화면이라 인트로와 같이 마운트 시 `unknown`이면 시트를 띄운다(IntroScreen과 같은
    * 초기값). 고른 뒤 ATT는 네이티브가 `setAdConsent('granted')`를 받아 띄운다(ads-admob §7.5). null(동의 개념 없는
-   * 구버전 앱)이면 시트가 없다. 다시 여는 링크는 홈에 두지 않는다 — 철회 경로는 후속(ux-ui 「앱 진입 구조」 절).
+   * 구버전 앱)이면 시트가 없다.
+   * 다시 여는 길은 네이티브 설정 화면의 「맞춤형 광고 설정」 행이다 (KAN-315, 2026-11-03 팀 결정). 네이티브가 홈 URL에
+   * `adConsent=open`을 붙여 옮기면 `granted`/`denied`여도 시트를 현재 값 줄과 함께 연다. `AppRoot`가 `key={search}`로
+   * URL마다 `App`을 다시 마운트하므로(KAN-290 SPA 전환 포함) 마운트 때 한 번 읽으면 URL 변화를 따라간다. 고르면
+   * 플래그를 replace로 걷어내 새로고침·재진입에 또 뜨지 않게 한다(webview-bridge §13).
    */
   const { consent, choose: chooseConsent, vendor: adVendor } = useAdConsent()
-  const [consentSheetOpen, setConsentSheetOpen] = useState(consent === 'unknown')
+  const [consentSheetOpen, setConsentSheetOpen] = useState(consent === 'unknown' || adConsentRequested)
   const sheetOpen = consentSheetOpen && consent !== null
   useEffect(() => {
     let alive = true
@@ -895,9 +910,11 @@ function HomeScreen({
         <AdConsentSheet
           current={consent}
           vendor={adVendor}
+          changeHint={AD_CONSENT_CHANGE_HINT_APP}
           onChoose={(state) => {
             chooseConsent(state)
             setConsentSheetOpen(false)
+            if (adConsentRequested) onAdConsentReopenDone?.()
           }}
         />
       )}

@@ -94,4 +94,13 @@ describe('buildTabUrl — 하단 탭 화면 (KAN-252)', () => {
   it('빈 쿼리에서도 화면 지정 하나는 남는다', () => {
     expect(buildTabUrl('', 'words')).toBe('?screen=words')
   })
+
+  it('광고 동의 재열기 플래그(adConsent)는 지운다 — 탭을 옮겨도 따라가지 않는다 (KAN-315)', () => {
+    const next = paramsOf(buildTabUrl(`${ENTRY}&screen=home&adConsent=open`, 'intonation'))
+
+    expect(next.get('adConsent')).toBeNull()
+    expect(next.get('bridge')).toBe('1')
+    expect(next.get('c')).toBe('kko_share')
+    expect(buildIntroUrl('?screen=home&adConsent=open')).toBe('')
+  })
 })

@@ -758,6 +758,21 @@ WebView 히스토리(`goBack()`)를 타지 않는다 — 판정 함수 `webBackT
 없다. 두 앱 모두 저장소의 Access를 만료와 무관하게 주고 익명 빌드·로그아웃이면 `""`라 「값이 있다 = 로그인 상태」다. iOS 첫 문서는
 Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으로 잠깐 더 기다렸다가 탭 바를 세운다.
 
+### 맞춤형 광고 설정 재열기 (KAN-315)
+
+로그인 앱에서 광고 동의를 다시 바꾸는 길은 네이티브 설정 화면의 「맞춤형 광고 설정」 행이다(2026-11-03 팀 결정). 새 브리지 메서드는 없다.
+
+- **네이티브** — 행을 누르면 설정을 닫고 WebView를 `webTabUrl(current, "home")` 결과에 `adConsent=open`을 더한 URL로 옮긴다. 이동은
+  KAN-290 SPA 경로다(`window.accenturyNavigate(u)` 성공이면 문서 재로드 없음, 실패면 `loadUrl` 폴백).
+- **웹** — `AppRoot`가 `key={search}`로 URL마다 `App`을 다시 마운트하므로, 홈이 이미 떠 있어도 URL이 바뀌면 `HomeScreen`이 새로 뜬다.
+  `adConsent=open`이면 `consent`가 `granted`/`denied`여도 `AdConsentSheet`를 현재 값 줄과 함께 연다(`web/src/App.tsx` `HomeScreen`).
+  문구의 바꾸는 길은 「설정 탭의 「맞춤형 광고 설정」」이다(인트로는 「첫 화면 아래」 그대로).
+- **고르면** — `setAdConsent(state)` 뒤 시트를 닫고 `buildTabUrl(search, 'home')`로 `navigate(…, { replace: true })`해 플래그를 걷어낸다.
+  히스토리가 쌓이지 않고 새로고침·재진입에 또 뜨지 않는다.
+- **플래그는 따라가지 않는다** — 웹 `buildTabUrl`·`buildIntroUrl`(`web/src/navigation/entryUrl.ts`)과 네이티브 `webTabUrl`이
+  `adConsent`를 지운다. 탭을 옮겼다 홈으로 돌아와도 시트가 다시 뜨지 않는다.
+- **구버전 실행** — 브리지에 `getAdConsent`가 없어 `consent === null`이면 플래그가 있어도 시트를 열지 않는다(기존 규칙).
+
 ## 14. 업로드 재전송 (KAN-288 6단계)
 
 계약 버전은 2 그대로다 — 메서드 `retryUpload` 하나와 수신 슬롯 `onUploadFailed` 하나를 **추가**만 했다(§1). Android(6단계)·iOS(7단계)

@@ -583,6 +583,59 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       expect(dialog()).toBeNull()
       expect(startButton().closest('main')).not.toHaveAttribute('inert')
     })
+
+    /*
+     * 네이티브 설정 「맞춤형 광고 설정」 → 홈 + `adConsent=open` (KAN-315, 2026-11-03 팀 결정). 이미 골랐어도 시트를
+     * 현재 값 줄과 함께 다시 열고, 고르면 플래그를 replace로 걷어낸다.
+     */
+    it('adConsent=open이면 이미 골랐어도(granted) 현재 값 줄·설정 탭 안내와 함께 시트가 뜨고 배경·탭 바가 inert', () => {
+      setSearch(`${APP}&screen=home&adConsent=open`)
+      adBridge('granted')
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeInTheDocument()
+      expect(screen.getByText('지금은 맞춤형 광고를 허용한 상태예요.')).toBeInTheDocument()
+      expect(screen.getByText(/설정 탭의 「맞춤형 광고 설정」/)).toBeInTheDocument()
+      expect(startButton().closest('main')).toHaveAttribute('inert')
+      expect(tabBar()?.closest('[inert]')).not.toBeNull()
+    })
+
+    it('adConsent=open에서 고르면 시트가 닫히고 URL에서 adConsent만 replace로 걷어낸다', () => {
+      setSearch(`${APP}&screen=home&adConsent=open&c=kko_share`)
+      const { setAdConsent } = adBridge('granted')
+      const navigate = vi.fn()
+      render(<App navigate={navigate} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '일반 광고만 보기' }))
+      expect(setAdConsent).toHaveBeenCalledWith('denied')
+      expect(dialog()).toBeNull()
+      expect(navigate).toHaveBeenCalledTimes(1)
+      const [url, options] = navigate.mock.calls[0]
+      const next = queryOf(url)
+      expect(next.get('adConsent')).toBeNull()
+      expect(next.get('screen')).toBe('home')
+      expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+      expect(next.get('c')).toBe('kko_share')
+      expect(options).toEqual({ replace: true })
+    })
+
+    it('첫 실행(unknown) 시트는 플래그가 없으니 고른 뒤 URL을 건드리지 않는다', () => {
+      setSearch(`${APP}&screen=home`)
+      adBridge('unknown')
+      const navigate = vi.fn()
+      render(<App navigate={navigate} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '맞춤형 광고 받기' }))
+      expect(navigate).not.toHaveBeenCalled()
+    })
+
+    it('동의 개념이 없는 구버전 실행(getAdConsent 없음)은 adConsent=open이어도 시트가 없다', () => {
+      setSearch(`${APP}&screen=home&adConsent=open`)
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeNull()
+      expect(startButton().closest('main')).not.toHaveAttribute('inert')
+    })
   })
 
   it('홈 [레벨 테스트 시작] — 브리지가 없으면(구버전 앱) 앱 표식을 남긴 채 인트로로', () => {
