@@ -68,7 +68,7 @@
 
 `window.accenturyNavigate(url) → true` (KAN-290)는 `AccenturyWeb` 슬롯이 아니라 전역 함수다. 루트가 마운트된 뒤 정의되고, 네이티브가 evaluate하면 웹이 SPA로 옮긴 뒤 `true`를 돌려준다. 결과가 `true`가 아니면(아직 없음·예외) 네이티브는 문서 로드로 폴백한다.
 
-**화면 전환 (KAN-290).** 탭·홈·뒤로가기 이동은 `pushState` + 루트 재마운트(`<App key={search}>`)라 화면 상태는 예전 문서 로드처럼 초기화된다. 구버전 앱(빌드 11 이하)은 문서 로드 그대로다. 시작 게이트의 `?screen=test` 진입은 계속 네이티브의 문서 로드다.
+**화면 전환 (KAN-290).** 탭·홈·뒤로가기 이동은 `pushState` + 루트 재마운트(`<App key={이동 횟수}>`, 같은 URL 재이동 포함)라 화면 상태는 예전 문서 로드처럼 초기화된다. 구버전 앱(빌드 11 이하)은 문서 로드 그대로다. 시작 게이트의 `?screen=test` 진입은 계속 네이티브의 문서 로드다.
 
 | 슬롯 | 티켓 | 하는 일 |
 |---|---|---|
@@ -764,12 +764,14 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 
 - **네이티브** — 행을 누르면 설정을 닫고 WebView를 `webTabUrl(current, "home")` 결과에 `adConsent=open`을 더한 URL로 옮긴다. 이동은
   KAN-290 SPA 경로다(`window.accenturyNavigate(u)` 성공이면 문서 재로드 없음, 실패면 `loadUrl` 폴백).
-- **웹** — `AppRoot`가 `key={search}`로 URL마다 `App`을 다시 마운트하므로, 홈이 이미 떠 있어도 URL이 바뀌면 `HomeScreen`이 새로 뜬다.
+- **웹** — `AppRoot`가 이동마다 `App`을 다시 마운트하므로, 홈이 이미 떠 있어도 이동이 오면 `HomeScreen`이 새로 뜬다.
   `adConsent=open`이면 `consent`가 `granted`/`denied`여도 `AdConsentSheet`를 현재 값 줄과 함께 연다(`web/src/App.tsx` `HomeScreen`).
   문구의 바꾸는 길은 「설정 탭의 「맞춤형 광고 설정」」이다(인트로는 「첫 화면 아래」 그대로).
 - **고르면** — `setAdConsent(state)` 뒤 시트를 닫고 `buildTabUrl(search, 'home')` 결과로 `history.replaceState`해 플래그를 걷어낸다.
   `AppRoot`는 `replaceState`를 듣지 않아 재마운트·홈 재조회가 없고, 히스토리가 쌓이지 않으며 새로고침·재진입에 또 뜨지 않는다.
   `navigate(…, { replace: true })`를 쓰면 `App`이 재마운트돼 네이티브 저장 전에 `getAdConsent`를 다시 읽는 경쟁이 생긴다.
+  걷어낸 뒤 `notifyLocationChanged`로 네이티브의 현재 URL 기록도 플래그 없는 값으로 맞춘다.
+- **같은 URL 재이동도 재마운트** — `AppRoot`의 키는 쿼리 문자열이 아니라 이동 횟수다. 키가 `search`였을 때 `replaceState`로 걷은 뒤 같은 URL로 두 번째 재열기 이동이 오면 상태가 같아 재마운트를 건너뛰어 시트가 안 떴다(두 번째 재열기 회귀, 2026-11-03 iOS 실기기).
 - **플래그는 따라가지 않는다** — 웹 `buildTabUrl`·`buildIntroUrl`(`web/src/navigation/entryUrl.ts`)과 네이티브 `webTabUrl`이
   `adConsent`를 지운다. 탭을 옮겼다 홈으로 돌아와도 시트가 다시 뜨지 않는다.
 - **구버전 실행** — 브리지에 `getAdConsent`가 없어 `consent === null`이면 플래그가 있어도 시트를 열지 않는다(기존 규칙).
