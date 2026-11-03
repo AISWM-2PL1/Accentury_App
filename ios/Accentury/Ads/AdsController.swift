@@ -143,10 +143,10 @@ final class AdsController: ObservableObject {
             interstitial.discard()
             rewarded.discard()
         }
-        // ATT를 이미 거부했으면 프롬프트가 다시 안 뜬다 — 설정 앱으로 보낸다 (KAN-315, 팀장 결정 2026-11-03).
-        // 여기(시트 선택 직후)에서만, 프롬프트 전 상태로 한 번 판정한다. `preloadAfterTrackingSettled`는 SDK 시작마다도
+        // ATT를 이미 거부했으면 프롬프트가 다시 안 뜬다 — 설정 앱으로 보낸다 (KAN-315, 팀장 결정 2026-11-03). 첫 실행 시트
+        // (previous == unknown)는 빼고 재열기에서만이다(PR #60 리뷰). 여기(시트 선택 직후)에서만, 프롬프트 전 상태로 한 번 판정한다. `preloadAfterTrackingSettled`는 SDK 시작마다도
         // 불리니 거기 두면 매 실행 설정 앱이 열리고, 프롬프트 결과(방금 거부)에도 반응하지 않는다. 프리로드는 그대로 간다.
-        if shouldOpenTrackingSettings(consent: next, status: TrackingAuthorization.status) {
+        if shouldOpenTrackingSettings(previous: previous, next: next, status: TrackingAuthorization.status) {
             MicPermission.openSettings()
         }
         preloadAfterTrackingSettled()

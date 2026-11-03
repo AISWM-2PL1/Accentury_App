@@ -366,18 +366,26 @@ final class WebConfigTests: XCTestCase {
 
     // MARK: - webAdConsentUrl: 설정 「맞춤형 광고 설정」의 목적지 (KAN-315, 2026-11-03)
 
-    /// 어느 화면에서든 홈 문서 + adConsent=open이고, 레벨테스트 값·fragment는 지우고 계측 코드는 남긴다. 플래그는 한 번만 붙는다.
+    /// 홈·탭 화면·시작 전 인트로에서만 홈 문서 + adConsent=open이고, 테스트 진행·결과·시작 게이트 중엔 nil이다(PR #60 리뷰).
+    /// 레벨테스트 값·fragment는 지우고 계측 코드는 남긴다. 플래그는 한 번만 붙는다.
     func testAdConsentUrlTable() {
-        let cases: [(current: String?, expected: String?)] = [
-            (home, "\(home)&adConsent=open"),
-            (app, "\(home)&adConsent=open"),
-            ("\(app)&screen=translate", "\(home)&adConsent=open"),
-            ("\(app)&screen=result&sessionId=s-1&c=abc#x", "\(app)&c=abc&screen=home&adConsent=open"),
-            ("\(home)&adConsent=open", "\(home)&adConsent=open"),
-            (nil, nil),
+        let cases: [(current: String?, startRequested: Bool, expected: String?)] = [
+            (home, false, "\(home)&adConsent=open"),
+            (home, true, "\(home)&adConsent=open"),
+            (app, false, "\(home)&adConsent=open"),
+            (app, true, nil),
+            ("\(app)&screen=translate", false, "\(home)&adConsent=open"),
+            ("\(app)&screen=words&c=abc#x", false, "\(app)&c=abc&screen=home&adConsent=open"),
+            ("\(app)&screen=test&testVersion=gn-1&sessionId=s-1", false, nil),
+            ("\(app)&screen=result&sessionId=s-1", false, nil),
+            ("\(home)&adConsent=open", false, "\(home)&adConsent=open"),
+            (nil, false, nil),
         ]
-        for (current, expected) in cases {
-            XCTAssertEqual(expected, webAdConsentUrl(currentUrl: current), current ?? "nil")
+        for (current, startRequested, expected) in cases {
+            XCTAssertEqual(
+                expected, webAdConsentUrl(currentUrl: current, startRequested: startRequested),
+                "\(current ?? "nil") startRequested=\(startRequested)"
+            )
         }
     }
 

@@ -363,24 +363,33 @@ class WebConfigTest {
     // --- webAdConsentUrl: 설정 「맞춤형 광고 설정」의 목적지 (KAN-315) ---
 
     @Test
-    fun `광고 동의 목적지는 어느 문서에서든 홈에 플래그를 붙인다`() {
-        listOf(app, home, "$app&screen=words", "$app&screen=result&sessionId=s-1").forEach { from ->
-            assertEquals(from, "$home&adConsent=open", webAdConsentUrl(from))
+    fun `광고 동의 목적지는 홈·탭 화면·시작 전 인트로에서 홈에 플래그를 붙인다`() {
+        listOf(app, home, "$app&screen=words", "$app&screen=intonation", "$app&screen=translate").forEach { from ->
+            assertEquals(from, "$home&adConsent=open", webAdConsentUrl(from, startRequested = false))
         }
+        // 홈·탭 화면은 시작 게이트와 무관하다
+        assertEquals("$home&adConsent=open", webAdConsentUrl(home, startRequested = true))
+    }
+
+    @Test
+    fun `테스트 진행·결과·시작 게이트 중에는 광고 동의 목적지가 없다`() {
+        assertNull(webAdConsentUrl("$app&screen=test&testVersion=gn-1&sessionId=s-1", startRequested = false))
+        assertNull(webAdConsentUrl("$app&screen=result&sessionId=s-1", startRequested = false))
+        assertNull(webAdConsentUrl(app, startRequested = true))
     }
 
     @Test
     fun `광고 동의 플래그는 겹쳐 붙지 않고 계측 코드는 남는다`() {
-        assertEquals("$home&adConsent=open", webAdConsentUrl("$home&adConsent=open"))
+        assertEquals("$home&adConsent=open", webAdConsentUrl("$home&adConsent=open", startRequested = false))
         assertEquals(
             "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=home&adConsent=open",
-            webAdConsentUrl("$app&adConsent=open&c=abc&screen=intonation#x"),
+            webAdConsentUrl("$app&adConsent=open&c=abc&screen=intonation#x", startRequested = false),
         )
     }
 
     @Test
     fun `문서가 아직 없으면 광고 동의 목적지도 없다`() {
-        assertNull(webAdConsentUrl(null))
+        assertNull(webAdConsentUrl(null, startRequested = false))
     }
 
     // --- showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13) ---
