@@ -459,6 +459,8 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 (`docs/wiki/ads-admob.md` §7.5, `AdsController.setConsent` → `preloadAfterTrackingSettled`).
 시트가 먼저여야 ATT 프롬프트가 맥락을 가지고, 거부한 사람에게는 ATT를 아예 묻지 않는다 —
 추적하지 않는데 추적 허용을 묻는 것은 심사관에게도 설명이 안 된다.
+로그인 앱은 설정 › 「맞춤형 광고 설정」 행으로 시트를 다시 열어 동의를 바꾼다(KAN-315, 빌드 14부터). 다시 허용해도
+ATT는 `notDetermined`일 때만 뜬다 (`ads-admob.md` §7.5).
 
 가이드라인 5.1.2는 **추적 허용을 앱 사용의 조건으로 걸지 못하게 한다.** 우리는 거부해도
 비맞춤 광고(`npa=1`)로 전 기능이 그대로 돈다. 이 사실을 §8의 심사 노트에 명시한다.
@@ -938,6 +940,7 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 첫 실행 동의 시트(로그인 앱에서는 홈이 처음 열릴 때 뜨는 광고 동의 시트)에서 맞춤형 광고를 허용한 경우에만 ATT 프롬프트가 뜹니다. 허용하지 않아도
 앱의 모든 기능이 그대로 동작하며, 맞춤형이 아닌 일반 광고가 나옵니다. 추적 허용을 기능의
 조건으로 걸지 않습니다.
+선택은 로그인 후 설정 › 맞춤형 광고 설정에서 언제든 바꿀 수 있습니다.
 
 [광고]
 Google AdMob 전면 광고(분석 대기 화면)와 보상형 광고(재응시 전) 두 자리입니다.
@@ -1011,6 +1014,7 @@ the accent lessons; the vocabulary lessons and the dialect translator work witho
 The ATT prompt appears only if the user allows personalized ads in the first-launch consent
 sheet (for a signed-in user, the ad-consent sheet shown when the Home screen first opens). Declining changes nothing about app functionality; non-personalized ads are served
 instead. Tracking permission is never a condition for using any feature.
+The choice can be changed at any time in Settings > 맞춤형 광고 설정 (Personalized ad settings) after sign-in.
 
 [Advertising]
 Google AdMob interstitial (on the analysis wait screen) and rewarded (before a retake).
@@ -1236,6 +1240,10 @@ Accentury team
 3. 콘솔 App Review Information의 메모를 §8 영어 메모로 통째로 바꾼다
 4. Resolution Center에 위 회신문을 낸다. 새 빌드는 올리지 않는다
 5. 결과를 위 표에 행으로 남긴다
+
+> **빌드 13 회신 때 메모 주의 (KAN-315, 2026-11-03).** 설정 › 「맞춤형 광고 설정」 행은 네이티브 변경이라 **빌드 14부터** 있다.
+> 회신문 본문은 빌드 13 기준이라 그대로 두고, 3번에서 메모를 붙일 때는 ATT 문단의 동의 변경 경로 한 줄(한 「선택은 … 바꿀 수 있습니다」,
+> 영 「The choice can be changed …」)을 빼고 넣는다 — 빌드 13에서 심사관이 그 행을 찾지 못한다. 빌드 14 제출 때 다시 넣는다.
 
 **새 빌드가 아니라 같은 빌드로 회신한다 (2026-11-02 팀장 결정).** 고친 곳이 전부 WebView가 불러오는
 웹이라 바이너리는 바뀌지 않았다. 새 빌드를 올리면 심사 큐를 처음부터 다시 서야 하고, 고칠 게 없는
