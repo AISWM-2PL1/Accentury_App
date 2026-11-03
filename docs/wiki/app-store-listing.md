@@ -935,7 +935,7 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 단어 학습과 사투리 번역기는 마이크 권한 없이 쓸 수 있습니다.
 
 [추적 허용(ATT) 프롬프트]
-첫 실행 동의 시트에서 맞춤형 광고를 허용한 경우에만 ATT 프롬프트가 뜹니다. 허용하지 않아도
+첫 실행 동의 시트(로그인 앱에서는 홈이 처음 열릴 때 뜨는 광고 동의 시트)에서 맞춤형 광고를 허용한 경우에만 ATT 프롬프트가 뜹니다. 허용하지 않아도
 앱의 모든 기능이 그대로 동작하며, 맞춤형이 아닌 일반 광고가 나옵니다. 추적 허용을 기능의
 조건으로 걸지 않습니다.
 
@@ -1009,7 +1009,7 @@ the accent lessons; the vocabulary lessons and the dialect translator work witho
 
 [App Tracking Transparency prompt]
 The ATT prompt appears only if the user allows personalized ads in the first-launch consent
-sheet. Declining changes nothing about app functionality; non-personalized ads are served
+sheet (for a signed-in user, the ad-consent sheet shown when the Home screen first opens). Declining changes nothing about app functionality; non-personalized ads are served
 instead. Tracking permission is never a condition for using any feature.
 
 [Advertising]
@@ -1063,7 +1063,7 @@ https://accentury.app/account-deletion.html
 
 > **해결(2026-11-02, KAN-304).** 두 가지를 고쳤다. 하나는 영어 메모의 진행 경로다. 10문항(음성 5 →
 > 어휘 5)으로 남아 있었는데, KAN-260/261 7문항 개편 때 한국어 원안만 고치고 영어는 빠뜨린 것이다. 한국어 원안대로 7문항(음성 3·어휘 4, 섞여 나옴)과 로그인 → 추가
-> 정보 → 인트로 순서로 맞췄다. 다른 하나는 두 메모에 넣은 「사투리 번역기와 제3자 AI 서비스」
+> 정보 → 홈 → [레벨 테스트 시작] 순서로 맞췄다. 다른 하나는 두 메모에 넣은 「사투리 번역기와 제3자 AI 서비스」
 > 문단이다. 빌드 13 거절(§11) 때 애플이 요구한 네 가지, 곧 무엇을 보내는지·누구에게 보내는지·
 > 보내기 전 허락·방침 고지를 심사관이 메모만 읽고 확인할 수 있게 적었다. 번역기 화면 문구가 바뀌면
 > 두 메모와 §11 회신문을 같이 고친다(문구 상수는 `web/src/translator/translatorConsentText.ts`).
@@ -1076,6 +1076,9 @@ https://accentury.app/account-deletion.html
 > 진입(`intonationMicOk`)에서만 선다. 진행 경로는 로그인 앱의 실제 흐름인 홈 → [레벨 테스트 시작]으로
 > 바꿨고(KAN-252, 홈 시작은 인트로를 건너뜀), 광고 동의 시트는 인트로(`web/src/intro/IntroScreen.tsx`)에만
 > 있어 이 경로에 나오지 않으므로 뺐다.
+> 같은 날 PR #59 리뷰로 그 공백 자체를 메웠다(2026-11-03). 이 경로에서는 광고 동의 시트가 한 번도 안 떠 ATT도 안
+> 떴으므로, 홈이 처음 열릴 때 `unknown`이면 인트로와 같은 광고 동의 시트를 띄우게 했고(`web/src/App.tsx`
+> `HomeScreen`) ATT 문단의 「첫 실행 동의 시트」에 그 사실을 적었다.
 
 권한 거부 분기는 실제 코드 그대로 적었다 —
 `ios/Accentury/Permission/PermissionGateView.swift:85-87`이 `permanentlyDenied` 상태에서

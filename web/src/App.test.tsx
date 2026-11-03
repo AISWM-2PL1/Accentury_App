@@ -527,9 +527,62 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '홈' })).toHaveAttribute('aria-current', 'page')
 
+    // 광고 동의 메서드를 모르는 브리지(getAdConsent 없음)는 동의 개념이 없는 실행이라 시트가 없다
+    expect(screen.queryByRole('dialog')).toBeNull()
+
     fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
     expect(requestMicPermission).toHaveBeenCalledTimes(1)
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  /*
+   * 로그인 앱의 홈은 인트로를 건너뛰어 인트로의 광고 동의 시트가 한 번도 안 떴다 — 그래서 ATT도 안 떴다
+   * (KAN-304, PR #59 리뷰 2026-11-03). 홈 마운트 시 `unknown`이면 시트를 띄운다.
+   */
+  describe('홈 광고 동의 시트 (KAN-304)', () => {
+    function adBridge(consent: string, requestMicPermission = vi.fn(), setAdConsent = vi.fn()) {
+      window.AccenturyBridge = {
+        requestMicPermission,
+        startVoiceItem: vi.fn(),
+        getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+        getAccessToken: () => 'acc',
+        getAdConsent: () => consent,
+        setAdConsent,
+      }
+      return { requestMicPermission, setAdConsent }
+    }
+    const dialog = () => screen.queryByRole('dialog', { name: '맞춤형 광고 안내' })
+    const startButton = () => screen.getByRole('button', { name: '레벨 테스트 시작' })
+
+    it('아직 묻지 않았으면(unknown) 홈 마운트 때 시트가 뜨고 홈 본문·탭 바가 inert, 고르면 닫히고 테스트로 간다', () => {
+      setSearch(`${APP}&screen=home`)
+      const { requestMicPermission, setAdConsent } = adBridge('unknown')
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeInTheDocument()
+      // jsdom은 inert의 입력 차단을 구현하지 않아 클릭 대신 속성으로 본다 — 실브라우저는 inert 안을 누를 수 없다
+      expect(startButton().closest('main')).toHaveAttribute('inert')
+      expect(tabBar()?.closest('[inert]')).not.toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: '맞춤형 광고 받기' }))
+      expect(setAdConsent).toHaveBeenCalledTimes(1)
+      expect(setAdConsent).toHaveBeenCalledWith('granted')
+      expect(dialog()).toBeNull()
+      expect(startButton().closest('main')).not.toHaveAttribute('inert')
+      expect(tabBar()?.closest('[inert]')).toBeNull()
+
+      fireEvent.click(startButton())
+      expect(requestMicPermission).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['granted', 'denied'])('이미 골랐으면(%s) 시트가 뜨지 않는다', (consent) => {
+      setSearch(`${APP}&screen=home`)
+      adBridge(consent)
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeNull()
+      expect(startButton().closest('main')).not.toHaveAttribute('inert')
+    })
   })
 
   it('홈 [레벨 테스트 시작] — 브리지가 없으면(구버전 앱) 앱 표식을 남긴 채 인트로로', () => {
