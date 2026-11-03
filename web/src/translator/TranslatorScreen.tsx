@@ -74,10 +74,17 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
   const tooLong = length > MAX_CHARS
   const canSubmit = text.trim() !== '' && !tooLong && status.kind !== 'waiting'
 
+  /*
+   * 입력을 고치면 대기 중 동의도 취소한다(시트를 닫는다). 결과·오류를 지우는 것과 같은 원리다 — 시트가 묻고
+   * 있던 문장이 더는 화면의 문장이 아니다. Codex 교차 검증(2026-11-03)이 실브라우저에서 동의 버튼부터
+   * Shift+Tab으로 배경 입력창에 닿아 B로 고친 뒤 [동의하고 보내기]를 누르면 옛 문장 A가 전송되는 것을 재현했다.
+   * 배경 `inert`가 그 길을 막고, 이 취소는 그래도 입력이 바뀌는 경우의 두 번째 방어다.
+   */
   const onChange = (next: string) => {
     requestId.current += 1
     setText(next)
     setStatus({ kind: 'idle' })
+    setConsentPending(null)
   }
 
   const run = (input: string) => {
@@ -109,9 +116,12 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
     if (input !== null) run(input)
   }
 
+  // 시트가 떠 있는 동안 배경은 키보드 초점도 못 받는다. aria-modal·배경 막은 포인터만 막는다(위 onChange 주석)
+  const sheetOpen = consentPending !== null
+
   return (
     <>
-      <main className="item-screen">
+      <main className="item-screen" inert={sheetOpen}>
         <h1 className="type-title">사투리 번역기</h1>
         <div className="item-screen__body">
           <label className="type-label" htmlFor="translator-input">
@@ -135,8 +145,9 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
           <TranslatorStatus status={status} onRetry={run} />
         </div>
       </main>
-      {tabBar}
-      {consentPending !== null && <TranslatorConsentSheet onAgree={onAgree} onCancel={() => setConsentPending(null)} />}
+      {/* 탭 바는 position: fixed라 래퍼 div가 레이아웃에 끼지 않는다. `body:has(.tab-bar)`도 후손 매칭이라 그대로다 */}
+      {tabBar && <div inert={sheetOpen}>{tabBar}</div>}
+      {sheetOpen && <TranslatorConsentSheet onAgree={onAgree} onCancel={() => setConsentPending(null)} />}
     </>
   )
 }
