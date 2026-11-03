@@ -57,4 +57,15 @@ final class AdRequestsTests: XCTestCase {
         // 시트가 먼저다 — 시트 전에 ATT가 뜨면 프롬프트에 맥락이 없다.
         XCTAssertFalse(shouldRequestTracking(consent: .unknown, status: .notDetermined))
     }
+
+    // MARK: shouldOpenTrackingSettings — ATT 거부 뒤 재허용은 설정 앱으로 (KAN-315, ads-admob.md §7.5)
+
+    func testOpenTrackingSettingsTable() {
+        // granted × denied 한 칸만 설정 앱을 연다. 나머지는 프롬프트(notDetermined)거나 할 일이 없다.
+        let statuses: [TrackingStatus] = [.notDetermined, .restricted, .denied, .authorized]
+        for status in statuses {
+            XCTAssertEqual(shouldOpenTrackingSettings(consent: .granted, status: status), status == .denied, "granted × \(status)")
+            XCTAssertFalse(shouldOpenTrackingSettings(consent: .denied, status: status), "denied × \(status)")
+        }
+    }
 }

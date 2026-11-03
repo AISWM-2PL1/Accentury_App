@@ -68,7 +68,7 @@ export const AD_CONSENT_ALLOW = '맞춤형 광고 받기'
  * iOS 앱에서만 붙는 한 줄 (KAN-288 HIG-A). [맞춤형 광고 받기] 직후 시스템 추적 허용(ATT) 창이 뜨는데
  * (`ios/Accentury/Ads/AdsController.swift`), 앞에서 고른 직후 또 묻는 창이 예고 없이 뜨면 고장처럼 읽힌다.
  */
-export const AD_CONSENT_IOS_ATT_NOTE = 'iOS에서는 다음에 시스템 추적 허용 창이 떠요'
+export const AD_CONSENT_IOS_ATT_NOTE = 'iOS에서는 추적 허용 창이 뜨거나, 이미 거부했다면 설정 앱으로 안내해요'
 
 export const AD_CONSENT_DENY = '일반 광고만 보기'
 
