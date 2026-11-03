@@ -314,7 +314,10 @@ struct TestFlowView: View {
          * 물어보는가"만 정한다.
          */
         .onChange(of: model.phase) { phase in syncOverlayPhase(phase) }
-        .onAppear { syncOverlayPhase(model.phase) }
+        .onAppear {
+            syncOverlayPhase(model.phase)
+            updateAdConsentAvailable()
+        }
         /*
          * 공유 링크로 앱이 열렸다 (KAN-32 3단계). 안드로이드 `MainActivity`의
          * `onCreate`/`onNewIntent` + `applyAppLink` 자리다.
@@ -393,7 +396,6 @@ struct TestFlowView: View {
                   let url = URL(string: target) else { return }
             webView?.navigateInApp(to: url)
         }
-        .onAppear { updateAdConsentAvailable() }
         .onChange(of: currentWebUrl) { _ in updateAdConsentAvailable() }
         .onChange(of: model.startRequested) { _ in updateAdConsentAvailable() }
         .sheet(
@@ -744,7 +746,8 @@ struct TestFlowView: View {
         ).share(payload)
     }
 
-    /// 지금 문서에서 광고 동의 시트를 다시 열 수 있나를 호출자에 올린다 (PR #60 리뷰, ``adConsentAvailable``).
+    /// 지금 문서에서 광고 동의 시트를 다시 열 수 있나를 호출자에 올린다 (KAN-315, PR #60 리뷰) — 설정 「맞춤형 광고 설정」 행의
+    /// enabled가 된다(``adConsentAvailable``). 첫 표시·문서 변경·시작 게이트 변경 때 부른다.
     private func updateAdConsentAvailable() {
         adConsentAvailable = tabBarEntry
             && webAdConsentUrl(currentUrl: currentWebUrl, startRequested: model.startRequested) != nil
