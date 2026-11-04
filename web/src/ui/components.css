@@ -2083,6 +2083,14 @@ a.btn {
   color: var(--color-destructive-on-surface);
 }
 
+/* 번역기 입력 라벨 줄 — 라벨 왼쪽, 방향 전환 버튼 오른쪽 (KAN-317. 시안 B 가운데 교환 배치는 KAN-311) */
+.translator-direction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 /* 버튼 스택. 값과 이유 모두 `.ad-consent-actions`와 같다 */
 .feedback-actions {
   display: flex;
