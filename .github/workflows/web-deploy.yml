@@ -4,10 +4,13 @@
 # 환경 무관이라(화면과 API가 같은 출처, 베이스 URL 주입 없음) 두 환경이 같은 빌드 절차를 쓴다.
 #
 # 자격 증명은 GitHub OIDC로 환경별 IAM 역할(accentury-{env}-github-web-deploy, Accentury_Server
-# infra/modules/deploy)을 맡는다. 이 역할은 웹 버킷 업로드와 CloudFront 무효화만 할 수 있고, 이미지 배포 역할
+# infra/modules/deploy)을 맡는다. 이 역할의 정책은 web-deploy 하나로 웹 버킷 ListBucket과 PutObject(`aws s3 sync`),
+# CloudFront 무효화 생성과 조회(`wait invalidation-completed`)만 할 수 있고, 이미지 배포 역할
 # (accentury-{env}-github-deploy)은 Server 레포만 맡는다 (KAN-306). 장기 액세스 키를 시크릿에 두지 않는다. 역할의
-# 신뢰 정책이 sub를 repo:OWNER/REPO:environment:{env}로 묶으므로 job이 반드시 `environment:`를 지정해야 한다.
-# 대상 값(역할 ARN, 버킷, 배포 ID)은 그 environment의 변수다 (Accentury_Server docs/ops/github.md).
+# 신뢰 정책이 sub를 이 레포의 environment에 묶으므로(구형식 repo:OWNER/REPO:environment:{env}와 불변 형식
+# repo:OWNER@ID/REPO@ID:environment:{env} 두 줄, 실제 토큰은 불변 형식) job이 반드시 `environment:`를 지정해야
+# 한다. 대상 값(역할 ARN, 버킷, 배포 ID)은 그 environment의 변수다 (Accentury_Server docs/ops/github.md
+# "environment 변수").
 #
 # 캐시 전략: 해시가 붙은 자산(assets/*)은 immutable 장기 캐시, index.html만 no-cache. 업로드
 # 순서가 곧 원자성이다 - 자산을 먼저 올리고 index.html을 마지막에 바꾼다. 중간에 실패하면 이전
@@ -29,7 +32,7 @@
 # 단계가 "Not authorized to perform sts:AssumeRoleWithWebIdentity"로 실패한다 - 신뢰 정책 결함과
 # 구분이 안 되는 메시지다 (2026-08-27 PR #55 리뷰). 철거할 때 environment 변수 DEPLOY_PAUSED=true를
 # 두면 이 워크플로는 빌드까지만 하고 배포 단계를 건너뛴 채 성공으로 끝나며, 요약에 그 사실을 남긴다.
-# 재구축 뒤 변수를 지우면 다시 배포한다 (infra/README.md "teardown 절차", "GitHub 설정").
+# 재구축 뒤 변수를 지우면 다시 배포한다 (Accentury_Server docs/ops/teardown.md, docs/ops/github.md).
 
 name: Web Deploy
 
@@ -179,10 +182,18 @@ jobs:
           missing=0
           for name in AWS_DEPLOY_ROLE_ARN WEB_BUCKET CLOUDFRONT_DISTRIBUTION_ID; do
             if [ -z "${!name}" ]; then
-              echo "GitHub environment 변수가 비어 있습니다: $name (infra/README.md 'GitHub 설정')" >&2
+              echo "GitHub environment 변수가 비어 있습니다: $name (Accentury_Server docs/ops/github.md 'environment 변수')" >&2
               missing=1
             fi
           done
+          # 변수 이름은 Server 레포와 같고 값만 다르다 (KAN-306). 이미지 배포 역할 ARN을 잘못 넣으면 아래 자격 증명
+          # 단계가 "Not authorized to perform sts:AssumeRoleWithWebIdentity"로만 실패해 철거 상태와 구분이
+          # 안 되므로 웹 배포 역할 이름인지 여기서 먼저 본다.
+          case "$AWS_DEPLOY_ROLE_ARN" in
+            ""|*:role/accentury-*-github-web-deploy) ;;
+            *) echo "AWS_DEPLOY_ROLE_ARN이 웹 배포 역할(accentury-<env>-github-web-deploy)이 아닙니다: $AWS_DEPLOY_ROLE_ARN (Accentury_Server docs/ops/github.md 'environment 변수', 출력 github_web_deploy_role_arn)" >&2
+               missing=1 ;;
+          esac
           exit "$missing"
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
