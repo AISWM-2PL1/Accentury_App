@@ -8,7 +8,10 @@
 # 배포 역할은 Server 레포만 맡는다. 장기 액세스 키를 시크릿에 두지 않는다. 역할의 신뢰 정책이 sub를 이 레포의
 # environment에 묶으므로 job이 반드시 `environment:`를 지정해야 한다. 대상 값(역할 ARN, 버킷, 배포 ID)은 그
 # environment의 변수다. 역할 ARN 변수는 AWS_WEB_DEPLOY_ROLE_ARN으로 Server 레포의 AWS_DEPLOY_ROLE_ARN(이미지 배포
-# 역할)과 이름이 달라 서로 바꿔 넣을 수 없다 (Accentury_Server docs/ops/github.md "environment 변수").
+# 역할)과 이름이 다르다. 이름 분리는 변수 이름 혼동만 막고, 이 변수에 Server 출력 github_deploy_role_arn을 넣는 값
+# 혼동은 신뢰 정책에서 "Not authorized to perform sts:AssumeRoleWithWebIdentity"로 실패해 아래 철거 상태의
+# 실패와 메시지가 같다. 그때는 변수 값의 역할 이름(github-web-deploy)과 환경 이름을 먼저 본다 (Accentury_Server
+# docs/ops/github.md "environment 변수").
 #
 # 캐시 전략: 해시가 붙은 자산(assets/*)은 immutable 장기 캐시, index.html만 no-cache. 업로드
 # 순서가 곧 원자성이다 - 자산을 먼저 올리고 index.html을 마지막에 바꾼다. 중간에 실패하면 이전
