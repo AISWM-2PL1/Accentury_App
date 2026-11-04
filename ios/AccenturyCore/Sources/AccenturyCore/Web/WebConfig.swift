@@ -131,9 +131,28 @@ public func webTabUrl(currentUrl: String?, screen: String) -> String? {
     let (base, params) = splitDocumentUrl(currentUrl)
     let kept = params.filter { param in
         let key = queryKey(param)
-        return key != "screen" && !testQueryKeys.contains(key)
+        return key != "screen" && key != adConsentQueryKey && !testQueryKeys.contains(key)
     }
     return "\(base)?" + (kept.map(String.init) + ["screen=\(screen)"]).joined(separator: "&")
+}
+
+/// 광고 동의 시트를 다시 열라는 웹 쿼리 키 (KAN-315). 웹·안드로이드와 같은 이름이다. ``webTabUrl(currentUrl:screen:)``이
+/// 지워서 탭 이동에 따라가지 않고, ``webAdConsentUrl(currentUrl:startRequested:)``이 두 번 붙이지 않는다.
+private let adConsentQueryKey: Substring = "adConsent"
+
+/// 설정 「맞춤형 광고 설정」 행의 목적지 (KAN-315, 팀 결정 2026-11-03). 홈 문서(``webTabUrl(currentUrl:screen:)``)에
+/// `adConsent=open`을 붙인 URL이다 — 웹이 이 플래그를 보고 광고 동의 시트를 현재 값으로 연다. 안드로이드
+/// `webAdConsentUrl`과 같은 표다.
+///
+/// **허용 화면에서만** URL을 준다(PR #60 리뷰) — 홈, 탭 화면(억양·단어·번역기), 시작을 누르기 전의 인트로. 테스트 진행·
+/// 결과·시작 게이트 중인 인트로는 nil이다. 테스트 중 홈으로 옮기면 KAN-288 「테스트를 그만둘까요?」 확인과 녹음·업로드
+/// 정리를 건너뛰기 때문이다 — ``webBackTarget(currentUrl:startRequested:)``이 홈으로 안 보내는 KAN-147·KAN-191 규칙과
+/// 같은 표에 홈만 더했다. 문서를 아직 모르면(nil) nil — 호출자는 옮기지 않고, 설정 행은 비활성이다.
+public func webAdConsentUrl(currentUrl: String?, startRequested: Bool) -> String? {
+    guard let currentUrl else { return nil }
+    let isHome = screenParam(splitDocumentUrl(currentUrl).params) == Substring(homeScreen)
+    guard isHome || webBackTarget(currentUrl: currentUrl, startRequested: startRequested) != nil else { return nil }
+    return webTabUrl(currentUrl: currentUrl, screen: homeScreen).map { "\($0)&\(adConsentQueryKey)=open" }
 }
 
 /// 앱 안 이동을 웹 라우터에 맡기는 JS 식 하나 (KAN-290, 세 플랫폼 공통 계약). 웹이 `window.accenturyNavigate(u) === true`로

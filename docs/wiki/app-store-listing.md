@@ -24,6 +24,12 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 서버에 보관한다. 그래서 「음성은 수집하지 않는다」였던 답이 뒤집혔다. 바뀐 자리는 §3 설명 문안, §5 마이크
 고지 대조, §6 라벨의 오디오 행, §8 심사 노트의 음성 문단이다.
 
+**2026-11-02 갱신 (KAN-304).** 빌드 13이 2026-10-30에 가이드라인 5.1.1(i)·5.1.2(i)로 거절됐다. 사투리
+번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에서 누구에게 보내는지 밝히지 않고 먼저
+허락도 받지 않았다는 지적이다. 바뀐 자리는 §6.3 ⑦(번역기 입력 문장), §8 심사 메모의 번역기 문단과
+영어 메모의 7문항 교정, §10 선행 조건 행, 새 §11 거절 이력과 Resolution Center 회신문이다. 옛
+§11 「관련」은 §12로 밀었다.
+
 ## 1. 계정과 일정
 
 | 항목 | 값 |
@@ -34,7 +40,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
-| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **14**. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고(스토어 스크린샷 KAN-175도 13 기준), 14가 KAN-292 Play Console 발견 항목 대응(릴리스 R8 난독화 켬·keep 규칙, 네이버 로그인 창 screenOrientation 제거)을 더한 제출 빌드다 — iOS 쪽엔 R8 변경이 없지만 같은 번호를 쓰는 규칙이라 같이 올렸다. Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
+| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **15**. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고 2026-10-30에 거절됐다. 14는 2026-10-25 CI(ios-release run 40174171160, Dev dispatch)의 TestFlight 업로드로 소모됐다(KAN-292 R8 대응, 미제출, KAN-304·315 미포함). 15가 KAN-304·KAN-315 리젝 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로)을 담은 재제출 빌드다(2026-11-04 결정, §11). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
 
 **개인 계정이라 나중에 옮기려면 App Transfer 절차를 밟는다.** 팀·법인 명의로 넘기는 것은
 계정 사이의 앱 이전이고, 애플이 요구하는 조건(미해결 계약 없음, 양쪽 계정의 법적 동의 등)을
@@ -453,6 +459,8 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 (`docs/wiki/ads-admob.md` §7.5, `AdsController.setConsent` → `preloadAfterTrackingSettled`).
 시트가 먼저여야 ATT 프롬프트가 맥락을 가지고, 거부한 사람에게는 ATT를 아예 묻지 않는다 —
 추적하지 않는데 추적 허용을 묻는 것은 심사관에게도 설명이 안 된다.
+로그인 앱은 설정 › 「맞춤형 광고 설정」 행으로 시트를 다시 열어 동의를 바꾼다(KAN-315, 빌드 15부터). 다시 허용해도
+ATT는 `notDetermined`일 때만 뜬다 (`ads-admob.md` §7.5).
 
 가이드라인 5.1.2는 **추적 허용을 앱 사용의 조건으로 걸지 못하게 한다.** 우리는 거부해도
 비맞춤 광고(`npa=1`)로 전 기능이 그대로 돈다. 이 사실을 §8의 심사 노트에 명시한다.
@@ -712,6 +720,18 @@ Play 데이터 안전에는 위치를 신고하지 않았다(`play-store-listing
 Play에서는 이 항목을 「선택사항」으로 표시했다. App Store 라벨에는 선택사항 칸이 없다 —
 선택 여부는 면제 조건(⑥의 표)으로만 다루고, 면제에 못 들면 그냥 수집으로 신고한다.
 
+**사투리 번역기의 입력 문장도 이 유형이다 (2026-11-02 추가, KAN-304).** 이용자가 번역기에 직접 쓴
+표준어 문장(100자 이하)은 후기 본문과 같은 「기타 사용자 콘텐츠」다. 서버가 prod에서 입력·결과·결과
+종류·시간·모델명을 계정별 대체 식별자와 함께 번역 기록으로 S3(서울)에 남기므로 계정과 묶여
+「연결됨」이다(Accentury_Server `infra/privacy/privacy.html` 「사투리 번역기 (앱)」 절). 문장 자체는
+Google LLC의 Gemini API로도 넘어간다(같은 방침 2항 제3자 제공·4항 국외 이전). Google에 가는 것은
+문장뿐이고 계정 식별자·이메일은 가지 않는다(Accentury_Server `GeminiDialectTranslator`).
+애플 라벨에는 「제3자에게 공유」 칸이 없다. 제3자 제공은 라벨이 아니라 화면 고지·사전 동의와 방침이
+맡는 몫이고(§8 메모, §11), 거절 사유도 라벨이 아니라 그쪽이었다. Google이 받은 문장을 쓰는 목적은
+자사 제품 개선이지 광고가 아니므로 추적(다른 회사 데이터와 결합해 광고·측정에 쓰거나 데이터
+브로커에 넘기는 것)에도 들지 않는다. 그래서 §6.2 ⑩ 행의 답은 그대로다 — 수집, 연결됨, 추적 아님,
+앱 기능.
+
 **⑧ 기타 데이터 › 기타 데이터 유형 — 수집, 연결됨, 추적 아님, 앱 기능.**
 
 Kakao SDK 2.29.0의 매니페스트가 `OtherDataTypes`를 `Linked=true`·`Tracking=false`·
@@ -889,7 +909,8 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 ### 메모 (한국어 원안)
 
 ```
-이 앱은 경남 사투리 억양을 재는 테스트입니다.
+이 앱의 핵심 기능은 경남 사투리 억양을 재는 레벨 테스트입니다. 로그인 뒤에는 하단 탭에서 억양 학습,
+단어 학습, 사투리 번역기를 쓸 수 있고, 홈에서 연속 출석 기록을 볼 수 있습니다.
 
 [로그인]
 구글, 카카오, 네이버, 애플 중 하나로 로그인해야 테스트를 시작할 수 있습니다. 심사에는
@@ -906,22 +927,40 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 소리 내어 읽어 주세요. 시뮬레이터나 마이크가 없는 환경에서는 음성 문항을 통과할 수 없습니다.
 
 [진행 경로 — 7문항, 약 3분]
-로그인 → 추가 정보(신규 계정만) → 인트로 → 광고 동의 시트(첫 실행) → 마이크 권한 →
+로그인 → 추가 정보(신규 계정만) → 홈 → [레벨 테스트 시작] → 마이크 권한 →
 목소리 점검 → 음성 3문항·어휘 4문항(섞여 나옴) → 분석 대기 → 결과
 
 [마이크 권한을 거부하면]
 안내 화면과 [설정 열기] 버튼이 나오고, 설정에서 허용하고 돌아오면 앱을 다시 켜지 않아도
-이어서 진행됩니다. 마이크 없이 테스트를 건너뛰는 경로는 없습니다. 목소리를 분석하는 것이
-이 앱의 유일한 기능이기 때문입니다.
+이어서 진행됩니다. 레벨 테스트의 핵심이 목소리 분석이라 마이크 없이 테스트를 건너뛰는 경로는
+없습니다. 마이크 권한은 [레벨 테스트 시작]을 누를 때와 억양 학습의 녹음 화면을 열 때만 묻고,
+단어 학습과 사투리 번역기는 마이크 권한 없이 쓸 수 있습니다.
 
 [추적 허용(ATT) 프롬프트]
-첫 실행 동의 시트에서 맞춤형 광고를 허용한 경우에만 ATT 프롬프트가 뜹니다. 허용하지 않아도
+첫 실행 동의 시트(로그인 앱에서는 홈이 처음 열릴 때 뜨는 광고 동의 시트)에서 맞춤형 광고를 허용한 경우에만 ATT 프롬프트가 뜹니다. 허용하지 않아도
 앱의 모든 기능이 그대로 동작하며, 맞춤형이 아닌 일반 광고가 나옵니다. 추적 허용을 기능의
 조건으로 걸지 않습니다.
+선택은 로그인 후 설정 › 맞춤형 광고 설정에서 언제든 바꿀 수 있습니다. 설정에서 다시 허용으로 바꾼 경우에도 추적 허용 상태가 아직 미결정이면 그때 ATT 프롬프트가 뜹니다.
 
 [광고]
 Google AdMob 전면 광고(분석 대기 화면)와 보상형 광고(재응시 전) 두 자리입니다.
 실제 광고 단위 ID로 제출합니다.
+
+[사투리 번역기와 제3자 AI 서비스]
+로그인 뒤 하단 탭 「사투리 번역기」에서 표준어 문장(100자 이하)을 경남 사투리로 바꿀 수 있습니다.
+이 앱에서 제3자 AI 서비스를 쓰는 기능은 이것 하나입니다. 입력한 문장은 저희 서버를 거쳐
+Google LLC의 Gemini API로 전송되며, 보내는 것은 사용자가 입력한 문장뿐입니다. 계정 식별자,
+이메일, 음성은 보내지 않습니다.
+입력창 아래에는 문장을 Google Gemini API로 보낸다는 고지와 개인정보처리방침 링크가 늘 떠 있습니다.
+첫 번역 전에는 동의 시트가 무엇을(입력한 문장), 누구에게(Google LLC의 Gemini API), 왜(경남
+사투리로 바꾸려고) 보내는지와 Google이 받은 문장을 자사 제품 개선에 쓸 수 있다는 점을 밝히고
+[동의하고 보내기]와 [취소]를 보여 줍니다. 동의하기 전에는 아무것도 전송되지 않고, [취소]를 누르면
+문장을 보내지 않습니다. 동의는 기기에 기억되며 앱을 지웠다 다시 설치하면 다시 묻습니다.
+개인정보처리방침 https://accentury.app/privacy.html 의 「사투리 번역기 (앱)」 절, 2항(제3자 제공),
+4항(국외 이전)에 같은 내용을 고지합니다.
+레벨테스트와 억양 학습의 음성은 제3자 AI 서비스로 가지 않고 저희 서버(AWS 서울 리전)에서만
+분석합니다.
+확인 경로: 로그인 → 하단 탭 「사투리 번역기」 → 문장 입력 → [바꾸기] → 동의 시트
 
 [음성 데이터]
 녹음한 음성은 점수를 매기는 데 쓰입니다. 음성 저장과 AI 모델 학습 활용에 따로 동의하지 않은
@@ -940,7 +979,9 @@ Google AdMob 전면 광고(분석 대기 화면)와 보상형 광고(재응시 �
 ### 메모 (영어 — 콘솔에 넣는 것은 이쪽)
 
 ```
-This app measures how strongly a speaker's accent matches the Gyeongnam dialect of Korean.
+The core of this app is a level test that measures how strongly a speaker's accent matches the
+Gyeongnam dialect of Korean. After sign-in, the bottom tab bar also offers accent lessons, vocabulary
+lessons and a dialect translator, and the home tab shows the user's attendance streak.
 
 [Sign-in]
 A sign-in is required before the test. Four providers are offered: Google, Kakao, Naver and
@@ -957,23 +998,48 @@ Voice analysis is the core function, so microphone permission is mandatory. Plea
 on-screen sentences aloud in a quiet place. The voice questions cannot be completed on a
 simulator or on a device without a working microphone.
 
-[Walkthrough - 10 questions, about 3 minutes]
-Intro -> ad consent sheet (first launch) -> microphone permission -> voice check ->
-5 voice questions -> 5 vocabulary questions -> analysis wait -> result
+[Walkthrough - 7 questions, about 3 minutes]
+Sign-in -> additional info (new accounts only) -> home -> 레벨 테스트 시작 (Start level test) ->
+microphone permission -> voice check -> 3 voice questions and 4 vocabulary questions (mixed
+order) -> analysis wait -> result
 
 [If microphone permission is denied]
 An explanation screen appears with an "Open Settings" button. Granting permission in Settings
 and returning to the app resumes the flow without a restart. There is no path that skips the
-microphone, because analyzing the user's voice is the app's only function.
+microphone in the level test, because voice analysis is the core of the test. Microphone permission
+is requested only when the user taps 레벨 테스트 시작 (Start level test) or opens a recording screen in
+the accent lessons; the vocabulary lessons and the dialect translator work without it.
 
 [App Tracking Transparency prompt]
 The ATT prompt appears only if the user allows personalized ads in the first-launch consent
-sheet. Declining changes nothing about app functionality; non-personalized ads are served
+sheet (for a signed-in user, the ad-consent sheet shown when the Home screen first opens). Declining changes nothing about app functionality; non-personalized ads are served
 instead. Tracking permission is never a condition for using any feature.
+The choice can be changed at any time in Settings > 맞춤형 광고 설정 (Personalized ad settings) after sign-in. If the user switches back to personalized ads there and tracking authorization is still undetermined, the ATT prompt appears at that point.
 
 [Advertising]
 Google AdMob interstitial (on the analysis wait screen) and rewarded (before a retake).
 The build is submitted with production ad unit IDs.
+
+[Dialect translator and third-party AI service]
+After sign-in, the 사투리 번역기 (Dialect translator) tab in the bottom tab bar converts a standard
+Korean sentence of up to 100 characters into the Gyeongnam dialect. This is the only feature in the
+app that uses a third-party AI service. The sentence the user types is sent through our server to
+the Gemini API of Google LLC. Only the typed sentence is sent; no account identifier, email address
+or audio is sent to Google.
+Below the input field, a persistent notice states that the sentence is sent to the Google Gemini
+API, with a link to the privacy policy. Before the first translation, a consent sheet explains what
+is sent (the typed sentence), who receives it (Google LLC's Gemini API), why (to convert it into the
+dialect), and that Google may use the sentences it receives to improve its products. The sheet
+offers 동의하고 보내기 (Agree and send) and 취소 (Cancel). Nothing is sent before the user agrees,
+and nothing is sent if the user cancels. The choice is remembered on the device; deleting and
+reinstalling the app shows the sheet again.
+The privacy policy at https://accentury.app/privacy.html discloses this in the section
+사투리 번역기 (앱) (Dialect translator (app)), section 2 (provision to third parties) and
+section 4 (overseas transfer).
+Audio from the level test and accent lessons is never sent to a third-party AI service; it is
+analyzed only on our own server (AWS Seoul region).
+To check: sign in > bottom tab 사투리 번역기 (Dialect translator) > type a sentence >
+바꾸기 (Convert) > consent sheet
 
 [Voice data]
 Recorded audio is used to score the test. Unless the user gives a separate, optional consent to
@@ -998,6 +1064,25 @@ https://accentury.app/account-deletion.html
 > 'Apple ID 사용 중단'을 부르는 것이 아니라 **우리 탈퇴 API에 실을 코드를 받는 단계**다
 > ([social-login.md 「회원 탈퇴 (KAN-251)」](social-login.md)). 설정 화면 라벨이 바뀌면 두 메모와
 > `web/public/account-deletion.html`을 같이 고친다(`ads-web-adsense.md` §11.3).
+
+> **해결(2026-11-02, KAN-304).** 두 가지를 고쳤다. 하나는 영어 메모의 진행 경로다. 10문항(음성 5 →
+> 어휘 5)으로 남아 있었는데, KAN-260/261 7문항 개편 때 한국어 원안만 고치고 영어는 빠뜨린 것이다. 한국어 원안대로 7문항(음성 3·어휘 4, 섞여 나옴)과 로그인 → 추가
+> 정보 → 홈 → [레벨 테스트 시작] 순서로 맞췄다. 다른 하나는 두 메모에 넣은 「사투리 번역기와 제3자 AI 서비스」
+> 문단이다. 빌드 13 거절(§11) 때 애플이 요구한 네 가지, 곧 무엇을 보내는지·누구에게 보내는지·
+> 보내기 전 허락·방침 고지를 심사관이 메모만 읽고 확인할 수 있게 적었다. 번역기 화면 문구가 바뀌면
+> 두 메모와 §11 회신문을 같이 고친다(문구 상수는 `web/src/translator/translatorConsentText.ts`).
+> 이튿날 Codex 2단계 검증 지적으로 세 곳을 더 고쳤다(2026-11-03). 메모가 레벨 테스트만 있던 KAN-175 때
+> 앱 기준이라, 새로 넣은 번역기 문단과 마이크 거부 문단의 「앱의 기능은 목소리 분석뿐」이라는 문장이 부딪혔다. 첫 줄은 레벨
+> 테스트가 핵심이고 로그인 뒤 하단 탭에 억양 학습·단어 학습·사투리 번역기·홈 출석이 있다고 적었고
+> (KAN-252/253/255/256/287), 마이크 거부 문단은 「레벨 테스트의 핵심이 목소리 분석」으로 범위를 좁힌 뒤
+> 단어 학습·번역기는 마이크 없이 쓴다는 사실을 더했다. 마이크 게이트는 홈 진입이 아니라 [레벨 테스트 시작]
+> (Android `MainActivity.kt` `startRequested`, iOS `TestFlowView.swift` `model.startRequested`)과 억양 녹음
+> 진입(`intonationMicOk`)에서만 선다. 진행 경로는 로그인 앱의 실제 흐름인 홈 → [레벨 테스트 시작]으로
+> 바꿨고(KAN-252, 홈 시작은 인트로를 건너뜀), 광고 동의 시트는 인트로(`web/src/intro/IntroScreen.tsx`)에만
+> 있어 이 경로에 나오지 않으므로 뺐다.
+> 같은 날 PR #59 리뷰로 그 공백 자체를 메웠다(2026-11-03). 이 경로에서는 광고 동의 시트가 한 번도 안 떠 ATT도 안
+> 떴으므로, 홈이 처음 열릴 때 `unknown`이면 인트로와 같은 광고 동의 시트를 띄우게 했고(`web/src/App.tsx`
+> `HomeScreen`) ATT 문단의 「첫 실행 동의 시트」에 그 사실을 적었다.
 
 권한 거부 분기는 실제 코드 그대로 적었다 —
 `ios/Accentury/Permission/PermissionGateView.swift:85-87`이 `permanentlyDenied` 상태에서
@@ -1048,6 +1133,7 @@ https://accentury.app/account-deletion.html
 | **앱 내 계정 삭제** | 개발 · 설정 화면 → `POST /v0/users/me/withdrawal` | **KAN-251** (FR-AC-09) · 선행 KAN-247 · 서버 KAN-241 | **해결(2026-10-08, KAN-251, 머지 대기)** — Android(1단계)·iOS(2단계) 설정 화면에 [회원 탈퇴]가 들어갔다(경로는 §8 메모, 판정은 [social-login.md 「회원 탈퇴 (KAN-251)」](social-login.md)). 앱 밖 경로는 `https://accentury.app/account-deletion.html`(3단계). Dev 머지와 제출 빌드(빌드 8)에 실려야 닫힌다. 이하 옛 기록: 가이드라인 5.1.1(v)가 「If your app supports account creation, you must also offer account deletion within the app」을 요구한다 (2026-10-01 확인). 서버 탈퇴 API는 있다(Accentury_Server `backend/.../auth/UserController.java:56`, KAN-241). **앱에는 그 버튼이 없다** — 레포 전체에 「탈퇴」·`withdraw` 문자열이 없다. 순서는 **KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI)**이고, 2026-10-01에 KAN-251을 따로 떼어 열었다. 계정을 만드는 앱이 삭제 경로 없이 제출하면 거절된다 |
 | 구글 로그인 시크릿 3개 | 계정 소유자 · GitHub 시크릿 `GOOGLE_IOS_CLIENT_ID`·`GOOGLE_REVERSED_CLIENT_ID`·`GOOGLE_SERVER_CLIENT_ID` | KAN-224 | **미해결(2026-10-01 `gh secret list` 기준)** — 셋 다 없다. 네이버 셋·카카오 1·ASC 셋·AdMob iOS 셋은 등록돼 있다. 워크플로가 `REQUIRE_IDP_CONFIG=YES`로 빈 값을 막으므로 ③ 입력·시크릿 검사에서 멈추고 **빌드 8을 만들 수 없다** (§2 「러너 실행 기록」) |
 | 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **해결(2026-09-23)** — 시크릿 7개 등록 뒤 러너에서 5회 돌아 빌드 6·7이 TestFlight에 올라갔다(§2 「러너 실행 기록」). 업로드 수정과 빌드 7은 PR #3으로 Dev에 반영됐다(2026-09-28). 그 뒤 KAN-224가 구글 시크릿 셋 빗장을 붙였으니 다음 실행 전에 그 셋을 등록한다 |
+| **제3자 AI 서비스 고지** (5.1.1(i)·5.1.2(i)) | 개발 · App PR → Dev → Release 승격 → `.github/workflows/web-deploy.yml` prod | **KAN-304** | **미해결(2026-11-02)** — 번역기 웹 변경(입력창 아래 상시 고지·첫 [바꾸기] 전 동의 시트)이 **prod에 배포된 뒤에만** Resolution Center 회신·재제출한다. 번역기는 WebView라 웹 배포로 반영되지만, KAN-315 설정 행이 네이티브라 빌드 15로 재제출한다(2026-11-04 결정). 절차와 회신문은 §11 |
 
 심사를 **직접** 막는 것은 넷이다.
 
@@ -1068,7 +1154,131 @@ https://accentury.app/account-deletion.html
 나머지 미완은 콘솔 입력(숫자 Apple ID와 그 ID로 만드는
 `APP_STORE_URL`·`STORE_LISTING_READY`)이고 그쪽은 게시 뒤에야 값이 생긴다.
 
-## 11. 관련
+## 11. 심사 거절 이력과 회신
+
+| 날짜 | 빌드 | 가이드라인 | 애플 지적 요지 | 원인 | 조치 | 상태 |
+|---|---|---|---|---|---|---|
+| 2026-10-30 | 1.0 (13) | 5.1.1(i) · 5.1.2(i) | 앱이 개인정보를 제3자 AI 서비스와 공유하는 것으로 보이는데, 보내기 전에 누구에게 보내는지 밝히지 않는다. 무엇을 보내는지·누구에게 보내는지 고지, 보내기 전 허락, 방침의 수집·이용·제3자 보호 고지를 요구 | 사투리 번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에 고지·동의가 없었다. 2026-10-08에 「방침 고지로 갈음」하기로 한 결정이 원인이다 | **KAN-304**(PR #59) 번역기 상시 고지·사전 동의 시트, 홈 광고 동의 시트 / **KAN-315**(PR #60) 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로 → 빌드 15로 재제출 | **재제출 준비 (2026-11-04)** |
+
+**빌드 13 회신에서 빌드 15 재제출로 바꾼 이유 (2026-11-04).** 11-02 팀장 결정은 같은 빌드 13으로
+회신하는 것이었지만, 2026-11-04에 빌드 15 재제출로 바꿨다. 이유는 셋이다.
+
+1. KAN-315(PR #60)가 네이티브 설정 「개인정보」 절에 「맞춤형 광고 설정」 행(Android·iOS)과 iOS ATT 거부 뒤
+   재허용 시 설정 앱 이동을 넣었다. 웹만 바뀐 게 아니라 바이너리가 바뀌었다.
+2. iOS 빌드 14는 2026-10-25 CI(ios-release run 40174171160, Dev 브랜치 dispatch, TestFlight 업로드 success)로
+   이미 TestFlight에 올라가 번호가 소모됐다. 14엔 KAN-304·KAN-315가 들어 있지 않다.
+3. 홈 광고 동의 시트 문구(`AD_CONSENT_CHANGE_HINT_APP`)가 「설정 탭의 「맞춤형 광고 설정」」을 안내한다.
+   빌드 13엔 그 행이 없어서 웹만 배포하면 심사관이 보는 안내와 실제 앱이 어긋난다.
+
+Android `versionCode`도 15로 같이 올렸다. Play는 업로드된 번호만 막으므로 14를 건너뛰어도 된다.
+
+Submission ID는 `60e236be-0581-4a9e-b26f-0e8d1c7d454e`이고 심사 기기는 iPhone 17 Pro Max였다. 애플 원문은
+「The app appears to share the user's personal data with a third-party AI service but the app does
+not clearly identify who the data is sent to before sharing the data.」다. 방침
+(`https://accentury.app/privacy.html`, 버전 2026-10-20)은 이미 「사투리 번역기 (앱)」 절·2항 제3자
+제공(Google LLC Gemini API)·4항 국외 이전을 적고 있어 넷째 요건을 채운다. 그래서 방침은 고치지 않고,
+빠져 있던 화면 쪽 고지와 동의만 넣었다.
+
+### Resolution Center 회신문 (영어 초안)
+
+```
+Hello App Review team,
+
+Thank you for your review of Accentury 1.0 (build 13), Submission ID
+60e236be-0581-4a9e-b26f-0e8d1c7d454e, under Guidelines 5.1.1(i) and 5.1.2(i).
+We have addressed the issue as follows.
+
+Third-party AI service and recipient
+The only feature in the app that uses a third-party AI service is the dialect translator
+(the 사투리 번역기 (Dialect translator) tab in the bottom tab bar, available after sign-in).
+It converts a standard Korean sentence of up to 100 characters into the Gyeongnam dialect.
+The recipient is Google LLC, through its Gemini API. The sentence passes through our server
+on its way there.
+
+What data is sent
+Only the text the user types into the translator is sent. No account identifier, email
+address, name or audio is sent to Google.
+
+Disclosure and permission before sending
+We added two things to the translator screen:
+1. A persistent notice below the input field stating that the sentence is sent to the
+   Google Gemini API, with a link to our privacy policy.
+2. A consent sheet shown before the first translation. It states what is sent (the typed
+   sentence), who receives it (Google LLC's Gemini API), why (to convert it into the
+   dialect), and that Google may use the sentences it receives to improve its products.
+   The user chooses 동의하고 보내기 (Agree and send) or 취소 (Cancel).
+Nothing is sent before the user agrees, and nothing is sent if the user cancels.
+
+New build 15
+We have uploaded build 15, which contains the changes described here. Please review
+build 15. The translator screen is web content that the app loads in a WebView from
+https://accentury.app, and the ad-consent setting below is part of the native app, so
+build 15 is the build that shows all of them together.
+
+Ad consent and App Tracking Transparency
+For a signed-in user, an ad-consent sheet appears when the Home screen first opens.
+The choice can be changed at any time in Settings > 맞춤형 광고 설정 (Personalized ad
+settings). The ATT prompt appears only when the user chooses personalized ads; declining
+changes nothing about app functionality and non-personalized ads are served instead.
+
+Privacy policy
+Our privacy policy at https://accentury.app/privacy.html identifies what is collected, how
+it is used, who receives it and how it is protected, in the section
+사투리 번역기 (앱) (Dialect translator (app)), section 2 (provision of personal information
+to third parties: Google LLC, Gemini API) and section 4 (overseas transfer).
+
+Voice data
+Audio recorded in the level test and accent lessons is not sent to any third-party AI
+service. It is analyzed only on our own server (AWS Seoul region).
+
+We have also updated the notes in App Review Information to describe the above.
+
+Steps to verify
+1. Sign in with Sign in with Apple, or with the Kakao or Naver test account provided in
+   App Review Information.
+2. The Home screen opens. On the first visit after sign-in, the ad-consent sheet appears.
+   Choosing 맞춤형 광고 받기 (Get personalized ads) shows the ATT prompt; choosing
+   일반 광고만 보기 (Show non-personalized ads only) does not.
+3. Tap the 사투리 번역기 (Dialect translator) tab in the bottom tab bar.
+4. Type a sentence and tap 바꾸기 (Convert).
+5. The consent sheet appears before anything is sent.
+6. Open Settings and tap 맞춤형 광고 설정 (Personalized ad settings) under 개인정보 (Privacy).
+   The ad-consent sheet opens again with the current choice.
+Both choices are remembered on the device. If a sheet does not appear because it was
+already answered, deleting and reinstalling the app shows it again.
+
+Thank you for your time.
+Accentury team
+```
+
+한국어 요약. 제3자 AI 서비스는 사투리 번역기 하나이고 받는 곳은 Google LLC의 Gemini API, 보내는
+것은 입력 문장뿐이라고 밝힌다. 화면에 상시 고지와 사전 동의 시트를 넣어 동의 전엔 아무것도 보내지
+않는다. 새 빌드 15를 올렸으니 15로 심사해 달라고 하고, 로그인 사용자는 홈이 처음 열릴 때 광고 동의
+시트가 뜨며 설정 › 맞춤형 광고 설정에서 언제든 바꿀 수 있고 ATT는 맞춤형 광고를 고를 때만 뜬다고
+적는다. 방침 해당 절, 음성은 자체 서버에서만 처리한다는 점, 메모 갱신, 홈 동의 시트·번역기·설정 행 순서의
+재현 경로를 함께 준다. 첫 문장의 build 13은 거절된 빌드를 가리키므로 그대로 둔다.
+
+### 회신 절차
+
+1. 빌드 15 번호 올림 PR을 Dev에 머지한다
+2. Dev→Release 승격 PR을 머지하고 Web Deploy(prod) environment를 승인한 뒤 `https://accentury.app`에
+   반영됐는지 확인한다
+3. `gh workflow run ios-release.yml --ref Release -f upload=true`로 TestFlight에 올리고,
+   `gh workflow run app-release.yml --ref Release`로 AAB를 만든다(Play는 수동 업로드)
+4. TestFlight 빌드 15로 확인한다: 홈 첫 진입 광고 동의 시트와 맞춤형 선택 시 ATT, 번역기 첫 [바꾸기]
+   시트·입력창 아래 고지, 설정 › 「맞춤형 광고 설정」 행으로 재열기
+5. App Review Information 메모를 §8 영어 메모 전체로 바꾼다(설정 행 문장 포함)
+6. App Store Connect 1.0 버전의 빌드를 15로 바꾸고 Resolution Center에 위 회신문을 낸 뒤 심사에 제출한다
+7. 결과를 위 표에 행으로 남긴다
+
+> **메모 주의 폐기 (2026-11-04).** 빌드 15로 제출하므로 §8 메모에서 설정 행 문장을 빼지 않는다.
+
+**(2026-11-04 철회 — 위 「빌드 13 회신에서 빌드 15 재제출로 바꾼 이유」 참조)** **새 빌드가 아니라 같은 빌드로 회신한다 (2026-11-02 팀장 결정).** 고친 곳이 전부 WebView가 불러오는
+웹이라 바이너리는 바뀌지 않았다. 새 빌드를 올리면 심사 큐를 처음부터 다시 서야 하고, 고칠 게 없는
+네이티브 코드까지 다시 심사받는다. 대신 회신 전에 prod 배포가 끝나 있어야 한다 — 배포 전에 회신하면
+심사관이 같은 빌드에서 옛 화면을 보고 같은 사유로 다시 거절한다(§10 「제3자 AI 서비스 고지」 행).
+
+## 12. 관련
 
 [`play-store-listing.md`](play-store-listing.md) (KAN-174 Play 짝, §5 데이터 안전 답안) ·
 Accentury_Server `docs/wiki/privacy-policy.md` (§2 스토어 신고 대조표, §3 게시 게이트) ·

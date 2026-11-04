@@ -68,7 +68,7 @@
 
 `window.accenturyNavigate(url) → true` (KAN-290)는 `AccenturyWeb` 슬롯이 아니라 전역 함수다. 루트가 마운트된 뒤 정의되고, 네이티브가 evaluate하면 웹이 SPA로 옮긴 뒤 `true`를 돌려준다. 결과가 `true`가 아니면(아직 없음·예외) 네이티브는 문서 로드로 폴백한다.
 
-**화면 전환 (KAN-290).** 탭·홈·뒤로가기 이동은 `pushState` + 루트 재마운트(`<App key={search}>`)라 화면 상태는 예전 문서 로드처럼 초기화된다. 구버전 앱(빌드 11 이하)은 문서 로드 그대로다. 시작 게이트의 `?screen=test` 진입은 계속 네이티브의 문서 로드다.
+**화면 전환 (KAN-290).** 탭·홈·뒤로가기 이동은 `pushState` + 루트 재마운트(`<App key={이동 횟수}>`, 같은 URL 재이동 포함)라 화면 상태는 예전 문서 로드처럼 초기화된다. 구버전 앱(빌드 11 이하)은 문서 로드 그대로다. 시작 게이트의 `?screen=test` 진입은 계속 네이티브의 문서 로드다.
 
 | 슬롯 | 티켓 | 하는 일 |
 |---|---|---|
@@ -757,6 +757,35 @@ WebView 히스토리(`goBack()`)를 타지 않는다 — 판정 함수 `webBackT
 (`web/src/App.tsx` `useAccountTabs`) — 익명 빌드 WebView도 브리지·`bridge=2`를 가져 「앱 안」만으로는 갈리지 않기 때문이다. 새 메서드·쿼리는
 없다. 두 앱 모두 저장소의 Access를 만료와 무관하게 주고 익명 빌드·로그아웃이면 `""`라 「값이 있다 = 로그인 상태」다. iOS 첫 문서는
 Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으로 잠깐 더 기다렸다가 탭 바를 세운다.
+
+### 맞춤형 광고 설정 재열기 (KAN-315)
+
+로그인 앱에서 광고 동의를 다시 바꾸는 길은 네이티브 설정 화면의 「맞춤형 광고 설정」 행이다(2026-11-03 팀 결정). 새 브리지 메서드는 없다.
+
+- **네이티브** — 행을 누르면 설정을 닫고 WebView를 `webTabUrl(current, "home")` 결과에 `adConsent=open`을 더한 URL로 옮긴다. 이동은
+  KAN-290 SPA 경로다(`window.accenturyNavigate(u)` 성공이면 문서 재로드 없음, 실패면 `loadUrl` 폴백).
+- **허용 화면 (PR #60 리뷰)** — `webAdConsentUrl(current, startRequested)`는 아래 화면에서만 URL을 주고 나머지는 null이다. 테스트 중 홈으로
+  옮기면 KAN-288 「테스트를 그만둘까요?」 확인과 녹음·업로드 정리를 건너뛰기 때문이다(뒤로가기 `webBackTarget` 표에 홈만 더한 것).
+
+  | 현재 문서 | 재열기 |
+  |---|---|
+  | `screen=home`, `intonation`·`words`·`translate` | 허용 |
+  | 인트로(`screen` 없음), 시작 전 | 허용 |
+  | 인트로, 시작 게이트 중(`startRequested`) · `screen=test` · `screen=result` · 문서 모름 | 금지 |
+
+  금지 화면에서는 설정 행이 비활성이고 보조 줄이 「테스트가 끝난 뒤 바꿀 수 있어요」다. TestFlow가 문서·시작 게이트가 바뀔 때마다 판정을
+  호출자에 올린다(Android `onAdConsentAvailable`, iOS `Binding`). 그래도 요청이 오면 옮기지 않고 요청만 내린다.
+- **웹** — `AppRoot`가 이동마다 `App`을 다시 마운트하므로, 홈이 이미 떠 있어도 이동이 오면 `HomeScreen`이 새로 뜬다.
+  `adConsent=open`이면 `consent`가 `granted`/`denied`여도 `AdConsentSheet`를 현재 값 줄과 함께 연다(`web/src/App.tsx` `HomeScreen`).
+  문구의 바꾸는 길은 「설정 탭의 「맞춤형 광고 설정」」이다(인트로는 「첫 화면 아래」 그대로).
+- **고르면** — `setAdConsent(state)` 뒤 시트를 닫고 `buildTabUrl(search, 'home')` 결과로 `history.replaceState`해 플래그를 걷어낸다.
+  `AppRoot`는 `replaceState`를 듣지 않아 재마운트·홈 재조회가 없고, 히스토리가 쌓이지 않으며 새로고침·재진입에 또 뜨지 않는다.
+  `navigate(…, { replace: true })`를 쓰면 `App`이 재마운트돼 네이티브 저장 전에 `getAdConsent`를 다시 읽는 경쟁이 생긴다.
+  걷어낸 뒤 `notifyLocationChanged`로 네이티브의 현재 URL 기록도 플래그 없는 값으로 맞춘다.
+- **같은 URL 재이동도 재마운트** — `AppRoot`의 키는 쿼리 문자열이 아니라 이동 횟수다. 키가 `search`였을 때 `replaceState`로 걷은 뒤 같은 URL로 두 번째 재열기 이동이 오면 상태가 같아 재마운트를 건너뛰어 시트가 안 떴다(두 번째 재열기 회귀, 2026-11-03 iOS 실기기).
+- **플래그는 따라가지 않는다** — 웹 `buildTabUrl`·`buildIntroUrl`(`web/src/navigation/entryUrl.ts`)과 네이티브 `webTabUrl`이
+  `adConsent`를 지운다. 탭을 옮겼다 홈으로 돌아와도 시트가 다시 뜨지 않는다.
+- **구버전 실행** — 브리지에 `getAdConsent`가 없어 `consent === null`이면 플래그가 있어도 시트를 열지 않는다(기존 규칙).
 
 ## 14. 업로드 재전송 (KAN-288 6단계)
 

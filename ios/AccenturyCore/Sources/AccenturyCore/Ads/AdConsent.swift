@@ -68,6 +68,18 @@ public func shouldRequestTracking(consent: AdConsent, status: TrackingStatus) ->
     consent == .granted && status == .notDetermined
 }
 
+/// iOS 설정 앱(이 앱 화면)을 열어야 하는가 (KAN-315, 팀장 결정 2026-11-03). 재열기 시트에서 [맞춤형 광고 받기]를
+/// 골랐는데 ATT를 이미 거부했으면 iOS가 프롬프트를 다시 띄우지 않아 막다른 길이다 — 그때만 설정 앱으로 보낸다.
+///
+/// - 판정은 `setAdConsent("granted")` 직후, 프롬프트 **전** 상태로 한 번만 한다. 방금 뜬 프롬프트에서 거부한 결과에는
+///   반응하지 않는다(첫 실행에서 거부 직후 설정 앱이 튀어나오면 안 된다)
+/// - `authorized`·`restricted`는 아무 것도 안 한다. `restricted`는 사용자가 설정에서 바꿀 수 없다
+/// - **재열기에서만** 연다(`previous != .unknown`, PR #60 리뷰). 전역 「앱이 추적을 요청하도록 허용」이 꺼진 기기는 첫 실행부터
+///   `denied`인데 그 화면의 토글도 비활성이라 막다른 길이다. 전역 꺼짐과 개별 거부를 구분할 수 없어 첫 실행 시트에서는 열지 않는다
+public func shouldOpenTrackingSettings(previous: AdConsent, next: AdConsent, status: TrackingStatus) -> Bool {
+    previous != .unknown && next == .granted && status == .denied
+}
+
 /// `ATTrackingManager.AuthorizationStatus`의 Core 거울 (P2-6). Core는 AppTrackingTransparency를 링크하지
 /// 않아(macOS `swift test`) 앱 타깃의 `TrackingAuthorization`이 프레임워크 값을 이 값으로 옮겨 넘긴다.
 /// 판정(``shouldRequestTracking(consent:status:)``)이 보는 것은 "아직 안 물어봤나" 하나지만, 네 값을 그대로

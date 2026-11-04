@@ -290,12 +290,12 @@ android {
         // `AccenturyCoreTests/ReleaseVersionParityTests`(iOS, `swift test`)가 이 파일을 직접 읽어
         // 대조하다 실패한다 - 안드로이드 쪽 테스트는 이 어긋남을 못 잡으니 검사는 한 곳뿐이다.
         //
-        // 14인 이유: 빌드 13(KAN-224 iOS 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐다(스토어
-        // 스크린샷 KAN-175도 13 기준). 14가 KAN-292 Play Console 발견 항목 대응(릴리스 R8 난독화 켬·keep
-        // 규칙, 네이버 로그인 창 screenOrientation 제거)을 더한 제출 빌드다 - Play Console 난독화 1%
-        // (기한 2027-02)·fragment 구버전·Android 15 큰 화면 경고 3건이 이 번들에서 사라져야 한다
-        // (xcconfig 주석). iOS·Android는 같은 번호를 쓴다.
-        versionCode = 14
+        // 15인 이유: 빌드 13은 2026-10-22 제출 빌드로 번호가 소모됐다(2026-10-30 거절). 14는
+        // 2026-10-25 TestFlight 업로드(KAN-292 R8 대응, 미제출)로 소모됐다. 15가 KAN-304·KAN-315 리젝
+        // 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행)을 담은
+        // 재제출 빌드다 - Play는 업로드된 번호만 막으니 14를 건너뛰어도 된다 (xcconfig 주석).
+        // iOS·Android는 같은 번호를 쓴다.
+        versionCode = 15
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

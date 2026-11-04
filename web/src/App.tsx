@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useAdConsent } from './ads/adConsent'
+import { AdConsentSheet } from './ads/AdConsentSheet'
+import { AD_CONSENT_CHANGE_HINT_APP } from './ads/adConsentText'
 import { overallBucket } from './analytics/events'
 import { clearTestId, ensureTestId } from './analytics/testId'
 import { track } from './analytics/track'
@@ -16,6 +19,7 @@ import {
   getSessionToken,
   isBridgeCompatible,
   isStandaloneWeb,
+  notifyLocationChanged,
   requestMicPermission,
   waitForAccessToken,
 } from './bridge/bridge'
@@ -202,14 +206,19 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
    */
   if (params.get('screen') === 'home') {
     return (
-      <>
-        <HomeScreen
-          apiBase={API_BASE}
-          onStartTest={() => requestMicPermission() || goToIntro(navigate)}
-          onStartLearning={() => goToTab('intonation', navigate)}
-        />
-        {tabBar('home')}
-      </>
+      <HomeScreen
+        apiBase={API_BASE}
+        onStartTest={() => requestMicPermission() || goToIntro(navigate)}
+        onStartLearning={() => goToTab('intonation', navigate)}
+        tabBar={tabBar('home')}
+        adConsentRequested={params.get('adConsent') === 'open'}
+        // navigate(replace)는 AppRoot를 재마운트해 네이티브 저장 전에 getAdConsent를 다시 읽고 홈도 다시 조회한다.
+        // 재마운트 없이 URL만 걷고, 네이티브의 현재 URL 기록은 spaNavigate처럼 통지로 맞춘다
+        onAdConsentReopenDone={() => {
+          window.history.replaceState(null, '', window.location.pathname + buildTabUrl(window.location.search, 'home'))
+          notifyLocationChanged(window.location.href)
+        }}
+      />
     )
   }
 
@@ -792,12 +801,36 @@ function HomeScreen({
   apiBase,
   onStartTest,
   onStartLearning,
+  tabBar,
+  adConsentRequested = false,
+  onAdConsentReopenDone,
 }: {
   apiBase: string
   onStartTest: () => void
   onStartLearning: () => void
+  /** 하단 탭 바 (KAN-252). 동의 시트가 떠 있는 동안 함께 `inert`로 막으려고 홈이 그린다 */
+  tabBar?: ReactNode
+  /** URL에 `adConsent=open`이 있다 — 네이티브 설정 「맞춤형 광고 설정」이 시트를 다시 열라고 보냈다 (KAN-315) */
+  adConsentRequested?: boolean
+  /** 다시 연 시트에서 고른 뒤 `history.replaceState`로 URL에서 `adConsent`만 걷어낸다 — 재마운트 없음 (KAN-315) */
+  onAdConsentReopenDone?: () => void
 }) {
   const [home, setHome] = useState<LearningHome | null>(null)
+  /*
+   * 맞춤형 광고 동의 (KAN-304, PR #59 리뷰 2026-11-03). 로그인 앱은 홈 [레벨 테스트 시작]이 인트로를 건너뛰어
+   * 인트로의 동의 시트가 한 번도 안 떴고, 그래서 ATT 창도 안 떴다 — 심사 메모는 「첫 실행 동의 시트에서 허용하면
+   * ATT」라 적는다. 홈이 이 실행의 첫 화면이라 인트로와 같이 마운트 시 `unknown`이면 시트를 띄운다(IntroScreen과 같은
+   * 초기값). 고른 뒤 ATT는 네이티브가 `setAdConsent('granted')`를 받아 띄운다(ads-admob §7.5). null(동의 개념 없는
+   * 구버전 앱)이면 시트가 없다.
+   * 다시 여는 길은 네이티브 설정 화면의 「맞춤형 광고 설정」 행이다 (KAN-315, 2026-11-03 팀 결정). 네이티브가 홈 URL에
+   * `adConsent=open`을 붙여 옮기면 `granted`/`denied`여도 시트를 현재 값 줄과 함께 연다. `AppRoot`가 이동마다(같은 URL
+   * 재이동 포함) `App`을 다시 마운트하므로(KAN-290 SPA 전환 포함) 마운트 때 한 번 읽으면 URL 변화를 따라간다. 고르면
+   * replaceState로 URL만 걷어내 재마운트 없이 새로고침·재진입에 또 뜨지 않게 한다(webview-bridge §13). navigate를 쓰면
+   * 재마운트된 홈이 네이티브 저장보다 먼저 getAdConsent를 다시 읽는 경쟁이 생기고 홈도 다시 조회한다.
+   */
+  const { consent, choose: chooseConsent, vendor: adVendor } = useAdConsent()
+  const [consentSheetOpen, setConsentSheetOpen] = useState(consent === 'unknown' || adConsentRequested)
+  const sheetOpen = consentSheetOpen && consent !== null
   useEffect(() => {
     let alive = true
     fetchLearningHome(apiBase).then(
@@ -816,64 +849,81 @@ function HomeScreen({
   const tested = levelTest === null ? '' : formatKstDate(levelTest.completedAt)
 
   return (
-    <main className="screen">
-      {/* 테스트 후는 위에서부터 쌓는다(시안 32) — 카드·버튼·출석이 한 화면을 채워 가운데 정렬이면 위만 빈다 */}
-      <div className={levelTest === null ? 'screen__body' : 'screen__body home-after'}>
-        {levelTest === null ? (
-          /* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */
-          <div className="card home-card">
-            <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v2.png`} alt="" />
-            <h1 className="type-title">내 사투리 레벨 테스트</h1>
-            <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
-            <Button onClick={onStartTest} style={{ width: '100%' }}>
-              레벨 테스트 시작
-            </Button>
-          </div>
-        ) : (
-          <>
-            {/* 시안 32: 테이프 붙은 종이에 캐릭터 왼쪽, 순위·등급명·응시일 오른쪽 */}
-            <section className="card home-tier" aria-labelledby="home-tier-name">
-              <TierCharacter code={levelTest.tier.code} name={levelTest.tier.name} className="illustration--home" />
-              <div className="home-tier__text">
-                <p className="type-caption home-tier__rank">
-                  {levelTest.tier.of}개 등급 중 {levelTest.tier.rank}번째
-                </p>
-                <h1 id="home-tier-name" className="type-display">
-                  {levelTest.tier.name}
-                </h1>
-                {tested !== '' && <p className="type-label home-tier__date">{tested} 응시</p>}
-              </div>
+    <>
+      <main className="screen" inert={sheetOpen}>
+        {/* 테스트 후는 위에서부터 쌓는다(시안 32) — 카드·버튼·출석이 한 화면을 채워 가운데 정렬이면 위만 빈다 */}
+        <div className={levelTest === null ? 'screen__body' : 'screen__body home-after'}>
+          {levelTest === null ? (
+            /* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */
+            <div className="card home-card">
+              <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v2.png`} alt="" />
+              <h1 className="type-title">내 사투리 레벨 테스트</h1>
+              <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
+              <Button onClick={onStartTest} style={{ width: '100%' }}>
+                레벨 테스트 시작
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* 시안 32: 테이프 붙은 종이에 캐릭터 왼쪽, 순위·등급명·응시일 오른쪽 */}
+              <section className="card home-tier" aria-labelledby="home-tier-name">
+                <TierCharacter code={levelTest.tier.code} name={levelTest.tier.name} className="illustration--home" />
+                <div className="home-tier__text">
+                  <p className="type-caption home-tier__rank">
+                    {levelTest.tier.of}개 등급 중 {levelTest.tier.rank}번째
+                  </p>
+                  <h1 id="home-tier-name" className="type-display">
+                    {levelTest.tier.name}
+                  </h1>
+                  {tested !== '' && <p className="type-label home-tier__date">{tested} 응시</p>}
+                </div>
+              </section>
+              <Button onClick={onStartLearning} style={{ width: '100%' }}>
+                억양 학습 시작
+              </Button>
+              <Button variant="secondary" onClick={onStartTest} style={{ width: '100%' }}>
+                다시 테스트하기
+              </Button>
+            </>
+          )}
+          {streak !== undefined && (
+            <section className="home-attendance" aria-labelledby="home-attendance-title">
+              <h2 id="home-attendance-title" className="type-label">
+                연속 출석
+              </h2>
+              <p className="home-streak type-body-sm">{streakText(streak)}</p>
+              {/* 출석한 날은 벽돌 ✓, 아닌 날은 잉크 ○ — 색과 기호를 함께 바꿔 색만으로 가르지 않는다 */}
+              <ol className="home-attendance__week">
+                {attendanceWeek(streak).map((day) => (
+                  <li key={day.label} className={day.attended ? 'home-attendance__day is-attended' : 'home-attendance__day'}>
+                    <span aria-hidden="true">{day.label}</span>
+                    <i aria-hidden="true">{day.attended ? '✓' : '○'}</i>
+                    <span className="sr-only">
+                      {day.label}요일 {day.attended ? '출석' : '출석 전'}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </section>
-            <Button onClick={onStartLearning} style={{ width: '100%' }}>
-              억양 학습 시작
-            </Button>
-            <Button variant="secondary" onClick={onStartTest} style={{ width: '100%' }}>
-              다시 테스트하기
-            </Button>
-          </>
-        )}
-        {streak !== undefined && (
-          <section className="home-attendance" aria-labelledby="home-attendance-title">
-            <h2 id="home-attendance-title" className="type-label">
-              연속 출석
-            </h2>
-            <p className="home-streak type-body-sm">{streakText(streak)}</p>
-            {/* 출석한 날은 벽돌 ✓, 아닌 날은 잉크 ○ — 색과 기호를 함께 바꿔 색만으로 가르지 않는다 */}
-            <ol className="home-attendance__week">
-              {attendanceWeek(streak).map((day) => (
-                <li key={day.label} className={day.attended ? 'home-attendance__day is-attended' : 'home-attendance__day'}>
-                  <span aria-hidden="true">{day.label}</span>
-                  <i aria-hidden="true">{day.attended ? '✓' : '○'}</i>
-                  <span className="sr-only">
-                    {day.label}요일 {day.attended ? '출석' : '출석 전'}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
-      </div>
-    </main>
+          )}
+        </div>
+      </main>
+      {/* 시트가 떠 있는 동안 배경(본문·탭 바)은 `inert` — 초점이 시트 밖으로 빠지지 않게(TranslatorScreen 선례) */}
+      {tabBar && <div inert={sheetOpen}>{tabBar}</div>}
+      {/* 시트는 탭 바 뒤에 그린다 — 쌓임 순서상 뒤에 와야 막이 탭 바를 덮는다(IntroScreen 동의 시트 주석) */}
+      {sheetOpen && (
+        <AdConsentSheet
+          current={consent}
+          vendor={adVendor}
+          changeHint={AD_CONSENT_CHANGE_HINT_APP}
+          onChoose={(state) => {
+            chooseConsent(state)
+            setConsentSheetOpen(false)
+            if (adConsentRequested) onAdConsentReopenDone?.()
+          }}
+        />
+      )}
+    </>
   )
 }
 

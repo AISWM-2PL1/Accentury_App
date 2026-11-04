@@ -32,6 +32,15 @@ struct TestFlowView: View {
     /// 안드로이드에서 설정 화면의 BackHandler가 먼저 받는 자리다.
     private let covered: Bool
 
+    /// 설정 「맞춤형 광고 설정」을 누른 횟수 (KAN-315). 값이 바뀔 때마다 WebView를 홈 + `adConsent=open`
+    /// (``AccenturyCore/webAdConsentUrl(currentUrl:startRequested:)``)으로 옮긴다 — 가장자리 스와이프 홈 이동과 같은 길(`navigateInApp`)이다.
+    /// 횟수인 이유는 같은 요청을 두 번 눌러도 매번 바뀐 값으로 보이게 하려는 것이다.
+    private let adConsentRequests: Int
+
+    /// 지금 문서에서 광고 동의 시트를 다시 열 수 있나 (PR #60 리뷰). 문서·시작 게이트가 바뀔 때마다 세운다 — 호출자가 설정
+    /// 「맞춤형 광고 설정」 행을 켜고 끈다(테스트 진행·시작 게이트 중엔 비활성). 안드로이드 `TestFlow(onAdConsentAvailable)`의 거울이다.
+    @Binding private var adConsentAvailable: Bool
+
     /*
      * "이번 실행이 시스템 종료 뒤 장면 복원인가" 표시의 `@SceneStorage` 키 (KAN-252 4단계 보완). 호출자(``AuthGateView``의
      * 로그인 화면·``AnonymousFlowView``)가 이 키로 들고 처음 나타날 때 true로 세운다. 장면 저장소는 시스템이 프로세스를 죽였다
@@ -50,9 +59,13 @@ struct TestFlowView: View {
         anonymousConsent: AnonymousVoiceConsentStore? = nil,
         tabBarEntry: Bool,
         covered: Bool = false,
+        adConsentRequests: Int = 0,
+        adConsentAvailable: Binding<Bool> = .constant(false),
         onOpenSettings: @escaping () -> Void
     ) {
         self.onOpenSettings = onOpenSettings
+        self.adConsentRequests = adConsentRequests
+        _adConsentAvailable = adConsentAvailable
         self.tabBarEntry = tabBarEntry
         self.covered = covered
         // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
@@ -301,7 +314,10 @@ struct TestFlowView: View {
          * 물어보는가"만 정한다.
          */
         .onChange(of: model.phase) { phase in syncOverlayPhase(phase) }
-        .onAppear { syncOverlayPhase(model.phase) }
+        .onAppear {
+            syncOverlayPhase(model.phase)
+            updateAdConsentAvailable()
+        }
         /*
          * 공유 링크로 앱이 열렸다 (KAN-32 3단계). 안드로이드 `MainActivity`의
          * `onCreate`/`onNewIntent` + `applyAppLink` 자리다.
@@ -374,6 +390,14 @@ struct TestFlowView: View {
         // 결과 공유 (KAN-30, KAN-180). 웹이 공유를 요청하면 통로부터 정한다 — 카톡이면
         // 카카오 카드가 나가고, 아니면 아래 시트가 뜬다 (`routeShare`).
         .onChange(of: model.pendingShare) { payload in routeShare(payload) }
+        .onChange(of: adConsentRequests) { _ in
+            // 목적지가 없는 화면(테스트 진행·결과·시작 게이트)이면 옮기지 않는다 — 행이 비활성이라 보통 오지 않는다.
+            guard let target = webAdConsentUrl(currentUrl: currentWebUrl, startRequested: model.startRequested),
+                  let url = URL(string: target) else { return }
+            webView?.navigateInApp(to: url)
+        }
+        .onChange(of: currentWebUrl) { _ in updateAdConsentAvailable() }
+        .onChange(of: model.startRequested) { _ in updateAdConsentAvailable() }
         .sheet(
             isPresented: Binding(
                 get: { sheetShare != nil },
@@ -720,6 +744,13 @@ struct TestFlowView: View {
                 events.log(ShareEvents.launched, [ShareEvents.paramChannel: .text(channelParam(channel))])
             }
         ).share(payload)
+    }
+
+    /// 지금 문서에서 광고 동의 시트를 다시 열 수 있나를 호출자에 올린다 (KAN-315, PR #60 리뷰) — 설정 「맞춤형 광고 설정」 행의
+    /// enabled가 된다(``adConsentAvailable``). 첫 표시·문서 변경·시작 게이트 변경 때 부른다.
+    private func updateAdConsentAvailable() {
+        adConsentAvailable = tabBarEntry
+            && webAdConsentUrl(currentUrl: currentWebUrl, startRequested: model.startRequested) != nil
     }
 
     @MainActor

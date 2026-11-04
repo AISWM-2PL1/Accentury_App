@@ -51,6 +51,9 @@ export const AD_CONSENT_EFFECT: Record<AdVendor, string> = {
 /** 철회·재동의 경로. 링크 이름([AD_CONSENT_SETTINGS_LINK])을 그대로 적어 찾을 수 있게 한다 */
 export const AD_CONSENT_CHANGE_HINT = '선택은 첫 화면 아래 「맞춤형 광고 설정」에서 언제든 바꿀 수 있어요.'
 
+/** 앱 홈(탭 바가 있는 실행)의 철회·재동의 경로 — 네이티브 설정 탭의 행 (KAN-315). 인트로는 위 문구 그대로 */
+export const AD_CONSENT_CHANGE_HINT_APP = '선택은 설정 탭의 「맞춤형 광고 설정」에서 언제든 바꿀 수 있어요.'
+
 /** 방침 링크 앞의 말. 링크 자체는 `legal/PrivacyPolicyLink`가 그린다 */
 export const AD_CONSENT_DETAIL_LEAD = '자세한 내용은'
 export const AD_CONSENT_DETAIL_TAIL = '을 봐 주세요.'
@@ -65,7 +68,7 @@ export const AD_CONSENT_ALLOW = '맞춤형 광고 받기'
  * iOS 앱에서만 붙는 한 줄 (KAN-288 HIG-A). [맞춤형 광고 받기] 직후 시스템 추적 허용(ATT) 창이 뜨는데
  * (`ios/Accentury/Ads/AdsController.swift`), 앞에서 고른 직후 또 묻는 창이 예고 없이 뜨면 고장처럼 읽힌다.
  */
-export const AD_CONSENT_IOS_ATT_NOTE = 'iOS에서는 다음에 시스템 추적 허용 창이 떠요'
+export const AD_CONSENT_IOS_ATT_NOTE = 'iOS에서는 추적 허용 창이 뜨거나, 이미 거부했다면 설정 앱으로 안내해요'
 
 export const AD_CONSENT_DENY = '일반 광고만 보기'
 

@@ -52,6 +52,10 @@ struct SettingsScreen: View {
     let onReloadVoiceConsent: () async -> Void
     /// 방침 문서 (로그인 화면과 같은 호출)
     let onOpenPrivacy: () -> Void
+    /// 지금 광고 동의 시트를 다시 열 수 있나 (PR #60 리뷰). 테스트 진행·시작 게이트 중엔 false라 행이 비활성이다
+    let adConsentEnabled: Bool
+    /// 「맞춤형 광고 설정」 행 (KAN-315). 호출자가 이 화면을 닫고 웹 홈의 광고 동의 시트를 연다
+    let onOpenAdConsent: () -> Void
 
     @State private var confirming = false
     @State private var leaving = false
@@ -110,7 +114,8 @@ struct SettingsScreen: View {
                         return false
                     },
                     onReload: onReloadVoiceConsent,
-                    onOpenPrivacy: onOpenPrivacy
+                    onOpenPrivacy: onOpenPrivacy,
+                    extra: AnyView(AdConsentRow(enabled: adConsentEnabled && !busy, available: adConsentEnabled, action: onOpenAdConsent))
                 )
 
                 AccenturyButton(text: "로그아웃", variant: .secondary, enabled: !busy, fillsWidth: true) {
@@ -183,6 +188,42 @@ struct SettingsScreen: View {
     }
 }
 
+/// 「맞춤형 광고 설정」 행 (KAN-315, 팀 결정 2026-11-03). 홈 첫 진입에만 뜨던 웹 광고 동의 시트를 다시 여는 유일한
+/// 자리다. 안드로이드 `SettingsScreen.kt`의 `AdConsentRow`와 거울이다 — 「개인정보」 절의 캡션 아래·방침 버튼 위, 줄 전체가 버튼이다. 값을 여기서 바꾸지 않고 웹 시트에 맡긴다 — 시트가
+/// 정본 UI이고, 고른 값은 브리지 `setAdConsent`로 ``AdsController``에 돌아와 이 줄도 따라 바뀐다.
+/// 로그인 빌드만이다(익명 ``AnonymousSettingsScreen``에는 없다).
+private struct AdConsentRow: View {
+
+    let enabled: Bool
+    /// false면(테스트 진행·시작 게이트 중) 값 대신 언제 바꿀 수 있는지를 보인다 — 안드로이드 `adConsentSettingValue`와 같은 문구
+    let available: Bool
+    let action: () -> Void
+
+    @ObservedObject private var ads = AdsController.shared
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: Papercut.space1) {
+                Text("맞춤형 광고 설정").papercutType(.body).foregroundColor(Papercut.ink)
+                Text(caption).papercutType(.bodySmall).foregroundColor(Papercut.muted)
+            }
+            .frame(maxWidth: .infinity, minHeight: Papercut.touchTargetMin, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+
+    private var caption: String {
+        if !available { return "테스트가 끝난 뒤 바꿀 수 있어요" }
+        switch ads.consent {
+        case .granted: return "맞춤형 광고 허용"
+        case .denied: return "일반 광고만 보기"
+        case .unknown: return "아직 고르지 않음"
+        }
+    }
+}
+
 /// 「개인정보」 섹션 — 음성 저장 선택 동의의 유일한 켜고 끄는 자리 (KAN-270, 팀 결정 2026-10-06: 건너뛴 사용자에게
 /// 동의 화면을 다시 띄우지 않는다). 안드로이드 `SettingsScreen.kt`의 `VoiceConsentSection` 이식본이다.
 ///
@@ -200,6 +241,8 @@ private struct VoiceConsentSection: View {
     let onOpenPrivacy: () -> Void
     /// 토글 아래 안내. 익명 모드는 ``AccenturyCore/voiceConsentSettingCaptionAnonymous``
     var caption: String = voiceConsentSettingCaption
+    /// 캡션 아래·방침 버튼 위에 끼울 줄 (KAN-315). 로그인 빌드는 「맞춤형 광고 설정」(``AdConsentRow``), 익명은 없다
+    var extra: AnyView?
 
     @State private var pending: Bool?
     @State private var failed = false
@@ -237,6 +280,7 @@ private struct VoiceConsentSection: View {
                 .papercutType(.bodySmall)
                 .foregroundColor(Papercut.muted)
                 .fixedSize(horizontal: false, vertical: true)
+            if let extra { extra }
             AccenturyButton(text: "개인정보처리방침", variant: .text, action: onOpenPrivacy)
         }
     }

@@ -89,6 +89,8 @@ REQUIRE_ADMOB_IDS=YES`를 함께 준다.
 
 동의는 웹 시트가 묻고 네이티브가 저장한다 (§8.1). UMP SDK(Google의 동의 폼)는 쓰지 않는다 — 동의를
 묻는 자리가 이미 웹 시트라 SDK 폼과 이중으로 물을 수 없고, 방침이 약속한 철회 경로(인트로 링크)도 웹이다.
+시트가 뜨는 화면은 인트로(비로그인·재응시·앱 링크 진입)와 홈(로그인 앱, KAN-304)이다 — 로그인 앱은 홈
+[레벨 테스트 시작]이 인트로를 건너뛰어, 홈에도 시트가 없으면 `unknown`이 남아 광고 요청도 ATT도 나가지 않는다.
 
 | 저장값 (`ad_consent` / `state`) | 브리지 | 요청 | 프리로드 |
 |---|---|---|---|
@@ -268,6 +270,17 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
   「맞춤형 광고 설정」이 보여 주는 상태와 맞는다. ATT 거부로 SDK가 IDFA를 못 읽으면 맞춤형이 사실상 비맞춤이 되는데 그건 SDK 몫이다
 - 앱 시작에 이미 `granted`면 ATT가 `notDetermined`일 때만 한 번 더 묻는다(설정에서 추적을 초기화한 경우). 이미 답이 있으면
   iOS가 다시 띄우지 않으므로 부르지 않는다
+- **로그인 앱 경로 (KAN-304·KAN-315)**: 홈 첫 진입에 `unknown`이면 시트(KAN-304) → 이후 변경은 설정 「맞춤형 광고 설정」 행 → 홈 + `adConsent=open`으로
+  시트 재열기(KAN-315, `webAdConsentUrl`, [`webview-bridge.md`](webview-bridge.md) §13) → `setAdConsent` → 위 규칙 그대로. 재열기에서 다시 `granted`를
+  골라도 ATT는 `notDetermined`일 때만 뜨고, 이미 거부했으면 아래 규칙대로 설정 앱이 열린다(시트 캡션이 안내).
+  테스트 진행·시작 게이트 중에는 재열기를 막는다 — 설정 행이 비활성이고 보조 줄이 「테스트가 끝난 뒤 바꿀 수 있어요」다(PR #60 리뷰, 허용 화면 표는 `webview-bridge.md` §13)
+- **ATT `denied`면 iOS 설정 앱으로 보낸다 (KAN-315, 팀장 결정 2026-11-03)**: 재열기 시트에서 `granted`를 골랐는데 ATT를 이미 거부했으면
+  프롬프트가 다시 안 떠 막다른 길이라, `AdsController.setConsent`가 `UIApplication.openSettingsURLString`(이 앱 설정 화면)을 연다. 판정은 Core
+  `shouldOpenTrackingSettings(previous:next:status:)`(`previous != unknown && granted && denied`)이고 `setAdConsent` 직후·프롬프트 **전** 상태로 한 번만 한다 — 방금 뜬 프롬프트의
+  거부 결과에는 반응하지 않고(첫 실행에 거부 직후 설정 앱이 튀어나오지 않게), SDK 시작 경로에서도 판정하지 않는다. `authorized`·`restricted`는 아무 것도 안 한다.
+  **첫 실행 시트에서는 열지 않고 재열기에서만 연다(PR #60 리뷰)** — 전역 「앱이 추적을 요청하도록 허용」이 꺼진 기기는 첫 실행부터 `denied`인데
+  그 화면의 토글도 비활성이라 막다른 길이다. 전역 꺼짐과 개별 거부를 구분할 수 없는 한계라 첫 실행(`previous == unknown`)은 뺀다.
+  프리로드는 그대로 npa로 간다. Android는 ATT가 없어 변경 없음
 - 맞춤형 프리로드는 ATT 답이 난 **뒤**에 건다 — 프롬프트 중에 나간 요청은 IDFA 없이 나가 첫 광고가 비맞춤이 된다
 - 프롬프트는 앱이 active일 때만 뜬다. 앱 시작 경로는 `didBecomeActive`를 한 번 기다린다 (`TrackingAuthorization.whenActive`).
   프롬프트가 떠 있는 동안 두 번째 요청(SDK 초기화 완료와 시트 선택이 겹침)은 시스템에 다시 묻지 않고 같은 답을 기다린다

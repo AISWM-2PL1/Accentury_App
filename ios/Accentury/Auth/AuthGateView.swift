@@ -73,6 +73,10 @@ private struct SignedInScreen: View {
     let gate: AuthGateController
 
     @State private var settingsOpen = false
+    /// 설정 「맞춤형 광고 설정」을 누른 횟수 (KAN-315) — ``TestFlowView``가 바뀔 때마다 홈 + 광고 동의 시트로 옮긴다.
+    @State private var adConsentRequests = 0
+    /// 지금 화면에서 광고 동의를 다시 열 수 있나 (PR #60 리뷰) — 테스트 진행·시작 게이트 중엔 설정 행이 비활성이다.
+    @State private var adConsentAvailable = false
     /// 장면 복원 표시 (KAN-252 4단계 보완, ``TestFlowView/sceneRestorationKey``).
     @SceneStorage(TestFlowView.sceneRestorationKey) private var restorable = false
 
@@ -97,6 +101,8 @@ private struct SignedInScreen: View {
                 restoresSavedState: restorable,
                 tabBarEntry: true,
                 covered: settingsOpen || consentShown,
+                adConsentRequests: adConsentRequests,
+                adConsentAvailable: $adConsentAvailable,
                 onOpenSettings: { settingsOpen = true }
             )
                 // 덮인 동안 스크린 리더가 아래 웹 화면으로 내려가지 않게 한다.
@@ -136,7 +142,13 @@ private struct SignedInScreen: View {
                         return result
                     },
                     onReloadVoiceConsent: { await gate.reloadVoiceConsent() },
-                    onOpenPrivacy: openPrivacy
+                    onOpenPrivacy: openPrivacy,
+                    adConsentEnabled: adConsentAvailable,
+                    // 설정을 닫고(✕와 같다) 웹 홈의 광고 동의 시트로 간다 (KAN-315).
+                    onOpenAdConsent: {
+                        settingsOpen = false
+                        adConsentRequests += 1
+                    }
                 )
             }
         }

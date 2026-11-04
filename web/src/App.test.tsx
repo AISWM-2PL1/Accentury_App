@@ -527,9 +527,113 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '홈' })).toHaveAttribute('aria-current', 'page')
 
+    // 광고 동의 메서드를 모르는 브리지(getAdConsent 없음)는 동의 개념이 없는 실행이라 시트가 없다
+    expect(screen.queryByRole('dialog')).toBeNull()
+
     fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
     expect(requestMicPermission).toHaveBeenCalledTimes(1)
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  /*
+   * 로그인 앱의 홈은 인트로를 건너뛰어 인트로의 광고 동의 시트가 한 번도 안 떴다 — 그래서 ATT도 안 떴다
+   * (KAN-304, PR #59 리뷰 2026-11-03). 홈 마운트 시 `unknown`이면 시트를 띄운다.
+   */
+  describe('홈 광고 동의 시트 (KAN-304)', () => {
+    function adBridge(consent: string, requestMicPermission = vi.fn(), setAdConsent = vi.fn()) {
+      window.AccenturyBridge = {
+        requestMicPermission,
+        startVoiceItem: vi.fn(),
+        getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+        getAccessToken: () => 'acc',
+        getAdConsent: () => consent,
+        setAdConsent,
+      }
+      return { requestMicPermission, setAdConsent }
+    }
+    const dialog = () => screen.queryByRole('dialog', { name: '맞춤형 광고 안내' })
+    const startButton = () => screen.getByRole('button', { name: '레벨 테스트 시작' })
+
+    it('아직 묻지 않았으면(unknown) 홈 마운트 때 시트가 뜨고 홈 본문·탭 바가 inert, 고르면 닫히고 테스트로 간다', () => {
+      setSearch(`${APP}&screen=home`)
+      const { requestMicPermission, setAdConsent } = adBridge('unknown')
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeInTheDocument()
+      // jsdom은 inert의 입력 차단을 구현하지 않아 클릭 대신 속성으로 본다 — 실브라우저는 inert 안을 누를 수 없다
+      expect(startButton().closest('main')).toHaveAttribute('inert')
+      expect(tabBar()?.closest('[inert]')).not.toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: '맞춤형 광고 받기' }))
+      expect(setAdConsent).toHaveBeenCalledTimes(1)
+      expect(setAdConsent).toHaveBeenCalledWith('granted')
+      expect(dialog()).toBeNull()
+      expect(startButton().closest('main')).not.toHaveAttribute('inert')
+      expect(tabBar()?.closest('[inert]')).toBeNull()
+
+      fireEvent.click(startButton())
+      expect(requestMicPermission).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['granted', 'denied'])('이미 골랐으면(%s) 시트가 뜨지 않는다', (consent) => {
+      setSearch(`${APP}&screen=home`)
+      adBridge(consent)
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeNull()
+      expect(startButton().closest('main')).not.toHaveAttribute('inert')
+    })
+
+    /*
+     * 네이티브 설정 「맞춤형 광고 설정」 → 홈 + `adConsent=open` (KAN-315, 2026-11-03 팀 결정). 이미 골랐어도 시트를
+     * 현재 값 줄과 함께 다시 열고, 고르면 플래그를 history.replaceState로 걷어낸다(재마운트 없음).
+     */
+    it('adConsent=open이면 이미 골랐어도(granted) 현재 값 줄·설정 탭 안내와 함께 시트가 뜨고 배경·탭 바가 inert', () => {
+      setSearch(`${APP}&screen=home&adConsent=open`)
+      adBridge('granted')
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeInTheDocument()
+      expect(screen.getByText('지금은 맞춤형 광고를 허용한 상태예요.')).toBeInTheDocument()
+      expect(screen.getByText(/설정 탭의 「맞춤형 광고 설정」/)).toBeInTheDocument()
+      expect(startButton().closest('main')).toHaveAttribute('inert')
+      expect(tabBar()?.closest('[inert]')).not.toBeNull()
+    })
+
+    it('adConsent=open에서 고르면 시트가 닫히고 URL에서 adConsent만 빠지며 navigate는 호출되지 않는다', () => {
+      setSearch(`${APP}&screen=home&adConsent=open&c=kko_share`)
+      const { setAdConsent } = adBridge('granted')
+      const navigate = vi.fn()
+      render(<App navigate={navigate} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '일반 광고만 보기' }))
+      expect(setAdConsent).toHaveBeenCalledWith('denied')
+      expect(dialog()).toBeNull()
+      expect(navigate).not.toHaveBeenCalled()
+      const next = new URLSearchParams(window.location.search)
+      expect(next.get('adConsent')).toBeNull()
+      expect(next.get('screen')).toBe('home')
+      expect(next.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+      expect(next.get('c')).toBe('kko_share')
+    })
+
+    it('첫 실행(unknown) 시트는 플래그가 없으니 고른 뒤 URL을 건드리지 않는다', () => {
+      setSearch(`${APP}&screen=home`)
+      adBridge('unknown')
+      const navigate = vi.fn()
+      render(<App navigate={navigate} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '맞춤형 광고 받기' }))
+      expect(navigate).not.toHaveBeenCalled()
+    })
+
+    it('동의 개념이 없는 구버전 실행(getAdConsent 없음)은 adConsent=open이어도 시트가 없다', () => {
+      setSearch(`${APP}&screen=home&adConsent=open`)
+      render(<App navigate={vi.fn()} />)
+
+      expect(dialog()).toBeNull()
+      expect(startButton().closest('main')).not.toHaveAttribute('inert')
+    })
   })
 
   it('홈 [레벨 테스트 시작] — 브리지가 없으면(구버전 앱) 앱 표식을 남긴 채 인트로로', () => {

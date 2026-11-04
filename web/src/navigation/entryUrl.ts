@@ -66,6 +66,8 @@ export function buildTabUrl(search: string, screen: TabScreen): string {
   params.delete('sessionId')
   params.delete('testVersion')
   params.delete('voiceSet')
+  // 광고 동의 재열기 플래그 (KAN-315) — 한 번 쓰고 버린다. 탭을 옮겨도 따라가면 홈에 돌아올 때 시트가 또 뜬다
+  params.delete('adConsent')
   return toQuery(params)
 }
 
@@ -76,6 +78,7 @@ export function buildIntroUrl(search: string): string {
   params.delete('sessionId')
   params.delete('testVersion')
   params.delete('voiceSet')
+  params.delete('adConsent')
   return toQuery(params)
 }
 

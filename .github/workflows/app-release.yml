@@ -89,11 +89,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # test.yml의 app-test와 같은 21이다. 두 곳이 갈리면 PR에서 통과한 빌드가 여기서 깨진다.
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       # 아티팩트 이름과 요약에 쓸 짧은 SHA. deploy.yml의 이미지 태그와 같은 7자리 규칙이다.
       - name: 커밋 정보
@@ -306,7 +306,7 @@ jobs:
       # 필수 산출물. 하나라도 없으면 실패다 - 앞 단계가 이미 존재를 확인했으므로 여기서 걸리면
       # 경로 규칙이 바뀐 것이다.
       - name: 아티팩트 업로드 (AAB + APK)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: accentury-app-release-${{ steps.meta.outputs.sha7 }}
           path: |
@@ -331,7 +331,7 @@ jobs:
       # mapping.txt뿐이다 - 다시 빌드해서 얻은 매핑은 맞는다는 보장이 없다. 없으면 R8이 꺼졌거나 경로가
       # 바뀐 것이라 실패시킨다. AAB와 아티팩트 이름을 나눈 이유는 받는 쪽이 달라서다(스토어 vs 역난독화).
       - name: 아티팩트 업로드 (R8 매핑)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: accentury-app-release-${{ steps.meta.outputs.sha7 }}-mapping
           path: app/build/outputs/mapping/release/
