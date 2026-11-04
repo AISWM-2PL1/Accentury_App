@@ -79,7 +79,7 @@ test('탭 바 「사투리 번역기」 - 홈 문서에서 누르면 번역기 �
   expect(requests).toHaveLength(0)
 })
 
-test('번역 성공 - 첫 [바꾸기]는 Gemini 전송 동의 시트, [동의하고 보내기] 뒤 대기 문구·결과·AI 고지가 서고, 요청은 {text} + Bearer 1건이다. 입력을 고치면 결과가 지워진다', async ({
+test('번역 성공 - 첫 [바꾸기]는 Gemini 전송 동의 시트, [동의하고 보내기] 뒤 대기 문구·결과·AI 고지가 서고, 요청은 {text, direction} + Bearer 1건이다. 입력을 고치면 결과가 지워진다', async ({
   page,
 }) => {
   await asApp(page)
@@ -118,7 +118,7 @@ test('번역 성공 - 첫 [바꾸기]는 Gemini 전송 동의 시트, [동의하
   await expect(page.getByText('AI 번역이라 실제 표현과 다를 수 있어요', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: '개인정보처리방침' })).toBeVisible()
   await expect(tabBar(page)).toBeVisible()
-  expect(requests).toEqual([{ body: { text: '밥 먹었니?' }, authorization: `Bearer ${ACCESS_TOKEN}` }])
+  expect(requests).toEqual([{ body: { text: '밥 먹었니?', direction: 'toDialect' }, authorization: `Bearer ${ACCESS_TOKEN}` }])
 
   // 입력을 고치면 옛 결과가 새 입력의 번역처럼 남지 않는다
   await input(page).fill('밥 먹었니')
@@ -219,5 +219,54 @@ test('503 TRANSLATION_UNAVAILABLE - 오류 + [다시 시도], 같은 입력으�
   await page.getByRole('button', { name: '다시 시도', exact: true }).click()
   await expect(page.getByText('밥 뭇나?', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '다시 시도', exact: true })).toHaveCount(0)
-  expect(requests.map((r) => r.body)).toEqual([{ text: '밥 먹었니?' }, { text: '밥 먹었니?' }])
+  expect(requests.map((r) => r.body)).toEqual([{ text: '밥 먹었니?', direction: 'toDialect' }, { text: '밥 먹었니?', direction: 'toDialect' }])
+})
+
+test('사투리 → 표준어 (KAN-317) - 방향을 바꾸면 라벨이 「사투리 문장」, 요청은 direction toStandard, 결과는 표준어 문장이고 [복사]·[공유]도 그 문장', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await asApp(page)
+  await consented(page)
+  const requests = await stubTranslations(page, (route) =>
+    (route.request().postDataJSON() as { direction?: string }).direction === 'toStandard'
+      ? route.fulfill({ json: { direction: 'toStandard', standard: '밥 먹었니?', remaining: 3 } })
+      : route.fulfill({ json: { direction: 'toDialect', dialect: '밥 뭇나?', remaining: 4 } }),
+  )
+  await page.goto(TRANSLATE_URL)
+
+  await page.getByRole('button', { name: /번역 방향 바꾸기/ }).click()
+  await expect(page.getByText('사투리 문장', { exact: true })).toBeVisible()
+  await page.getByLabel('사투리 문장').fill('밥 뭇나?')
+  await submit(page).click()
+
+  await expect(page.getByText('밥 먹었니?', { exact: true })).toBeVisible()
+  await expect(page.getByText('표준어', { exact: true })).toBeVisible()
+  expect(requests.map((r) => r.body)).toEqual([{ text: '밥 뭇나?', direction: 'toStandard' }])
+
+  await page.getByRole('button', { name: '복사', exact: true }).click()
+  await expect(page.getByRole('button', { name: '복사했어요', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('밥 먹었니?')
+
+  await page.getByRole('button', { name: '공유', exact: true }).click()
+  const shares = await page.evaluate(() => (window as unknown as { AccenturyBridge: { shares: string[] } }).AccenturyBridge.shares)
+  expect(shares).toHaveLength(1)
+  expect((JSON.parse(shares[0]) as { text: string }).text).toBe('밥 뭇나? → 밥 먹었니?')
+})
+
+test('구 서버 사투리 → 표준어 (KAN-317) - direction을 모르는 서버가 {dialect}만 주면 「지금은 표준어로 바꾸기를 쓸 수 없어요」, [다시 시도] 없음', async ({
+  page,
+}) => {
+  await asApp(page)
+  await consented(page)
+  await stubTranslations(page, (route) => route.fulfill({ json: { dialect: '밥 뭇나?' } }))
+  await page.goto(TRANSLATE_URL)
+
+  await page.getByRole('button', { name: /번역 방향 바꾸기/ }).click()
+  await page.getByLabel('사투리 문장').fill('밥 뭇나?')
+  await submit(page).click()
+
+  await expect(page.getByText('지금은 표준어로 바꾸기를 쓸 수 없어요', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 시도', exact: true })).toHaveCount(0)
 })
