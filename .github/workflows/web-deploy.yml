@@ -3,14 +3,12 @@
 # 승격 흐름 (2026-08-17 확정): Dev 병합은 staging 버킷, Release 병합은 prod 버킷. 빌드 산출물은
 # 환경 무관이라(화면과 API가 같은 출처, 베이스 URL 주입 없음) 두 환경이 같은 빌드 절차를 쓴다.
 #
-# 자격 증명은 GitHub OIDC로 환경별 IAM 역할(accentury-{env}-github-web-deploy, Accentury_Server
-# infra/modules/deploy)을 맡는다. 이 역할의 정책은 web-deploy 하나로 웹 버킷 ListBucket과 PutObject(`aws s3 sync`),
-# CloudFront 무효화 생성과 조회(`wait invalidation-completed`)만 할 수 있고, 이미지 배포 역할
-# (accentury-{env}-github-deploy)은 Server 레포만 맡는다 (KAN-306). 장기 액세스 키를 시크릿에 두지 않는다. 역할의
-# 신뢰 정책이 sub를 이 레포의 environment에 묶으므로(구형식 repo:OWNER/REPO:environment:{env}와 불변 형식
-# repo:OWNER@ID/REPO@ID:environment:{env} 두 줄, 실제 토큰은 불변 형식) job이 반드시 `environment:`를 지정해야
-# 한다. 대상 값(역할 ARN, 버킷, 배포 ID)은 그 environment의 변수다 (Accentury_Server docs/ops/github.md
-# "environment 변수").
+# 자격 증명은 GitHub OIDC로 환경별 웹 배포 전용 IAM 역할을 맡는다 (KAN-306). 역할 이름, 권한(web-deploy 정책),
+# 신뢰 정책 sub 형식의 정본은 Accentury_Server infra/modules/deploy/main.tf이고 여기에 다시 적지 않는다. 이미지
+# 배포 역할은 Server 레포만 맡는다. 장기 액세스 키를 시크릿에 두지 않는다. 역할의 신뢰 정책이 sub를 이 레포의
+# environment에 묶으므로 job이 반드시 `environment:`를 지정해야 한다. 대상 값(역할 ARN, 버킷, 배포 ID)은 그
+# environment의 변수다. 역할 ARN 변수는 AWS_WEB_DEPLOY_ROLE_ARN으로 Server 레포의 AWS_DEPLOY_ROLE_ARN(이미지 배포
+# 역할)과 이름이 달라 서로 바꿔 넣을 수 없다 (Accentury_Server docs/ops/github.md "environment 변수").
 #
 # 캐시 전략: 해시가 붙은 자산(assets/*)은 immutable 장기 캐시, index.html만 no-cache. 업로드
 # 순서가 곧 원자성이다 - 자산을 먼저 올리고 index.html을 마지막에 바꾼다. 중간에 실패하면 이전
@@ -175,31 +173,23 @@ jobs:
       - name: environment 변수 확인
         if: steps.gate.outputs.paused != 'true'
         env:
-          AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          AWS_WEB_DEPLOY_ROLE_ARN: ${{ vars.AWS_WEB_DEPLOY_ROLE_ARN }}
           WEB_BUCKET: ${{ vars.WEB_BUCKET }}
           CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           missing=0
-          for name in AWS_DEPLOY_ROLE_ARN WEB_BUCKET CLOUDFRONT_DISTRIBUTION_ID; do
+          for name in AWS_WEB_DEPLOY_ROLE_ARN WEB_BUCKET CLOUDFRONT_DISTRIBUTION_ID; do
             if [ -z "${!name}" ]; then
               echo "GitHub environment 변수가 비어 있습니다: $name (Accentury_Server docs/ops/github.md 'environment 변수')" >&2
               missing=1
             fi
           done
-          # 변수 이름은 Server 레포와 같고 값만 다르다 (KAN-306). 이미지 배포 역할 ARN을 잘못 넣으면 아래 자격 증명
-          # 단계가 "Not authorized to perform sts:AssumeRoleWithWebIdentity"로만 실패해 철거 상태와 구분이
-          # 안 되므로 웹 배포 역할 이름인지 여기서 먼저 본다.
-          case "$AWS_DEPLOY_ROLE_ARN" in
-            ""|*:role/accentury-*-github-web-deploy) ;;
-            *) echo "AWS_DEPLOY_ROLE_ARN이 웹 배포 역할(accentury-<env>-github-web-deploy)이 아닙니다: $AWS_DEPLOY_ROLE_ARN (Accentury_Server docs/ops/github.md 'environment 변수', 출력 github_web_deploy_role_arn)" >&2
-               missing=1 ;;
-          esac
           exit "$missing"
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         if: steps.gate.outputs.paused != 'true'
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_WEB_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: 해시 자산 업로드 (immutable)
