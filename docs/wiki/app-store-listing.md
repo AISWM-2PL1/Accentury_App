@@ -459,7 +459,7 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 (`docs/wiki/ads-admob.md` §7.5, `AdsController.setConsent` → `preloadAfterTrackingSettled`).
 시트가 먼저여야 ATT 프롬프트가 맥락을 가지고, 거부한 사람에게는 ATT를 아예 묻지 않는다 —
 추적하지 않는데 추적 허용을 묻는 것은 심사관에게도 설명이 안 된다.
-로그인 앱은 설정 › 「맞춤형 광고 설정」 행으로 시트를 다시 열어 동의를 바꾼다(KAN-315, 빌드 14부터). 다시 허용해도
+로그인 앱은 설정 › 「맞춤형 광고 설정」 행으로 시트를 다시 열어 동의를 바꾼다(KAN-315, 빌드 15부터). 다시 허용해도
 ATT는 `notDetermined`일 때만 뜬다 (`ads-admob.md` §7.5).
 
 가이드라인 5.1.2는 **추적 허용을 앱 사용의 조건으로 걸지 못하게 한다.** 우리는 거부해도
@@ -1133,7 +1133,7 @@ https://accentury.app/account-deletion.html
 | **앱 내 계정 삭제** | 개발 · 설정 화면 → `POST /v0/users/me/withdrawal` | **KAN-251** (FR-AC-09) · 선행 KAN-247 · 서버 KAN-241 | **해결(2026-10-08, KAN-251, 머지 대기)** — Android(1단계)·iOS(2단계) 설정 화면에 [회원 탈퇴]가 들어갔다(경로는 §8 메모, 판정은 [social-login.md 「회원 탈퇴 (KAN-251)」](social-login.md)). 앱 밖 경로는 `https://accentury.app/account-deletion.html`(3단계). Dev 머지와 제출 빌드(빌드 8)에 실려야 닫힌다. 이하 옛 기록: 가이드라인 5.1.1(v)가 「If your app supports account creation, you must also offer account deletion within the app」을 요구한다 (2026-10-01 확인). 서버 탈퇴 API는 있다(Accentury_Server `backend/.../auth/UserController.java:56`, KAN-241). **앱에는 그 버튼이 없다** — 레포 전체에 「탈퇴」·`withdraw` 문자열이 없다. 순서는 **KAN-247(설정 화면) → KAN-251(회원 탈퇴 UI)**이고, 2026-10-01에 KAN-251을 따로 떼어 열었다. 계정을 만드는 앱이 삭제 경로 없이 제출하면 거절된다 |
 | 구글 로그인 시크릿 3개 | 계정 소유자 · GitHub 시크릿 `GOOGLE_IOS_CLIENT_ID`·`GOOGLE_REVERSED_CLIENT_ID`·`GOOGLE_SERVER_CLIENT_ID` | KAN-224 | **미해결(2026-10-01 `gh secret list` 기준)** — 셋 다 없다. 네이버 셋·카카오 1·ASC 셋·AdMob iOS 셋은 등록돼 있다. 워크플로가 `REQUIRE_IDP_CONFIG=YES`로 빈 값을 막으므로 ③ 입력·시크릿 검사에서 멈추고 **빌드 8을 만들 수 없다** (§2 「러너 실행 기록」) |
 | 릴리스 워크플로 | 개발 · `.github/workflows/ios-release.yml` | KAN-175 4단계 | **해결(2026-09-23)** — 시크릿 7개 등록 뒤 러너에서 5회 돌아 빌드 6·7이 TestFlight에 올라갔다(§2 「러너 실행 기록」). 업로드 수정과 빌드 7은 PR #3으로 Dev에 반영됐다(2026-09-28). 그 뒤 KAN-224가 구글 시크릿 셋 빗장을 붙였으니 다음 실행 전에 그 셋을 등록한다 |
-| **제3자 AI 서비스 고지** (5.1.1(i)·5.1.2(i)) | 개발 · App PR → Dev → Release 승격 → `.github/workflows/web-deploy.yml` prod | **KAN-304** | **미해결(2026-11-02)** — 번역기 웹 변경(입력창 아래 상시 고지·첫 [바꾸기] 전 동의 시트)이 **prod에 배포된 뒤에만** Resolution Center 회신·재제출한다. 번역기는 WebView라 빌드 13 그대로 반영되고 새 빌드는 올리지 않는다. 절차와 회신문은 §11 |
+| **제3자 AI 서비스 고지** (5.1.1(i)·5.1.2(i)) | 개발 · App PR → Dev → Release 승격 → `.github/workflows/web-deploy.yml` prod | **KAN-304** | **미해결(2026-11-02)** — 번역기 웹 변경(입력창 아래 상시 고지·첫 [바꾸기] 전 동의 시트)이 **prod에 배포된 뒤에만** Resolution Center 회신·재제출한다. 번역기는 WebView라 웹 배포로 반영되지만, KAN-315 설정 행이 네이티브라 빌드 15로 재제출한다(2026-11-04 결정). 절차와 회신문은 §11 |
 
 심사를 **직접** 막는 것은 넷이다.
 
@@ -1158,7 +1158,19 @@ https://accentury.app/account-deletion.html
 
 | 날짜 | 빌드 | 가이드라인 | 애플 지적 요지 | 원인 | 조치 | 상태 |
 |---|---|---|---|---|---|---|
-| 2026-10-30 | 1.0 (13) | 5.1.1(i) · 5.1.2(i) | 앱이 개인정보를 제3자 AI 서비스와 공유하는 것으로 보이는데, 보내기 전에 누구에게 보내는지 밝히지 않는다. 무엇을 보내는지·누구에게 보내는지 고지, 보내기 전 허락, 방침의 수집·이용·제3자 보호 고지를 요구 | 사투리 번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에 고지·동의가 없었다. 2026-10-08에 「방침 고지로 갈음」하기로 한 결정이 원인이다 | **KAN-304** — 웹 번역기에 상시 고지와 사전 동의 시트(1단계 `5e7acab`), §8 메모 갱신(2단계), prod 웹 배포 뒤 같은 빌드 13으로 회신 | **회신 대기** |
+| 2026-10-30 | 1.0 (13) | 5.1.1(i) · 5.1.2(i) | 앱이 개인정보를 제3자 AI 서비스와 공유하는 것으로 보이는데, 보내기 전에 누구에게 보내는지 밝히지 않는다. 무엇을 보내는지·누구에게 보내는지 고지, 보내기 전 허락, 방침의 수집·이용·제3자 보호 고지를 요구 | 사투리 번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에 고지·동의가 없었다. 2026-10-08에 「방침 고지로 갈음」하기로 한 결정이 원인이다 | **KAN-304**(PR #59) 번역기 상시 고지·사전 동의 시트, 홈 광고 동의 시트 / **KAN-315**(PR #60) 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로 → 빌드 15로 재제출 | **재제출 준비 (2026-11-04)** |
+
+**빌드 13 회신에서 빌드 15 재제출로 바꾼 이유 (2026-11-04).** 11-02 팀장 결정은 같은 빌드 13으로
+회신하는 것이었지만, 2026-11-04에 빌드 15 재제출로 바꿨다. 이유는 셋이다.
+
+1. KAN-315(PR #60)가 네이티브 설정 「개인정보」 절에 「맞춤형 광고 설정」 행(Android·iOS)과 iOS ATT 거부 뒤
+   재허용 시 설정 앱 이동을 넣었다. 웹만 바뀐 게 아니라 바이너리가 바뀌었다.
+2. iOS 빌드 14는 2026-10-25 CI(ios-release run 40174171160, Dev 브랜치 dispatch, TestFlight 업로드 success)로
+   이미 TestFlight에 올라가 번호가 소모됐다. 14엔 KAN-304·KAN-315가 들어 있지 않다.
+3. 홈 광고 동의 시트 문구(`AD_CONSENT_CHANGE_HINT_APP`)가 「설정 탭의 「맞춤형 광고 설정」」을 안내한다.
+   빌드 13엔 그 행이 없어서 웹만 배포하면 심사관이 보는 안내와 실제 앱이 어긋난다.
+
+Android `versionCode`도 15로 같이 올렸다. Play는 업로드된 번호만 막으므로 14를 건너뛰어도 된다.
 
 Submission ID는 `60e236be-0581-4a9e-b26f-0e8d1c7d454e`이고 심사 기기는 iPhone 17 Pro Max였다. 애플 원문은
 「The app appears to share the user's personal data with a third-party AI service but the app does
@@ -1197,10 +1209,17 @@ We added two things to the translator screen:
    The user chooses 동의하고 보내기 (Agree and send) or 취소 (Cancel).
 Nothing is sent before the user agrees, and nothing is sent if the user cancels.
 
-Available in the same build 13
-The translator screen is web content that the app loads in a WebView from
-https://accentury.app. These changes are already live through a server-side deployment,
-so they can be verified in the same build 13 without a new binary.
+New build 15
+We have uploaded build 15, which contains the changes described here. Please review
+build 15. The translator screen is web content that the app loads in a WebView from
+https://accentury.app, and the ad-consent setting below is part of the native app, so
+build 15 is the build that shows all of them together.
+
+Ad consent and App Tracking Transparency
+For a signed-in user, an ad-consent sheet appears when the Home screen first opens.
+The choice can be changed at any time in Settings > 맞춤형 광고 설정 (Personalized ad
+settings). The ATT prompt appears only when the user chooses personalized ads; declining
+changes nothing about app functionality and non-personalized ads are served instead.
 
 Privacy policy
 Our privacy policy at https://accentury.app/privacy.html identifies what is collected, how
@@ -1217,11 +1236,16 @@ We have also updated the notes in App Review Information to describe the above.
 Steps to verify
 1. Sign in with Sign in with Apple, or with the Kakao or Naver test account provided in
    App Review Information.
-2. Tap the 사투리 번역기 (Dialect translator) tab in the bottom tab bar.
-3. Type a sentence and tap 바꾸기 (Convert).
-4. The consent sheet appears before anything is sent.
-The choice is remembered on the device. If the sheet does not appear because it was
-already accepted, deleting and reinstalling the app shows it again.
+2. The Home screen opens. On the first visit after sign-in, the ad-consent sheet appears.
+   Choosing 맞춤형 광고 받기 (Get personalized ads) shows the ATT prompt; choosing
+   일반 광고만 보기 (Show non-personalized ads only) does not.
+3. Tap the 사투리 번역기 (Dialect translator) tab in the bottom tab bar.
+4. Type a sentence and tap 바꾸기 (Convert).
+5. The consent sheet appears before anything is sent.
+6. Open Settings and tap 맞춤형 광고 설정 (Personalized ad settings) under 개인정보 (Privacy).
+   The ad-consent sheet opens again with the current choice.
+Both choices are remembered on the device. If a sheet does not appear because it was
+already answered, deleting and reinstalling the app shows it again.
 
 Thank you for your time.
 Accentury team
@@ -1229,23 +1253,27 @@ Accentury team
 
 한국어 요약. 제3자 AI 서비스는 사투리 번역기 하나이고 받는 곳은 Google LLC의 Gemini API, 보내는
 것은 입력 문장뿐이라고 밝힌다. 화면에 상시 고지와 사전 동의 시트를 넣어 동의 전엔 아무것도 보내지
-않으며, 번역기가 WebView라 서버 배포만으로 같은 빌드 13에서 확인된다고 적는다. 방침 해당 절, 음성은
-자체 서버에서만 처리한다는 점, 메모 갱신, 재현 경로를 함께 준다.
+않는다. 새 빌드 15를 올렸으니 15로 심사해 달라고 하고, 로그인 사용자는 홈이 처음 열릴 때 광고 동의
+시트가 뜨며 설정 › 맞춤형 광고 설정에서 언제든 바꿀 수 있고 ATT는 맞춤형 광고를 고를 때만 뜬다고
+적는다. 방침 해당 절, 음성은 자체 서버에서만 처리한다는 점, 메모 갱신, 홈 동의 시트·번역기·설정 행 순서의
+재현 경로를 함께 준다. 첫 문장의 build 13은 거절된 빌드를 가리키므로 그대로 둔다.
 
 ### 회신 절차
 
-1. App PR(KAN-304)을 Dev에 머지하고 Release로 승격한 뒤 Web Deploy(prod) 성공을 확인한다
-2. prod `https://accentury.app`에서 로그인한 앱으로 시트가 뜨는지 본다. TestFlight 빌드 13으로 번역기에
-   들어가 첫 [바꾸기] 때 시트가 뜨는지, 입력창 아래 고지가 보이는지 확인한다
-3. 콘솔 App Review Information의 메모를 §8 영어 메모로 통째로 바꾼다
-4. Resolution Center에 위 회신문을 낸다. 새 빌드는 올리지 않는다
-5. 결과를 위 표에 행으로 남긴다
+1. 빌드 15 번호 올림 PR을 Dev에 머지한다
+2. Dev→Release 승격 PR을 머지하고 Web Deploy(prod) environment를 승인한 뒤 `https://accentury.app`에
+   반영됐는지 확인한다
+3. `gh workflow run ios-release.yml --ref Release -f upload=true`로 TestFlight에 올리고,
+   `gh workflow run app-release.yml --ref Release`로 AAB를 만든다(Play는 수동 업로드)
+4. TestFlight 빌드 15로 확인한다: 홈 첫 진입 광고 동의 시트와 맞춤형 선택 시 ATT, 번역기 첫 [바꾸기]
+   시트·입력창 아래 고지, 설정 › 「맞춤형 광고 설정」 행으로 재열기
+5. App Review Information 메모를 §8 영어 메모 전체로 바꾼다(설정 행 문장 포함)
+6. App Store Connect 1.0 버전의 빌드를 15로 바꾸고 Resolution Center에 위 회신문을 낸 뒤 심사에 제출한다
+7. 결과를 위 표에 행으로 남긴다
 
-> **빌드 13 회신 때 메모 주의 (KAN-315, 2026-11-03).** 설정 › 「맞춤형 광고 설정」 행은 네이티브 변경이라 **빌드 14부터** 있다.
-> 회신문 본문은 빌드 13 기준이라 그대로 두고, 3번에서 메모를 붙일 때는 ATT 문단의 동의 변경 경로 줄(두 문장. 한 「선택은 … ATT 프롬프트가 뜹니다」,
-> 영 「The choice can be changed … at that point」)을 빼고 넣는다 — 빌드 13에서 심사관이 그 행을 찾지 못한다. 빌드 14 제출 때 다시 넣는다.
+> **메모 주의 폐기 (2026-11-04).** 빌드 15로 제출하므로 §8 메모에서 설정 행 문장을 빼지 않는다.
 
-**새 빌드가 아니라 같은 빌드로 회신한다 (2026-11-02 팀장 결정).** 고친 곳이 전부 WebView가 불러오는
+**(2026-11-04 철회 — 위 「빌드 13 회신에서 빌드 15 재제출로 바꾼 이유」 참조)** **새 빌드가 아니라 같은 빌드로 회신한다 (2026-11-02 팀장 결정).** 고친 곳이 전부 WebView가 불러오는
 웹이라 바이너리는 바뀌지 않았다. 새 빌드를 올리면 심사 큐를 처음부터 다시 서야 하고, 고칠 게 없는
 네이티브 코드까지 다시 심사받는다. 대신 회신 전에 prod 배포가 끝나 있어야 한다 — 배포 전에 회신하면
 심사관이 같은 빌드에서 옛 화면을 보고 같은 사유로 다시 거절한다(§10 「제3자 AI 서비스 고지」 행).
