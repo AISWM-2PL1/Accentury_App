@@ -191,7 +191,7 @@ describe('오류 상태', () => {
     expect(await screen.findByText('지금은 바꿀 수 없어요. 잠시 뒤 다시 시도해 주세요')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
-    expect(fetchImpl.mock.calls[1][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?' }))
+    expect(fetchImpl.mock.calls[1][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toDialect' }))
   })
 
   it('네트워크 실패 → 문구 + [다시 시도]', async () => {
@@ -288,7 +288,7 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?' }))
+    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toDialect' }))
 
     type('어디 가?')
     submit()
@@ -307,7 +307,7 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     fireEvent.click(screen.getByRole('button', { name: '동의하고 보내기' }))
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '어디 가?' }))
+    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '어디 가?', direction: 'toDialect' }))
   })
 
   it('시트가 뜬 동안 배경(main·탭 바)은 inert다 — 닫히면 풀린다', () => {
