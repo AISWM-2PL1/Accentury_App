@@ -906,6 +906,8 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 않다 (§2 「시크릿」의 `.p8` 규칙과 같은 이유다). 계정을 만들 때 각 제공자 약관의 계정 공유
 조항을 한 번 확인한다.
 
+2026-11-04 실제 제출: 카카오 테스트 계정은 만들지 못해 네이버 계정 하나만 ASC 로그인 칸에 넣었고, 메모 [Sign-in]은 「로그인 칸의 네이버 테스트 계정」이라고만 적는다. 2.1(a)는 작동하는 데모 계정 하나면 충족되고, 애플 ID로 전 기능을 볼 수 있어 카카오 미제공은 메모에 쓰지 않는다(사용자 결정). 빌드 15 첫 제출(22:59)은 메모가 「카카오·네이버 계정 제공」으로 돼 있어 취소하고 고쳐 재제출했다. 실제 제출본은 §8 블록과 같다(카카오 언급 없음).
+
 ### 메모 (한국어 원안)
 
 ```
@@ -918,7 +920,7 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 테스트 계정으로 로그인해 주세요. 카카오와 네이버는 한국 서비스의 계정이 필요한 경로라 저희가
 테스트 계정을 준비했습니다.
 첫 로그인에서 개인정보처리방침 동의를 받고, 이어지는 추가 정보 화면에서 이메일, 이름,
-생년월일, 성별, 출신 지역을 입력받습니다. 다섯 칸이 다 차야 테스트로 넘어갑니다.
+생년월일, 성별, 출신 지역을 입력받습니다. 다섯 칸이 다 차야 하고, 저장하면 홈 화면이 열리며 레벨 테스트는 홈의 [레벨 테스트 시작] 버튼으로 시작합니다.
 만 14세 미만은 가입할 수 없고, 생년월일 때문에 거절되면 추가 정보 화면의
 [다른 계정으로 로그인]으로 돌아갈 수 있습니다.
 
@@ -979,84 +981,40 @@ Google LLC의 Gemini API로 전송되며, 보내는 것은 사용자가 입력�
 ### 메모 (영어 — 콘솔에 넣는 것은 이쪽)
 
 ```
-The core of this app is a level test that measures how strongly a speaker's accent matches the
-Gyeongnam dialect of Korean. After sign-in, the bottom tab bar also offers accent lessons, vocabulary
-lessons and a dialect translator, and the home tab shows the user's attendance streak.
+The core of this app is a level test that measures how strongly a speaker's accent matches the Gyeongnam dialect of Korean. After sign-in, the bottom tab bar also offers accent lessons, vocabulary lessons and a dialect translator; the home tab shows the attendance streak.
 
 [Sign-in]
-A sign-in is required before the test. Four providers are offered: Google, Kakao, Naver and
-Apple. Please sign in with your own Apple ID via Sign in with Apple, or with the Kakao and Naver
-test accounts provided in this review information. Kakao and Naver require an account with those
-Korean services, so we prepared test accounts for them. On the first
-sign-in the user agrees to the privacy policy, and the next screen collects email, name, date of
-birth, gender and home region. All five are required before the test starts. Users under 14
-cannot sign up; if the date of birth is rejected, the screen offers "sign in with a different
-account" to get back out.
+Sign-in is required before the test: Google, Kakao, Naver or Apple. Please use your own Apple ID via Sign in with Apple, or the Naver test account in the login fields (the user name and password above belong to a Naver account). On first sign-in the user agrees to the privacy policy, then enters email, name, date of birth, gender and home region (all required). The Home screen then opens and the level test starts from 레벨 테스트 시작 (Start level test). Users under 14 cannot sign up; a rejected date of birth offers "sign in with a different account".
 
 [Microphone is required]
-Voice analysis is the core function, so microphone permission is mandatory. Please read the
-on-screen sentences aloud in a quiet place. The voice questions cannot be completed on a
-simulator or on a device without a working microphone.
+Voice analysis is the core function, so microphone permission is mandatory. The voice questions cannot be completed on a simulator or without a working microphone.
 
 [Walkthrough - 7 questions, about 3 minutes]
-Sign-in -> additional info (new accounts only) -> home -> 레벨 테스트 시작 (Start level test) ->
-microphone permission -> voice check -> 3 voice questions and 4 vocabulary questions (mixed
-order) -> analysis wait -> result
+Sign-in -> additional info (new accounts only) -> home -> 레벨 테스트 시작 -> microphone permission -> voice check -> 3 voice and 4 vocabulary questions -> analysis wait -> result
 
 [If microphone permission is denied]
-An explanation screen appears with an "Open Settings" button. Granting permission in Settings
-and returning to the app resumes the flow without a restart. There is no path that skips the
-microphone in the level test, because voice analysis is the core of the test. Microphone permission
-is requested only when the user taps 레벨 테스트 시작 (Start level test) or opens a recording screen in
-the accent lessons; the vocabulary lessons and the dialect translator work without it.
+An explanation screen with an "Open Settings" button appears; granting permission in Settings and returning resumes the flow. There is no path that skips the microphone in the level test. Permission is requested only when the user taps 레벨 테스트 시작 or opens a recording screen in the accent lessons; vocabulary lessons and the translator work without it.
 
 [App Tracking Transparency prompt]
-The ATT prompt appears only if the user allows personalized ads in the first-launch consent
-sheet (for a signed-in user, the ad-consent sheet shown when the Home screen first opens). Declining changes nothing about app functionality; non-personalized ads are served
-instead. Tracking permission is never a condition for using any feature.
-The choice can be changed at any time in Settings > 맞춤형 광고 설정 (Personalized ad settings) after sign-in. If the user switches back to personalized ads there and tracking authorization is still undetermined, the ATT prompt appears at that point.
+For a signed-in user an ad-consent sheet appears when the Home screen first opens. The ATT prompt appears only if the user chooses personalized ads there. Declining changes nothing; non-personalized ads are served instead, and tracking permission is never a condition for any feature. The choice can be changed at any time in Settings > 맞춤형 광고 설정 (Personalized ad settings); switching back to personalized ads while tracking authorization is still undetermined shows the ATT prompt at that point.
 
 [Advertising]
-Google AdMob interstitial (on the analysis wait screen) and rewarded (before a retake).
-The build is submitted with production ad unit IDs.
+Google AdMob interstitial (analysis wait screen) and rewarded (before a retake), with production ad unit IDs.
 
 [Dialect translator and third-party AI service]
-After sign-in, the 사투리 번역기 (Dialect translator) tab in the bottom tab bar converts a standard
-Korean sentence of up to 100 characters into the Gyeongnam dialect. This is the only feature in the
-app that uses a third-party AI service. The sentence the user types is sent through our server to
-the Gemini API of Google LLC. Only the typed sentence is sent; no account identifier, email address
-or audio is sent to Google.
-Below the input field, a persistent notice states that the sentence is sent to the Google Gemini
-API, with a link to the privacy policy. Before the first translation, a consent sheet explains what
-is sent (the typed sentence), who receives it (Google LLC's Gemini API), why (to convert it into the
-dialect), and that Google may use the sentences it receives to improve its products. The sheet
-offers 동의하고 보내기 (Agree and send) and 취소 (Cancel). Nothing is sent before the user agrees,
-and nothing is sent if the user cancels. The choice is remembered on the device; deleting and
-reinstalling the app shows the sheet again.
-The privacy policy at https://accentury.app/privacy.html discloses this in the section
-사투리 번역기 (앱) (Dialect translator (app)), section 2 (provision to third parties) and
-section 4 (overseas transfer).
-Audio from the level test and accent lessons is never sent to a third-party AI service; it is
-analyzed only on our own server (AWS Seoul region).
-To check: sign in > bottom tab 사투리 번역기 (Dialect translator) > type a sentence >
-바꾸기 (Convert) > consent sheet
+The 사투리 번역기 (Dialect translator) tab converts a standard Korean sentence of up to 100 characters into the Gyeongnam dialect. It is the only feature that uses a third-party AI service: the typed sentence is sent through our server to the Gemini API of Google LLC. Only the sentence is sent; no account identifier, email or audio goes to Google.
+A persistent notice below the input field states that the sentence is sent to the Google Gemini API, with a link to the privacy policy. Before the first translation a consent sheet explains what is sent, who receives it (Google LLC's Gemini API), why, and that Google may use received sentences to improve its products, with 동의하고 보내기 (Agree and send) and 취소 (Cancel). Nothing is sent before the user agrees or if the user cancels. The choice is remembered on the device; reinstalling shows the sheet again.
+The privacy policy (https://accentury.app/privacy.html) covers this in the section 사투리 번역기 (앱), section 2 (third parties) and section 4 (overseas transfer).
+To check: sign in > 사투리 번역기 tab > type a sentence > 바꾸기 (Convert) > consent sheet.
 
 [Voice data]
-Recorded audio is used to score the test. Unless the user gives a separate, optional consent to
-voice storage and AI model training, the audio is deleted as soon as the request finishes. Only
-with that optional consent is the audio stored on our server (AWS Seoul region) and used to train
-and improve the intonation analysis model. Declining does not restrict use of the app, and the
-consent can be withdrawn. Audio is never shared with third parties.
+Recorded audio is used to score the test and deleted as soon as the request finishes, unless the user gives a separate optional consent to voice storage and AI model training; only then is it stored on our server (AWS Seoul region). Audio is never shared with third parties.
 
 [Account data and deletion]
-An account holds the provider's user identifier, email, name, date of birth, gender and home
-region, and is kept until the user deletes it. To delete the account in the app:
-Settings (gear icon, top right) > 계정 (Account) > 회원 탈퇴 (Delete account) > confirm 탈퇴 (Delete).
-Accounts created with Sign in with Apple are then asked to re-authenticate with Sign in with Apple
-so that we can revoke the Apple token. Deletion removes the account's personal data and signs the
-user out on all devices. Users without the app can request deletion by email as described at
-https://accentury.app/account-deletion.html
+In the app: Settings (gear, top right) > 계정 (Account) > 회원 탈퇴 (Delete account) > confirm.
 ```
+
+ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때 5513자 판을 이 압축판(3840자)으로 줄였다. 주제는 그대로이고 문장만 압축했다. 한국어 원안은 압축하지 않았다.
 
 > **해결(2026-10-08, KAN-251).** 마지막 문단을 실제 화면 경로로 맞췄다. 톱니는 웹 화면 위 오른쪽
 > 위에 네이티브가 얹는 버튼이고(Android `MainActivity.kt` `SettingsGearButton`, iOS `TestFlowView.swift`),
@@ -1158,7 +1116,7 @@ https://accentury.app/account-deletion.html
 
 | 날짜 | 빌드 | 가이드라인 | 애플 지적 요지 | 원인 | 조치 | 상태 |
 |---|---|---|---|---|---|---|
-| 2026-10-30 | 1.0 (13) | 5.1.1(i) · 5.1.2(i) | 앱이 개인정보를 제3자 AI 서비스와 공유하는 것으로 보이는데, 보내기 전에 누구에게 보내는지 밝히지 않는다. 무엇을 보내는지·누구에게 보내는지 고지, 보내기 전 허락, 방침의 수집·이용·제3자 보호 고지를 요구 | 사투리 번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에 고지·동의가 없었다. 2026-10-08에 「방침 고지로 갈음」하기로 한 결정이 원인이다 | **KAN-304**(PR #59) 번역기 상시 고지·사전 동의 시트, 홈 광고 동의 시트 / **KAN-315**(PR #60) 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로 → 빌드 15로 재제출 | **재제출 준비 (2026-11-04)** |
+| 2026-10-30 | 1.0 (13) | 5.1.1(i) · 5.1.2(i) | 앱이 개인정보를 제3자 AI 서비스와 공유하는 것으로 보이는데, 보내기 전에 누구에게 보내는지 밝히지 않는다. 무엇을 보내는지·누구에게 보내는지 고지, 보내기 전 허락, 방침의 수집·이용·제3자 보호 고지를 요구 | 사투리 번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에 고지·동의가 없었다. 2026-10-08에 「방침 고지로 갈음」하기로 한 결정이 원인이다 | **KAN-304**(PR #59) 번역기 상시 고지·사전 동의 시트, 홈 광고 동의 시트 / **KAN-315**(PR #60) 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로 → 빌드 15로 재제출 | **재제출 완료 — 심사 대기 중 (2026-11-04 23:51, 빌드 15)** |
 
 **빌드 13 회신에서 빌드 15 재제출로 바꾼 이유 (2026-11-04).** 11-02 팀장 결정은 같은 빌드 13으로
 회신하는 것이었지만, 2026-11-04에 빌드 15 재제출로 바꿨다. 이유는 셋이다.
@@ -1171,6 +1129,20 @@ https://accentury.app/account-deletion.html
    빌드 13엔 그 행이 없어서 웹만 배포하면 심사관이 보는 안내와 실제 앱이 어긋난다.
 
 Android `versionCode`도 15로 같이 올렸다. Play는 업로드된 번호만 막으므로 14를 건너뛰어도 된다.
+
+**제출 이력 (2026-11-04).**
+
+- **22:59 첫 재제출.** 원래 Submission ID `60e236be-0581-4a9e-b26f-0e8d1c7d454e` 안에서 빌드를 15로 바꾸고
+  Resolution Center에 아래 회신문을 게시했다. 메모가 「카카오·네이버 테스트 계정 제공」으로 돼 있었는데
+  ASC 로그인 칸에는 네이버 계정 하나뿐이라 **제출을 취소**했다(상태 「삭제됨」).
+- **23:51 재제출.** 새 Submission ID `b5eef017-1fd1-4d38-8e53-cddcdc52c95c`, 빌드 1.0 (15), 상태 「심사 대기 중」,
+  출시 방식 수동. **새 제출에는 메시지 스레드가 없어 Resolution Center 회신문은 취소된 제출에만 남아 있다.**
+  심사관이 그 스레드를 못 볼 수 있으므로 메모가 번역기·ATT·확인 순서를 전부 담도록 압축판을 썼다. 애플이
+  새 제출에서 메시지를 보내오면 그때 회신문 내용을 다시 붙인다.
+- **실제로 들어간 메모.** ASC 남은 글자 160인 판으로, §8 블록 그대로다. [Sign-in]은 「the Naver test account in
+  the login fields (the user name and password above belong to a Naver account)」이고 카카오는 언급하지 않는다
+  (사용자 결정 — 2.1(a)는 작동하는 계정 하나로 충족). 4000자를 맞추려고 조용한 곳 안내·「(mixed)」·앱 밖 탈퇴
+  URL 세 문장을 뺐다.
 
 Submission ID는 `60e236be-0581-4a9e-b26f-0e8d1c7d454e`이고 심사 기기는 iPhone 17 Pro Max였다. 애플 원문은
 「The app appears to share the user's personal data with a third-party AI service but the app does
@@ -1260,16 +1232,18 @@ Accentury team
 
 ### 회신 절차
 
-1. 빌드 15 번호 올림 PR을 Dev에 머지한다
+1. 빌드 15 번호 올림 PR을 Dev에 머지한다 — **완료(2026-11-04)**
 2. Dev→Release 승격 PR을 머지하고 Web Deploy(prod) environment를 승인한 뒤 `https://accentury.app`에
-   반영됐는지 확인한다
+   반영됐는지 확인한다 — **완료(2026-11-04)**
 3. `gh workflow run ios-release.yml --ref Release -f upload=true`로 TestFlight에 올리고,
-   `gh workflow run app-release.yml --ref Release`로 AAB를 만든다(Play는 수동 업로드)
+   `gh workflow run app-release.yml --ref Release`로 AAB를 만든다(Play는 수동 업로드) — **완료(2026-11-04)**
 4. TestFlight 빌드 15로 확인한다: 홈 첫 진입 광고 동의 시트와 맞춤형 선택 시 ATT, 번역기 첫 [바꾸기]
-   시트·입력창 아래 고지, 설정 › 「맞춤형 광고 설정」 행으로 재열기
-5. App Review Information 메모를 §8 영어 메모 전체로 바꾼다(설정 행 문장 포함)
-6. App Store Connect 1.0 버전의 빌드를 15로 바꾸고 Resolution Center에 위 회신문을 낸 뒤 심사에 제출한다
+   시트·입력창 아래 고지, 설정 › 「맞춤형 광고 설정」 행으로 재열기 — **완료(2026-11-04)**
+5. App Review Information 메모를 §8 영어 메모 전체로 바꾼다(설정 행 문장 포함) — **완료(2026-11-04)**
+6. App Store Connect 1.0 버전의 빌드를 15로 바꾸고 Resolution Center에 위 회신문을 낸 뒤 심사에 제출한다 — **완료(2026-11-04)**
 7. 결과를 위 표에 행으로 남긴다
+
+7단계는 심사 결과가 오면 위 표에 이어서 적는다.
 
 > **메모 주의 폐기 (2026-11-04).** 빌드 15로 제출하므로 §8 메모에서 설정 행 문장을 빼지 않는다.
 
