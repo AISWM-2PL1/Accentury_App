@@ -90,7 +90,7 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
   const run = (input: string) => {
     const id = ++requestId.current
     setStatus({ kind: 'waiting' })
-    translate(apiBase, input, deps).then(
+    translate(apiBase, input, 'toDialect', deps).then(
       (dialect) => {
         if (requestId.current === id) setStatus({ kind: 'done', standard: input, dialect })
       },
