@@ -247,12 +247,12 @@ describe('방향 전환 (KAN-317)', () => {
 
   it('기본은 표준어 → 사투리, 누르면 라벨이 「사투리 문장」으로, aria-label이 지금 방향을 읽는다', () => {
     setup(vi.fn())
-    expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 표준어에서 사투리로')
+    expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 표준어 → 사투리')
     expect(toggle()).toHaveTextContent('표준어 → 사투리')
     fireEvent.click(toggle())
     expect(screen.getByLabelText('사투리 문장')).toBeInTheDocument()
     expect(screen.queryByLabelText('표준어 문장')).toBeNull()
-    expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 사투리에서 표준어로')
+    expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 사투리 → 표준어')
     expect(toggle()).toHaveTextContent('사투리 → 표준어')
   })
 

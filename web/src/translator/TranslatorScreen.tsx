@@ -139,6 +139,9 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
 
   // 시트가 떠 있는 동안 배경은 키보드 초점도 못 받는다. aria-modal·배경 막은 포인터만 막는다(위 onChange 주석)
   const sheetOpen = consentPending !== null
+  // 버튼 글자와 aria-label이 같은 문자열을 쓴다 — 접근성 이름에 보이는 글자가 들어가야 음성 제어로
+  // 보이는 대로 말해 누를 수 있다(WCAG 2.5.3 Label in Name, KAN-317 PR #64 리뷰 2026-11-04)
+  const directionLabel = direction === 'toDialect' ? '표준어 → 사투리' : '사투리 → 표준어'
 
   return (
     <>
@@ -153,11 +156,11 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
             <Button
               variant="secondary"
               disabled={status.kind === 'waiting'}
-              aria-label={`번역 방향 바꾸기, 현재 ${direction === 'toDialect' ? '표준어에서 사투리로' : '사투리에서 표준어로'}`}
+              aria-label={`번역 방향 바꾸기, 현재 ${directionLabel}`}
               onClick={onToggleDirection}
             >
               <SwapIcon />
-              {direction === 'toDialect' ? '표준어 → 사투리' : '사투리 → 표준어'}
+              {directionLabel}
             </Button>
           </div>
           <textarea
