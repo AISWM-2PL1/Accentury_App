@@ -320,7 +320,7 @@ VITE_ADSENSE_SLOT_ID: ${{ vars.ADSENSE_SLOT_ID }}
 ```
 
 값은 GitHub environment 변수로 등록한다. 절차의 정본은
-[`infra/README.md`](../../infra/README.md)의 「GitHub 설정」이고(GA4 변수 문단 바로 아래)
+Accentury_Server `docs/ops/github.md`의 「AdSense 광고 변수」 절이고(GA4 변수 절 바로 아래)
 명령은 둘이다.
 
 ```
@@ -530,7 +530,7 @@ skip 1건은 `retake.spec.ts`다 — `E2E_FAIL_ITEM`이 없는 스택의 정상 
 |---|---|
 | `.github/workflows/web-deploy.yml` | 빌드 변수 둘 + `ads.txt` 생성 스텝(값 검사 포함)·`no-cache` 업로드·`/ads.txt` 무효화 (§6.1·§6.2) |
 | `web/e2e/full-run.spec.ts` | 케이스 1건 — 슬롯 유무와 결과 화면 CTA (§7.1). 헬퍼·스냅샷은 그대로 |
-| `infra/README.md` | GitHub 설정 절에 `gh variable set` 두 줄과 등록 시점·staging 제외 근거 |
+| Accentury_Server `docs/ops/github.md` (당시 `infra/README.md`, KAN-297로 이동) | 「AdSense 광고 변수」 절에 `gh variable set` 두 줄과 등록 시점·staging 제외 근거 |
 | `docs/wiki/analytics.md` | 「설정 파일이 없는 것이 정상 상태다」 표에 광고 변수 행 (계측이 아니라는 단서와 함께) |
 | `docs/wiki/privacy-policy.md` | §3 게시 게이트 8번 — 남은 것이 코드가 아니라 운영 절차임을 반영 |
 | `docs/wiki/ads-web-adsense.md` | 이 문서의 §6.1·§6.2·§7.1·§10 |
