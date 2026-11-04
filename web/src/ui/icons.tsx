@@ -78,6 +78,24 @@ export function ShareIcon() {
 }
 
 /**
+ * 번역 방향 바꾸기 (KAN-317). 서로 반대로 가는 가로 화살표 둘(⇄)이고, 모양은 KAN-311 v11 아이콘 세트를
+ * 참고했다. 아이콘만으로는 뜻이 약해 버튼 안에서 지금 방향 글자와 함께 선다. 획은 [ShareIcon]과 맞춘다.
+ */
+export function SwapIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M3 7 L16 7 M13 4 L16 7 L13 10 M17 13 L4 13 M7 10 L4 13 L7 16"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/**
  * 마이크 선화. 히어로 아이콘(지름 112 크림 원) 안에 서는 크기라 56px이다.
  *
  * 면이 아니라 선인 이유는 녹음 버튼과 같다 (정본 §8): 크림 위의 잉크 면은 주 버튼과 무게가
