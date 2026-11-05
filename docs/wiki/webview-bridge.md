@@ -204,6 +204,10 @@ https://accentury.app/privacy.html
   컨텍스트로 화면을 띄우는 것보다 아무 일도 안 하는 편이 안전하다. 대신 Crashlytics 비치명
   이벤트로 남긴다 — allowlist를 통과한 페이지만 거기 닿으므로, 그 보고는 곧 **우리 웹과 우리
   앱이 계약을 다르게 알고 있다**는 뜻이다
+- **앱이 부른 `loadUrl`은 `shouldOverrideUrlLoading`을 거치지 않는다.** 그래서 SPA 이동 폴백(`navigateInApp`)이
+  목적지를 `isAllowedWebUrl`로 먼저 보고, 밖이면 이동 없이 비치명 이벤트만 남긴다(KAN-324, 보안 리포트 2026-11-04 #10).
+  `webOrigin`이 http(s) 밖 스킴을 거절하므로 `javascript:` 목적지도 같이 막힌다. 목적지(뒤로가기·「맞춤형 광고 설정」·
+  억양 녹음 ✕)는 웹이 알려 온 URL로 만들기 때문에, `onLocationChanged` 인자도 같은 판정을 지난 값만 현재 URL이 된다
 
 ## 6. 플랫폼별 구현 차이
 

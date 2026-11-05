@@ -392,6 +392,22 @@ class WebConfigTest {
         assertNull(webAdConsentUrl(null, startRequested = false))
     }
 
+    // --- 이동 목적지 allowlist (KAN-324, 보안 리포트 2026-11-04 #10) ---
+    // 목적지 함수는 문서 URL의 base를 그대로 잇는다 — 판정은 navigateInApp의 isAllowedWebUrl이 맡는다는 것을 고정한다.
+
+    @Test
+    fun `외부 origin이나 javascript 문서에서 만든 이동 목적지는 allowlist를 통과하지 못한다`() {
+        val allowed = setOf("https://web.example.com")
+        listOf("https://phish.example/login?screen=home", "javascript:alert(1)//?screen=home").forEach { from ->
+            listOf(
+                webAdConsentUrl(from, startRequested = false),
+                webBackTarget(from, startRequested = false),
+            ).forEach { target ->
+                assertTrue("$from → $target", target == null || !isAllowedWebUrl(target, allowed))
+            }
+        }
+    }
+
     // --- showsSettingsGear: 로그인 빌드 톱니 판정 (KAN-252, 2026-10-13) ---
 
     @Test
