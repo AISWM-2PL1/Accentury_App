@@ -152,7 +152,7 @@ describe('요청과 결과', () => {
     submit()
     fireEvent.click(await screen.findByRole('button', { name: '공유' }))
     expect(shareResult).toHaveBeenCalledWith({
-      imageUrl: 'https://accentury.app/og-card-v2.png',
+      imageUrl: 'https://accentury.app/og-card-v3.png',
       text: '밥 먹었어? → 밥 뭇나?',
       webTestUrl: 'https://accentury.app/t?c=kko_share',
     })

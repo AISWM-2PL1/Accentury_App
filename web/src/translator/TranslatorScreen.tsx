@@ -54,7 +54,7 @@ const SIGN_IN_MESSAGE = '로그인하면 사투리 번역기를 쓸 수 있어�
  * 번역기용 이미지 카드는 만들지 않기로 했다(2026-10-14 사용자 결정).
  */
 const SHARE_LINK = 'https://accentury.app/t?c=kko_share'
-const SHARE_IMAGE = 'https://accentury.app/og-card-v2.png'
+const SHARE_IMAGE = 'https://accentury.app/og-card-v3.png'
 /** 네이티브 `parseSharePayload` 문구 상한(UTF-16 200). 넘으면 네이티브가 조용히 버린다 */
 const SHARE_TEXT_MAX = 200
 

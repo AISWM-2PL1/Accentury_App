@@ -41,7 +41,7 @@ function pngSize(path: string): [number, number] {
   return [buf.readUInt32BE(16), buf.readUInt32BE(20)]
 }
 
-/** `/favicon-v2.svg` → `web/public/favicon-v2.svg`. 절대 URL이면 오리진을 떼고 같은 규칙을 쓴다. */
+/** `/favicon-v3.svg` → `web/public/favicon-v3.svg`. 절대 URL이면 오리진을 떼고 같은 규칙을 쓴다. */
 function publicPath(reference: string): string {
   const path = reference.startsWith(ORIGIN) ? reference.slice(ORIGIN.length) : reference
   return join(PUBLIC_DIR, path.replace(/^\//, ''))
