@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.accentury.app.BuildConfig
 import com.accentury.app.ads.AdConsent
+import com.accentury.app.analytics.CrashReports
 import com.accentury.app.analytics.EventParam
 import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.bridge.SharePayload
@@ -187,6 +188,8 @@ fun WebViewHost(
                                 isCurrentUrlAllowed = { isAllowedWebUrl(this.url, allowedOrigins) },
                                 // 동기 반환 메서드용 — 메인 스레드가 갱신해 둔 플래그를 읽기만 한다.
                                 isOriginAllowedNow = { originAllowed.get() },
+                                // onLocationChanged 인자 판정 (KAN-324) — 그 값이 navigateInApp 목적지의 재료라 같은 allowlist로 본다.
+                                isUrlAllowed = { isAllowedWebUrl(it, allowedOrigins) },
                                 sessionToken = sessionToken,
                                 onRequestMicPermission = onRequestMicPermission,
                                 onStartVoiceItem = onStartVoiceItem,
@@ -263,7 +266,18 @@ private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier
 
 /**
  * 앱 안 이동 (KAN-290). 웹 SPA 라우터([spaNavigateJs])가 처리하면 문서를 다시 읽지 않고, 아니면(구버전 웹 등) loadUrl로 폴백한다.
+ *
+ * 목적지를 여기서 [isAllowedWebUrl]로 먼저 본다 (KAN-324, 보안 리포트 2026-11-04 #10). 앱이 부른 `loadUrl`은
+ * `shouldOverrideUrlLoading`을 거치지 않아 allowlist(§7)가 걸리지 않고, `javascript:` 목적지는 지금 문서(우리 origin)에서
+ * 그대로 실행된다. 목적지는 웹이 알려 온 `webUrl`로 만들므로([webBackTarget]·[webTabUrl]·[webAdConsentUrl]) 그 값을
+ * 믿을 수 없다면 이 함수가 마지막 문이다. 시스템 뒤로가기·설정 「맞춤형 광고 설정」·억양 녹음 ✕ 세 경로가 모두 여기를 지나므로
+ * 호출부마다 검사하지 않고 한 곳에 둔다. [webOrigin]이 http(s) 밖 스킴을 null로 접으므로 `javascript:`도 같은 판정에서 막힌다.
+ * 거절하면 이동하지 않고 흔적만 남긴다 — allowlist 안 문서가 알려 온 값만 `webUrl`이 되므로, 여기 닿았다면 계약이 어긋난 것이다.
  */
-fun WebView.navigateInApp(url: String) {
+fun WebView.navigateInApp(url: String, allowedOrigins: Set<String>) {
+    if (!isAllowedWebUrl(url, allowedOrigins)) {
+        CrashReports.recordBridgeParseFailure("navigateInApp")
+        return
+    }
     evaluateJavascript(spaNavigateJs(url)) { if (it != "true") loadUrl(url) }
 }

@@ -35,6 +35,9 @@ import com.accentury.app.ui.components.Haptic
  * @param isOriginAllowedNow 임의 스레드에서 안전하게 읽는 origin 허용 여부 — 값을 **돌려주는**
  *   메서드는 postToMain으로 미룰 수 없어서(동기 반환), 메인 스레드가 페이지 전환마다 갱신해 둔
  *   플래그를 여기로 받는다 (WebViewHost의 AtomicBoolean)
+ * @param isUrlAllowed 웹이 **값으로 넘긴** URL이 allowlist 안인지 답한다 (KAN-324). [isCurrentUrlAllowed]가 "누가 불렀나"를
+ *   본다면 이것은 "무엇을 넘겼나"를 본다 — [onLocationChanged] 인자가 앱 안 이동 목적지의 재료라서다. 기본값을 두지 않는다:
+ *   빠뜨리면 컴파일이 막혀야 할 보안 판정이다
  * @param sessionToken 세션 토큰 공급자 (KAN-13)
  * @param onStartRetest 결과 화면의 [다시 테스트하기] (KAN-34). 중복 호출 무시는 이 콜백 너머의
  *   상태 머신이 맡는다 — 진행 중이라는 사실의 주인이 둘이면 어긋난다 (SessionGateController.retestInFlight)
@@ -71,6 +74,7 @@ class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
     private val isCurrentUrlAllowed: () -> Boolean,
     private val isOriginAllowedNow: () -> Boolean,
+    private val isUrlAllowed: (String) -> Boolean,
     private val sessionToken: () -> String,
     private val onRequestMicPermission: () -> Unit,
     private val onStartVoiceItem: (VoiceItemStart) -> Unit,
@@ -404,12 +408,18 @@ class AccenturyBridge(
 
     /**
      * 웹이 SPA로 화면을 옮긴 뒤 새 href를 알린다 (KAN-290). 문서 로드가 없어 onPageStarted가 오지 않으므로 그 대신이다.
-     * 메인 스레드로 넘긴 뒤 그 시점 origin으로 판정한다(§5) — 값은 뒤로가기·톱니 판정용 URL 추적에만 쓰인다.
+     * 메인 스레드로 넘긴 뒤 그 시점 origin으로 판정한다(§5).
+     *
+     * 인자도 [isUrlAllowed]로 본다 (KAN-324, 보안 리포트 2026-11-04 #10). 값은 뒤로가기·톱니 판정에 그치지 않고 시스템 뒤로가기·
+     * 설정 「맞춤형 광고 설정」·억양 녹음 ✕의 이동 목적지가 되므로, allowlist 밖 origin·`javascript:`는 받지 않는다. 목적지 쪽
+     * ([navigateInApp])에도 같은 검사가 있지만 틀린 값이 `webUrl`에 머물면 톱니·광고 설정 행 판정까지 그 값을 따르므로 입구에서도 막는다.
+     * `webView.url`을 대신 읽지 않는 이유: pushState 직후의 브리지 호출과 브라우저 쪽 URL 갱신은 순서가 보장되지 않아
+     * 한 박자 옛 값을 볼 수 있다. 거절은 조용히 버린다(§5) — 웹에 돌려줄 회신이 없는 통지다.
      */
     @JavascriptInterface
     fun onLocationChanged(url: String) {
         postToMain {
-            if (isCurrentUrlAllowed()) onLocationChanged.invoke(url)
+            if (isCurrentUrlAllowed() && isUrlAllowed(url)) onLocationChanged.invoke(url)
         }
     }
 }

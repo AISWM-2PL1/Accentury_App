@@ -608,6 +608,8 @@ private fun TestFlow(
     var webView by remember { mutableStateOf<WebView?>(null) }
     // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
     var webUrl by remember { mutableStateOf<String?>(null) }
+    // WebView 로드·브리지 판정과 앱 안 이동 목적지 판정(KAN-324)이 같은 allowlist를 쓰게 한 곳에 둔다.
+    val allowedOrigins = remember { setOfNotNull(webOrigin(BuildConfig.WEB_URL)) }
 
     /*
      * 업로드가 끝난 시도를 웹으로 흘려보낸다.
@@ -1013,7 +1015,7 @@ private fun TestFlow(
                     // 없거나 무효여도 예전처럼 인트로다 — 판정은 [startsAtHome] (PR #33 리뷰 P1).
                     home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLinkEntry != null),
                 ),
-                allowedOrigins = setOfNotNull(webOrigin(BuildConfig.WEB_URL)),
+                allowedOrigins = allowedOrigins,
                 // 웹의 어휘 답안 제출(KAN-13)이 쓸 토큰. 업로드·웹 진입 URL과 같은 세션에서 온다.
                 sessionToken = { bridgeToken.get() },
                 onRequestMicPermission = { startRequested = true },
@@ -1083,14 +1085,14 @@ private fun TestFlow(
              */
             val backTarget = if (tabBarEntry) webBackTarget(webUrl, startRequested) else null
             BackHandler(enabled = backTarget != null && webView != null) {
-                backTarget?.let { webView?.navigateInApp(it) }
+                backTarget?.let { webView?.navigateInApp(it, allowedOrigins) }
             }
 
             // 설정 「맞춤형 광고 설정」 (KAN-315). WebView가 아직 없으면 생길 때까지 요청을 들고 있는다.
             LaunchedEffect(adConsentRequested, webView) {
                 val view = webView ?: return@LaunchedEffect
                 if (!adConsentRequested) return@LaunchedEffect
-                webAdConsentUrl(webUrl, startRequested)?.let { view.navigateInApp(it) }
+                webAdConsentUrl(webUrl, startRequested)?.let { view.navigateInApp(it, allowedOrigins) }
                 onAdConsentHandled()
             }
             LaunchedEffect(webUrl, startRequested) {
@@ -1163,7 +1165,7 @@ private fun TestFlow(
                     IntonationCloseButton(
                         onClick = {
                             intonation.close()
-                            webTabUrl(webUrl, "intonation")?.let { webView?.navigateInApp(it) }
+                            webTabUrl(webUrl, "intonation")?.let { webView?.navigateInApp(it, allowedOrigins) }
                         },
                         modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
                     )
