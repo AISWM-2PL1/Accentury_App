@@ -908,6 +908,8 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 
 2026-11-04 실제 제출: 카카오 테스트 계정은 만들지 못해 네이버 계정 하나만 ASC 로그인 칸에 넣었고, 메모 [Sign-in]은 「로그인 칸의 네이버 테스트 계정」이라고만 적는다. 2.1(a)는 작동하는 데모 계정 하나면 충족되고, 애플 ID로 전 기능을 볼 수 있어 카카오 미제공은 메모에 쓰지 않는다(사용자 결정). 빌드 15 첫 제출(22:59)은 메모가 「카카오·네이버 계정 제공」으로 돼 있어 취소하고 고쳐 재제출했다. 실제 제출본은 §8 블록과 같다(카카오 언급 없음).
 
+데모 계정은 네이버 개발자센터 [멤버 관리]에 등록돼 있어 앱이 「개발 중」이어도 로그인된다(2026-11-04 확인, `social-login.md` 238행). 출시 전 네이버 검수 요청은 별도로 남아 있다.
+
 ### 메모 (한국어 원안)
 
 ```
@@ -916,9 +918,8 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 
 [로그인]
 구글, 카카오, 네이버, 애플 중 하나로 로그인해야 테스트를 시작할 수 있습니다. 심사에는
-심사관님의 Apple ID로 Sign in with Apple을 쓰시거나, 이 심사 정보에 함께 적어 둔 카카오·네이버
-테스트 계정으로 로그인해 주세요. 카카오와 네이버는 한국 서비스의 계정이 필요한 경로라 저희가
-테스트 계정을 준비했습니다.
+심사관님의 Apple ID로 Sign in with Apple을 쓰시거나, 로그인 칸에 적어 둔 네이버 테스트 계정으로
+로그인해 주세요.
 첫 로그인에서 개인정보처리방침 동의를 받고, 이어지는 추가 정보 화면에서 이메일, 이름,
 생년월일, 성별, 출신 지역을 입력받습니다. 다섯 칸이 다 차야 하고, 저장하면 홈 화면이 열리며 레벨 테스트는 홈의 [레벨 테스트 시작] 버튼으로 시작합니다.
 만 14세 미만은 가입할 수 없고, 생년월일 때문에 거절되면 추가 정보 화면의
@@ -1014,7 +1015,30 @@ Recorded audio is used to score the test and deleted as soon as the request fini
 In the app: Settings (gear, top right) > 계정 (Account) > 회원 탈퇴 (Delete account) > confirm.
 ```
 
-ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때 5513자 판을 이 압축판(3840자)으로 줄였다. 주제는 그대로이고 문장만 압축했다. 한국어 원안은 압축하지 않았다.
+ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때 5513자 판을 이 압축판(3840자)으로 줄였다. 문단 주제는 유지, 아래 문장은 뺐다. 한국어 원안은 압축하지 않았다. 데모 계정 사실은 영어와 맞췄다(PR #65 리뷰).
+
+- [Microphone is required] 「Please read the on-screen sentences aloud in a quiet place.」(조용한 곳 안내)
+- [Walkthrough] 「(mixed order)」와 「레벨 테스트 시작」 뒤의 영어 뜻 「(Start level test)」
+- [If microphone permission is denied] 「without a restart」, 건너뛰기 경로가 없는 이유
+  「because voice analysis is the core of the test」, 「레벨 테스트 시작」 뒤의 「(Start level test)」
+- [App Tracking Transparency prompt] ATT 조건의 「first-launch consent sheet」(첫 실행 동의 시트, 압축판은
+  로그인 사용자의 홈 광고 동의 시트만 적는다), 「about app functionality」, 설정 경로의 「after sign-in」
+- [Dialect translator] 「After sign-in」과 탭 위치 「in the bottom tab bar」, 동의 시트 설명의 괄호 둘
+  「(the typed sentence)」「(to convert it into the dialect)」, 재설치 조건의 「deleting and」, 방침 절 이름의
+  영어 뜻 「(Dialect translator (app))」, 「provision to」, 문단 끝 「Audio from the level test and accent
+  lessons is never sent to a third-party AI service; it is analyzed only on our own server (AWS Seoul
+  region).」, 확인 경로의 「bottom」과 「(Dialect translator)」
+- [Voice data] 보관 음성의 쓰임 「and used to train and improve the intonation analysis model」,
+  「Declining does not restrict use of the app, and the consent can be withdrawn.」
+- [Account data and deletion] 보관 항목·기간 「An account holds the provider's user identifier, email, name,
+  date of birth, gender and home region, and is kept until the user deletes it.」, 확인 버튼 「탈퇴 (Delete)」,
+  애플 재인증 「Accounts created with Sign in with Apple are then asked to re-authenticate with Sign in with
+  Apple so that we can revoke the Apple token.」, 「Deletion removes the account's personal data and signs the
+  user out on all devices.」, 앱 밖 탈퇴 「Users without the app can request deletion by email as described at
+  https://accentury.app/account-deletion.html」
+
+[Sign-in]의 카카오 테스트 계정 두 문장은 압축이 아니라 데모 계정 사실이 바뀌어 네이버 로그인 칸 안내로 교체했다.
+관사·「the user's」 같은 단어 수준 줄임은 목록에 넣지 않았다.
 
 > **해결(2026-10-08, KAN-251).** 마지막 문단을 실제 화면 경로로 맞췄다. 톱니는 웹 화면 위 오른쪽
 > 위에 네이티브가 얹는 버튼이고(Android `MainActivity.kt` `SettingsGearButton`, iOS `TestFlowView.swift`),
@@ -1141,8 +1165,31 @@ Android `versionCode`도 15로 같이 올렸다. Play는 업로드된 번호만 
   새 제출에서 메시지를 보내오면 그때 회신문 내용을 다시 붙인다.
 - **실제로 들어간 메모.** ASC 남은 글자 160인 판으로, §8 블록 그대로다. [Sign-in]은 「the Naver test account in
   the login fields (the user name and password above belong to a Naver account)」이고 카카오는 언급하지 않는다
-  (사용자 결정 — 2.1(a)는 작동하는 계정 하나로 충족). 4000자를 맞추려고 조용한 곳 안내·「(mixed)」·앱 밖 탈퇴
-  URL 세 문장을 뺐다.
+  (사용자 결정 — 2.1(a)는 작동하는 계정 하나로 충족). 4000자를 맞추려고 문단 주제는 유지, 아래 문장은
+  뺐다(§8 영어 메모 아래 목록과 같다).
+
+  - [Microphone is required] 「Please read the on-screen sentences aloud in a quiet place.」(조용한 곳 안내)
+  - [Walkthrough] 「(mixed order)」와 「레벨 테스트 시작」 뒤의 영어 뜻 「(Start level test)」
+  - [If microphone permission is denied] 「without a restart」, 건너뛰기 경로가 없는 이유
+    「because voice analysis is the core of the test」, 「레벨 테스트 시작」 뒤의 「(Start level test)」
+  - [App Tracking Transparency prompt] ATT 조건의 「first-launch consent sheet」(첫 실행 동의 시트, 압축판은
+    로그인 사용자의 홈 광고 동의 시트만 적는다), 「about app functionality」, 설정 경로의 「after sign-in」
+  - [Dialect translator] 「After sign-in」과 탭 위치 「in the bottom tab bar」, 동의 시트 설명의 괄호 둘
+    「(the typed sentence)」「(to convert it into the dialect)」, 재설치 조건의 「deleting and」, 방침 절 이름의
+    영어 뜻 「(Dialect translator (app))」, 「provision to」, 문단 끝 「Audio from the level test and accent
+    lessons is never sent to a third-party AI service; it is analyzed only on our own server (AWS Seoul
+    region).」, 확인 경로의 「bottom」과 「(Dialect translator)」
+  - [Voice data] 보관 음성의 쓰임 「and used to train and improve the intonation analysis model」,
+    「Declining does not restrict use of the app, and the consent can be withdrawn.」
+  - [Account data and deletion] 보관 항목·기간 「An account holds the provider's user identifier, email, name,
+    date of birth, gender and home region, and is kept until the user deletes it.」, 확인 버튼 「탈퇴 (Delete)」,
+    애플 재인증 「Accounts created with Sign in with Apple are then asked to re-authenticate with Sign in with
+    Apple so that we can revoke the Apple token.」, 「Deletion removes the account's personal data and signs the
+    user out on all devices.」, 앱 밖 탈퇴 「Users without the app can request deletion by email as described at
+    https://accentury.app/account-deletion.html」
+
+  [Sign-in]의 카카오 테스트 계정 두 문장은 압축이 아니라 데모 계정 사실이 바뀌어 네이버 로그인 칸 안내로 교체했다.
+  관사·「the user's」 같은 단어 수준 줄임은 목록에 넣지 않았다.
 
 Submission ID는 `60e236be-0581-4a9e-b26f-0e8d1c7d454e`이고 심사 기기는 iPhone 17 Pro Max였다. 애플 원문은
 「The app appears to share the user's personal data with a third-party AI service but the app does
@@ -1240,7 +1287,7 @@ Accentury team
 4. TestFlight 빌드 15로 확인한다: 홈 첫 진입 광고 동의 시트와 맞춤형 선택 시 ATT, 번역기 첫 [바꾸기]
    시트·입력창 아래 고지, 설정 › 「맞춤형 광고 설정」 행으로 재열기 — **완료(2026-11-04)**
 5. App Review Information 메모를 §8 영어 메모 전체로 바꾼다(설정 행 문장 포함) — **완료(2026-11-04)**
-6. App Store Connect 1.0 버전의 빌드를 15로 바꾸고 Resolution Center에 위 회신문을 낸 뒤 심사에 제출한다 — **완료(2026-11-04)**
+6. App Store Connect 1.0 버전의 빌드를 15로 바꾸고 Resolution Center에 위 회신문을 낸 뒤 심사에 제출한다 — **완료(2026-11-04, 회신문은 취소된 제출 `60e236be…`에만 남음 — 위 「제출 이력」 참조)**
 7. 결과를 위 표에 행으로 남긴다
 
 7단계는 심사 결과가 오면 위 표에 이어서 적는다.
