@@ -856,7 +856,7 @@ function HomeScreen({
           {levelTest === null ? (
             /* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */
             <div className="card home-card">
-              <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v2.png`} alt="" />
+              <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v3.png`} alt="" />
               <h1 className="type-title">내 사투리 레벨 테스트</h1>
               <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
               <Button onClick={onStartTest} style={{ width: '100%' }}>
