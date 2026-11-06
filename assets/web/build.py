@@ -177,7 +177,7 @@ def draw_og(cut: Image.Image) -> Image.Image:
 
     fig = cut.crop(cut.getbbox())
     fig = icon.fit(fig, OG_W * OG_FIGURE_W, OG_H - 2 * OG_PAD)
-    card.alpha_composite(fig, (OG_PAD, (OG_H - fig.height) // 2))
+    card.alpha_composite(fig, (OG_W // 4 - fig.width // 2, (OG_H - fig.height) // 2))  # 왼쪽 절반의 가운데
 
     draw = ImageDraw.Draw(card)
     axis = OG_W * 3 // 4  # 카드를 반으로 나눈 오른쪽 절반의 가운데
