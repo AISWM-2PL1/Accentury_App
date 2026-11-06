@@ -1,15 +1,45 @@
-Use the built-in `image_gen` tool (default mode, no CLI fallback) to generate ONE image and save it as `wannabe.png` in the current directory (overwrite). Do not ask questions; proceed with sensible defaults. Portrait orientation (1024x1536 or the closest portrait size).
+Use the built-in `image_gen` tool (default mode, no CLI fallback). Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
 
-Two images are attached. The FIRST is our current version of this character — keep it exactly as it is: same character, pose, props, composition, colors and layered-paper shadows. The SECOND is a sibling character from the same set showing the ONE thing to change: the cut edge of every paper piece.
+Attached: (1) the current drawing, the idea and pose to redraw from scratch cleanly, (2) reference for person, proportions, pixel size, outline weight and palette.
 
-Change only this: every paper piece must be cut STICKER-STYLE — the scissors cut runs OUTSIDE the black ink outline, leaving a visible cream paper margin (about 6–10 px at 1024 width, uniform) between the black outline and the cut edge, all the way around the figure and around each separate piece (microphone, coiled cord, megaphone, each lightning bolt). The offset shadow (#CFC5AA, hard, lower-right) falls from that outer cut edge, not from the ink line. Do not change anything else.
+Draw a fresh, clean image of this tier:
+Person standing, feet apart, head tilted back, huge open-mouth shout, solid black sunglasses, neat short black hair. Plain cream short-sleeve t-shirt with exactly the Korean text "호소인" large in the center of the chest. The shirt has a complete closed ink outline: both sleeves, both side seams running unbroken from armpit to hem, and a continuous hem.
+Warm gray trousers with one centered fly line and a dark belt whose square buckle sits exactly on that center line.
+One raised fist grips a black rectangular radio speaker microphone at the mouth, fingers wrapped around it. The other hand rests on the hip.
+A portable megaphone hangs on the viewer's right side at belt height, its body over the shirt side and belt, clipped to the belt, wide ochre-rimmed bell facing the viewer's left. A coiled black cord runs from the bottom of the microphone down outside the shirt's right side seam to the narrow end of the megaphone. The cord does not cover the seam, the arm or the text.
+Three medium ochre lightning bolts burst from the bell toward the left, over the lower shirt, not touching the hand on the hip, the text or the buckle.
 
-Prompt to send to image_gen:
+The head is about one fifth of the standing height, whole figure about 800 px tall.
+No stamps, no card. No other text.
+Pixel art look: crisp square pixels, no blur or gradient. Only these flat colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, tan #DDB892. Skin is tan. Background one flat uniform cream #F3ECD9. No floor or texture. At least 8% empty margin on every side. No logo, signature or watermark.
 
-Layered paper-cut collage illustration, Korean webtoon-style character, full body, centered, matching the attached first image exactly.
-Subject: a young man with black sunglasses, big open-mouth grin, speaking into a handheld radio microphone with a coiled cord, a portable megaphone speaker hung at his hip with three lightning bolts bursting from it, a chest badge with the Korean text "호소인" in bold rounded letters, t-shirt and pants, sneakers.
-Construction: every part is a separate piece of thick cream card stock (#F3ECD9) stacked in layers. Each piece is cut sticker-style: a clean scissor cut that runs outside the black ink outline, leaving a uniform cream paper margin between the outline and the cut edge, so a cream rim is visible all around the figure and around every prop. Upper pieces cast a hard offset shadow (#CFC5AA, no blur, toward the lower right) from their cut edge onto the piece beneath. Slight visible paper thickness at the cut edges. Black ink outlines (#1C1A17) of uniform thickness; hair, sunglasses and mouth interior are near-black paper (#1C1A17). Only these three colors, matte paper.
-Background: one flat, completely uniform cream paper (#F3ECD9). No floor line, no horizon, no ground band, no gradient, no vignette, no texture, no lighting effects.
-Character occupies the middle 75% of the height; feet fully visible; at least 8% empty margin on every side. Nothing touches the edges. No logo, signature, or watermark anywhere.
+After saving, print: DONE wannabe.png <width>x<height>.
 
-After saving, print only: DONE wannabe.png <width>x<height>.
+
+---
+
+Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
+
+Keep everything exactly: person, face, sunglasses, radio, t-shirt outline, the text "호소인", belt, buckle, megaphone, cord, trousers, shoes, position, scale, colors and pixel size.
+
+Change only the three small marks left of the megaphone bell. Replace them with three clearly recognizable lightning bolts: the classic sharp zigzag bolt shape, each a Z-like jagged stripe with a pointed tip, solid ochre #C49A4A with a clean ink outline, each about 110 px long. They burst out of the bell and fan out to the left: one up-left, one straight left, one down-left. They may overlap the front of the hand on the hip a little; draw them on top of it. They do not touch the text or the buckle.
+
+Crisp square pixels, flat uniform cream background. No new text, logo or watermark.
+
+After saving, print: DONE wannabe.png <width>x<height>.
+
+
+---
+
+Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
+
+Keep everything exactly except the two lower lightning bolts: person, face, sunglasses, radio, t-shirt outline, the text "호소인", belt, buckle, megaphone, cord, trousers, shoes, position, scale, colors, pixel size, and the TOP bolt.
+
+Look at the top lightning bolt: its strong zigzag with a clear step in the middle and a sharp tip. The two bolts below it do not read the same. Delete those two and redraw them as exact copies of the top bolt: the same size, the same zigzag shape, the same outline weight, only rotated.
+- Middle bolt: pointing straight left out of the bell, in front of the hand on the hip.
+- Bottom bolt: pointing down-left out of the bell. It stops above the belt and does not touch the belt or the buckle.
+Restore the shirt and the hand where the old bolts were.
+
+Crisp square pixels, flat uniform cream background. No new text, logo or watermark.
+
+After saving, print: DONE wannabe.png <width>x<height>.

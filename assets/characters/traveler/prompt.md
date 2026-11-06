@@ -1,13 +1,9 @@
-Use the built-in `image_gen` tool (default mode, no CLI fallback) to generate ONE image and save it as `traveler.png` in the current directory. Do not ask questions; proceed with sensible defaults. Portrait orientation (1024x1536 or the closest portrait size).
+Use the built-in `image_gen` tool (default mode, no CLI fallback). Do not ask questions. Do not write SVG or draw by code. Save the file in the current directory, portrait 1024x1536.
 
-The attached image is our own earlier draft of the same character — keep its composition, pose and props, but follow the style rules below exactly (recolor everything to the cream/ink palette, remove any floor band, texture or watermark).
+Attached: (1) the draft of this tier, keep its outfit and mood, (2) the proportion reference.
+`traveler.png`: head three-quarter toward the viewer's left, looking up at a soft-serve ice cream cone held high in one hand, eyes shut in happy arcs, big open-mouth laugh, other hand on hip. Teal Hawaiian shirt, sunglasses pushed up on the head, camera on neck strap, ochre striped swim ring, flip-flops. No text.
 
-Prompt to send to image_gen:
-
-Paper-cut illustration, Korean webtoon-style character, full body, centered.
-Subject: a young man in an open Hawaiian shirt (hibiscus print drawn as ink line pattern) over a tank top, shorts, flip-flops, black sunglasses, a camera on a strap around his neck, standing inside a swim ring held at the waist, hands on hips, big grin.
-Every element is cut from flat cream paper (#F3ECD9) with clean black ink outlines (#1C1A17) of uniform thickness, layered with a small hard offset drop shadow (#CFC5AA) toward the lower right, no blur. Character, props and background are all the same cream paper; shapes are separated only by the outline and the offset shadow. Hair, sunglasses, suit, pupils and mouth interior: near-black paper (#1C1A17). Only these three colors.
-Background: one flat, completely uniform cream paper (#F3ECD9). No floor line, no horizon, no ground band, no gradient, no vignette, no visible paper texture, no lighting effects.
-Character occupies the middle 75% of the height; feet fully visible; at least 8% empty margin on every side. Nothing touches the edges. No logo, signature, or watermark anywhere.
-
-After saving, print only: DONE traveler.png <width>x<height>.
+Proportions, matching the reference: the head is about one fifth of the full standing height (about 4.7 heads tall), head height about 170 px, whole figure about 800 px tall, same pixel size and ink outline weight, same neat short black hair with a side part.
+NO stamps anywhere: no stamp card, stamp book or stamp circles.
+Pixel art look: crisp square pixels, no blur or gradient. Only these flat colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, dusty teal #6F8F8A, tan #DDB892. Skin is tan. Background one flat uniform cream #F3ECD9. No floor or texture. At least 8% empty margin on every side. No logo, signature or watermark.
+After saving, print: DONE traveler.png <width>x<height>.

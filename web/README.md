@@ -172,7 +172,7 @@ E2E_FAIL_ITEM= E2E_FAIL_TIMES= docker compose -f docker-compose.yml -f /tmp/ai-p
 `E2E_BASE_URL`이 있으면 개발 서버를 띄우지 않고 그 주소를 그대로 연다.
 
 ```bash
-E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra/envs/staging/terraform.tfvars
+E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 Accentury_Server infra/envs/staging의 terraform output -raw domain
 ```
 
 - `E2E_FAIL_ITEM`을 줄 수 없으므로 `retake`는 언제나 skip된다.
@@ -206,7 +206,7 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 infra
   이전 자산을 그대로 가리킨다. 이전 자산은 지우지 않는다 (`sync --delete` 없음).
 - 환경을 새로 지은 뒤 첫 배포나 웹 변경 없는 재배포는 Actions의 "Web Deploy"를
   workflow_dispatch로 환경을 골라 돌린다.
-- 대상 버킷, 배포 ID, IAM 역할은 GitHub environment 변수다 (infra/README.md "GitHub 설정").
+- 대상 버킷, 배포 ID, IAM 역할은 GitHub environment 변수 `WEB_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, `AWS_WEB_DEPLOY_ROLE_ARN`이다 (Accentury_Server `docs/ops/github.md` "environment 변수". 역할은 웹 배포 전용이고 Server 출력 `github_web_deploy_role_arn`을 넣는다, KAN-306).
 - 예외는 아래 목록이다. 하나는 `VITE_GA4_MEASUREMENT_ID`(KAN-33). GitHub environment 변수
   `GA4_MEASUREMENT_ID`를 워크플로가 빌드에 넘긴다. staging과 prod가 **다른 스트림**이어야
   우리 확인 트래픽이 실사용 집계에 섞이지 않는다. 비워 두면 계측 없이 빌드된다 -

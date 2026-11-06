@@ -1,13 +1,24 @@
-Use the built-in `image_gen` tool (default mode, no CLI fallback) to generate ONE image and save it as `honorary.png` in the current directory. Do not ask questions; proceed with sensible defaults. Portrait orientation (1024x1536 or the closest portrait size).
+Use the built-in `image_gen` tool (default mode, no CLI fallback). Do not ask questions. Do not write SVG or draw by code. Save `honorary.png` in the current directory, portrait 1024x1536.
 
-The attached image is our own earlier draft of the same character — keep its composition, pose and props, but follow the style rules below exactly (recolor everything to the cream/ink palette, remove any floor band, texture or watermark).
+Attached: (1) our current `honorary`: match the person, hat, shirt, cargo trousers, boots, backpack and stamp card, (2) our current `wannabe`: reference for a front-facing body, head size and proportions. Same person, same pixel style, outline weight and palette.
 
-Prompt to send to image_gen:
+New image: the person stands facing the viewer, full front view, feet apart, looking straight at the viewer with a bright, wide, open-mouth smile, eyes happy and visible. Teal bucket hat, cream shirt with rolled sleeves, warm gray cargo trousers, boots, backpack straps on both shoulders. One hand waves at shoulder height, the other holds up the full stamp card with six round stamps.
 
-Paper-cut illustration, Korean webtoon-style character, full body, centered.
-Subject: a young man seen from behind in three-quarter view looking over his shoulder with a proud smile, bucket hat, backpack, cargo pants, hiking boots, standing on a flat paper mountain peak shape, planting a tall flagpole with a triangular black pennant that reads "명예주민" in bold Korean letters, two or three small paper clouds beside him. The peak is a shape cut from the same paper, not a ground band.
-Every element is cut from flat cream paper (#F3ECD9) with clean black ink outlines (#1C1A17) of uniform thickness, layered with a small hard offset drop shadow (#CFC5AA) toward the lower right, no blur. Character, props and background are all the same cream paper; shapes are separated only by the outline and the offset shadow. Hair, sunglasses, suit, pupils and mouth interior: near-black paper (#1C1A17). Only these three colors.
-Background: one flat, completely uniform cream paper (#F3ECD9). No floor line, no horizon, no ground band, no gradient, no vignette, no visible paper texture, no lighting effects.
-Character occupies the middle 75% of the height; feet fully visible; at least 8% empty margin on every side. Nothing touches the edges. No logo, signature, or watermark anywhere.
+A wide terracotta sash runs diagonally across the chest, from the shoulder on the viewer's left to the hip on the viewer's right, over the backpack strap, like a pageant sash. It carries exactly the Korean text "명예주민" in large cream letters, written along the sash, all four characters fully legible and not covered by the arm or the card. Keep it straight and unwrinkled so the text stays clean.
 
-After saving, print only: DONE honorary.png <width>x<height>.
+No flag, no mountain, no clouds, no other scenery. No ground.
+
+Pixel art look: crisp square pixels of one size, no anti-aliasing, blur, gradient or dithering. Chunky silhouette with a 1-pixel ink outline.
+Use only these 8 flat colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, dusty teal #6F8F8A, tan #DDB892. Skin is tan.
+Person takes at least 70% of the image height. Background: one flat, uniform cream #F3ECD9. At least 8% empty margin on every side. No other text, logo, signature or watermark.
+
+After saving, print: DONE honorary.png <width>x<height>.
+
+
+---
+
+Use the built-in `image_gen` tool (default mode, no CLI fallback). Do not ask questions. Do not write SVG or draw by code. Save the file in the current directory, portrait 1024x1536.
+
+Edit the attached image only. Keep everything exactly: person, face, hat, sash and its text, backpack, trousers, boots, waving hand, position and scale.
+Change only this: remove the stamp card and its clip. The hand that held it now gives a cheerful thumbs up at chest height, with the rolled sleeve kept. Save as `honorary.png`.
+Crisp square pixels, same colors, flat uniform cream background. Print: DONE honorary.png <width>x<height>.

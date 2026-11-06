@@ -22,8 +22,8 @@
 ## 구성·규격
 
 - **800×400 PNG** (2:1, 카카오 피드 카드 권장 비율), 각 **300KB 이하** (지금은 70~140KB).
-- 배경은 앱 종이색 `#F3ECD9`. 좌측에 등급 캐릭터, 우측에 등급명(Jua, 잉크 테두리 종이 조각) +
-  "Accentury · 경남 사투리 레벨 테스트". 순위·점수는 싣지 않는다.
+- 배경은 앱 종이색 `#F3ECD9`. 좌측에 등급 캐릭터, 우측 절반 가운데 축에 등급명(Jua, 글자만)과
+  앱 마크와 "Accentury · 경남 사투리 레벨 테스트". 순위·점수는 싣지 않는다.
 - **5MB 이하**, **https 필수** — 카카오가 이미지를 자기 서버로 가져가는 조건이다.
 - 이미지를 올린 도메인을 **카카오 개발자 콘솔에 등록**해야 카드가 그려진다. 등록되지 않은
   도메인이면 카드가 이미지 없이 나간다.
@@ -51,7 +51,7 @@ scripts/publish-share-assets.sh staging     # 또는 prod
 (`accentury.result.asset-base-url`, 배포에서는 SSM `ACCENTURY_RESULT_ASSETBASEURL` =
 `https://<도메인>/share`)에 등급 code 소문자와 `.png`를 붙여 `share.imageUrl`을 만든다 - 그래서
 위 표의 파일명이 곧 계약이다. 캐릭터가 바뀌면 다시 만들어 이 스크립트만 돌리면 되고 서버와
-앱 배포는 없다. 자세한 것은 Accentury_Server `infra/README.md` "등급 공유 이미지".
+앱 배포는 없다. 자세한 것은 Accentury_Server `docs/ops/deploy.md` "등급 공유 이미지 (KAN-132)".
 
 ## 재생성
 

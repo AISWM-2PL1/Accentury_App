@@ -95,7 +95,7 @@ S3에 올리고 CloudFront를 무효화한 뒤 도메인으로 실제 응답을 
 Signing 함정이 거기 있다. 여기 옮겨 적으면 두 벌이 갈린다.
 
 인프라 쪽 사실(왜 Terraform이 안 만드는지, 왜 웹 배포에 안 지워지는지)은
-`infra/README.md`의 "App Link 검증 파일 (KAN-32)".
+Accentury_Server `docs/ops/deploy.md`의 "App Link 검증 파일 (KAN-32)".
 
 ## 5. 검증 파일 없이 링크 경로를 밟아 보기
 

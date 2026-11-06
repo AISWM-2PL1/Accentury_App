@@ -152,7 +152,7 @@ describe('요청과 결과', () => {
     submit()
     fireEvent.click(await screen.findByRole('button', { name: '공유' }))
     expect(shareResult).toHaveBeenCalledWith({
-      imageUrl: 'https://accentury.app/og-card-v2.png',
+      imageUrl: 'https://accentury.app/og-card-v3.png',
       text: '밥 먹었어? → 밥 뭇나?',
       webTestUrl: 'https://accentury.app/t?c=kko_share',
     })
@@ -191,7 +191,7 @@ describe('오류 상태', () => {
     expect(await screen.findByText('지금은 바꿀 수 없어요. 잠시 뒤 다시 시도해 주세요')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
-    expect(fetchImpl.mock.calls[1][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?' }))
+    expect(fetchImpl.mock.calls[1][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toDialect' }))
   })
 
   it('네트워크 실패 → 문구 + [다시 시도]', async () => {
@@ -238,6 +238,121 @@ describe('오류 상태', () => {
     submit()
     expect(await screen.findByText('로그인이 만료됐어요. 다시 로그인해 주세요')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+  })
+})
+
+describe('방향 전환 (KAN-317)', () => {
+  const toggle = () => screen.getByRole('button', { name: /번역 방향 바꾸기/ })
+  const ok = (body: unknown) => vi.fn<FetchLike>(async () => jsonResponse(200, body))
+
+  it('기본은 표준어 → 사투리, 누르면 라벨이 「사투리 문장」으로, aria-label이 지금 방향을 읽는다', () => {
+    setup(vi.fn())
+    expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 표준어 → 사투리')
+    expect(toggle()).toHaveTextContent('표준어 → 사투리')
+    fireEvent.click(toggle())
+    expect(screen.getByLabelText('사투리 문장')).toBeInTheDocument()
+    expect(screen.queryByLabelText('표준어 문장')).toBeNull()
+    expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 사투리 → 표준어')
+    expect(toggle()).toHaveTextContent('사투리 → 표준어')
+  })
+
+  it('요청 본문 direction — 기본 toDialect, 전환 뒤 toStandard', async () => {
+    const fetchImpl = ok({ dialect: '밥 뭇나?' })
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    fireEvent.click(toggle())
+    fetchImpl.mockResolvedValueOnce(jsonResponse(200, { direction: 'toStandard', standard: '밥 먹었어?', remaining: 3 }))
+    submit()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
+    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toDialect' }))
+    expect(fetchImpl.mock.calls[1][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toStandard' }))
+  })
+
+  it('사투리 → 표준어 성공 — 보조 라벨 「표준어」, [복사]는 표준어 문장, [공유]는 「사투리 → 표준어」', async () => {
+    const writeText = vi.fn(async () => {})
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    setup(ok({ direction: 'toStandard', standard: '밥 먹었니?', remaining: 3 }))
+    fireEvent.click(toggle())
+    fireEvent.change(screen.getByLabelText('사투리 문장'), { target: { value: '밥 뭇나?' } })
+    submit()
+    expect(await screen.findByText('밥 먹었니?')).toBeInTheDocument()
+    expect(screen.getByText('표준어', { exact: true })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '복사' }))
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('밥 먹었니?'))
+    fireEvent.click(screen.getByRole('button', { name: '공유' }))
+    expect(vi.mocked(shareResult).mock.calls[0][0].text).toBe('밥 뭇나? → 밥 먹었니?')
+  })
+
+  it('표준어 → 사투리 결과의 보조 라벨은 「사투리」', async () => {
+    setup(ok({ dialect: '밥 뭇나?' }))
+    type('밥 먹었어?')
+    submit()
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    expect(screen.getByText('사투리', { exact: true })).toBeInTheDocument()
+  })
+
+  it('결과가 있을 때 바꾸면 결과는 지우고 입력은 그대로 둔다', async () => {
+    setup(ok({ dialect: '밥 뭇나?' }))
+    type('밥 먹었어?')
+    submit()
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    fireEvent.click(toggle())
+    expect(screen.queryByText('밥 뭇나?')).toBeNull()
+    expect(screen.queryByRole('button', { name: '공유' })).toBeNull()
+    expect(screen.getByLabelText('사투리 문장')).toHaveValue('밥 먹었어?')
+  })
+
+  it('오류가 있을 때 바꾸면 오류를 지운다', async () => {
+    setup(vi.fn<FetchLike>(async () => jsonResponse(422, envelope('TRANSLATION_REJECTED', false))))
+    type('ㅁㄴㅇㄹ')
+    submit()
+    expect(await screen.findByText('올바른 문장을 넣어주세요')).toBeInTheDocument()
+    fireEvent.click(toggle())
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('대기 중엔 전환 버튼이 비활성이고, 전환 뒤 도착한 앞 방향 응답은 버린다', async () => {
+    const { fetchImpl, resolve } = deferredFetch()
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    expect(await screen.findByText('바꾸는 중이에요')).toBeInTheDocument()
+    expect(toggle()).toBeDisabled()
+    // disabled 버튼은 click을 내지 않는다 — 대기 중 전환 경로는 막혀 있다. 늦은 응답 가드는 입력 수정으로 대기를 푼 뒤 본다
+    type('밥 먹었어')
+    fireEvent.click(toggle())
+    await resolve(0, jsonResponse(200, { dialect: '밥 뭇나?' }))
+    expect(screen.queryByText('밥 뭇나?')).toBeNull()
+    expect(screen.getByLabelText('사투리 문장')).toHaveValue('밥 먹었어')
+  })
+
+  it('구 서버가 toStandard에 {dialect}만 주면 「지금은 표준어로 바꾸기를 쓸 수 없어요」, [다시 시도] 없음', async () => {
+    setup(ok({ dialect: '밥 뭇나?', remaining: 4 }))
+    fireEvent.click(toggle())
+    fireEvent.change(screen.getByLabelText('사투리 문장'), { target: { value: '밥 뭇나?' } })
+    submit()
+    expect(await screen.findByText('지금은 표준어로 바꾸기를 쓸 수 없어요')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+  })
+
+  it('동의 시트가 뜬 동안 바꾸면 시트가 닫히고 요청은 없다', () => {
+    resetTranslatorConsentMemory()
+    try {
+      localStorage.clear()
+    } catch {
+      // 맨 위 beforeEach와 같다
+    }
+    const fetchImpl = vi.fn<FetchLike>()
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // 시트가 뜬 동안 배경은 inert라 사용자는 못 누른다 — 그래도 상태가 바뀌면 시트가 닫히는지 본다
+    fireEvent.click(toggle())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })
 
@@ -288,7 +403,7 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?' }))
+    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toDialect' }))
 
     type('어디 가?')
     submit()
@@ -307,7 +422,7 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     fireEvent.click(screen.getByRole('button', { name: '동의하고 보내기' }))
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '어디 가?' }))
+    expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '어디 가?', direction: 'toDialect' }))
   })
 
   it('시트가 뜬 동안 배경(main·탭 바)은 inert다 — 닫히면 풀린다', () => {

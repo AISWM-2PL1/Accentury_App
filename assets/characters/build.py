@@ -60,6 +60,9 @@ CARD_W, CARD_H = 800, 400
 CARD_MAX_BYTES = 300 * 1024
 CARD_PAD = 40
 BRAND_LINE = "Accentury · 경남 사투리 레벨 테스트"
+MARK_SRC = REPO / "assets" / "app-icon" / "source.png"
+MARK_H = 30
+BRAND_MIN_SIZE = 14
 
 # 키잉 파라미터. 배경은 생성 단계에서 균일(편차 ≤2)이라 허용 오차를 작게 둔다 — 크림 림의
 # 종이 두께 선은 배경보다 약 30 어둡고, 그 선이 flood fill을 막는 벽이다.
@@ -183,7 +186,23 @@ def load_fonts() -> tuple[ImageFont.FreeTypeFont, ImageFont.FreeTypeFont, ImageF
     return title, brand
 
 
-def draw_card(name: str, cut: Image.Image, fonts) -> Image.Image:
+def shrink_to_fit(font: ImageFont.FreeTypeFont, width: float, measure) -> ImageFont.FreeTypeFont:
+    """`measure(font)`이 `width` 안에 들 때까지 글자를 줄인다. 하한 아래로 내려가면 규격 실패로 멈춘다."""
+    while measure(font) > width:
+        if font.size <= BRAND_MIN_SIZE:
+            raise SystemExit(f"브랜드 줄이 {BRAND_MIN_SIZE}px에서도 {width}px 안에 들지 않는다")
+        font = font.font_variant(size=font.size - 1)
+    return font
+
+
+def load_mark(height: int = MARK_H) -> Image.Image:
+    """앱 아이콘 도상(`assets/app-icon/source.png`)을 배경 없이 `height`로 줄인다."""
+    cut = key_background(Image.open(MARK_SRC))
+    cut = cut.crop(cut.getbbox())
+    return cut.resize((int(cut.width * height / cut.height), height), Image.LANCZOS)
+
+
+def draw_card(name: str, cut: Image.Image, fonts, mark: Image.Image) -> Image.Image:
     title_font, brand_font = fonts
     card = Image.new("RGBA", (CARD_W, CARD_H), PAPER + (255,))
 
@@ -199,28 +218,24 @@ def draw_card(name: str, cut: Image.Image, fonts) -> Image.Image:
     card.paste(fig, (fx, fy), fig)
 
     draw = ImageDraw.Draw(card)
-    left = CARD_PAD + max_w + 36
 
-    # 우측: 등급명 종이 조각 — 잉크 테두리 + 오프셋 그림자(3px 4px, KAN-161 PAPER_SHADOW).
-    # 등급명은 2~7자로 길이가 갈린다("사투리 호소인"). 조각이 카드 오른쪽 여백을 넘으면 글자를
-    # 줄여서 맞춘다 — 조각이 잘린 카드가 카톡에 나가는 것이 가장 나쁘다.
-    chip_pad_x, chip_pad_y = 22, 10
-    avail = CARD_W - CARD_PAD - left
+    # 우측 절반 가운데: 등급명 글자. 등급명은 2~7자로 길이가 갈린다("사투리 호소인"). 카드 오른쪽 여백을 넘으면
+    # 글자를 줄여서 맞춘다 — 글자가 잘린 카드가 카톡에 나가는 것이 가장 나쁘다.
+    avail = CARD_W // 2 - 2 * CARD_PAD
     size = title_font.size
-    while True:
-        tw = draw.textlength(name, font=title_font)
-        chip_w = int(tw + 2 * chip_pad_x)
-        if chip_w + 3 <= avail or size <= 40:
-            break
+    while draw.textlength(name, font=title_font) > avail and size > 40:
         size -= 4
         title_font = ImageFont.truetype(str(FONT_JUA), size)
-    chip_h = size + 2 * chip_pad_y
-    chip_x, chip_y = left, CARD_H // 2 - chip_h // 2
-    draw.rectangle([chip_x + 3, chip_y + 4, chip_x + chip_w + 3, chip_y + chip_h + 4], fill=PAPER_SHADOW)
-    draw.rectangle([chip_x, chip_y, chip_x + chip_w, chip_y + chip_h], fill=PAPER, outline=INK, width=3)
-    draw.text((chip_x + chip_pad_x, chip_y + chip_h // 2), name, font=title_font, fill=INK, anchor="lm")
+    draw.text((CARD_W * 3 // 4, CARD_H // 2), name, font=title_font, fill=INK, anchor="mm")
 
-    draw.text((left, CARD_H - CARD_PAD), BRAND_LINE, font=brand_font, fill=MUTED, anchor="ls")
+    # 아래: 앱 마크 + 브랜드 줄. 한 묶음으로 등급명과 같은 축에 가운데 맞춘다.
+    gap = 10
+    brand_font = shrink_to_fit(brand_font, avail, lambda f: mark.width + gap + draw.textlength(BRAND_LINE, font=f))
+    group_w = mark.width + gap + int(draw.textlength(BRAND_LINE, font=brand_font))
+    mark_x = CARD_W * 3 // 4 - group_w // 2
+    mark_y = CARD_H - CARD_PAD - mark.height
+    card.paste(mark, (mark_x, mark_y), mark)
+    draw.text((mark_x + mark.width + gap, mark_y + mark.height // 2), BRAND_LINE, font=brand_font, fill=MUTED, anchor="lm")
     return card.convert("RGB")
 
 
@@ -242,6 +257,7 @@ def save_png_under(img: Image.Image, path: Path, limit: int) -> int:
 
 def main() -> None:
     fonts = load_fonts()
+    mark = load_mark()
     rows = []
     for code, name in TIERS:
         src = Image.open(ROOT / code / "source.png")
@@ -249,7 +265,7 @@ def main() -> None:
         web = build_web(code, cut)
         SHARE_OUT.mkdir(parents=True, exist_ok=True)
         card_path = SHARE_OUT / f"{code}.png"
-        card_bytes = save_png_under(draw_card(name, cut, fonts), card_path, CARD_MAX_BYTES)
+        card_bytes = save_png_under(draw_card(name, cut, fonts, mark), card_path, CARD_MAX_BYTES)
         # 저장된 파일을 다시 열어 잰다 — 메모리의 이미지가 아니라 디스크의 결과가 규격이다
         with Image.open(card_path) as saved:
             card_size = saved.size

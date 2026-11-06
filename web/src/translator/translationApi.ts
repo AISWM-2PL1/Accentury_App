@@ -6,6 +6,12 @@
  * 하나여야 해서다. 오류 code(봉투): 400 `VALIDATION_FAILED`, 401 → 갱신 규칙 → `UNAUTHENTICATED`,
  * 422 `TRANSLATION_TOO_LONG`·`TRANSLATION_REJECTED`, 503 `TRANSLATION_UNAVAILABLE`(retryable).
  * 토큰 없음은 `CLIENT_NOT_SIGNED_IN`, 네트워크 실패는 code 없는 retryable이다.
+ *
+ * KAN-317: 방향을 고른다. 서버 KAN-316이 본문 `direction`(`toDialect`|`toStandard`, 생략 = toDialect)을 받고
+ * 200 본문의 결과 필드를 방향마다 하나만 준다 — toDialect `dialect`, toStandard `standard`. 오류 code는 방향과
+ * 무관하고 하루 한도도 두 방향 합산이다. KAN-316 전 서버는 `direction`을 모르고 무시해 늘 `{dialect}`만 준다.
+ * toStandard에 그 응답이 오면 표준어로 바꾸지 못한 것이라 사투리 문장을 결과로 그리면 안 된다 —
+ * 클라이언트 code `TRANSLATION_DIRECTION_UNSUPPORTED`(재시도 불가)로 던진다. 다시 보내도 같은 서버다.
  */
 
 import { WordLearningError, hasFields, request, type WordApiDeps } from '../learning/wordApi'
@@ -14,14 +20,28 @@ export const TRANSLATION_TOO_LONG = 'TRANSLATION_TOO_LONG'
 export const TRANSLATION_REJECTED = 'TRANSLATION_REJECTED'
 export const TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE'
 export const VALIDATION_FAILED = 'VALIDATION_FAILED'
+/** 서버 code가 아니다 — 구 서버가 toStandard에 `{dialect}`만 줬을 때 이 클라이언트가 붙인다 */
+export const TRANSLATION_DIRECTION_UNSUPPORTED = 'TRANSLATION_DIRECTION_UNSUPPORTED'
+export const DIRECTION_UNSUPPORTED_MESSAGE = '지금은 표준어로 바꾸기를 쓸 수 없어요'
 
-/** 표준어 문장 하나 → 사투리 문장 하나. 200 본문 `{"dialect": string}` */
-export async function translate(apiBase: string, text: string, deps: WordApiDeps = {}): Promise<string> {
-  const body = await request(apiBase, '/v0/translations', 'POST', { json: { text } }, deps)
+export type TranslationDirection = 'toDialect' | 'toStandard'
+
+/** 문장 하나를 [direction] 쪽으로 바꾼 문장 하나. 200 본문 `{"dialect": string}` 또는 `{"standard": string}` */
+export async function translate(
+  apiBase: string,
+  text: string,
+  direction: TranslationDirection,
+  deps: WordApiDeps = {},
+): Promise<string> {
+  const body = await request(apiBase, '/v0/translations', 'POST', { json: { text, direction } }, deps)
+  const field = direction === 'toDialect' ? 'dialect' : 'standard'
+  if (direction === 'toStandard' && !hasFields(body, { standard: 'string' }) && hasFields(body, { dialect: 'string' })) {
+    throw new WordLearningError(DIRECTION_UNSUPPORTED_MESSAGE, TRANSLATION_DIRECTION_UNSUPPORTED, false)
+  }
   // 빈 문장은 성공으로 받지 않는다 — 결과 자리에 아무것도 없는 「성공」을 그리게 된다.
   // 다시 받아도 같은 모양이라 재시도하지 않는다 (`shapeError`와 같은 판정, 문구만 번역기 것)
-  if (!hasFields(body, { dialect: 'string' }) || (body.dialect as string).trim() === '') {
+  if (!hasFields(body, { [field]: 'string' }) || (body[field] as string).trim() === '') {
     throw new WordLearningError('번역 결과를 해석할 수 없어요', null, false)
   }
-  return body.dialect as string
+  return body[field] as string
 }
