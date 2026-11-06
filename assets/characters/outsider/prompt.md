@@ -1,2 +1,21 @@
-Create one final Accentury dialect-trip tier character illustration, portrait PNG exactly 1024x1536. Both supplied images are our own drafts: image 1 outsider and image 2 native. Use BOTH as references for the exact same person, short side-parted black hair, identical face, head size and body proportions, and their chunky pixel art style, palette feel and outline weight. Render crisp square pixels on a single consistent coarse pixel grid (approximately 8 output pixels per art pixel), with a 1-art-pixel ink outline. Flat fills only. No anti-aliasing, blur, gradients, dithering, texture or vignette. Use ONLY these eight exact colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, dusty teal #6F8F8A, tan #DDB892. Skin tan. Earthy muted colors, never bright. Uniform flat cream #F3ECD9 background. No floor line or horizon. Keep all art inside x=88..936 and y=128..1408, leaving at least 8% empty margin on every side. Person occupies at least 55% canvas height; head consistently about 210px wide, same scale across the set. Props must not dwarf him. Terracotta is restricted to ONE small item per image. No text except the expressly requested Korean badge or flag text for applicable characters. No title, logo, signature or watermark. 
-Scene: Tier outsider (외지인). Recreate the scene and pose of reference image 1: confused worried traveler standing with backpack, sweat drops, large unfolded map held in both hands, small airplane to his left, wheeled suitcase on left and bus stop sign on right. Suitcase MUST be ochre, not terracotta. Map is visibly held upside down: every pictorial icon including bridges and landmark symbols is inverted by 180 degrees, and the compass triangle needle points DOWN. Only the small downward compass needle is terracotta; all other map marks ink. Bus sign rim ochre. Preserve the reference person's identity and scene, fit all props within margins. No written text.
+Use the built-in `image_gen` tool (default mode, no CLI fallback). Do not ask questions. Do not write SVG or draw by code. Save the file in the current directory, portrait 1024x1536.
+
+Attached: (1) the draft of this tier, keep its scene and expression, (2) the proportion reference.
+`outsider.png`: facing front, crying and sweating, holding the map, one seagull tugging its corner, bus stop pole with round bus sign, ochre suitcase, teal backpack straps. No text.
+
+Proportions, matching the reference: the head is about one fifth of the full standing height (about 4.7 heads tall), head height about 170 px, whole figure about 800 px tall, same pixel size and ink outline weight, same neat short black hair with a side part.
+NO stamps anywhere: no stamp card, stamp book or stamp circles.
+Pixel art look: crisp square pixels, no blur or gradient. Only these flat colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, dusty teal #6F8F8A, tan #DDB892. Skin is tan. Background one flat uniform cream #F3ECD9. No floor or texture. At least 8% empty margin on every side. No logo, signature or watermark.
+After saving, print: DONE outsider.png <width>x<height>.
+
+
+---
+
+Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the first attached image. Do not ask questions. Do not write SVG or draw by code. Save `outsider.png` in the current directory, portrait 1024x1536.
+
+Attached: (1) the image to edit, (2) reference for how large the person should be.
+Keep the scene, expression, map, seagull, bus sign and suitcase. Make the person as large as in image 2: head about 170 px tall, whole figure about 800 px tall, so the whole group fills the frame. Shorten the bus stop pole so its round sign sits just above the person's head level. The suitcase and seagull scale with the person. Plain warm gray trousers with no cargo pockets.
+
+No stamps. No text. Crisp square pixels, same 8 flat colors, flat uniform cream background #F3ECD9, at least 8% empty margin on every side. No logo or watermark.
+
+After saving, print: DONE outsider.png <width>x<height>.
