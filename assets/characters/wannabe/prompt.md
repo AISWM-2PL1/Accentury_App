@@ -14,3 +14,16 @@ No stamps, no card. No other text.
 Pixel art look: crisp square pixels, no blur or gradient. Only these flat colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, tan #DDB892. Skin is tan. Background one flat uniform cream #F3ECD9. No floor or texture. At least 8% empty margin on every side. No logo, signature or watermark.
 
 After saving, print: DONE wannabe.png <width>x<height>.
+
+
+---
+
+Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
+
+Keep everything exactly: person, face, sunglasses, radio, t-shirt outline, the text "호소인", belt, buckle, megaphone, cord, trousers, shoes, position, scale, colors and pixel size.
+
+Change only the three small marks left of the megaphone bell. Replace them with three clearly recognizable lightning bolts: the classic sharp zigzag bolt shape, each a Z-like jagged stripe with a pointed tip, solid ochre #C49A4A with a clean ink outline, each about 110 px long. They burst out of the bell and fan out to the left: one up-left, one straight left, one down-left. They may overlap the front of the hand on the hip a little; draw them on top of it. They do not touch the text or the buckle.
+
+Crisp square pixels, flat uniform cream background. No new text, logo or watermark.
+
+After saving, print: DONE wannabe.png <width>x<height>.
