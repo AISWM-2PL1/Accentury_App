@@ -27,3 +27,19 @@ Change only the three small marks left of the megaphone bell. Replace them with 
 Crisp square pixels, flat uniform cream background. No new text, logo or watermark.
 
 After saving, print: DONE wannabe.png <width>x<height>.
+
+
+---
+
+Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
+
+Keep everything exactly except the two lower lightning bolts: person, face, sunglasses, radio, t-shirt outline, the text "호소인", belt, buckle, megaphone, cord, trousers, shoes, position, scale, colors, pixel size, and the TOP bolt.
+
+Look at the top lightning bolt: its strong zigzag with a clear step in the middle and a sharp tip. The two bolts below it do not read the same. Delete those two and redraw them as exact copies of the top bolt: the same size, the same zigzag shape, the same outline weight, only rotated.
+- Middle bolt: pointing straight left out of the bell, in front of the hand on the hip.
+- Bottom bolt: pointing down-left out of the bell. It stops above the belt and does not touch the belt or the buckle.
+Restore the shirt and the hand where the old bolts were.
+
+Crisp square pixels, flat uniform cream background. No new text, logo or watermark.
+
+After saving, print: DONE wannabe.png <width>x<height>.
