@@ -180,24 +180,16 @@ def draw_og(cut: Image.Image) -> Image.Image:
     card.alpha_composite(fig, (OG_PAD, (OG_H - fig.height) // 2))
 
     draw = ImageDraw.Draw(card)
-    left = OG_PAD + int(OG_W * OG_FIGURE_W) + 56
-    avail = OG_W - OG_PAD - left
+    axis = OG_W * 3 // 4  # 카드를 반으로 나눈 오른쪽 절반의 가운데
+    avail = OG_W // 2 - 2 * OG_PAD
 
-    # 제목 종이 조각 — 잉크 테두리 + 오프셋 그림자(KAN-161). 카드가 800×400의 1.5배라 그림자와
-    # 테두리도 그만큼 굵게 잡는다. 조각이 오른쪽 여백을 넘으면 글자를 줄여 맞춘다.
-    pad_x, pad_y = 32, 14
+    # 제목 글자. 오른쪽 절반을 넘으면 글자를 줄여 맞춘다.
     size = 104
-    while True:
-        title_font = ImageFont.truetype(str(FONT_JUA), size)
-        chip_w = int(draw.textlength(OG_TITLE, font=title_font) + 2 * pad_x)
-        if chip_w + 5 <= avail or size <= 56:
-            break
+    title_font = ImageFont.truetype(str(FONT_JUA), size)
+    while draw.textlength(OG_TITLE, font=title_font) > avail and size > 56:
         size -= 4
-    chip_h = size + 2 * pad_y
-    x, y = left, OG_H // 2 - chip_h // 2
-    draw.rectangle([x + 5, y + 6, x + chip_w + 5, y + chip_h + 6], fill=PAPER_SHADOW)
-    draw.rectangle([x, y, x + chip_w, y + chip_h], fill=CREAM, outline=INK, width=4)
-    draw.text((x + pad_x, y + chip_h // 2), OG_TITLE, font=title_font, fill=INK, anchor="lm")
+        title_font = ImageFont.truetype(str(FONT_JUA), size)
+    draw.text((axis, OG_H // 2), OG_TITLE, font=title_font, fill=INK, anchor="mm")
 
     # 브랜드 줄은 본문 고딕이지만, 그 글꼴이 없는 환경(맥 밖)에서는 Jua로 떨어진다. 그때
     # 가운뎃점(U+00B7)이 Jua에 없어 두부가 되므로, 떨어진 경우에만 같은 검사를 건다.
@@ -206,7 +198,16 @@ def draw_og(cut: Image.Image) -> Image.Image:
     else:
         shots.assert_glyphs(OG_BRAND)
         brand_font = ImageFont.truetype(str(FONT_JUA), 30)
-    draw.text((left, OG_H - OG_PAD), OG_BRAND, font=brand_font, fill=MUTED, anchor="ls")
+    # 앱 마크 + 브랜드 줄을 한 묶음으로 제목과 같은 축에 맞춘다.
+    mark = chars.load_mark()
+    mark = mark.resize((mark.width * 45 // mark.height, 45), Image.LANCZOS)
+    gap = 14
+    while mark.width + gap + draw.textlength(OG_BRAND, font=brand_font) > avail:
+        brand_font = brand_font.font_variant(size=brand_font.size - 1)
+    group_w = mark.width + gap + int(draw.textlength(OG_BRAND, font=brand_font))
+    mark_x, mark_y = axis - group_w // 2, OG_H - OG_PAD - mark.height
+    card.alpha_composite(mark, (mark_x, mark_y))
+    draw.text((mark_x + mark.width + gap, mark_y + mark.height // 2), OG_BRAND, font=brand_font, fill=MUTED, anchor="lm")
     return card.convert("RGB")
 
 

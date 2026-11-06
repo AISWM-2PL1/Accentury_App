@@ -1,44 +1,23 @@
-Use case: identity-preserve. Regenerate a portrait 1024x1536 pixel art character asset. The matching current image is the edit target; traveler reference anchors the same person's black hair, head size, body proportions, outline weight and muted palette. Preserve identity across the series. Head size approximately 240 pixels tall including hair, person at least 55% of canvas height. Crisp square pixels on a single consistent coarse grid, chunky silhouette with a one-grid-pixel ink outline. Flat fills ONLY these eight colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, dusty teal #6F8F8A, tan #DDB892. Skin is tan. No anti-aliasing, blur, gradients, dithering or texture. Background entirely flat uniform cream #F3ECD9. At least 8% empty margin on EVERY side. No floor, horizon, vignette, logo, signature or watermark. No text except explicitly requested Korean text. Keep the entire figure and every prop within margins.
+Use the built-in `image_gen` tool (default mode, no CLI fallback). Do not ask questions. Do not write SVG or draw by code. Save the file in the current directory, portrait 1024x1536.
 
-Input image 1 is matching current wannabe; image 2 is traveler identity/style reference; image 3 is old paper-cut wannabe ONLY for plain t-shirt and solid black sunglasses, never its medium. Replace outfit with plain short-sleeve cream t-shirt bearing exactly "호소인" large and centered across chest, plain warm gray trousers, sneakers. No jacket, badge or bag strap across text. Solid black sunglasses cover eyes. Head faces FRONT and tilts back slightly; huge open-mouth SHOUT into handheld microphone. Megaphone at hip with exactly three ochre lightning bolts. Half-filled stamp card sticks from trouser pocket. Chest text must be unobstructed, exactly 호소인. Everything in pixel art, no paper-cut styling.
+Attached: (1) the draft of this tier, keep its idea, (2) the proportion reference.
+`wannabe.png`: head tilted back, huge open-mouth shout, solid black sunglasses. Plain cream short-sleeve t-shirt with exactly the Korean text "호소인" large in the center of the chest, shirt fully outlined with both sleeves, both side seams and a continuous hem. One fist grips a black radio speaker microphone at the mouth, fingers wrapped round it. A coiled black cord starts at the bottom of the microphone, comes down through the gap between the raised arm and the torso, and runs outside the shirt's side seam to the narrow end of the megaphone. No cord on the arm. Megaphone at the hip on the viewer's right, clipped to the belt, wide bell facing the viewer's left. Three ochre bolts at thigh and knee level on the viewer's left, none near the groin. Other hand on hip.
 
-
-## 후속 편집 (순서대로)
-
-Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the first attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
-
-Attached: (1) the base pixel art to edit, its t-shirt is complete and correct, (2) the older paper-cut version, reference ONLY for the radio microphone, coiled cord and megaphone, (3) the last attempt, reference ONLY for the look of the radio microphone body and the round stamps. Attempt 3 has defects listed below, do not copy them.
-
-Keep from image 1: person, face, sunglasses, shout, t-shirt with the Korean text "호소인", trousers, shoes, left arm on hip, pixel style, position and scale.
-
-Make these changes to image 1:
-1. Hand and microphone: replace the ball microphone with a rectangular radio speaker microphone. The raised hand must grip it: fingers wrapped around the microphone body, with the body visibly inside the fist, held at the mouth. It must not float next to the hand.
-2. Megaphone: same place as in image 1, at the hip on the viewer's right, reversed so the wide bell faces the viewer's left and the narrow end faces right. A short strap runs from the viewer's right shoulder down the side of the torso to the megaphone so it hangs from something. The strap stays clear of the text.
-3. Cord: a coiled black cord runs from the bottom of the microphone to the narrow end of the megaphone. It passes OVER the shirt and arm as a separate object, and nothing under it is erased.
-4. Bolts: three ochre lightning bolts from the bell, placed low, on the viewer's left thigh and knee level, fanning left and downward. None in the crotch or groin area.
-5. Stamp card: small, in the trouser pocket on the viewer's left, with round terracotta stamps.
-
-Defects from attempt 3 that must not appear: hand not holding the microphone; the right side seam of the t-shirt missing; the t-shirt hem missing so the shirt melts into the background; the right sleeve missing; bolts on the groin.
-The t-shirt must have a complete closed ink outline: both sleeves, both side seams, and a continuous hem across the waist, all visible around the megaphone and cord.
-
-Use only these flat colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, dusty teal #6F8F8A, tan #DDB892. Crisp square pixels, no blur or gradient. Background stays one flat uniform cream #F3ECD9. Nothing touches an edge. No new text, logo or watermark.
-
+Proportions, matching the reference: the head is about one fifth of the full standing height (about 4.7 heads tall), head height about 170 px, whole figure about 800 px tall, same pixel size and ink outline weight, same neat short black hair with a side part.
+NO stamps anywhere: no stamp card, stamp book or stamp circles.
+Pixel art look: crisp square pixels, no blur or gradient. Only these flat colors: cream #F3ECD9, shade #CFC5AA, ink #1C1A17, warm gray #6B6459, terracotta #A8503A, ochre #C49A4A, dusty teal #6F8F8A, tan #DDB892. Skin is tan. Background one flat uniform cream #F3ECD9. No floor or texture. At least 8% empty margin on every side. No logo, signature or watermark.
 After saving, print: DONE wannabe.png <width>x<height>.
 
 
 ---
 
-Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the first attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
+Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
 
-Attached: (1) the image to edit, (2) reference ONLY for the t-shirt's right sleeve and side seam.
+Keep everything exactly: person, face, sunglasses, radio microphone in the fist, t-shirt with the Korean text "호소인", sleeves, side seams, hem, belt, trousers, shoes, other hand on hip, colors, position and scale.
 
-Keep everything in image 1 exactly, including the hand gripping the radio microphone, the megaphone, the three bolts, the stamp card, the face, and the text "호소인". Fix only these:
-1. Delete the ochre strap completely. It reads as a stick. Nothing replaces it across the shirt. Restore the plain shirt under it.
-2. Restore the t-shirt's short right sleeve from image 2: the sleeve end with its ink outline wraps the upper arm near the elbow, and the shirt's side seam runs unbroken from the armpit to the hem, as in image 2.
-3. Route the coiled cord from the bottom of the microphone outward, over the forearm, then down outside the elbow to the narrow end of the megaphone. Keep it clear of the sleeve end and side seam so both stay fully visible.
-4. Add one small dark clip joining the narrow end of the megaphone to the waistband, so it hangs from the belt.
+Change only this: raise the megaphone so its center sits at belt height, right beside the belt buckle area, still on the viewer's right side and still facing the viewer's left. Move its clip so it hangs from the belt. The three ochre bolts move up with it, staying beside the bell and to the left of it, level with the upper thigh, none on the groin. The coiled cord still runs unbroken from the microphone to the narrow end of the megaphone, just shorter. The shirt hem, side seam and the text stay fully visible. Trousers where the megaphone used to be are restored plainly.
 
-Checks before saving: shirt outline closed on both sides, continuous hem, both sleeves visible, no ochre line on the torso. Colors, crisp pixels and flat cream background stay as in image 1. Nothing touches an edge. No new text, logo or watermark.
+Crisp square pixels, same colors, flat uniform cream background. Nothing touches an edge. No new text, logo or watermark.
 
 After saving, print: DONE wannabe.png <width>x<height>.
 
@@ -47,10 +26,24 @@ After saving, print: DONE wannabe.png <width>x<height>.
 
 Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
 
-Keep everything in the attached image exactly, including the face, the hand gripping the radio microphone, the t-shirt with both sleeves, side seams and hem, the text "호소인", the megaphone and its clip, the bolts, the stamp card. Change only these:
-1. Radio microphone: its body becomes near-black #1C1A17, with its grille lines in cream #F3ECD9 so it still reads as a radio. Same shape, size and place, still gripped by the same fingers.
-2. Coiled cord: remove every part of the cord from the forearm and elbow. The arm must be clean bare skin with no cord on it or behind it. Draw a new coiled black cord that starts at the bottom of the microphone, right under the fist, and comes straight down through the gap between the raised arm and the torso, passing on the inner side of the arm, then runs down along the outside of the shirt's right side seam to the narrow end of the megaphone. It is one unbroken cord from microphone to megaphone. It does not touch the text, and does not hide the sleeve end, side seam or hem.
+Keep everything exactly: person, face, sunglasses, radio microphone in the fist, t-shirt with the Korean text "호소인", sleeves, belt, trousers, shoes, other hand on hip, colors, position and scale.
 
-Checks before saving: forearm has no cord; cord is continuous and visibly attached at both ends; shirt outline still closed. Colors, crisp pixels and flat cream background stay as in the image. Nothing touches an edge. No new text, logo or watermark.
+Change only this: move the whole megaphone straight UP by about 130 px, so the vertical center of its bell sits ON the belt line, about y=790 in the 1536 px image. The top of the bell rises over the lower part of the shirt, and the bell hides a short piece of the belt and shirt hem behind it. It stays at the same x position, still facing the viewer's left. The three ochre bolts move up with it by the same amount, staying left of the bell and outside the body at waist level. The coiled cord still runs unbroken from the microphone to the narrow end of the megaphone, just shorter, and stays clear of the text. Restore plain trousers where the megaphone was. The text "호소인" stays fully visible.
+
+Crisp square pixels, same colors, flat uniform cream background. Nothing touches an edge. No new text, logo or watermark.
+
+After saving, print: DONE wannabe.png <width>x<height>.
+
+
+---
+
+Use the built-in `image_gen` tool (default mode, no CLI fallback), editing the attached image. Do not ask questions. Do not write SVG or draw by code. Save `wannabe.png` in the current directory, portrait 1024x1536.
+
+Keep everything exactly, including the megaphone position, the person, the hand on hip, the text "호소인", the cord and the trousers.
+
+Change only this: the three ochre lightning bolts currently sit on top of the hand on the hip, which is wrong. Remove them from there and restore the hand and arm cleanly. Draw three smaller ochre bolts right in front of the megaphone bell, fanning left, on the lower shirt just left of the bell, between the bell and the hand. They touch neither the hand, nor the text, nor the belt buckle.
+Also restore the belt: one continuous belt across the waist with a buckle, passing behind the megaphone.
+
+Crisp square pixels, same colors, flat uniform cream background. Nothing touches an edge. No new text, logo or watermark.
 
 After saving, print: DONE wannabe.png <width>x<height>.
