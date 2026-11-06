@@ -62,6 +62,7 @@ CARD_PAD = 40
 BRAND_LINE = "Accentury · 경남 사투리 레벨 테스트"
 MARK_SRC = REPO / "assets" / "app-icon" / "source.png"
 MARK_H = 30
+BRAND_MIN_SIZE = 14
 
 # 키잉 파라미터. 배경은 생성 단계에서 균일(편차 ≤2)이라 허용 오차를 작게 둔다 — 크림 림의
 # 종이 두께 선은 배경보다 약 30 어둡고, 그 선이 flood fill을 막는 벽이다.
@@ -185,11 +186,20 @@ def load_fonts() -> tuple[ImageFont.FreeTypeFont, ImageFont.FreeTypeFont, ImageF
     return title, brand
 
 
-def load_mark() -> Image.Image:
-    """앱 아이콘 도상(`assets/app-icon/source.png`)을 배경 없이 카드 크기로 줄인다."""
+def shrink_to_fit(font: ImageFont.FreeTypeFont, width: float, measure) -> ImageFont.FreeTypeFont:
+    """`measure(font)`이 `width` 안에 들 때까지 글자를 줄인다. 하한 아래로 내려가면 규격 실패로 멈춘다."""
+    while measure(font) > width:
+        if font.size <= BRAND_MIN_SIZE:
+            raise SystemExit(f"브랜드 줄이 {BRAND_MIN_SIZE}px에서도 {width}px 안에 들지 않는다")
+        font = font.font_variant(size=font.size - 1)
+    return font
+
+
+def load_mark(height: int = MARK_H) -> Image.Image:
+    """앱 아이콘 도상(`assets/app-icon/source.png`)을 배경 없이 `height`로 줄인다."""
     cut = key_background(Image.open(MARK_SRC))
     cut = cut.crop(cut.getbbox())
-    return cut.resize((int(cut.width * MARK_H / cut.height), MARK_H), Image.LANCZOS)
+    return cut.resize((int(cut.width * height / cut.height), height), Image.LANCZOS)
 
 
 def draw_card(name: str, cut: Image.Image, fonts, mark: Image.Image) -> Image.Image:
@@ -220,8 +230,7 @@ def draw_card(name: str, cut: Image.Image, fonts, mark: Image.Image) -> Image.Im
 
     # 아래: 앱 마크 + 브랜드 줄. 한 묶음으로 등급명과 같은 축에 가운데 맞춘다.
     gap = 10
-    while mark.width + gap + draw.textlength(BRAND_LINE, font=brand_font) > avail:
-        brand_font = brand_font.font_variant(size=brand_font.size - 1)
+    brand_font = shrink_to_fit(brand_font, avail, lambda f: mark.width + gap + draw.textlength(BRAND_LINE, font=f))
     group_w = mark.width + gap + int(draw.textlength(BRAND_LINE, font=brand_font))
     mark_x = CARD_W * 3 // 4 - group_w // 2
     mark_y = CARD_H - CARD_PAD - mark.height
