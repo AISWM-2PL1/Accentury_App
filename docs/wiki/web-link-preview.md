@@ -62,7 +62,7 @@ staging에 올라간 문서도 prod 주소를 가리키는데, 공유되는 주�
 `/.well-known/` 밖의 확장자 있는 경로는 SPA 재작성 함수(KAN-126)가 손대지 않으므로
 `/og-card-v3.png`·`/manifest-v3.webmanifest`는 그대로 S3 객체에 닿는다.
 
-## 4. 캐시 — 왜 파일명에 `-v2`가 붙는가
+## 4. 캐시 — 왜 파일명에 `-vN`이 붙는가
 
 `web-deploy.yml`(KAN-127)은 `index.html`을 뺀 `dist/` 전부를
 `Cache-Control: public, max-age=31536000, immutable`로 올리고, CloudFront 무효화 대상은 `/`와
@@ -71,7 +71,7 @@ staging에 올라간 문서도 prod 주소를 가리키는데, 공유되는 주�
 
 그래서 **교체 = 파일명 변경**이다:
 
-1. `assets/web/build.py`의 `VERSION`을 올린다 (`v2` → `v3`)
+1. `assets/web/build.py`의 `VERSION`을 올린다 (`v3` → `v4`)
 2. 스크립트를 돌린다 — 새 이름으로 파일이 생긴다
 3. `web/index.html`의 참조를 새 이름으로 바꾸고 옛 파일을 `git rm` 한다
 
@@ -122,7 +122,7 @@ index.html을 아직 든 브라우저가 옛 아이콘을 받아야 하므로 �
 
 **카카오는 자기 OG 캐시를 따로 갖는다.** CloudFront 무효화와 별개라, 한 번 긁힌 주소는 카드를
 고쳐도 옛것이 나간다. 카드를 바꿨으면 카카오 디버거에서 그 주소로 **캐시 초기화**를 눌러야 한다 —
-이미지 파일명을 `-v2`로 바꿔도 페이지 URL(`https://accentury.app/t?c=...`)은 그대로라 초기화가 필요하다.
+이미지 파일명의 `-vN`을 올려도 페이지 URL(`https://accentury.app/t?c=...`)은 그대로라 초기화가 필요하다.
 
 ## 7. 결정 기록
 

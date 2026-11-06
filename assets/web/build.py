@@ -199,11 +199,9 @@ def draw_og(cut: Image.Image) -> Image.Image:
         shots.assert_glyphs(OG_BRAND)
         brand_font = ImageFont.truetype(str(FONT_JUA), 30)
     # 앱 마크 + 브랜드 줄을 한 묶음으로 제목과 같은 축에 맞춘다.
-    mark = chars.load_mark()
-    mark = mark.resize((mark.width * 45 // mark.height, 45), Image.LANCZOS)
+    mark = chars.load_mark(45)
     gap = 14
-    while mark.width + gap + draw.textlength(OG_BRAND, font=brand_font) > avail:
-        brand_font = brand_font.font_variant(size=brand_font.size - 1)
+    brand_font = chars.shrink_to_fit(brand_font, avail, lambda f: mark.width + gap + draw.textlength(OG_BRAND, font=f))
     group_w = mark.width + gap + int(draw.textlength(OG_BRAND, font=brand_font))
     mark_x, mark_y = axis - group_w // 2, OG_H - OG_PAD - mark.height
     card.alpha_composite(mark, (mark_x, mark_y))
