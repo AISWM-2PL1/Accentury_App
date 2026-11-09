@@ -24,6 +24,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* 큰 글자 (KAN-313): 제목 칸이 아래 __body의 min-width보다 좁아지면 번호 아래 줄로 내려간다 */
+  flex-wrap: wrap;
   gap: var(--space-3);
   /* 디자인 3 (KAN-288, 시안 `.course` min-height 95): 번호·제목(Jua 20)·메타 두 줄이 들어가는 종이 한 장.
      48 한 줄 행이던 것을 키웠다 — 제목이 Jua 20으로 오르며 메타가 아래 줄로 내려갔다 */
@@ -88,7 +90,10 @@
   flex: 1;
   flex-direction: column;
   gap: var(--space-2);
-  min-width: 0;
+  /* 제목 낱말이 쪼개지지 않는 폭 (KAN-313). 360 폭 200%에서 번호·화살표 사이 칸이 한 글자 폭(약 60px)까지 줄어
+     「인/사/와」처럼 글자마다 줄이 바뀌었다. 기본 글자의 칸은 360 폭에서도 8rem보다 넓어 걸리지 않는다.
+     min()은 혼자 한 줄이 됐을 때 행보다 넓어지지 않게 */
+  min-width: min(8rem, 100%);
 }
 
 .word-set-row__title {
