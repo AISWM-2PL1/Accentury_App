@@ -444,12 +444,14 @@ OS 글자 크기를 키우면 WebView 글자도 따라 커져야 한다(WCAG 1.4
 
 | 단위 | 대상 | 이유 |
 |---|---|---|
-| rem | 글자 크기 `--text-*`, 간격 `--space-*`, `--app-bar-height`, `--prompt-card-min-height`(9.5rem = 152px)·`--prompt-card-padding`, `--content-max-width`, `--hero-icon-size`, `--curve-lane-height`, 행간 px 값, 글자를 품은 칸의 폭·높이·padding·gap·min-height(번호 상자, 출석 동그라미, 카운트다운 다이얼 등) | 글자가 커질 때 담는 칸도 같이 커져야 넘치거나 겹치지 않는다 |
+| rem | 글자 크기 `--text-*`, 간격 `--space-*`, `--app-bar-height`, `--prompt-card-min-height`(9.5rem = 152px)·`--prompt-card-padding`, `--content-max-width`, `--curve-lane-height`, 행간 px 값, 글자를 품은 칸의 폭·높이·padding·gap·min-height(번호 상자, 출석 동그라미, 카운트다운 다이얼 등) | 글자가 커질 때 담는 칸도 같이 커져야 넘치거나 겹치지 않는다 |
 | `max(48px, 3rem)` | `--touch-target-min`, `--control-height-lg`, `--control-height-choice`(`max(48px, 3.375rem)`) | 글자를 키우면 같이 커지고, 줄여도 손가락이 닿는 48px 아래로 내려가지 않는다 |
 | px | 테두리(1~2px), 그림자 오프셋(`--paper-shadow-*`, box-shadow), 밑줄·outline·포커스 링 두께와 offset, `--radius-*`, 막대·도트·강조선 두께(`--progress-bar-height`·`--progress-dot-height`·`--intro-emphasis-line-width`), 테이프·탭 띠 같은 장식 조각, `.sr-only` 1px, SVG 좌표 | 장식 치수다. 글자와 함께 두꺼워지면 큰 글자 화면에서 선과 그림자가 무거워지기만 한다 |
-| px | 그림 슬롯(`.illustration--*`, `.home-card__icon`, `.intonation-curve`), 광고 칸 | 그림은 글자 크기와 무관하다. 같이 키우면 큰 글자에서 글자 자리를 그림이 먼저 차지한다 |
+| px | 그림 슬롯(`.illustration--*`, `.home-card__icon`, `.intonation-curve`, `--hero-icon-size` 112px), 광고 칸 | 그림은 글자 크기와 무관하다. 같이 키우면 큰 글자에서 글자 자리를 그림이 먼저 차지한다 |
 | px | `@media` 브레이크포인트 | 미디어 쿼리 안의 rem은 루트 font-size가 아니라 브라우저 초기값을 따른다. 쓸 때 따로 판단하고 주석을 단다 |
 
-남긴 px에는 파일 주석으로 이유를 적는다(`tokens.css` 블록 주석, `components.css`·`learning.css` 머리 주석). 네이티브(android/, ios/)는 이미 sp/dp라 그대로 둔다. TSX 인라인 px는 2단계에서 같은 기준으로 옮긴다.
+남긴 px에는 파일 주석으로 이유를 적는다(`tokens.css` 블록 주석, `components.css`·`learning.css` 머리 주석). 네이티브(android/, ios/)는 이미 sp/dp라 그대로 둔다. TSX 인라인 px는 실측 0건이다(`src`의 px는 전부 주석 속 숫자).
 
 새 CSS를 쓸 때 판정 기준은 하나다 — **글자 크기가 바뀌면 이 값도 같이 커져야 하나?** 그렇다면 rem, 아니면 px와 이유 주석.
+
+**200% 점검 결과 (2단계).** 루트 글자 150·200%, 폭 412·360에서 화면 16종(인트로·홈·음성/단어 문항·결과·억양 코스·단어 세트·번역기·마이크 차단·동의·지역)을 재 보니 가로 스크롤은 홈(출석 7칸, 등급 카드)과 결과(점수 카드)에서, 넘침은 하단 탭 라벨·학습 행 메타에서 났다. 고친 패턴은 넷이다 — 나란히 선 행은 `flex-wrap` + 기준 0/`min-width: min(…, 100%)`로 내림(결과 점수 카드·행 메타), 기본 글자에서 줄이 바뀌면 안 되는 자리는 `@container (max-width: …rem)`로 큰 글자일 때만 내림·줄바꿈(홈 등급 카드, 탭 라벨), 고정 칸 수 격자는 `repeat(auto-fit, minmax(…rem, 1fr))`(출석), 칸보다 긴 낱말은 body 전역 `overflow-wrap: anywhere`. `word-break: keep-all`은 전역으로 걸지 않는다 — 기본 글자에서 이미 두 줄인 문단의 끊는 자리가 달라져 시안이 바뀐다(버튼 라벨에만 더했다). 기본 글자 배치는 수정 전후 34개 화면에서 요소 위치·크기가 전부 같다.
