@@ -38,6 +38,8 @@
   font-family: var(--font-body);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
+  /* 큰 글자에서 라벨이 두 줄이 될 때 낱말 가운데서 끊기지 않게 (KAN-313). 기본 글자의 라벨은 한 줄이다 */
+  word-break: keep-all;
   line-height: 1;
 
   cursor: pointer;
@@ -478,6 +480,8 @@
 
 /* 테스트 후 홈 (KAN-288, 시안 32) — 위에서부터 쌓고 왼쪽 정렬. 카드·버튼은 폭을 꽉 채운다 */
 .home-after {
+  /* 아래 등급 카드 @container (KAN-313)의 기준 칸. 폭은 .screen__body의 width·max-width가 정한다 */
+  container-type: inline-size;
   justify-content: flex-start;
   align-items: stretch;
   gap: var(--space-3);
@@ -526,6 +530,25 @@
   white-space: nowrap;
 }
 
+/*
+ * 글자를 키우면 (KAN-313) 그림 옆 칸이 등급명 한 낱말보다 좁아진다 — 글자 칸을 그림 아래 한 줄로 내리고
+ * 등급명도 줄바꿈을 허용한다. 18rem은 기본 글자의 360·412 폭(본문 19.5·20rem)에서 걸리지 않고 125%부터
+ * 걸리는 값이다(412 폭 125%가 17.6rem). 조건의 rem은 루트 글자 크기를 따른다
+ */
+@container (max-width: 18rem) {
+  .home-tier {
+    flex-wrap: wrap;
+  }
+
+  .home-tier__text {
+    flex-basis: 100%;
+  }
+
+  .home-tier__text h1 {
+    white-space: normal;
+  }
+}
+
 .home-tier__rank,
 .home-tier__date {
   margin: 0;
@@ -552,7 +575,8 @@
 
 .home-attendance__week {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* 7칸이 다 들어가면 repeat(7, 1fr)과 같고, 큰 글자(KAN-313)에서 동그라미가 안 들어가면 다음 줄로 넘긴다 */
+  grid-template-columns: repeat(auto-fit, minmax(2rem, 1fr));
   gap: var(--space-1);
   margin: var(--space-2) 0 0;
   padding: 0;
@@ -1109,7 +1133,9 @@
   text-align: left;
   /* 카드 안에서 남는 폭을 전부 갖는다 — 도넛은 자기 크기만 쓰고 막대가 넓을수록 잘 읽힌다 */
   flex: 1 1 0;
-  min-width: 0;
+  /* 「억양 78점」 한 줄이 들어가는 폭. 기본 글자에서는 도넛 옆 166~174px이라 걸리지 않는다 (KAN-313).
+     min()은 혼자 한 줄이 됐을 때 카드보다 넓어지지 않게 */
+  min-width: min(8rem, 100%);
 }
 
 /*
@@ -1119,6 +1145,8 @@
  */
 .result-card {
   display: flex;
+  /* 큰 글자 (KAN-313): 점수 줄이 .result-scores의 min-width보다 좁아지면 도넛 아래 줄로 내려간다 */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
 }
@@ -2256,6 +2284,8 @@ a.btn {
   justify-content: center;
   gap: var(--space-1);
   min-width: 0;
+  /* 아래 @container (KAN-313)의 기준 칸. 폭은 flex: 1이 정하므로 내용과 무관하다 */
+  container-type: inline-size;
   min-height: var(--touch-target-min);
   padding: 0;
   border: none;
@@ -2298,6 +2328,18 @@ a.btn {
   font-weight: var(--weight-normal);
   line-height: 1rem;
   white-space: nowrap;
+}
+
+/*
+ * 큰 글자 (KAN-313) — 칸이 좁아지면 라벨이 이웃 칸을 덮는 대신 줄을 바꾼다(칸은 .tab-bar__item의
+ * container-type). 4rem은 기본 글자의 360·412 폭(칸 4.3·4.95rem)에서 걸리지 않는 값이다 — 기본 글자에서
+ * 한 줄로 서는 시안 배치를 그대로 둔다. keep-all은 걸지 않는다 — 360 폭 200%에서 「번역기」 한 낱말이 칸보다 넓어
+ * 네 줄이 되고, 그러면 탭 바(193px)가 본문 아래 여백(192px)을 넘는다. 기본 끊기면 세 줄(161px)이다
+ */
+@container (max-width: 4rem) {
+  .tab-bar__label {
+    white-space: normal;
+  }
 }
 
 /*

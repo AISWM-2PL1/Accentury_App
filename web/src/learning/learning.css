@@ -105,6 +105,8 @@
 
 .word-set-row__meta {
   display: flex;
+  /* 큰 글자 (KAN-313): 「추천」 띠와 카드 수가 한 줄에 안 들어가면 다음 줄로 */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
