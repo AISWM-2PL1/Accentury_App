@@ -10,6 +10,7 @@
  *    곧 링크 높이인 문장 속 링크라 48 칸을 두지 않는 것이 시안이다(WCAG 2.5.8의 inline 예외). 그래서 셀렉터를 버튼·탭·
  *    버튼 모양 링크(`a.btn`)·보기(`label.choice`)로 좁힌다. 네이티브 체크박스는 이 화면들에 없다(동의 화면은 녹음 흐름 쪽).
  * 3. **넘침 없음** — `overflow: visible`인 글자 칸에서 내용이 칸보다 넓으면 이웃 칸을 덮는다.
+ * 4. **잘림 없음** — `overflow`가 visible이 아닌 글자 칸에서 내용이 칸보다 넓거나 높으면 글자가 잘려 안 보인다.
  *
  * 글자 크기는 화면이 그려진 뒤 `documentElement.style.fontSize`로 건다. `addInitScript`로 미리 걸면 React가 그리기 전에
  * 지워져 적용되지 않는다(2단계 실측). 겹침은 보지 않는다 — 큰 글자에서 sticky·fixed 하단 띠가 본문 위에 오는 것은 의도된
@@ -253,14 +254,38 @@ function measure() {
   const smallTargets = [...document.querySelectorAll('button, [role="tab"], a.btn, label.choice')]
     .filter(visible)
     .map((el) => ({ el, r: el.getBoundingClientRect() }))
-    // 소수점 반올림 여유 0.5px — max(48px, 3rem)이 47.99로 재지는 일이 있다
-    .filter(({ r }) => r.width < 47.5 || r.height < 47.5)
+    // 부동소수 오차만 허용한다(0.01px). 0.5px 여유는 47.5px 버튼도 통과시켰다(Codex 교차 검증 2026-11-09)
+    .filter(({ r }) => r.width < 47.99 || r.height < 47.99)
     .map(({ el, r }) => `${describe(el)} ${Math.round(r.width)}×${Math.round(r.height)}`)
   const overflowing = [...document.body.querySelectorAll('*')]
     .filter((el) => !(el instanceof SVGElement) && visible(el) && el.textContent?.trim())
     .filter((el) => el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX === 'visible')
     .map((el) => `${describe(el)} sw=${el.scrollWidth} cw=${el.clientWidth}`)
-  return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth, smallTargets, overflowing }
+  /*
+   * 잘린 글자 — overflow가 visible이 아닌 칸은 넘친 글자를 덮지 않고 잘라 버려 위 검사에 안 잡힌다. 직접 글자를 가진
+   * 요소만 본다(그림·띠를 감싼 상자의 장식 잘림은 글자가 아니다). 빼는 것:
+   * - `text-overflow: ellipsis`·`-webkit-line-clamp` — 말줄임으로 자르겠다고 정한 칸이다
+   * - textarea — 입력이 길면 안에서 스크롤해 보는 칸이다(번역기). 스크롤로 내용을 보는 영역은 잘림이 아니다
+   * - sticky·fixed 하단 띠 안 — 큰 글자에서 하단 붙박이를 어떻게 둘지는 팀 결정 대기다(code wiki ux-ui.md KAN-313 절)
+   */
+  const hasOwnText = (el: Element) => [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
+  const inPinned = (el: Element) => {
+    for (let a: Element | null = el; a; a = a.parentElement) {
+      const pos = getComputedStyle(a).position
+      if (pos === 'fixed' || pos === 'sticky') return true
+    }
+    return false
+  }
+  const clipped = [...document.body.querySelectorAll('*')]
+    .filter((el) => !(el instanceof SVGElement) && !(el instanceof HTMLTextAreaElement) && visible(el) && hasOwnText(el))
+    .filter((el) => {
+      const cs = getComputedStyle(el)
+      if (cs.overflowX === 'visible' && cs.overflowY === 'visible') return false
+      if (cs.textOverflow === 'ellipsis' || (cs.webkitLineClamp && cs.webkitLineClamp !== 'none')) return false
+      return (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) && !inPinned(el)
+    })
+    .map((el) => `${describe(el)} sw=${el.scrollWidth} cw=${el.clientWidth} sh=${el.scrollHeight} ch=${el.clientHeight}`)
+  return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth, smallTargets, overflowing, clipped }
 }
 
 for (const viewport of VIEWPORTS) {
@@ -269,7 +294,7 @@ for (const viewport of VIEWPORTS) {
 
     for (const [screen, enter] of Object.entries(SCREENS)) {
       for (const scale of SCALES) {
-        test(`${screen} ${scale}% - 가로 스크롤·48 미만 터치·글자 넘침 없음`, async ({ page }) => {
+        test(`${screen} ${scale}% - 가로 스크롤·48 미만 터치·글자 넘침·잘림 없음`, async ({ page }) => {
           await stubServer(page)
           await enter(page)
           await page.evaluate((s) => {
@@ -283,8 +308,38 @@ for (const viewport of VIEWPORTS) {
           expect(m.scrollWidth, '가로 스크롤').toBeLessThanOrEqual(m.clientWidth)
           expect(m.smallTargets, '48 미만 터치 대상').toEqual([])
           expect(m.overflowing, '칸 밖으로 넘친 글자').toEqual([])
+          expect(m.clipped, '칸에 잘린 글자(가로·세로)').toEqual([])
         })
       }
     }
   })
 }
+
+/*
+ * 320 폭 기본 글자 배치 (Codex 교차 검증 2026-11-09). 큰 글자용 재배치가 칸 폭만 보고 켜지면 320 폭에서는 100%에서도
+ * 걸린다 — 홈 등급 카드의 글자가 그림 아래로 내려가고(카드 200→314px) 탭 라벨이 줄을 바꿨다(탭 바 65→77px).
+ * 기준 스냅샷 대신 두 가지만 단정한다: 등급 글자가 그림과 같은 행, 탭 라벨이 한 줄.
+ */
+test.describe('폭 320 기본 글자', () => {
+  test.use({ viewport: { width: 320, height: 915 } })
+
+  test('홈 등급 카드는 그림과 글자가 같은 행이고 탭 라벨은 한 줄이다', async ({ page }) => {
+    await stubServer(page)
+    await SCREENS['홈'](page)
+    await page.evaluate(() => document.fonts.ready)
+
+    const art = await page.locator('.home-tier .illustration--home').boundingBox()
+    const text = await page.locator('.home-tier__text').boundingBox()
+    expect(art && text, '등급 카드 그림·글자').toBeTruthy()
+    // 같은 행: 글자 칸이 그림 오른쪽에서 시작하고 세로로 그림과 겹친다
+    expect(text!.x).toBeGreaterThanOrEqual(art!.x + art!.width)
+    expect(text!.y).toBeLessThan(art!.y + art!.height)
+
+    const labels = page.locator('.tab-bar__label')
+    expect(await labels.count()).toBeGreaterThan(0)
+    for (const box of await labels.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height))) {
+      // 한 줄 = line-height 1rem(16px)
+      expect(box).toBeLessThanOrEqual(16.01)
+    }
+  })
+})
