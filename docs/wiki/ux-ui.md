@@ -437,3 +437,19 @@ Jetpack Compose(상태관리·테마·Navigation-Compose·Canvas·애니메이�
 - prod Release 승격 전까지 prod 앱에서는 동작을 확인할 수 없다(KAN-270 익명 빌드).
 
 관련: [architecture.md](architecture.md), [audio-capture.md](audio-capture.md), [mvp-spec.md](mvp-spec.md)
+
+## 크기 단위 규칙 (rem/px 구분, KAN-313)
+
+OS 글자 크기를 키우면 WebView 글자도 따라 커져야 한다(WCAG 1.4.4, 200%까지). 그래서 웹 CSS의 크기는 rem을 기본으로 쓰고, 기준은 16px = 1rem이다. 환산은 ÷16으로 정확히 하고 소수는 4자리까지 적는다(15px → 0.9375rem, 13px → 0.8125rem).
+
+| 단위 | 대상 | 이유 |
+|---|---|---|
+| rem | 글자 크기 `--text-*`, 간격 `--space-*`, `--app-bar-height`, `--prompt-card-min-height`(9.5rem = 152px)·`--prompt-card-padding`, `--content-max-width`, `--hero-icon-size`, `--curve-lane-height`, 행간 px 값, 글자를 품은 칸의 폭·높이·padding·gap·min-height(번호 상자, 출석 동그라미, 카운트다운 다이얼 등) | 글자가 커질 때 담는 칸도 같이 커져야 넘치거나 겹치지 않는다 |
+| `max(48px, 3rem)` | `--touch-target-min`, `--control-height-lg`, `--control-height-choice`(`max(48px, 3.375rem)`) | 글자를 키우면 같이 커지고, 줄여도 손가락이 닿는 48px 아래로 내려가지 않는다 |
+| px | 테두리(1~2px), 그림자 오프셋(`--paper-shadow-*`, box-shadow), 밑줄·outline·포커스 링 두께와 offset, `--radius-*`, 막대·도트·강조선 두께(`--progress-bar-height`·`--progress-dot-height`·`--intro-emphasis-line-width`), 테이프·탭 띠 같은 장식 조각, `.sr-only` 1px, SVG 좌표 | 장식 치수다. 글자와 함께 두꺼워지면 큰 글자 화면에서 선과 그림자가 무거워지기만 한다 |
+| px | 그림 슬롯(`.illustration--*`, `.home-card__icon`, `.intonation-curve`), 광고 칸 | 그림은 글자 크기와 무관하다. 같이 키우면 큰 글자에서 글자 자리를 그림이 먼저 차지한다 |
+| px | `@media` 브레이크포인트 | 미디어 쿼리 안의 rem은 루트 font-size가 아니라 브라우저 초기값을 따른다. 쓸 때 따로 판단하고 주석을 단다 |
+
+남긴 px에는 파일 주석으로 이유를 적는다(`tokens.css` 블록 주석, `components.css`·`learning.css` 머리 주석). 네이티브(android/, ios/)는 이미 sp/dp라 그대로 둔다. TSX 인라인 px는 2단계에서 같은 기준으로 옮긴다.
+
+새 CSS를 쓸 때 판정 기준은 하나다 — **글자 크기가 바뀌면 이 값도 같이 커져야 하나?** 그렇다면 rem, 아니면 px와 이유 주석.
