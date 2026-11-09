@@ -537,19 +537,26 @@
 /*
  * 글자를 키우면 (KAN-313) 그림 옆 칸이 등급명 한 낱말보다 좁아진다 — 글자 칸을 그림 아래 한 줄로 내리고
  * 등급명도 줄바꿈을 허용한다. 18rem은 기본 글자의 360·412 폭(본문 19.5·20rem)에서 걸리지 않고 125%부터
- * 걸리는 값이다(412 폭 125%가 17.6rem). 조건의 rem은 루트 글자 크기를 따른다
+ * 걸리는 값이다(412 폭 125%가 17.6rem). 조건의 rem은 루트 글자 크기를 따른다.
+ *
+ * 바깥 `page` 조건은 큰 글자 표식이다(tokens.css의 큰 글자 keep-all과 같은 19.9rem). 칸 폭만 보면 320 폭 기본 글자에서도
+ * 본문(17rem)이 18rem보다 좁아 걸려 카드가 200→314px로 바뀌었다(Codex 교차 검증 2026-11-09). 320 폭 100%의 page는
+ * 20rem이라 꺼진다. @container 안의 @container는 조건부 규칙 중첩(CSS Conditional 3)이라 컨테이너 쿼리 자체와 같은
+ * Chromium 105·Safari 16부터 동작하고, 안쪽 조건은 여전히 가장 가까운 컨테이너(.home-after)를 잰다
  */
-@container (max-width: 18rem) {
-  .home-tier {
-    flex-wrap: wrap;
-  }
+@container page (max-width: 19.9rem) {
+  @container (max-width: 18rem) {
+    .home-tier {
+      flex-wrap: wrap;
+    }
 
-  .home-tier__text {
-    flex-basis: 100%;
-  }
+    .home-tier__text {
+      flex-basis: 100%;
+    }
 
-  .home-tier__text h1 {
-    white-space: normal;
+    .home-tier__text h1 {
+      white-space: normal;
+    }
   }
 }
 
@@ -1137,9 +1144,19 @@
   text-align: left;
   /* 카드 안에서 남는 폭을 전부 갖는다 — 도넛은 자기 크기만 쓰고 막대가 넓을수록 잘 읽힌다 */
   flex: 1 1 0;
-  /* 「억양 78점」 한 줄이 들어가는 폭. 기본 글자에서는 도넛 옆 166~174px이라 걸리지 않는다 (KAN-313).
-     min()은 혼자 한 줄이 됐을 때 카드보다 넓어지지 않게 */
-  min-width: min(8rem, 100%);
+  min-width: 0;
+}
+
+/*
+ * 큰 글자 (KAN-313): 「억양 78점」 한 줄이 들어가는 폭. 칸이 이보다 좁아지면 아래 .result-card의 flex-wrap으로
+ * 도넛 아래 줄로 내려간다. min()은 혼자 한 줄이 됐을 때 카드보다 넓어지지 않게. 큰 글자 조건(page 19.9rem,
+ * tokens.css)으로 한정한다 — 320 폭 기본 글자에서는 도넛 옆이 8rem보다 좁아 카드가 130→240px로 바뀌었다
+ * (Codex 교차 검증 2026-11-09)
+ */
+@container page (max-width: 19.9rem) {
+  .result-scores {
+    min-width: min(8rem, 100%);
+  }
 }
 
 /*
@@ -2344,12 +2361,17 @@ a.btn {
  * 글자는 칸 폭의 32%를 넘지 않는다 — 세 글자 낱말(「사투리」「번역기」)이 칸 안에 들어가는 크기다. 360 폭 200%에서
  * 칸(66px)이 「번역기」(72px)보다 좁아 낱말이 쪼개지고 라벨이 네 줄, 탭 바가 본문 아래 여백(192px)을 넘었다.
  * 여백을 탭 바 높이에 맞춰 키우는 대신 글자를 24→21px로 줄여 두 줄에 묶는다. 412 폭 200%(칸 76px)와
- * 기본 글자(칸 79px, 상한 25px > 12px)에서는 줄지 않는다
+ * 기본 글자(칸 79px, 상한 25px > 12px)에서는 줄지 않는다.
+ *
+ * 바깥 `page` 조건은 큰 글자 표식이다 — 320 폭 기본 글자에서는 칸(60.8px)이 4rem보다 좁아 라벨 줄바꿈 허용만으로
+ * 탭 바가 65→77px로 바뀌었다(Codex 교차 검증 2026-11-09). 중첩 근거는 위 등급 카드 @container 주석과 같다
  */
-@container (max-width: 4rem) {
-  .tab-bar__label {
-    white-space: normal;
-    font-size: min(var(--text-tab-label), 32cqi);
+@container page (max-width: 19.9rem) {
+  @container (max-width: 4rem) {
+    .tab-bar__label {
+      white-space: normal;
+      font-size: min(var(--text-tab-label), 32cqi);
+    }
   }
 }
 
