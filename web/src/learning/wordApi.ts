@@ -26,7 +26,7 @@
  * 토큰·401 갱신 규칙(§11)이 학습 API 전체에 하나여야 해서다.
  */
 
-import { getAccessToken, refreshAccessToken, waitForAccessToken } from '../bridge/bridge'
+import { getAccessToken, readAccountKind, refreshAccessToken, waitForAccessToken } from '../bridge/bridge'
 import { readErrorEnvelope } from '../net/errorEnvelope'
 import { isRetryableStatus } from '../net/retryableStatus'
 import type { FetchLike } from '../progress/fetchTestDefinition'
@@ -137,6 +137,11 @@ export interface WordAttemptResult {
 export const CLIENT_NOT_SIGNED_IN = 'CLIENT_NOT_SIGNED_IN'
 /** 토큰 갱신 실패 또는 갱신 뒤에도 401 */
 export const UNAUTHENTICATED = 'UNAUTHENTICATED'
+/**
+ * 게스트 계정이 부를 수 없는 API (서버 KAN-329, 403). 서버 code와 같은 문자열이라 [request]가 미리 끊은 것과 서버가 막은
+ * 것이 화면에서 같은 로그인 안내(`GuestLoginPrompt`)로 간다 (KAN-330)
+ */
+export const AUTH_GUEST_NOT_ALLOWED = 'AUTH_GUEST_NOT_ALLOWED'
 
 /** 봉투의 code·retryable을 실은 실패. code는 봉투를 못 읽었으면 null이다 (`VocabSubmitError`와 같은 구조) */
 export class WordLearningError extends Error {
@@ -238,7 +243,8 @@ export async function request(
   apiBase: string,
   path: string,
   method: 'GET' | 'POST',
-  options: { json?: unknown; idempotencyKey?: string },
+  /** allowGuest: 게스트도 부를 수 있는 API다 — 서버 `@AuthenticatedUser(allowGuest = true)`와 맞춘다(번역·신고, KAN-330) */
+  options: { json?: unknown; idempotencyKey?: string; allowGuest?: boolean },
   deps: WordApiDeps,
 ): Promise<unknown> {
   const fetchImpl = deps.fetchImpl ?? browserFetch
@@ -252,6 +258,10 @@ export async function request(
   const token = await firstToken()
   if (token === null) {
     throw new WordLearningError('로그인하면 단어 학습을 할 수 있어요', CLIENT_NOT_SIGNED_IN, false)
+  }
+  // 게스트는 서버가 403으로 막을 요청을 보내지 않는다 (KAN-330) — 학습·홈·출석 API가 전부 이 함수를 지나므로 한 곳에서 끊는다
+  if (!options.allowGuest && readAccountKind() === 'guest') {
+    throw new WordLearningError('로그인이 필요한 기능이에요', AUTH_GUEST_NOT_ALLOWED, false)
   }
 
   const url = `${apiBase.replace(/\/+$/, '')}${path}`

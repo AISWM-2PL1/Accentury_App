@@ -34,6 +34,7 @@ import {
   TRANSLATOR_CONSENT_DETAIL_TAIL,
   TRANSLATOR_CONSENT_GOOGLE_NOTE,
   TRANSLATOR_CONSENT_LEAD,
+  TRANSLATOR_CONSENT_NOT_SENT,
   TRANSLATOR_CONSENT_TITLE,
 } from './translatorConsentText'
 
@@ -55,6 +56,7 @@ export function TranslatorConsentSheet({ onAgree, onCancel }: TranslatorConsentS
         </h2>
         <div className="type-body-sm ad-consent-body">
           <p>{TRANSLATOR_CONSENT_LEAD}</p>
+          <p>{TRANSLATOR_CONSENT_NOT_SENT}</p>
           <p className="ad-consent-muted">{TRANSLATOR_CONSENT_GOOGLE_NOTE}</p>
           <p className="ad-consent-muted">
             {TRANSLATOR_CONSENT_DETAIL_LEAD}

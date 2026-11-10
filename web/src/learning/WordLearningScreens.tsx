@@ -9,7 +9,8 @@ import { useState, type ReactNode } from 'react'
 import { Button, ChoiceList, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckIcon, CrossIcon } from '../ui/icons'
 import { useChoiceIdempotencyKey } from '../net/useChoiceIdempotencyKey'
-import { CLIENT_NOT_SIGNED_IN, type WordAnswerResult, type WordApiDeps, type WordAttemptResult, type WordItem, type WordSet, type WordSetSummary } from './wordApi'
+import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordAnswerResult, type WordApiDeps, type WordAttemptResult, type WordItem, type WordSet, type WordSetSummary } from './wordApi'
+import { GuestLoginPrompt } from './GuestLoginPrompt'
 import { errorExit, useWordLearning, type WordLearningView } from './useWordLearning'
 
 // ── 라우트 ──────────────────────────────────────────────────────────────
@@ -103,7 +104,12 @@ function WordErrorScreen({
     )
   return (
     <main className="screen">
-      <StatusBlock tone="error" message={message} action={action} />
+      {/* 게스트는 오류가 아니라 로그인 안내다 (KAN-330) — 미리 끊었든 서버 403이든 같은 code */}
+      {view.error.code === AUTH_GUEST_NOT_ALLOWED ? (
+        <GuestLoginPrompt />
+      ) : (
+        <StatusBlock tone="error" message={message} action={action} />
+      )}
     </main>
   )
 }

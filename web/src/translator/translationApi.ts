@@ -33,7 +33,7 @@ export async function translate(
   direction: TranslationDirection,
   deps: WordApiDeps = {},
 ): Promise<string> {
-  const body = await request(apiBase, '/v0/translations', 'POST', { json: { text, direction } }, deps)
+  const body = await request(apiBase, '/v0/translations', 'POST', { json: { text, direction }, allowGuest: true }, deps)
   const field = direction === 'toDialect' ? 'dialect' : 'standard'
   if (direction === 'toStandard' && !hasFields(body, { standard: 'string' }) && hasFields(body, { dialect: 'string' })) {
     throw new WordLearningError(DIRECTION_UNSUPPORTED_MESSAGE, TRANSLATION_DIRECTION_UNSUPPORTED, false)
@@ -44,4 +44,20 @@ export async function translate(
     throw new WordLearningError('번역 결과를 해석할 수 없어요', null, false)
   }
   return body[field] as string
+}
+
+/**
+ * 번역 결과 신고 (KAN-331·KAN-344, 서버 KAN-343 `POST /v0/translations/reports`, 명세서 §3.22). 번역 결과는 외부 LLM이
+ * 만들어 부적절한 문장이 나올 수 있다 — 본 사람이 알릴 길이 있어야 한다(App Store 지침 1.2). 서버에는 신고가 가리킬 번역
+ * 기록이 없어 화면이 그 요청·응답 값을 그대로 다시 싣는다(text 1~100자, result 1~300자). 게스트도 신고할 수 있다(서버
+ * `allowGuest`). 201 본문 `{reportId}`. 오류는 [translate]와 같은 [WordLearningError]다(400·401·429).
+ */
+export async function reportTranslation(
+  apiBase: string,
+  report: { direction: TranslationDirection; text: string; result: string },
+  deps: WordApiDeps = {},
+): Promise<string> {
+  const body = await request(apiBase, '/v0/translations/reports', 'POST', { json: report, allowGuest: true }, deps)
+  if (!hasFields(body, { reportId: 'string' })) throw new WordLearningError('신고 결과를 해석할 수 없어요', null, false)
+  return body.reportId as string
 }
