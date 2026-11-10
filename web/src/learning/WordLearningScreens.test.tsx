@@ -543,8 +543,12 @@ describe('게스트 로그인 안내 (KAN-330)', () => {
     expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
     expect(server.calls).toHaveLength(0)
     expect(screen.getByRole('navigation', { name: '탭 바' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '로그인하기' }))
+    const login = screen.getByRole('button', { name: '로그인하기' })
+    fireEvent.click(login)
+    // 연타해도 한 번만 보낸다(KAN-330 리뷰 P1) — 늦게 끝난 두 번째 이탈이 그사이 들어온 회원 세션을 지우던 경합.
+    fireEvent.click(login)
     expect(requestLogin).toHaveBeenCalledTimes(1)
+    expect(login).toBeDisabled()
     expect(openSettings).not.toHaveBeenCalled()
   })
 

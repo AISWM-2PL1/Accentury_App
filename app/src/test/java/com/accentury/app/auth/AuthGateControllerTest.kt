@@ -1,7 +1,11 @@
 package com.accentury.app.auth
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -1001,6 +1005,35 @@ class AuthGateControllerTest {
     }
 
     @Test
+    fun `게스트 로그인 요청 연타는 한 번만 돌고 그사이 끝난 회원 로그인을 늦은 정리가 지우지 않는다`() = runTest {
+        // KAN-330 리뷰 P1. 앱 스코프를 따로 둬 이탈 정리가 끝나기를 join으로 기다린다 — requestLogin은 Job을 돌려주지 않는다.
+        val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val store = HeldReadTokenStore()
+        val clients = AuthClients(server.url("/").toString(), store)
+        val gate = AuthGateController(clients.api, store, clients.refresher, appScope, 10.seconds)
+        server.enqueue(MockResponse().setBody(guestIssued.replace("_1", "_g")))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        server.enqueue(MockResponse().setResponseCode(204))
+        gate.startGuest(privacyPolicyVersion = "v1")
+
+        // 첫 이탈이 게스트 쌍을 읽은 뒤(서버 로그아웃 전) 붙잡는다. 그사이 두 번째 호출과 회원 로그인을 끝낸다.
+        store.holdNextRead()
+        gate.requestLogin()
+        store.readHeld.await()
+        gate.requestLogin()
+        gate.login(google, privacyPolicyVersion = "v1")
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+        store.release.complete(Unit)
+        appScope.coroutineContext[Job]!!.children.toList().joinAll()
+
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+        val paths = List(server.requestCount) { server.takeRequest().path }
+        assertEquals(listOf("/v0/auth/guest", "/v0/auth/login", "/v0/users/me", "/v0/auth/logout"), paths)
+    }
+
+    @Test
     fun `게스트가 403 AUTH_GUEST_NOT_ALLOWED를 받아도 토큰과 게스트 상태가 그대로다`() = runTest {
         val store = InMemoryTokenStore()
         val clients = AuthClients(server.url("/").toString(), store)
@@ -1102,4 +1135,34 @@ private class HeldSaveTokenStore(initial: AuthTokens?) : TokenStore {
     }
 
     override suspend fun clear() = mutex.withLock { inner.clear() }
+}
+
+/** 다음 read 한 번을 값을 읽은 뒤 [release]까지 붙잡는 가짜 (KAN-330 리뷰 P1) — 게스트 이탈이 서버 로그아웃 전에 멈춘 자리. */
+private class HeldReadTokenStore : TokenStore {
+    private val inner = InMemoryTokenStore()
+
+    @Volatile
+    private var holding = false
+    val readHeld = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+
+    val tokens: AuthTokens? get() = inner.tokens
+
+    fun holdNextRead() {
+        holding = true
+    }
+
+    override suspend fun read(): AuthTokens? {
+        val tokens = inner.read()
+        if (holding) {
+            holding = false
+            readHeld.complete(Unit)
+            release.await()
+        }
+        return tokens
+    }
+
+    override suspend fun save(tokens: AuthTokens): Boolean = inner.save(tokens)
+
+    override suspend fun clear() = inner.clear()
 }

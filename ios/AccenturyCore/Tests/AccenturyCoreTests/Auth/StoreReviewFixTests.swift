@@ -125,6 +125,32 @@ final class StoreReviewFixTests: XCTestCase {
         XCTAssertEqual(.signedOut(nil), gate.state)
     }
 
+    func test게스트_떠나기_연타는_한_번만_돌고_그사이_끝난_회원_로그인을_늦은_정리가_지우지_않는다() async {
+        // KAN-330 리뷰 P1. 첫 이탈이 게스트 쌍을 읽은 뒤(서버 로그아웃 전) 붙잡고, 그사이 두 번째 호출과 회원 로그인을 끝낸다.
+        let store = HeldReadTokenStore()
+        let (gate, _) = controller(store)
+        let member = #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}"#
+        let login = #"{"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"isNewUser":false,"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}"#
+        MockURLProtocol.respondInOrder([(200, guestResponse), (200, login), (200, member), (204, "")])
+        await gate.startGuest(privacyPolicyVersion: "2026-10-20")
+
+        store.holdNextRead()
+        let first = Task { await gate.leaveGuest() }
+        await store.waitUntilReadHeld()
+        await gate.leaveGuest()
+        await gate.login(LoginCredential(provider: .GOOGLE, idToken: "fake:g"), privacyPolicyVersion: "v1")
+        XCTAssertEqual("member", gate.state.accountKind)
+        store.releaseRead()
+        await first.value
+
+        XCTAssertEqual(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        XCTAssertEqual("member", gate.state.accountKind)
+        XCTAssertEqual(
+            ["/v0/auth/guest", "/v0/auth/login", "/v0/users/me", "/v0/auth/logout"],
+            MockURLProtocol.requests().map { $0.url?.path }
+        )
+    }
+
     func test회원은_requestLogin으로_로그아웃되지_않는다() async {
         let store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
         let (gate, _) = controller(store)
@@ -253,4 +279,44 @@ final class AdReportMailTests: XCTestCase {
         XCTAssertEqual("[광고 신고] Accentury", items["subject"])
         XCTAssertTrue(items["body"]?.hasSuffix("앱 버전: 1.0 (16)") == true)
     }
+}
+
+/// 다음 read 한 번을 값을 읽은 뒤 풀 때까지 붙잡는 가짜 (KAN-330 리뷰 P1) — 게스트 이탈이 서버 로그아웃 전에 멈춘 자리.
+private final class HeldReadTokenStore: TokenStore, @unchecked Sendable {
+    private let inner = InMemoryTokenStore()
+    private let lock = NSLock()
+    private var holding = false
+    private let (entered, enteredSignal) = AsyncStream<Void>.makeStream()
+    private let (release, releaseSignal) = AsyncStream<Void>.makeStream()
+
+    var tokens: AuthTokens? { inner.tokens }
+
+    func holdNextRead() {
+        lock.lock()
+        holding = true
+        lock.unlock()
+    }
+
+    func waitUntilReadHeld() async {
+        for await _ in entered { break }
+    }
+
+    func releaseRead() { releaseSignal.yield() }
+
+    func read() async -> AuthTokens? {
+        let tokens = await inner.read()
+        lock.lock()
+        let held = holding
+        holding = false
+        lock.unlock()
+        if held {
+            enteredSignal.yield()
+            for await _ in release { break }
+        }
+        return tokens
+    }
+
+    func save(_ tokens: AuthTokens) async -> Bool { await inner.save(tokens) }
+
+    func clear() async { await inner.clear() }
 }
