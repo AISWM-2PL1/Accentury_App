@@ -153,7 +153,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 
 행간은 대사·등급이 `1.15`, 나머지가 `1.5`.
 
-웹 열은 `tokens.css`의 값이다. 웹 크기는 rem(16px = 1rem)이라 OS 글자 크기를 따르고, rem과 px를 가르는 규칙은 [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)이 정본이다 (KAN-313).
+웹 열은 `tokens.css`의 값이다. 웹 크기는 rem(16px = 1rem)이라 루트 글자 크기를 따르고, rem과 px를 가르는 규칙은 [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)이 정본이다 (KAN-313).
 
 `timer`만 자간을 벌린다(`0.04em`). 자리가 고정된 숫자라 그 값이 없으면 `00:04`의 두 자리가
 서로 붙어 보인다. 네이티브에서는 M3에 타이머 슬롯이 없어 남아 있던 `titleSmall` **슬롯**이
@@ -183,6 +183,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `text-tab-label` | 12dp | `0.75rem` | 하단 탭 바 라벨·선택지 번호 상자. 최소 글자 11 규칙 위의 값 (KAN-288 디자인 검수 HIG-A) |
 | `prompt-card-min-height` | 152dp | `9.5rem` | 대사 카드 (문항 길이가 달라도 카드 크기 고정) |
 | `screen-padding-top` | 64dp (= 앱바 56 + 8) | 앱바 `3.5rem` + `0.5rem` + 안전 영역 | 화면 위쪽 여백. 좌우 24·아래 32와 다른 값이고, 첫 요소를 내려 그림·제목이 세로 가운데에 앉게 한다. **웹 4화면·네이티브 녹음 화면 반영 완료** (`Dimens.screenPaddingTop`). 디자인 3(KAN-288)부터 웹은 그 자리를 고정 워드마크 앱바(`--app-bar-height` 56, `ui/AppBar`)가 채우고, 브라우저에서 24로 내리던 분기(§7 KAN-199)는 걷었다 — 앱바 아래로 본문이 들어가면 안 돼서다 |
+| `screen-padding-x` | 24dp | `24px` | 화면 좌우 여백(`.screen`·`.item-screen`·앱바·하단 시트 패널). 값은 `space-6`과 같고 웹만 px로 고정한다 — 200%에서 48px이 되면 360 폭 본문이 312→264px로 준다 (KAN-313, PR #68 리뷰 2026-11-10) |
 | `content-max-width` | 320dp | `20rem` | 본문 최대 폭. 넓은 화면에서 한 줄이 길어져 읽기 힘들어지는 것을 막는다 |
 | `opacity-disabled` | 0.6 | `0.6` | 비활성·제출 중 요소 |
 | `prompt-card-padding` | 24dp | `1.5rem` | 대사·질문 카드 안쪽 여백 |
