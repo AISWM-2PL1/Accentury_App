@@ -1044,7 +1044,7 @@ In the app: the 설정 (Settings) tab in the bottom tab bar > 계정 (Account) >
 [부적절한 결과 신고], 탈퇴 경로 「오른쪽 위 톱니」 → 하단 「설정」 탭(KAN-252 탭 바 이후 탭 화면에는 톱니가 없다). 영어 블록은
 **3660자**(ASC 4000자 제한, 끝 줄바꿈 제외)다 — [If microphone permission is denied]를 [Microphone]에 합치고, 첫 줄의 「After sign-in」,
 [Sign-in]의 「(all required)」와 거절 생년월일 문장, 번역기 문단의 「persistent」·「or if the user cancels」·재설치 문장, 방침 절 이름 앞
-「the section」을 뺐다. 마이크·ATT 문장은 빌드 16 네이티브(KAN-330 2·3단계)로 참이 됐다 — 마이크 사전 화면 버튼 「계속」(Android `MainActivity.kt` `PermissionGate`, iOS `PermissionGateView.swift`), ATT 판정은 §5. 게스트 시작 버튼 라벨이 Android 「둘러보기」·iOS 「둘러보기 시작」으로 달라 두 메모는 버튼 이름 대신 「동의」(agree)라고만 적는다.
+「the section」을 뺐다. 마이크·ATT 문장은 빌드 16 네이티브(KAN-330 2·3단계)로 참이 됐다 — 마이크 사전 화면 버튼 「계속」(Android `MainActivity.kt` `PermissionGate`, iOS `PermissionGateView.swift`), ATT 판정은 §5. 두 메모는 게스트 시작 버튼 이름 대신 「동의」(agree)라고만 적는다 — 라벨은 KAN-330 5단계부터 두 플랫폼 모두 「둘러보기 시작」이다(social-login.md §1).
 
 ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때 5513자 판을 이 압축판(3840자)으로 줄였다. 문단 주제는 유지, 아래 문장은 뺐다. 한국어 원안은 압축하지 않았다. 데모 계정 사실은 영어와 맞췄다(PR #65 리뷰).
 
