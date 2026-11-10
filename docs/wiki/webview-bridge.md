@@ -58,7 +58,7 @@
 | `startIntonationRecording(payloadJson)` | KAN-253 | 억양 학습 카드 진입(코스 열기·[다음 카드] 직후 웹이 자동 1회)과 일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면(A-3). payload = `{cardId, prompt, standard, maxDurationMs, guideF0, itemNumber, totalItems}`. 업로드까지 네이티브가 하고 성공하면 `onIntonationRecorded`로 회신 (§12) | 래퍼 false — 자동 호출은 조용히 넘어가고 A-2가 그대로 보인다. 웹은 `canStartIntonationRecording()`이 false면 [다시 말해 보기]를 비활성으로 그리고 「앱에서 녹음할 수 있어요」 — 웹 녹음기 폴백 없음 |
 | `retryUpload(attemptId)` | KAN-288 | 음성 문항 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 재전송. 인자는 `onUploadFailed`로 받은 attemptId 그대로. **회신 없음** — 성공하면 `onItemResult`, 또 실패하면 `onUploadFailed` (§14). Android: `AccenturyBridge.retryUpload` → `uploadViewModel.retry`. iOS: `BridgeUserScript`의 `retryUpload` → `BridgeDispatcher` `case "retryUpload"` → `TestFlowView`의 `uploads.retry` | 래퍼 false. 웹은 `canRetryUpload()`가 false면 `onUploadFailed` 수신 지점도 걸지 않고 「전송 실패」 줄을 그리지 않는다 — 예전 대기 화면 그대로 |
 | `openSettings()` | KAN-252 | 하단 탭 바의 [설정] → 네이티브의 기존 설정 화면을 띄운다. **인자도 반환도 회신도 없다** (§13) | 래퍼 false. 웹은 `canOpenSettings()`가 false면 [설정] 탭을 그리지 않는다 — 구버전 앱은 WebView 위 톱니가 그대로 남아 있다 |
-| `onLocationChanged(url)` | KAN-290 | SPA 화면 전환 직후 새 `location.href` 전체를 알린다. 문서 로드가 없으니 네이티브는 이 통지로 지금 화면을 안다. **회신 없음**. 하위호환 추가라 계약 버전 그대로(2) | 메서드가 없는 앱(빌드 11 이하)이면 웹이 SPA 전환을 하지 않고 예전처럼 문서를 옮긴다(`location.href`·`replace`) |
+| `onLocationChanged(url)` | KAN-290 | SPA 화면 전환 직후 새 `location.href` 전체를 알린다. 문서 로드가 없으니 네이티브는 이 통지로 지금 화면을 안다. **회신 없음**. 하위호환 추가라 계약 버전 그대로(2). 인자는 allowlist 안 절대 URL이어야 한다 — 네이티브가 §5 판정으로 거르고, 밖이면 버리고 `bridge_parse_failed`로 남긴다(웹에 회신은 없다)(KAN-324) | 메서드가 없는 앱(빌드 11 이하)이면 웹이 SPA 전환을 하지 않고 예전처럼 문서를 옮긴다(`location.href`·`replace`) |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
 
@@ -205,9 +205,9 @@ https://accentury.app/privacy.html
   이벤트로 남긴다 — allowlist를 통과한 페이지만 거기 닿으므로, 그 보고는 곧 **우리 웹과 우리
   앱이 계약을 다르게 알고 있다**는 뜻이다
 - **앱이 부른 `loadUrl`은 `shouldOverrideUrlLoading`을 거치지 않는다.** 그래서 SPA 이동 폴백(`navigateInApp`)이
-  목적지를 `isAllowedWebUrl`로 먼저 보고, 밖이면 이동 없이 비치명 이벤트만 남긴다(KAN-324, 보안 리포트 2026-11-04 #10).
+  목적지를 `isAllowedWebUrl`로 먼저 보고, 밖이면 이동 없이 `in_app_navigation_rejected` 비치명 이벤트만 남긴다(KAN-324, 보안 리포트 2026-11-04 #10).
   `webOrigin`이 http(s) 밖 스킴을 거절하므로 `javascript:` 목적지도 같이 막힌다. 목적지(뒤로가기·「맞춤형 광고 설정」·
-  억양 녹음 ✕)는 웹이 알려 온 URL로 만들기 때문에, `onLocationChanged` 인자도 같은 판정을 지난 값만 현재 URL이 된다.
+  억양 녹음 ✕)는 웹이 알려 온 URL로 만들기 때문에, `onLocationChanged` 인자도 같은 판정을 지난 값만 현재 URL이 된다. 그 인자 거절은 `bridge_parse_failed`로 남긴다.
   iOS는 앱이 부른 `load(URLRequest)`도 `decidePolicyFor`를 지나 목적지 가드가 이미 있고, `onLocationChanged` 인자 판정만
   `BridgeDispatcher.isUrlAllowed`로 같은 계약을 둔다
 

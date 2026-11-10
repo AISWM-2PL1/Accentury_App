@@ -67,6 +67,16 @@ object CrashReports {
     }
 
     /**
+     * 앱 안 이동 목적지가 allowlist 밖이라 이동하지 않았다 ([com.accentury.app.web.navigateInApp], KAN-324).
+     *
+     * [recordBridgeParseFailure]와 섞지 않는 이유: 그쪽은 "웹이 보낸 메시지를 읽지 못했다"(배포 스큐)이고 이것은
+     * "앱이 만든 목적지가 경계 밖이다"라서, 같은 이름이면 대시보드에서 둘을 가를 수 없다. URL은 싣지 않는다 — 같은 규칙.
+     */
+    fun recordInAppNavigationRejected() {
+        record("in_app_navigation_rejected")
+    }
+
+    /**
      * 녹음 엔진이 마이크를 열지 못했다 ([com.accentury.app.audio.RecordingEngine]).
      *
      * 사용자에게는 "녹음에 실패했어요"까지만 보이고 그 뒤에 무엇이 있었는지는 남지 않는다. 기기·OS

@@ -102,7 +102,7 @@ allowlist를 통과한 문서뿐이고, `force`는 그 문을 열지 못한다. 
 
 | 방향 | 이름 | iOS 처리 |
 |---|---|---|
-| 웹 → 네이티브 | `onLocationChanged(url)` | `BridgeDispatcher`가 문자열만 받아 `onPageStarted`와 같은 콜백으로 넘긴다. `TestFlowView.currentWebUrl`이 갱신된다 |
+| 웹 → 네이티브 | `onLocationChanged(url)` | `BridgeDispatcher`가 문자열이고 allowlist 판정(`BridgeDispatcher.isUrlAllowed`, KAN-324)을 지난 값만 `onPageStarted`와 같은 콜백으로 넘긴다. `TestFlowView.currentWebUrl`이 갱신된다 |
 | 네이티브 → 웹 | `window.accenturyNavigate(url)` | `WKWebView.navigateInApp(to:)`가 `spaNavigateJs`(AccenturyCore)를 평가한다. 결과가 `true`가 아니면(구버전 웹·예외·nil) `load(URLRequest)`로 폴백한다 |
 
 쓰는 자리는 왼쪽 가장자리 스와이프 뒤로와 억양 녹음 ✕(억양 탭 진입) 둘이다. 첫 진입(`WebViewHost.updateUIView`)과 `?screen=test` 시작은 문서 로드로 남는다.
