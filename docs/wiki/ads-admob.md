@@ -96,11 +96,11 @@ REQUIRE_ADMOB_IDS=YES`를 함께 준다.
 |---|---|---|---|
 | (없음) | `unknown` | **요청 없음** | 하지 않는다 |
 | `denied` | `denied` | `npa=1` | 한다 |
-| `granted` | `granted` | 맞춤형 | 한다 |
+| `granted` | `granted` | 맞춤형 (iOS는 ATT `authorized`일 때만, §7.5) | 한다 |
 
 - 판정은 순수 함수 둘이다 (`AdRequests.kt`, iOS Core `AdConsent.swift`) — "어떤 요청인가"는
   `personalizationAllowed(consent)`(`Granted`만 true), "요청이 나가도 되는가"는 `shouldRequestAds(consent)`
-  (`Unknown`만 false)
+  (`Unknown`만 false). iOS는 2026-11-10(KAN-330·KAN-344-1)부터 `personalizationAllowed(_:tracking:)`이 ATT 상태도 본다 (§7.5)
 - **`unknown`이면 요청을 아예 내지 않는다.** 시트가 뜨기 전이라 npa를 붙이더라도 "묻기 전에 광고
   서버와 통신했다"가 된다. 첫 `setAdConsent`가 프리로드의 시작점이고, 그 뒤로는 앱 시작마다 저장값으로
   바로 받아 둔다 (`AdsController.preloadIfConsented`). **게이트의 `preload()` 첫 줄도 같은 판정을 한다**
@@ -182,6 +182,25 @@ MainActivity는 onPause로 내려가지만, WebView의 JS 타이머는 `WebView.
 명시 선언을 남길 수 있는 것은 옛 태그뿐이라 `@Suppress("DEPRECATION")`으로 쓰고, SDK가 태그를 지우는
 판(26.x 예상)이 오면 두 줄을 지우면 된다 — 기본값이 이미 "제한 없음"이다.
 
+**광고 콘텐츠 등급 상한은 PG다 (KAN-344, 팀 결정 2026-11-10 — App Store 연령 등급 13+).** 앱 등급보다 센 광고가 나오면 가이드라인 1.2
+심사 위험이다(빌드 15 거절 후속). 두 플랫폼 모두 초기화 앞의 전역 요청 설정에 건다 — 첫 요청부터 적용된다. Play도 같은 상한을 따른다.
+
+| | 코드 | 근거 |
+|---|---|---|
+| Android | `MobileAds.getRequestConfiguration().toBuilder()…setMaxAdContentRating(RequestConfiguration.MAX_AD_CONTENT_RATING_PG)` (`ads/AdsController.kt` `initialize`) | https://developers.google.com/admob/android/targeting#ad_content_filtering |
+| iOS | `configuration.maxAdContentRating = GADMaxAdContentRating.parentalGuidance` (`Ads/AdsController.swift`) | https://developers.google.com/admob/ios/targeting#ad_content_filtering |
+
+AdMob 콘솔의 앱별 광고 콘텐츠 등급도 PG로 맞춘다(app-store-listing.md 「제출 전 체크」).
+
+**설정 「광고 신고」 (KAN-330·KAN-344-4, 가이드라인 1.2 — 부적절한 콘텐츠를 신고할 수단).** 광고 SDK에는 앱이 띄울 신고 화면이 없고
+광고는 AdMob이 고르므로, 신고를 받는 통로만 두고 받은 신고는 AdMob 콘솔의 광고 검토 센터에서 막는다.
+
+| | 내용 |
+|---|---|
+| 동작 | 메일 작성(`mailto:`), 받는 주소는 방침 13항 문의처·스토어 연락처와 같은 주소, 제목 「[광고 신고] Accentury」. 본문 틀이 화면·시각·광고 내용을 묻는다 |
+| Android | `auth/SettingsScreen.kt` `AdReportRow` → `openAdReportMail`(`ACTION_SENDTO`). 회원·게스트·익명 설정 모두 |
+| iOS | `Auth/SettingsScreen.swift` `AdReportRow` → Core `adReportMailURL(appVersion:)`. 회원·게스트 설정. 메일 앱이 없으면 열리지 않아 캡션에 주소를 함께 보인다. 익명 빌드 설정(`AnonymousSettingsScreen`)에는 없다 |
+
 **매니페스트의 `google_analytics_adid_collection_enabled=false`·
 `google_analytics_default_allow_ad_personalization_signals=false`는 그대로다.** 이 두 키는 Firebase
 Analytics(GA4) 계측에 광고 ID를 붙일지를 정할 뿐이고 AdMob SDK는 광고 요청에 쓸 GAID를 자기 경로로
@@ -254,25 +273,30 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
 | 재응시 | `MainActivity.startRetest` → `RewardedRetestAd.run` → `proceedRetest` | `TestFlowView.handleRetest` → `AdsController.runRewardedRetest` → `proceedRetest` → `TestFlowModel.startRetest`(여기서 `beginRetest`) |
 | 실패 출구 재응시 (KAN-248) | `MainActivity.startRetestAfterFailure` → `proceedRetest` — 광고 건너뜀 | `TestFlowView.handleRetestAfterFailure` → `proceedRetest` → `TestFlowModel.startRetest` — 광고 건너뜀, `AD_DISMISSED` 없음 |
 
-### 7.5 ATT — 시트 동의와 프롬프트의 순서 (4단계 결정)
+### 7.5 ATT — 시트 동의와 프롬프트의 순서 (4단계 결정, KAN-330·KAN-344-1로 갱신)
 
-**`setAdConsent("granted")`가 들어온 직후 `ATTrackingManager.requestTrackingAuthorization`을 부른다.**
-`AdsController.setConsent` → `preloadAfterTrackingSettled` → `TrackingAuthorization.requestIfUndetermined`.
-"지금 물어야 하나"는 Core의 순수 함수 `shouldRequestTracking(consent:status:)`(`granted && notDetermined`)이고
-`swift test`가 네 갈래를 못박는다 (리뷰 P2-6). ATT 상태는 앱 타깃 `TrackingAuthorization.status`가 Core의
-`TrackingStatus`로 옮겨 넘긴다 — Core는 AppTrackingTransparency를 링크하지 않는다.
+**2026-11-10부터 iOS의 규칙이 바뀌었다.** App Store 빌드 15가 5.1.1(iv)로 거절됐다 — ATT 창 앞에 우리 허용·거부 시트를 세운 것이
+시스템 권한 창을 가로막는 사전 화면이라는 지적이다. 웹 사전 시트는 iOS 앱에서 설명 + [계속] 하나이고(`webview-bridge.md` §8.7),
+그 [계속]이 `setAdConsent('granted')`다. 그래서 저장값은 이제 「사전 시트를 봤다」는 뜻이고 맞춤형 여부는 ATT 답이 정한다.
 
-- 시트가 먼저여야 ATT 프롬프트가 맥락을 가진다 — 사용자가 방금 「맞춤형 광고 허용」을 골랐고, iOS는 그 허용을 실행하려면
-  기기 식별자 접근을 한 번 더 확인한다. `NSUserTrackingUsageDescription` 문구가 그 맥락으로 적혀 있다
-- **`denied`면 ATT를 부르지 않는다.** 추적 자체가 없는데 추적 허용을 묻는 것은 사용자에게도 심사에도 설명이 안 된다.
-  npa 요청은 IDFA가 필요 없다
-- **ATT 결과는 저장하지 않고 `setAdConsent`로 접지도 않는다** (`webview-bridge.md` §8.5). 시트 값은 사용자가 고른 것이어야
-  「맞춤형 광고 설정」이 보여 주는 상태와 맞는다. ATT 거부로 SDK가 IDFA를 못 읽으면 맞춤형이 사실상 비맞춤이 되는데 그건 SDK 몫이다
-- 앱 시작에 이미 `granted`면 ATT가 `notDetermined`일 때만 한 번 더 묻는다(설정에서 추적을 초기화한 경우). 이미 답이 있으면
+`setAdConsent`가 들어오면 `AdsController.setConsent` → `preloadAfterTrackingSettled` → `TrackingAuthorization.requestIfUndetermined`.
+판정은 Core `Ads/AdConsent.swift`의 순수 함수이고 `swift test`가 갈래를 못박는다. ATT 상태는 앱 타깃 `TrackingAuthorization.status`가
+Core의 `TrackingStatus`로 옮겨 넘긴다 — Core는 AppTrackingTransparency를 링크하지 않는다.
+
+| 판정 | 식 | 뜻 |
+|---|---|---|
+| ATT를 지금 묻나 | `shouldRequestTracking`: `consent != .unknown && status == .notDetermined` | 사전 시트를 본 뒤면 늘 묻는다. 옛 빌드에서 `denied`를 저장한 사람도 묻는다. `unknown`은 시트 전이라 맥락이 없어 묻지 않는다 |
+| 맞춤형인가 | `personalizationAllowed(_:tracking:)`: `consent == .granted && tracking == .authorized` | 그 밖(`denied`·`restricted`·`notDetermined`, 옛 빌드의 `denied`)은 npa(`npa=1`). 옛 빌드의 거부는 ATT를 허용해도 npa다 |
+| ATT를 언제 읽나 | `AdRequests.make`가 요청을 만들 때마다 `TrackingAuthorization.status` | iOS 설정에서 추적을 끄면 다음 요청부터 npa |
+
+- **ATT 결과는 저장하지 않고 `setAdConsent`로 접지도 않는다** (`webview-bridge.md` §8.5). 요청마다 ATT 상태를 새로 읽는다
+- 앱 시작에 저장값이 `unknown`이 아니고 ATT가 `notDetermined`면 묻는다(설정에서 추적을 초기화한 경우 포함). 이미 답이 있으면
   iOS가 다시 띄우지 않으므로 부르지 않는다
+- 이전 결정(4단계, 2026-11-10 전): `granted && notDetermined`일 때만 ATT, `denied`면 ATT를 부르지 않음, 저장값 `granted`면 맞춤형
+  요청(ATT 거부 시 IDFA 없는 요청은 SDK 몫). 위 세 가지 모두 iOS에서 폐기. Android는 ATT가 없어 이전 규칙(`Granted`만 맞춤형) 그대로
 - **로그인 앱 경로 (KAN-304·KAN-315)**: 홈 첫 진입에 `unknown`이면 시트(KAN-304) → 이후 변경은 설정 「맞춤형 광고 설정」 행 → 홈 + `adConsent=open`으로
-  시트 재열기(KAN-315, `webAdConsentUrl`, [`webview-bridge.md`](webview-bridge.md) §13) → `setAdConsent` → 위 규칙 그대로. 재열기에서 다시 `granted`를
-  골라도 ATT는 `notDetermined`일 때만 뜨고, 이미 거부했으면 아래 규칙대로 설정 앱이 열린다(시트 캡션이 안내).
+  시트 재열기(KAN-315, `webAdConsentUrl`, [`webview-bridge.md`](webview-bridge.md) §13) → `setAdConsent` → 위 규칙 그대로. 재열기에서 [계속]을
+  눌러도 ATT는 `notDetermined`일 때만 뜨고, 이미 거부했으면 아래 규칙대로 설정 앱이 열린다(시트 캡션이 안내).
   테스트 진행·시작 게이트 중에는 재열기를 막는다 — 설정 행이 비활성이고 보조 줄이 「테스트가 끝난 뒤 바꿀 수 있어요」다(PR #60 리뷰, 허용 화면 표는 `webview-bridge.md` §13)
 - **ATT `denied`면 iOS 설정 앱으로 보낸다 (KAN-315, 팀장 결정 2026-11-03)**: 재열기 시트에서 `granted`를 골랐는데 ATT를 이미 거부했으면
   프롬프트가 다시 안 떠 막다른 길이라, `AdsController.setConsent`가 `UIApplication.openSettingsURLString`(이 앱 설정 화면)을 연다. 판정은 Core
@@ -285,7 +309,7 @@ Android와 달리 **광고 SDK가 AdSupport·AppTrackingTransparency를 링크�
 - 프롬프트는 앱이 active일 때만 뜬다. 앱 시작 경로는 `didBecomeActive`를 한 번 기다린다 (`TrackingAuthorization.whenActive`).
   프롬프트가 떠 있는 동안 두 번째 요청(SDK 초기화 완료와 시트 선택이 겹침)은 시스템에 다시 묻지 않고 같은 답을 기다린다
 
-App Store 개인정보 라벨·«추적» 항목은 이 티켓으로 바뀐다 — 맞춤형 광고를 허용한 사용자에
+App Store 개인정보 라벨·«추적» 항목은 이 티켓으로 바뀐다 — ATT를 허용한 사용자에
 한해 IDFA가 광고 목적으로 쓰이므로 «추적: 광고 식별자» 신고가 필요하다. **KAN-175에서 갱신 완료:
 확정 답안은 [`app-store-listing.md`](app-store-listing.md) §6.2다.** 그 절은 SDK의
 `PrivacyInfo.xcprivacy`를 직접 읽어 옮겼고, 거기서 «위치 › 대략적 위치»(IP 추정)와 «사용 데이터 ›
@@ -298,7 +322,7 @@ App Store 개인정보 라벨·«추적» 항목은 이 티켓으로 바뀐다 �
 Debug 빌드 한정, 릴리스에는 그 블록이 없다. `webview-bridge.md` §8.5 하단 참고.
 
 **실기기 미확인 항목** (시뮬레이터에서 테스트 광고는 뜨지만 ATT 프롬프트·IDFA는 시뮬레이터 값이 다르다):
-ATT 시트가 시트 허용 직후 뜨는지, 허용/거부 뒤 첫 맞춤형 광고 요청, 보상형 완주 → 인트로 리로드, 중도 닫힘 → `AD_DISMISSED`,
+ATT 창이 사전 시트 [계속] 직후 뜨는지, 허용/거부 뒤 첫 맞춤형 광고 요청, 보상형 완주 → 인트로 리로드, 중도 닫힘 → `AD_DISMISSED`,
 **iOS 첫 실행 동의 시트 노출** — 심(`adConsent` 문서 변수)의 push 타이밍이 인트로의 첫 `getAdConsent()`보다 늦으면
 `""`가 읽혀 시트가 안 뜰 수 있다 (§7.4, 리뷰 P2-5). 실기기에서 첫 설치 → 인트로 → 시트가 서는지 본다.
 
