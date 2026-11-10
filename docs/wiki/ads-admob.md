@@ -199,7 +199,7 @@ AdMob 콘솔의 앱별 광고 콘텐츠 등급도 PG로 맞춘다(app-store-list
 |---|---|
 | 동작 | 메일 작성(`mailto:`), 받는 주소는 방침 13항 문의처·스토어 연락처와 같은 주소, 제목 「[광고 신고] Accentury」. 본문 틀이 화면·시각·광고 내용을 묻는다 |
 | Android | `auth/SettingsScreen.kt` `AdReportRow` → `openAdReportMail`(`ACTION_SENDTO`). 회원·게스트·익명 설정 모두 |
-| iOS | `Auth/SettingsScreen.swift` `AdReportRow` → Core `adReportMailURL(appVersion:)`. 회원·게스트 설정. 메일 앱이 없으면 열리지 않아 캡션에 주소를 함께 보인다. 익명 빌드 설정(`AnonymousSettingsScreen`)에는 없다 |
+| iOS | `Auth/SettingsScreen.swift` `AdReportRow` → Core `adReportMailURL(appVersion:)`. 회원·게스트·익명 설정 모두(익명 빌드 `AnonymousSettingsScreen`은 광고 섹션 `extra`로 붙인다). 메일 앱이 없으면 열리지 않아 캡션에 주소를 함께 보인다 |
 
 **매니페스트의 `google_analytics_adid_collection_enabled=false`·
 `google_analytics_default_allow_ad_personalization_signals=false`는 그대로다.** 이 두 키는 Firebase
