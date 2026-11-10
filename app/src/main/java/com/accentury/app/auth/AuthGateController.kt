@@ -1,5 +1,6 @@
 package com.accentury.app.auth
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -147,6 +148,9 @@ class AuthGateController(
      */
     private val loginGeneration = AtomicLong()
 
+    /** 진행 중인 게스트 이탈 — [requestLogin] 참고. */
+    private val leavingGuest = AtomicBoolean()
+
     /**
      * 로그인 저장·세대 증가와 탈퇴 정리의 판정·비우기를 한 덩어리로 묶는 잠금 (KAN-251 리뷰 P1 재검증 2). 둘이 따로 돌면
      * 정리가 "세대 그대로"로 판정한 뒤 저장소 잠금을 기다리는 사이 새 로그인이 저장을 끝내고, 이미 결정된 clear가 새
@@ -258,10 +262,19 @@ class AuthGateController(
      * 서버 로그아웃은 [logout]과 같이 최선 노력이다(서버는 게스트 로그아웃을 받는다). 게스트에는 IdP 세션이 없어 SDK 정리를
      * 하지 않는다. 회원이면 아무것도 하지 않는다 — 웹이 잘못 불러도 멀쩡한 로그인을 버리지 않게.
      * 앱 수명 [scope]에서 도는 이유: 브리지 호출은 기다릴 화면이 없고, 설정 화면은 상태가 바뀌면 내려가며 자기 스코프를 잃는다.
+     *
+     * 진행 중이면 겹친 호출은 무시한다(KAN-330 리뷰 P1) — 연타한 두 호출이 모두 게스트 판정을 통과하면, 먼저 끝난 쪽 뒤에
+     * 사용자가 회원으로 로그인했을 때 늦게 끝난 쪽 정리가 새 토큰을 지웠다. 그 뒤의 늦은 정리는 [logout]의 세대 검사가 막는다.
      */
     fun requestLogin() {
-        if (_state.value !is AuthGateState.Guest) return
-        scope.launch { logout() }
+        if (_state.value !is AuthGateState.Guest || !leavingGuest.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                logout()
+            } finally {
+                leavingGuest.set(false)
+            }
+        }
     }
 
     /**
@@ -362,12 +375,14 @@ class AuthGateController(
      * 묶이면 응답이 오기 전에 바로 만료된다. IdP 단계는 SDK가 메인 스레드를 기대할 수 있어 호출자 디스패처에 둔다.
      */
     suspend fun logout(idpLogout: suspend () -> Unit = {}): Unit = withContext(NonCancellable) {
+        // 서버 요청 전에 잡는다(KAN-330 리뷰 P1) — 정리 전에 끝난 새 로그인의 토큰을 지우지 않게. [signOutLocally] 참고.
+        val generation = loginGeneration.get()
         try {
             withContext(Dispatchers.IO) {
                 withTimeoutOrNull(logoutServerTimeout) { store.read()?.let { api.logout(it.refreshToken) } }
             }
         } finally {
-            signOutLocally(idpLogout)
+            signOutLocally(idpLogout, generation)
         }
     }
 
@@ -415,7 +430,7 @@ class AuthGateController(
                 val withdrawn = result is AuthResult.Success ||
                     (result is AuthResult.Rejected && result.status == STATUS_UNAUTHORIZED)
                 if (withdrawn) {
-                    signOutLocally(idpLogout, withdrawGeneration = generation)
+                    signOutLocally(idpLogout, generation)
                     WithdrawOutcome.Withdrawn
                 } else {
                     // null = 서버 단계 상한 초과. 응답을 못 받았으니 전송 실패와 같이 [다시 시도]다.
@@ -431,19 +446,20 @@ class AuthGateController(
     /**
      * 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리(상한 [logoutIdpTimeout])가 던져도 저장소는 비우고 로그인 화면으로 돌린다.
      *
-     * @param withdrawGeneration 탈퇴만 넘긴다 — 탈퇴 시작 때 잡은 [loginGeneration] (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신
-     *   거절이 먼저 저장소를 비우고 로그인 화면을 띄우므로, 응답을 마저 받거나 IdP 정리(최대 5초)를 기다리는 사이 사용자가
-     *   새로 로그인할 수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 [sessionLock] 안에서 한 번에) — 달라졌으면
-     *   새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나
-     *   쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). null(로그아웃)은 로그인 상태를 유지한 채
-     *   정리해 이 경합이 없어 무조건 비운다.
+     * @param generation 로그아웃·탈퇴 시작 때 잡은 [loginGeneration] (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저
+     *   저장소를 비우고 로그인 화면을 띄우므로, 응답을 마저 받거나 IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할
+     *   수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 [sessionLock] 안에서 한 번에) — 달라졌으면 새 로그인이라
+     *   저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새
+     *   로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). 로그아웃도 같이 건다(KAN-330 리뷰 P1) — 게스트 [requestLogin]
+     *   연타처럼 먼저 끝난 정리 뒤 새 로그인이 들어오면 늦은 정리가 그 토큰을 지운다. 보통 로그아웃은 정리 중에 로그인할 화면이
+     *   없어 세대가 그대로라 결과가 같다.
      */
-    private suspend fun signOutLocally(idpLogout: suspend () -> Unit, withdrawGeneration: Long? = null) {
+    private suspend fun signOutLocally(idpLogout: suspend () -> Unit, generation: Long) {
         try {
             withTimeoutOrNull(logoutIdpTimeout) { idpLogout() }
         } finally {
             sessionLock.withLock {
-                if (withdrawGeneration == null || loginGeneration.get() == withdrawGeneration) {
+                if (loginGeneration.get() == generation) {
                     store.clear()
                     _state.value = AuthGateState.SignedOut()
                 }

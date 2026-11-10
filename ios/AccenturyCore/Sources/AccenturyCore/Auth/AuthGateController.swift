@@ -195,9 +195,12 @@ public final class AuthGateController: ObservableObject {
     private let withdrawServerTimeout: Duration
 
     /// 게이트의 ``login(_:privacyPolicyVersion:)`` 성공으로 저장소에 새 쌍을 저장한 횟수 (KAN-251 리뷰 P1). 탈퇴 정리가
-    /// "그사이 새로 로그인했나"를 이것으로 가린다 — ``signOutLocally(_:keepingNewLogin:)`` 참고. 갱신·bootstrap은 같은
+    /// "그사이 새로 로그인했나"를 이것으로 가린다 — ``signOutLocally(_:generation:)`` 참고. 갱신·bootstrap은 같은
     /// 세션의 이어짐이라 올리지 않는다.
     private var loginGeneration = 0
+
+    /// 진행 중인 게스트 이탈 — ``leaveGuest()`` 참고.
+    private var leavingGuest = false
 
     /// 로그인 저장·세대 증가와 탈퇴 정리의 판정·비우기를 줄 세우는 사슬 (KAN-251 리뷰 P1 재검증 2, 안드로이드 `sessionLock`).
     /// MainActor만으로는 안 된다 — `await store.save`·`await store.clear()`에서 다른 호출이 끼어든다. 정리가 "세대 그대로"로
@@ -394,8 +397,13 @@ public final class AuthGateController: ObservableObject {
     ///
     /// 서버 로그아웃(게스트 허용 API)은 최선 노력이고 로컬은 반드시 비운다 — ``logout(idpLogout:)`` 그대로다. 게스트는 IdP SDK
     /// 세션이 없어 IdP 정리는 빈 함수다. 버린 게스트 계정은 서버가 30일 뒤 자동 파기한다(서버 `GuestAccountRetention`).
+    ///
+    /// 진행 중이면 겹친 호출은 무시한다(KAN-330 리뷰 P1) — 연타한 두 호출이 모두 게스트 판정을 통과하면, 먼저 끝난 쪽 뒤에
+    /// 사용자가 회원으로 로그인했을 때 늦게 끝난 쪽 정리가 새 토큰을 지웠다. 그 뒤의 늦은 정리는 ``logout(idpLogout:)``의 세대 검사가 막는다.
     public func leaveGuest() async {
-        guard case .guest = state else { return }
+        guard case .guest = state, !leavingGuest else { return }
+        leavingGuest = true
+        defer { leavingGuest = false }
         await logout()
     }
 
@@ -432,12 +440,14 @@ public final class AuthGateController: ObservableObject {
     public func logout(idpLogout: @escaping @MainActor () async -> Void = {}) async {
         let api = api
         let store = store
+        // 서버 요청 전에 잡는다(KAN-330 리뷰 P1) — 정리 전에 끝난 새 로그인의 토큰을 지우지 않게. ``signOutLocally(_:generation:)`` 참고.
+        let generation = loginGeneration
         await withDeadline(logoutServerTimeout) {
             if let tokens = await store.read() {
                 _ = await api.logout(tokens.refreshToken)
             }
         }
-        await signOutLocally(idpLogout)
+        await signOutLocally(idpLogout, generation: generation)
     }
 
     /// 회원 탈퇴 (KAN-251, 서버 KAN-241). 네이버 계정은 SDK Refresh 토큰을 함께 싣는다(KAN-330, ``naverRefreshTokenForWithdrawal(provider:sdkRefreshToken:)``). 애플 5.1.1(v)가 앱 안 탈퇴를 요구한다. 안드로이드 `AuthGateController.withdraw`와
@@ -485,7 +495,7 @@ public final class AuthGateController: ObservableObject {
             }
             switch result {
             case .success?, .rejected(statusUnauthorized, _, _, _, _)?:
-                await signOutLocally(idpLogout, withdrawGeneration: generation)
+                await signOutLocally(idpLogout, generation: generation)
                 return WithdrawOutcome.withdrawn
             case let result?:
                 return .failed(Self.failure(of: result))
@@ -499,17 +509,18 @@ public final class AuthGateController: ObservableObject {
 
     /// 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리가 상한 ``logoutIdpTimeout``을 넘겨도 저장소는 비우고 로그인 화면으로 돌린다.
     ///
-    /// - Parameter withdrawGeneration: 탈퇴만 넘긴다 — 탈퇴 시작 때 잡은 ``loginGeneration`` (KAN-251 리뷰 P1). 탈퇴 401에서는
-    ///   갱신 거절이 먼저 저장소를 비우고 로그인 화면을 띄우므로, 서버 단계가 끝나거나 IdP 정리(최대 5초)를 기다리는 사이
-    ///   사용자가 새로 로그인할 수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 ``withSessionLock(_:)`` 안에서
-    ///   한 번에) — 달라졌으면 새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된
-    ///   갱신이 정리 중에 끝나 쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). nil(로그아웃)은 로그인
-    ///   상태를 유지한 채 정리해 이 경합이 없어 무조건 비운다.
-    private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void, withdrawGeneration: Int? = nil) async {
+    /// - Parameter generation: 로그아웃·탈퇴 시작 때 잡은 ``loginGeneration`` (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이
+    ///   먼저 저장소를 비우고 로그인 화면을 띄우므로, 서버 단계가 끝나거나 IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로
+    ///   로그인할 수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 ``withSessionLock(_:)`` 안에서 한 번에) —
+    ///   달라졌으면 새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리
+    ///   중에 끝나 쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). 로그아웃도 같이 건다(KAN-330 리뷰 P1)
+    ///   — 게스트 ``leaveGuest()`` 연타처럼 먼저 끝난 정리 뒤 새 로그인이 들어오면 늦은 정리가 그 토큰을 지운다. 보통 로그아웃은
+    ///   정리 중에 로그인할 화면이 없어 세대가 그대로라 결과가 같다.
+    private func signOutLocally(_ idpLogout: @escaping @MainActor () async -> Void, generation: Int) async {
         await withDeadline(logoutIdpTimeout, idpLogout)
         let store = store
         await withSessionLock { [self] in
-            if let withdrawGeneration, loginGeneration != withdrawGeneration { return }
+            if loginGeneration != generation { return }
             await store.clear()
             state = .signedOut(nil)
         }
