@@ -253,9 +253,13 @@ private struct AdReportRow: View {
 
 /// 게스트의 설정 화면 (KAN-330, 「로그인 없이 둘러보기」). 계정 섹션·로그아웃·회원 탈퇴 대신 [로그인] 하나다 — 게스트 계정은 앱 안에서
 /// 되찾을 길이 없어 탈퇴를 두지 않고, 서버가 30일 미사용 게스트를 자동 파기한다(서버 privacy-policy.md 「게스트 계정 (앱)」). 음성 저장
-/// 동의도 없다 — 서버가 게스트의 동의를 403으로 막는다. 광고는 게스트에게도 나오므로 「맞춤형 광고 설정」·「광고 신고」는 남긴다.
+/// 동의는 계정 값이 아니라 익명 빌드와 같은 기기 로컬 값이다(``AnonymousSettingsScreen``과 같은 섹션) — 게스트 레벨 테스트가 익명 세션이라서다
+/// (PR #70 리뷰, 안드로이드 게스트 설정과 같다). 광고는 게스트에게도 나오므로 「맞춤형 광고 설정」·「광고 신고」는 그 섹션에 함께 둔다.
 struct GuestSettingsScreen: View {
 
+    /// ``AccenturyCore/AnonymousVoiceConsentStore``의 지금 값
+    let consented: Bool
+    let onConsentChange: (Bool) -> Void
     let onClose: () -> Void
     /// ``AccenturyCore/AuthGateController/leaveGuest()``. 끝나면 게이트가 `signedOut`이 되어 이 화면째 로그인 화면으로 바뀐다
     let onLogin: () async -> Void
@@ -291,15 +295,18 @@ struct GuestSettingsScreen: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: Papercut.space3) {
-                    Text("개인정보")
-                        .papercutType(.label)
-                        .foregroundColor(Papercut.muted)
-                        .accessibilityAddTraits(.isHeader)
-                    AdConsentRow(enabled: adConsentEnabled && !leaving, available: adConsentEnabled, action: onOpenAdConsent)
-                    AdReportRow()
-                    AccenturyButton(text: "개인정보처리방침", variant: .text, action: onOpenPrivacy)
-                }
+                // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다(``AnonymousSettingsScreen``과 같다).
+                VoiceConsentSection(
+                    consented: consented,
+                    onChange: { onConsentChange($0); return true },
+                    onReload: {},
+                    onOpenPrivacy: onOpenPrivacy,
+                    caption: voiceConsentSettingCaptionAnonymous,
+                    extra: AnyView(VStack(alignment: .leading, spacing: Papercut.space3) {
+                        AdConsentRow(enabled: adConsentEnabled && !leaving, available: adConsentEnabled, action: onOpenAdConsent)
+                        AdReportRow()
+                    })
+                )
             }
             .padding(.horizontal, Papercut.space6)
             .padding(.vertical, Papercut.space4)

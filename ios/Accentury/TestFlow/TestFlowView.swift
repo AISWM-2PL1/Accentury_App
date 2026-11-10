@@ -63,7 +63,7 @@ struct TestFlowView: View {
     static let sceneRestorationKey = "TestFlowView.restorable"
 
     /// - Parameters:
-    ///   - anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
+    ///   - anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). 게스트도 쓴다(KAN-330, PR #70 리뷰). nil이면 계정 모드다
     ///   - restoresSavedState: 장면 복원 표시(``sceneRestorationKey``)의 지금 값. 모델이 처음 만들어질 때만 쓰인다
     init(
         restoresSavedState: Bool,
@@ -87,19 +87,22 @@ struct TestFlowView: View {
         self.covered = covered
         // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
         _model = StateObject(
-            wrappedValue: anonymousConsent.map {
-                TestFlowModel(
-                    restoresSavedState: restoresSavedState, onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry
-                )
-            } ?? (guest
+            wrappedValue: guest
                 // 게스트는 Bearer를 싣지 않는다 — 실으면 세션 생성이 403 `AUTH_GUEST_NOT_ALLOWED`다 (KAN-330). 프로필 미완료 거절도 오지 않는다.
+                // 익명 세션이라 동의·지역은 익명 빌드처럼 기기 로컬 값이다 — 안드로이드 게스트와 같다(PR #70 리뷰). 기본 클라이언트는
+                // 로그인 빌드에서 Bearer를 실으므로 익명 갈래로 합치지 않고 plain 클라이언트를 직접 준다.
                 ? TestFlowModel(
                     restoresSavedState: restoresSavedState,
                     sessionClient: URLSessionSessionClient(baseURL: AppConfig.apiBaseURL),
                     onProfileIncomplete: {},
+                    anonymousConsent: anonymousConsent,
                     tabBarEntry: tabBarEntry
                 )
-                : TestFlowModel(restoresSavedState: restoresSavedState, tabBarEntry: tabBarEntry))
+                : anonymousConsent.map {
+                    TestFlowModel(
+                        restoresSavedState: restoresSavedState, onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry
+                    )
+                } ?? TestFlowModel(restoresSavedState: restoresSavedState, tabBarEntry: tabBarEntry)
         )
     }
 
