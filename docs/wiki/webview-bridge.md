@@ -207,7 +207,9 @@ https://accentury.app/privacy.html
 - **앱이 부른 `loadUrl`은 `shouldOverrideUrlLoading`을 거치지 않는다.** 그래서 SPA 이동 폴백(`navigateInApp`)이
   목적지를 `isAllowedWebUrl`로 먼저 보고, 밖이면 이동 없이 비치명 이벤트만 남긴다(KAN-324, 보안 리포트 2026-11-04 #10).
   `webOrigin`이 http(s) 밖 스킴을 거절하므로 `javascript:` 목적지도 같이 막힌다. 목적지(뒤로가기·「맞춤형 광고 설정」·
-  억양 녹음 ✕)는 웹이 알려 온 URL로 만들기 때문에, `onLocationChanged` 인자도 같은 판정을 지난 값만 현재 URL이 된다
+  억양 녹음 ✕)는 웹이 알려 온 URL로 만들기 때문에, `onLocationChanged` 인자도 같은 판정을 지난 값만 현재 URL이 된다.
+  iOS는 앱이 부른 `load(URLRequest)`도 `decidePolicyFor`를 지나 목적지 가드가 이미 있고, `onLocationChanged` 인자 판정만
+  `BridgeDispatcher.isUrlAllowed`로 같은 계약을 둔다
 
 ## 6. 플랫폼별 구현 차이
 

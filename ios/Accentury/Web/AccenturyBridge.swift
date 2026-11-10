@@ -33,6 +33,11 @@ struct BridgeDispatcher {
 
     /// 지금 로드된 URL이 allowlist 안인가. **처리 시점에** 묻는다.
     let isCurrentUrlAllowed: () -> Bool
+
+    /// 웹이 **값으로 넘긴** URL이 allowlist 안인가 (KAN-324, 보안 리포트 2026-11-04 #10).
+    /// ``isCurrentUrlAllowed``가 "누가 불렀나"를 본다면 이것은 "무엇을 넘겼나"를 본다 — `onLocationChanged`
+    /// 인자가 앱 안 이동 목적지의 재료라서다. 기본값을 두지 않는다: 빠뜨리면 컴파일이 막혀야 할 보안 판정이다.
+    let isUrlAllowed: (String) -> Bool
     let onRequestMicPermission: () -> Void
     let onStartVoiceItem: (VoiceItemStart) -> Void
     let onStartRetest: () -> Void
@@ -253,7 +258,14 @@ struct BridgeDispatcher {
         case "onLocationChanged":
             // 웹이 history로 화면을 옮긴 뒤 새 href (KAN-290). 문서 전환의 `onPageStarted(url)`과 같은 자리로 보낸다 —
             // 뒤로 스와이프·탭 판정이 읽는 `currentWebUrl`이 이것으로 갱신된다. 문자열이 아니면 다른 case처럼 버린다.
-            guard let url = payload as? String else { return }
+            //
+            // 인자도 `isUrlAllowed`로 본다 (KAN-324, 보안 리포트 2026-11-04 #10). 값은 `currentWebUrl`이 되어 뒤로 스와이프·
+            // 탭 판정과 `navigateInApp` 목적지의 재료가 되므로, allowlist 밖 origin·`javascript:`는 받지 않는다. 목적지 쪽은
+            // 앱이 시작한 `load(URLRequest)`도 `decidePolicyFor`를 지나 이미 막히지만, 틀린 값이 `currentWebUrl`에 머물면
+            // 판정이 그 값을 따르므로 입구에서도 막는다. `webView.url`을 대신 읽지 않는 이유: pushState 직후의 브리지 호출과
+            // 브라우저 쪽 URL 갱신은 순서가 보장되지 않아 한 박자 옛 값을 볼 수 있다. 거절은 조용히 버린다(§5) — 웹에 돌려줄
+            // 회신이 없는 통지다.
+            guard let url = payload as? String, isUrlAllowed(url) else { return }
             onLocationChanged(url)
 
         default:
