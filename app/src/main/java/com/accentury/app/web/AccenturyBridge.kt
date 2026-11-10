@@ -414,12 +414,19 @@ class AccenturyBridge(
      * 설정 「맞춤형 광고 설정」·억양 녹음 ✕의 이동 목적지가 되므로, allowlist 밖 origin·`javascript:`는 받지 않는다. 목적지 쪽
      * ([navigateInApp])에도 같은 검사가 있지만 틀린 값이 `webUrl`에 머물면 톱니·광고 설정 행 판정까지 그 값을 따르므로 입구에서도 막는다.
      * `webView.url`을 대신 읽지 않는 이유: pushState 직후의 브리지 호출과 브라우저 쪽 URL 갱신은 순서가 보장되지 않아
-     * 한 박자 옛 값을 볼 수 있다. 거절은 조용히 버린다(§5) — 웹에 돌려줄 회신이 없는 통지다.
+     * 한 박자 옛 값을 볼 수 있다. 호출 문서는 통과했는데 인자만 떨어진 경우는 [openExternalUrl]처럼 비치명 이벤트를 남긴다(§5) —
+     * 우리 웹이 계약 밖 값을 보냈거나 우리 origin에 스크립트가 끼어든 것이라 신호 가치가 크다. 호출 문서부터 밖이면 다른
+     * 메서드처럼 조용히 버린다.
      */
     @JavascriptInterface
     fun onLocationChanged(url: String) {
         postToMain {
-            if (isCurrentUrlAllowed() && isUrlAllowed(url)) onLocationChanged.invoke(url)
+            if (!isCurrentUrlAllowed()) return@postToMain
+            if (!isUrlAllowed(url)) {
+                CrashReports.recordBridgeParseFailure("onLocationChanged")
+                return@postToMain
+            }
+            onLocationChanged.invoke(url)
         }
     }
 }

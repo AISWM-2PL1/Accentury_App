@@ -187,7 +187,8 @@ Crashlytics 커스텀 키·로그·비치명 메시지에 들어가는 값은 **
 
 | 도메인 | 언제 | 어디서 |
 |---|---|---|
-| `bridge_parse_failed` | `startVoiceItem`·`shareResult`·`logEvent` payload를 읽지 못했다 | Android `web/AccenturyBridge.kt` · iOS `Web/AccenturyBridge.swift` |
+| `bridge_parse_failed` | `startVoiceItem`·`shareResult`·`logEvent` payload를 읽지 못했다. `onLocationChanged` 인자가 allowlist 밖이라 버렸다(KAN-324) | Android `web/AccenturyBridge.kt` · iOS `Web/AccenturyBridge.swift` |
+| `in_app_navigation_rejected` | 앱 안 이동 목적지(뒤로가기·「맞춤형 광고 설정」·억양 녹음 ✕)가 allowlist 밖이라 이동하지 않았다 (KAN-324). iOS에는 없다 — 목적지 가드가 `decidePolicyFor`라서다 | Android `web/WebViewHost.kt` `navigateInApp` |
 | `audio_capture_failed` | 마이크를 열지 못했거나 캡처가 도중에 끊겼다 | Android `audio/RecordingEngine.kt` · iOS `Recording/RecordingModel.swift` |
 
 iOS의 캡처 실패를 `AudioRecorder`의 시작 실패 catch가 아니라 `RecordingModel`에 붙인 이유:
