@@ -40,7 +40,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
-| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **15**. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고 2026-10-30에 거절됐다. 14는 2026-10-25 CI(ios-release run 40174171160, Dev dispatch)의 TestFlight 업로드로 소모됐다(KAN-292 R8 대응, 미제출, KAN-304·315 미포함). 15가 KAN-304·KAN-315 리젝 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로)을 담은 재제출 빌드다(2026-11-04 결정, §11). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
+| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **16**(2026-11-10, KAN-330). 15는 2026-11-09에 거절됐고(§11), 16이 그 대응(성별 선택·게스트 둘러보기·ATT 사전 시트 [계속]·마이크 [계속]·개인정보 매니페스트·광고 신고·애플 시스템 버튼)을 담은 재제출 빌드다. Android `versionCode`도 16. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고 2026-10-30에 거절됐다. 14는 2026-10-25 CI(ios-release run 40174171160, Dev dispatch)의 TestFlight 업로드로 소모됐다(KAN-292 R8 대응, 미제출, KAN-304·315 미포함). 15가 KAN-304·KAN-315 리젝 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로)을 담은 재제출 빌드다(2026-11-04 결정, §11). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
 
 **개인 계정이라 나중에 옮기려면 App Transfer 절차를 밟는다.** 팀·법인 명의로 넘기는 것은
 계정 사이의 앱 이전이고, 애플이 요구하는 조건(미해결 계약 없음, 양쪽 계정의 법적 동의 등)을
@@ -467,12 +467,13 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 | 앱 내 동의 시트 | 웹 `web/src/ads/adConsentText.ts`의 `AD_CONSENT_EFFECT`(`admob` 키) — 같은 취지 |
 | 개인정보 라벨 | 「추적」 = **예**, 「추적에 사용되는 데이터」에 식별자 › 기기 ID (§6) |
 
-**순서가 중요하다.** 앱 안 동의 시트에서 `granted`가 들어온 직후에만 ATT를 부른다
-(`docs/wiki/ads-admob.md` §7.5, `AdsController.setConsent` → `preloadAfterTrackingSettled`).
-시트가 먼저여야 ATT 프롬프트가 맥락을 가지고, 거부한 사람에게는 ATT를 아예 묻지 않는다 —
-추적하지 않는데 추적 허용을 묻는 것은 심사관에게도 설명이 안 된다.
-로그인 앱은 설정 › 「맞춤형 광고 설정」 행으로 시트를 다시 열어 동의를 바꾼다(KAN-315, 빌드 15부터). 다시 허용해도
-ATT는 `notDetermined`일 때만 뜬다 (`ads-admob.md` §7.5).
+**순서와 판정 (빌드 16, KAN-330·KAN-344-1).** iOS 앱의 사전 안내 시트는 설명 + [계속] 하나이고(빌드 15 거절 5.1.1(iv) —
+시스템 권한 창 앞에 우리 허용·거부를 세우면 안 된다), [계속] 뒤 ATT가 `notDetermined`면 늘 묻는다. 옛 빌드에서 시트를 거부한
+사람도 묻는다. **맞춤형 광고는 ATT를 허용했을 때만이고** 그 밖은 비맞춤(`npa=1`)이다. ATT 상태는 광고 요청마다 읽으므로 iOS
+설정에서 추적을 끄면 다음 요청부터 비맞춤이다. 판정 함수는 Core `shouldRequestTracking`(`consent != .unknown && status == .notDetermined`)·
+`personalizationAllowed(_:tracking:)`(`granted && authorized`), 근거와 이전 규칙은 `ads-admob.md` §7.5·`webview-bridge.md` §8.7.
+로그인 앱은 설정 › 「맞춤형 광고 설정」 행으로 시트를 다시 연다(KAN-315). ATT는 `notDetermined`일 때만 뜨고, 이미 거부했으면
+[계속]이 iOS 설정 앱을 연다.
 
 가이드라인 5.1.2는 **추적 허용을 앱 사용의 조건으로 걸지 못하게 한다.** 우리는 거부해도
 비맞춤 광고(`npa=1`)로 전 기능이 그대로 돈다. 이 사실을 §8의 심사 노트에 명시한다.
@@ -526,6 +527,10 @@ Play의 데이터 안전에는 「일시적으로만 처리되며 저장되지 �
 | ⑬ | 식별자 › 사용자 ID | 예 | **연결됨** | 아니요 | 앱 기능 | 6.3 ⑨ |
 
 **「이 앱은 사용자를 추적합니까」 = 예.** ⑥ 하나 때문이고, 그 하나로 ATT 프롬프트가 필요해진다.
+
+**빌드 16 주석 (2026-11-10, KAN-330).** ⑬ 사용자 ID에는 게스트 계정 id도 들어간다(게스트도 서버 계정 행이다). ⑪의 성별은 선택
+항목이 됐다 — 입력한 이용자에게만 일어나는 수집이지만, 라벨은 「일어날 수 있는가」를 묻는 것이라 행은 그대로다. 앱 타깃의
+`ios/Accentury/PrivacyInfo.xcprivacy`가 우리 코드 몫 ①②⑨⑩⑪⑫⑬을 선언한다(`ios-port.md` §12).
 
 **⑨⑫⑬과 ⑪의 일부가 KAN-224 계정 몫이다.** 2026-09-23판 표는 SDK 매니페스트와 후기 이메일만
 담고 있었다. 소셜 로그인이 들어오면서 우리가 **직접** 모으는 개인정보가 처음 생겼고, 그 몫은
@@ -665,7 +670,7 @@ AdSupport·AppTrackingTransparency를 링크한다). 매니페스트 선언 그�
 그래서 「선택 수집」이 아니라 「광고가 나가는 한 수집」이고, Play 신고에서 ④를 선택사항으로
 두지 않은 것과 같은 판단이다.
 
-ATT를 거부하면 SDK가 IDFA를 읽지 못해 실제로는 값이 안 나간다. 그래도 라벨은 「어떤 이용자에게
+ATT를 거부하면 iOS가 IDFA를 주지 않고 요청도 비맞춤(`npa=1`)으로 나간다(빌드 16, `ads-admob.md` §7.5). 그래도 라벨은 「어떤 이용자에게
 일어날 수 있는가」를 묻는 것이지 「모든 이용자에게 일어나는가」가 아니다.
 
 **⑤ 위치 › 대략적 위치 — 수집, 연결됨, 추적 아님.**
@@ -762,17 +767,19 @@ Kakao SDK 2.29.0의 매니페스트가 `OtherDataTypes`를 `Linked=true`·`Track
 `docs/wiki/privacy-policy.md` §1 「계정 (앱)」 네 행.
 
 앱 첫 화면 앞에 로그인 관문이 있다. 구글·카카오·네이버(iOS는 애플까지) 중 하나로 로그인하고,
-추가 정보 다섯 칸(이메일·이름·생년월일·성별·출신 지역)이 다 차야 테스트로 들어간다
-(`docs/wiki/social-login.md` §1, `ios/AccenturyCore/Sources/AccenturyCore/Auth/ProfileFormState.swift:94`의
-`isComplete`). 건너뛰기가 없으므로 **모든 이용자에게 일어나는 수집**이다.
+추가 정보 네 칸(이메일·이름·생년월일·출신 지역)이 차야 테스트로 들어가고 성별은 선택이다(KAN-330·서버 KAN-328,
+`docs/wiki/social-login.md` §1, `ios/AccenturyCore/Sources/AccenturyCore/Auth/ProfileFormState.swift`의 `isComplete`).
+로그인한 이용자에게는 건너뛰기가 없으므로 **로그인 이용자 모두에게 일어나는 수집**이다.
+「로그인 없이 둘러보기」(KAN-330·서버 KAN-329)의 게스트 계정도 계정 행이다 — 우리 계정 id(⑬)와 방침 동의 시각·버전(⑪)이 남고,
+이메일·이름·생년월일·성별·출신 지역은 없다.
 
 | 계정에 두는 값 | 라벨 행 | 목적 | 근거 |
 |---|---|---|---|
 | 이메일 | ⑨ 연락처 정보 › 이메일 주소 | 앱 기능 (회원 식별·문의 응대·탈퇴 본인 확인) | `app_user.email`, 방침 1항 계정 절 |
 | 이름 | ⑫ 연락처 정보 › 이름 | 앱 기능 | `app_user.name` |
-| 로그인 제공자가 정한 이용자 식별값 · 우리 계정 id · 닉네임 | ⑬ 식별자 › 사용자 ID | 앱 기능 (로그인·계정 식별) | `app_user.provider`·`provider_user_id`·`id`·`nickname`. 애플의 「사용자 ID」 정의가 「screen name, handle, account ID, assigned user ID」다 (6.1 출처) |
+| 로그인 제공자가 정한 이용자 식별값 · 우리 계정 id(게스트 계정 id 포함, KAN-330) · 닉네임 | ⑬ 식별자 › 사용자 ID | 앱 기능 (로그인·계정 식별) | `app_user.provider`(게스트는 `GUEST`)·`provider_user_id`·`id`·`nickname`. 애플의 「사용자 ID」 정의가 「screen name, handle, account ID, assigned user ID」다 (6.1 출처) |
 | 생년월일 | ⑪ 기타 데이터 | 앱 기능 (만 14세 미만 가입 거절) | `app_user.birth_date`, 방침 7항. 서버 `ProfileRules.age`가 거절하고 400 `AUTH_UNDER_AGE` |
-| 성별 · 출신 지역 | ⑪ 기타 데이터 | 분석 (응시자 구성 파악·억양 분석 개선) + 앱 기능 | `app_user.gender`(`MALE`/`FEMALE` 제약)·`region`. 세션의 출신 지역은 계정 값을 쓴다 (방침 1항) |
+| 성별(**선택**, KAN-330·서버 KAN-328) · 출신 지역 | ⑪ 기타 데이터 | 분석 (응시자 구성 파악·억양 분석 개선) + 앱 기능 | `app_user.gender`(`MALE`/`FEMALE` 제약, 「선택 안 함」이면 null)·`region`. 세션의 출신 지역은 계정 값을 쓴다 (방침 1항) |
 | 방침 동의 시각 · 동의한 방침 버전 | ⑪ 기타 데이터 | 앱 기능 (동의 사실의 기록) | 방침 12항, 서버 `AuthService.findOrCreateOnce` |
 | 프로필 이미지 주소 | ⑪ 기타 데이터 **(확인 필요)** | 앱 기능 | `app_user.profile_image_url`. 우리가 받는 것은 IdP의 **URL 문자열**이고 사진 파일이 아니다. 「사용자 콘텐츠 › 사진 또는 비디오」로 읽을 여지가 있어 콘솔 입력 전에 한 번 더 본다 |
 
@@ -849,7 +856,7 @@ id), 결과 행(점수 셋과 등급), 단어 답변 행, 후기 행이다. 세�
 | 성적 내용·노출 | 없음 |
 | 폭력 (만화·사실적·장시간·무기) | 전부 없음 |
 | 확률형 (도박·모의 도박·경연·루트 박스) | 전부 없음 |
-| **예상 등급** | **4+** (콘솔 설문 결과로 확정) |
+| **등급** | **13+ — 팀 결정(2026-11-10, KAN-344).** 아래 4+ 예상은 그 전 판단이다. 광고 콘텐츠 상한을 PG로 맞췄다(`ads-admob.md` §6) |
 
 **「연령 보증」을 「있음」으로 답하는 근거.** 애플의 설문 설명이 「개인의 나이가 특정 콘텐츠·
 서비스의 연령 요건을 충족하는지 확인하는 수단」이고 예시로 「declared age range API, age
@@ -1037,7 +1044,7 @@ In the app: the 설정 (Settings) tab in the bottom tab bar > 계정 (Account) >
 [부적절한 결과 신고], 탈퇴 경로 「오른쪽 위 톱니」 → 하단 「설정」 탭(KAN-252 탭 바 이후 탭 화면에는 톱니가 없다). 영어 블록은
 **3660자**(ASC 4000자 제한, 끝 줄바꿈 제외)다 — [If microphone permission is denied]를 [Microphone]에 합치고, 첫 줄의 「After sign-in」,
 [Sign-in]의 「(all required)」와 거절 생년월일 문장, 번역기 문단의 「persistent」·「or if the user cancels」·재설치 문장, 방침 절 이름 앞
-「the section」을 뺐다. 마이크·ATT 문장은 빌드 16 네이티브(KAN-330 2·3단계)가 그 동작을 해야 참이다.
+「the section」을 뺐다. 마이크·ATT 문장은 빌드 16 네이티브(KAN-330 2·3단계)로 참이 됐다 — 마이크 사전 화면 버튼 「계속」(Android `MainActivity.kt` `PermissionGate`, iOS `PermissionGateView.swift`), ATT 판정은 §5. 게스트 시작 버튼 라벨이 Android 「둘러보기」·iOS 「둘러보기 시작」으로 달라 두 메모는 버튼 이름 대신 「동의」(agree)라고만 적는다.
 
 ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때 5513자 판을 이 압축판(3840자)으로 줄였다. 문단 주제는 유지, 아래 문장은 뺐다. 한국어 원안은 압축하지 않았다. 데모 계정 사실은 영어와 맞췄다(PR #65 리뷰).
 
@@ -1159,6 +1166,17 @@ ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때
 
 나머지 미완은 콘솔 입력(숫자 Apple ID와 그 ID로 만드는
 `APP_STORE_URL`·`STORE_LISTING_READY`)이고 그쪽은 게시 뒤에야 값이 생긴다.
+
+### 빌드 16 제출 전 체크 (KAN-330, 2026-11-10)
+
+- [ ] ASC 연령 등급 설문을 다시 답해 **13+**로 맞춘다(§7, 팀 결정 KAN-344)
+- [ ] AdMob 콘솔의 앱별 광고 콘텐츠 등급을 **PG**로 맞춘다 — 코드(`maxAdContentRating` PG, `ads-admob.md` §6)와 같은 값
+- [ ] Xcode › Product › Archive › **Generate Privacy Report**를 §6.2 표와 대조한다. 앱 매니페스트(`PrivacyInfo.xcprivacy`)가 이번에 처음 들어갔다.
+  업로드나 보고서가 `NSPrivacyTracking`·추적 도메인을 경고하면 `ios-port.md` §12의 대안(앱 쪽 Tracking false)을 본다
+- [ ] 스크린샷 갱신 — 로그인 화면(「로그인 없이 둘러보기」·애플 시스템 버튼), 마이크·광고 사전 안내 [계속], 추가 정보의 「선택 안 함」
+- [ ] Resolution Center에 빌드 15 거절 회신문(§11)을 낸다
+- [ ] 네이버 데모 계정의 **해외 로그인 차단**이 꺼져 있는지 확인한다(심사관은 해외에서 로그인한다, §8 「데모 계정」)
+- [ ] §8 영어 메모를 콘솔에 붙인다 — 4000자 이하
 
 ## 11. 심사 거절 이력과 회신
 

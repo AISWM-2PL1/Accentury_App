@@ -429,3 +429,33 @@ iOS는 진행 저장이 `UserDefaults`에 남아(`ios/README.md` 「진행 저�
   스킴(`kakao…`, `GOOGLE_REVERSED_CLIENT_ID`, `NAVER_URL_SCHEME`)은 `Info-*.plist`의 `CFBundleURLTypes`에 있고,
   네이버 앱 조회용 `naversearchapp`·`naversearchthirdlogin`이 `LSApplicationQueriesSchemes`에 더해졌다.
 - **세션 생성 15초 상한이 갱신을 덮지 않는다.** 갱신은 토큰 없는 기본 세션으로 나간다 (`social-login.md` §7).
+
+## 12. 개인정보 매니페스트 · 빌드 16 (KAN-330)
+
+App Store 빌드 15 거절(2026-11-09) 대응 묶음의 iOS 쪽 설정 두 가지다. 화면·흐름 변경은 `social-login.md`(게스트·성별·애플 버튼·네이버 탈퇴),
+`ads-admob.md` §6·§7.5(PG·ATT), `webview-bridge.md` §15(브리지)에 있다.
+
+### 앱 타깃 매니페스트 `ios/Accentury/PrivacyInfo.xcprivacy` (KAN-330 / KAN-344-3)
+
+`project.yml`의 `Accentury` 폴더 스캔이 이 파일을 Resources 단계에 넣는다(별도 경로 항목 없음, `project.pbxproj`에 `PrivacyInfo.xcprivacy in Resources`).
+Xcode가 아카이브 때 이 파일과 SDK 매니페스트를 합쳐 개인정보 보고서를 만든다. 이 파일이 맡는 것은 **우리 코드 몫**뿐이다.
+
+| 키 | 값 | 근거 |
+|---|---|---|
+| `NSPrivacyAccessedAPITypes` | `NSPrivacyAccessedAPICategoryUserDefaults` · 사유 `CA92.1` 하나 | 광고 동의·음성 동의 표시·흐름 상태 저장을 이 앱만 읽고 쓴다. 파일 시각·부팅 시각·디스크 용량·키보드 API는 쓰지 않는다(2026-11-10 grep, 파일 머리 주석) |
+| `NSPrivacyTracking` | `true` | ATT를 허용한 사용자에게 맞춤형 광고(AdMob, IDFA)를 요청한다. 라벨 「추적」 = 예와 맞춘다 |
+| `NSPrivacyTrackingDomains` | 빈 배열 | 구글이 AdMob 추적 도메인을 문서로 주지 않고 GoogleMobileAds 매니페스트에도 없다. 광고 도메인을 적으면 ATT 미허용 기기에서 iOS가 그 연결을 막아 npa 광고까지 끊긴다 |
+| `NSPrivacyCollectedDataTypes` | 오디오 · 제품 상호작용 · 이메일 · 기타 사용자 콘텐츠 · 기타 데이터 · 이름 · 사용자 ID — 전부 `Linked=true`, `Tracking=false` | `app-store-listing.md` §6.2의 ①②⑨⑩⑪⑫⑬. 목적은 우리 코드 몫만 적는다 |
+
+- **SDK 몫은 SDK 매니페스트가 선언한다** — 기기 ID·광고 데이터·대략적 위치·진단·카카오 기타 데이터(GoogleMobileAds·UserMessagingPlatform·
+  Firebase·GoogleDataTransport·KakaoSDKCommon 등). 여기 다시 적으면 보고서에 같은 행이 겹친다. NaverIdLogin·GoogleSignIn은 매니페스트를
+  싣지 않는다(§6.2의 아카이브 21개 목록에 없다)
+- **열린 위험**: `NSPrivacyTracking = true`에 추적 도메인이 비어 있는 조합이다. 업로드 검증이나 Xcode 개인정보 보고서가 이 조합을 경고하면,
+  대안은 앱 쪽을 `NSPrivacyTracking = false`로 두는 것이다 — 추적은 GMA가 자기 매니페스트(`DeviceID` `Tracking=true`)로 이미 선언한다.
+  확인은 `app-store-listing.md` §10 「빌드 16 제출 전 체크」
+
+### 빌드 번호 16
+
+`ios/Accentury/Config/Base.xcconfig` `CURRENT_PROJECT_VERSION = 16`(`MARKETING_VERSION` 1.0 그대로). Android `app/build.gradle.kts`
+`versionCode = 16`과 같은 커밋 묶음에서 올렸다 — 두 값이 다르면 `AccenturyCoreTests/ReleaseVersionParityTests`(`swift test`)가 두 파일을
+직접 읽어 실패한다. 15는 2026-11-09 거절 빌드라 다시 쓸 수 없다(`app-store-listing.md` §1·§11).
