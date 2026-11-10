@@ -58,6 +58,8 @@
 | `startIntonationRecording(payloadJson)` | KAN-253 | 억양 학습 카드 진입(코스 열기·[다음 카드] 직후 웹이 자동 1회)과 일시정지 A-2의 [다시 말해 보기] → 네이티브 녹음 화면(A-3). payload = `{cardId, prompt, standard, maxDurationMs, guideF0, itemNumber, totalItems}`. 업로드까지 네이티브가 하고 성공하면 `onIntonationRecorded`로 회신 (§12) | 래퍼 false — 자동 호출은 조용히 넘어가고 A-2가 그대로 보인다. 웹은 `canStartIntonationRecording()`이 false면 [다시 말해 보기]를 비활성으로 그리고 「앱에서 녹음할 수 있어요」 — 웹 녹음기 폴백 없음 |
 | `retryUpload(attemptId)` | KAN-288 | 음성 문항 대기 화면의 [다시 보내기] → 실패한 업로드 하나를 같은 멱등 키·같은 바이트로 재전송. 인자는 `onUploadFailed`로 받은 attemptId 그대로. **회신 없음** — 성공하면 `onItemResult`, 또 실패하면 `onUploadFailed` (§14). Android: `AccenturyBridge.retryUpload` → `uploadViewModel.retry`. iOS: `BridgeUserScript`의 `retryUpload` → `BridgeDispatcher` `case "retryUpload"` → `TestFlowView`의 `uploads.retry` | 래퍼 false. 웹은 `canRetryUpload()`가 false면 `onUploadFailed` 수신 지점도 걸지 않고 「전송 실패」 줄을 그리지 않는다 — 예전 대기 화면 그대로 |
 | `openSettings()` | KAN-252 | 하단 탭 바의 [설정] → 네이티브의 기존 설정 화면을 띄운다. **인자도 반환도 회신도 없다** (§13) | 래퍼 false. 웹은 `canOpenSettings()`가 false면 [설정] 탭을 그리지 않는다 — 구버전 앱은 WebView 위 톱니가 그대로 남아 있다 |
+| `getAccountKind(): string` | KAN-330 | 지금 계정의 종류. `'member' \| 'guest'`를 동기 반환, 로그인 안 됨·로그인 끈 빌드·origin 불허면 빈 문자열(`getAccessToken`과 같은 규칙). 웹은 `'guest'`면 학습·홈·출석 API를 부르지 않고 로그인 안내를 그린다 (§15) | 래퍼 `readAccountKind()`가 null — **회원처럼 다룬다**(예전 동작). 빈 값·계약 밖 문자열도 null |
+| `requestLogin()` | KAN-330 | 게스트의 [로그인하기] → 네이티브가 게스트 세션을 버리고 로그인 화면으로 간다. **인자도 반환도 회신도 없다**. 회원이면 무시 (§15) | 래퍼 false → 웹이 `openSettings()`로 내려간다(설정의 로그아웃) |
 | `onLocationChanged(url)` | KAN-290 | SPA 화면 전환 직후 새 `location.href` 전체를 알린다. 문서 로드가 없으니 네이티브는 이 통지로 지금 화면을 안다. **회신 없음**. 하위호환 추가라 계약 버전 그대로(2). 인자는 allowlist 안 절대 URL이어야 한다 — 네이티브가 §5 판정으로 거르고, 밖이면 버리고 `bridge_parse_failed`로 남긴다(웹에 회신은 없다)(KAN-324) | 메서드가 없는 앱(빌드 11 이하)이면 웹이 SPA 전환을 하지 않고 예전처럼 문서를 옮긴다(`location.href`·`replace`) |
 
 `@JavascriptInterface`·`postMessage`는 문자열만 주고받으므로 구조체는 JSON으로 직렬화해 넘긴다.
@@ -245,6 +247,8 @@ KAN-255는 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android(2·3, 4�
 
 KAN-252는 웹 쪽 1·7·테스트를 2단계에서 끝냈고, Android 2·3과 iOS 4~6이 3·4단계다 (§13).
 
+KAN-330은 웹 쪽 1·7·테스트를 1단계에서 끝냈고, Android 2·3이 2단계, iOS 4~6이 3단계다 (§15).
+
 KAN-253은 웹 쪽 1·7을 1단계, Android 2·3을 2단계, iOS 4~6을 3단계에서 끝냈다. 메서드가 녹음 화면을 띄우는 종류라
 Android는 표의 2·3 말고도 손대는 곳이 있다 — `bridge/IntonationRecordingStart.kt`(payload 파서) ·
 `bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/`(업로드·화면) · `recording/RecordingScreen.kt`의
@@ -395,6 +399,25 @@ JS `.click()`으로 누르므로 시트의 막에 걸리지는 않지만, 동의
 | 새 웹 | 구버전 앱 (`startRetestAfterFailure` 없음) | 래퍼가 `startRetest()`로 폴백 — 광고가 뜬다. 재응시가 막히는 것보다 나아 감수한다. 라벨은 [다시 테스트하기]라 광고가 예고 없이 뜰 수 있다 |
 | 구버전 웹 | 새 앱 | 구버전 웹은 인자 없는 `startRetest()`만 부른다 — 광고가 뜬다 (예전 동작 그대로) |
 | — | 브리지 없음 (브라우저 단독) | 래퍼 false → `goToIntro` 폴백. 광고 없음 |
+
+### 8.7 iOS 앱의 사전 안내는 [계속] 하나다 (KAN-330·KAN-344)
+
+App Store 빌드 15 거절(2026-11-09, 5.1.1(iv)) 대응이다. ATT 창 앞의 사전 안내에 [일반 광고만 보기] 같은 「미리 거절」 선택지가
+있으면 안 된다. 그래서 **iOS 앱에서만** 시트가 설명 + [계속] 하나다. 안드로이드 앱과 브라우저 웹(AdSense)은 두 선택지 그대로다.
+
+- **판정(웹)**: `vendor === 'admob'`(브리지 저장소 실행) && `detectStorePlatform(navigator.userAgent, navigator.maxTouchPoints) === 'ios'` —
+  예전 ATT 예고 캡션(`AD_CONSENT_IOS_ATT_NOTE`)과 같은 식이다 (`web/src/ads/AdConsentSheet.tsx` `iosApp`)
+- **신호는 새 값이 아니다**: [계속]은 기존 `setAdConsent('granted')`를 그대로 부른다. 메서드·값 추가가 없어 계약 버전·네이티브
+  allowlist가 그대로고, 이 웹을 받는 구버전 iOS 앱도 지금처럼 `granted` → ATT(`notDetermined`면) → 프리로드로 움직인다
+- **iOS 네이티브가 할 일 (3단계)**: 저장 값 `granted`는 이제 「사전 안내를 봤다」는 뜻이다. `granted`를 받으면 ATT가 `notDetermined`일 때
+  늘 묻고(지금 규칙 그대로), **맞춤형 여부는 ATT 결과로 정한다** — `authorized`일 때만 맞춤형, 그 밖(`denied`·`restricted`·`notDetermined`)은
+  npa(`npa=1`). `personalizationAllowed`가 시트 값이 아니라 ATT 상태를 보도록 바꾼다. `unknown`이면 요청을 내지 않는 규칙,
+  재열기에서 ATT가 이미 `denied`면 설정 앱을 여는 규칙(ads-admob §7.5, KAN-315)은 그대로다. 예전에 `denied`를 저장한 사용자는 시트가
+  다시 뜨지 않으므로 npa가 유지되고, 「맞춤형 광고 설정」 재열기의 [계속]을 누르면 `granted`로 바뀌어 ATT 규칙을 탄다
+- **재열기 시트(iOS)**: 지금 상태 줄(「지금은 ~한 상태예요」)을 그리지 않는다 — 저장 값이 늘 `granted`라 실제 맞춤형 여부(ATT)를 말하지
+  못한다. 바꾸는 길 문구는 「맞춤형 광고 여부는 iPhone 설정 앱의 「추적」에서 언제든 바꿀 수 있어요.」(`AD_CONSENT_CHANGE_HINT_IOS`)이고,
+  ATT 예고 캡션(거부했다면 설정 앱으로 안내)은 그대로 붙는다
+- 안드로이드(2단계)는 할 일이 없다
 
 ## 9. 햅틱 (KAN-258)
 
@@ -835,3 +858,45 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 | `ios/AccenturyCore/.../TestFlow/TestFlowController.swift` | `failedUploads(_:)` — 대기 시도 중 재녹음 거절이 아닌 실패 |
 | `ios/Accentury/Web/BridgeUserScript.swift` · `AccenturyBridge.swift` · `WebViewHost.swift` | 심의 `retryUpload` → `postMessage` → `BridgeDispatcher`(origin·빈 값 거름) → `onRetryUpload` |
 | `ios/Accentury/TestFlow/TestFlowView.swift` | `onRetryUpload` → `uploads.retry`, `deliverResults()`(업로드 목록 변경·WebView 재생성 때 돈다)에서 실패 회신 |
+
+## 15. 게스트 계정 (KAN-330)
+
+App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 로그인 화면의 「로그인 없이 둘러보기」가 서버 `POST /v0/auth/guest`
+(KAN-329)로 게스트 계정을 받는다. 게스트는 **사투리 번역기만** 쓴다(팀 결정). 서버는 게스트 토큰을 번역(`/v0/translations`,
+`/v0/translations/reports`)·내 계정 조회·로그아웃·탈퇴에서만 받고, 나머지(학습·홈·세션 생성 등)는 403 `AUTH_GUEST_NOT_ALLOWED`다.
+계약 버전은 2 그대로다 — 메서드 둘을 **추가**만 했다(§1).
+
+게스트도 Access 토큰을 가지므로 `getAccessToken()`만으로는 회원과 갈리지 않는다. 그래서 종류를 따로 묻는다.
+
+### web → native
+
+| 메서드 | 내용 |
+|---|---|
+| `getAccountKind(): string` | 동기 반환. 지금 계정 저장소의 계정이 게스트면 `"guest"`, 로그인 계정이면 `"member"`. **`getAccessToken()`이 빈 문자열을 주는 모든 경우(로그인 안 됨·익명 빌드·로그아웃·origin 불허)에 `""`**. 그 밖의 값은 주지 않는다 |
+| `requestLogin(): void` | fire-and-forget, 회신 없음. 게스트일 때만: 게스트 토큰(Access·Refresh)을 저장소에서 지우고 게이트를 로그인 화면으로 옮긴다. 회원이면 아무 일도 하지 않는다. 기존 로그아웃 경로(서버 로그아웃은 게스트도 받는다)를 그대로 타면 된다 — 서버 정리 잡은 살아 있는 Refresh가 없는 게스트 계정을 6시간마다 지우므로, Refresh를 서버에서 끊어야 버린 계정이 빨리 사라진다. 서버 호출 실패가 로그인 화면 전환을 막으면 안 된다 |
+
+### 네이티브가 지킬 것 (Android 2단계 · iOS 3단계)
+
+- **판정 근거는 계정 저장소다.** 게스트 발급 응답(`user.provider == "GUEST"`)을 받을 때 저장소에 종류를 함께 적고, `getAccessToken()`과
+  같은 시점의 값을 준다 — 토큰은 있는데 종류가 `""`인 순간이 없어야 한다. 로그인 성공이 게스트를 덮으면 `"member"`, 로그아웃·탈퇴면 `""`
+- **origin 규칙은 `getAccessToken()`과 같다.** allowlist 밖 문서면 `""`, `requestLogin`은 조용히 버린다(§5)
+- **iOS는 토큰과 같은 심이다** — 문서 변수 `accountKind` + setter를 `accessToken`과 **같은 자리에서 함께** 민다(문서 커밋, Keychain 읽기 뒤,
+  갱신 성공 뒤). 객체 리터럴에 `getAccountKind: function(){ return accountKind; }`, `requestLogin: function(){ post("requestLogin"); }`.
+  디스패처 `case "requestLogin"`(§6 — 파일 둘)
+- **Android는 `@JavascriptInterface` 둘**이다. `requestLogin`은 `postToMain` 뒤 `isCurrentUrlAllowed`면 콜백(`openSettings`와 같은 꼴)
+- **게스트의 앱 시작 URL은 회원과 같다** — `?bridge=…&app=…&screen=home`. 홈에서 웹이 로그인 안내를 그리고, 번역기는 탭 바로 간다.
+  탭 바(설정 탭 포함)는 토큰이 있으면 서므로 게스트에게도 선다 — 설정 화면의 로그아웃·탈퇴는 게스트도 쓴다(서버가 받는다)
+- **게스트 동의(방침 + 「만 14세 이상」 확인)는 네이티브 화면**이다. 웹은 모른다
+- 네이티브 녹음·세션 생성 경로(레벨 테스트·억양 녹음)는 게스트가 웹에서 닿지 않는다. 그래도 서버가 403을 주면 기존 실패 처리로 끝난다
+
+### 웹 (1단계 완료)
+
+- `web/src/bridge/bridge.ts` `readAccountKind()`(`'member' | 'guest' | null`) · `requestLogin()`(없으면 false). **null은 회원처럼 다룬다** —
+  메서드를 모르는 구버전 앱은 예전 동작이다
+- `web/src/learning/wordApi.ts` `request()`: `readAccountKind() === 'guest'`이고 `allowGuest`가 아니면 **네트워크 전에**
+  `AUTH_GUEST_NOT_ALLOWED`로 끊는다. 학습·홈 API가 전부 이 함수를 지나서 한 곳이다. 번역·신고(`translationApi.ts`)만 `allowGuest: true`
+  (서버 `@AuthenticatedUser(allowGuest = true)`와 맞춤)
+- 화면: 단어·억양 학습의 오류 화면과 홈이 code `AUTH_GUEST_NOT_ALLOWED`면 `GuestLoginPrompt`(「로그인하면 단어 학습과 억양 학습을 할 수
+  있어요」 + [로그인하기])를 그린다. 미리 끊은 경우와 서버 403이 같은 code라, 종류를 늦게 미는 실행(iOS 첫 문서)에서도 같은 안내로 떨어진다.
+  [로그인하기]는 `requestLogin()`, false면 `openSettings()`
+- 홈의 게스트는 등급 카드·[레벨 테스트 시작]·출석 대신 안내 하나다. 광고 동의 시트 규칙은 회원과 같다
