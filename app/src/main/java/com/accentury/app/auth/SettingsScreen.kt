@@ -103,8 +103,9 @@ private fun AdReportRow() {
         verticalArrangement = Arrangement.Center,
     ) {
         Text("광고 신고", style = MaterialTheme.typography.bodyLarge)
+        // 받는 주소를 캡션에 보인다 — 메일 앱이 없는 기기는 탭해도 반응이 없어 신고할 곳을 알 길이 없다(iOS `AdReportRow`와 같다, PR #70 리뷰).
         Text(
-            "부적절한 광고를 메일로 알려 주세요",
+            "부적절한 광고를 ${SUPPORT_EMAIL}로 알려 주세요",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

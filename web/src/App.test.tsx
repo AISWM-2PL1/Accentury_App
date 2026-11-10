@@ -705,10 +705,11 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
   describe('게스트 홈 (KAN-330)', () => {
     const GUEST_PROMPT = '로그인하면 단어 학습과 억양 학습을 할 수 있어요'
 
-    it('게스트면 홈 조회 없이 로그인 안내와 탭 바다 — 레벨 테스트·등급 카드 없음', () => {
+    it('게스트면 홈 조회 없이 레벨 테스트 카드·학습 로그인 안내·탭 바다 — 등급 카드·출석 없음 (PR #70 리뷰)', () => {
       setSearch(`${APP}&screen=home`)
+      const requestMicPermission = vi.fn()
       window.AccenturyBridge = {
-        requestMicPermission: vi.fn(),
+        requestMicPermission,
         startVoiceItem: vi.fn(),
         getContractVersion: () => REQUIRED_BRIDGE_VERSION,
         getAccessToken: () => 'guest-acc',
@@ -716,8 +717,12 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       }
       render(<App navigate={vi.fn()} />)
       expect(screen.getByText(GUEST_PROMPT)).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: '레벨 테스트 시작' })).toBeNull()
+      expect(screen.getByRole('heading', { name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '다시 테스트하기' })).toBeNull()
       expect(tabBar()).not.toBeNull()
+      // 시작은 회원과 같이 네이티브로 넘긴다 — 세션은 네이티브가 Bearer 없는 익명 세션으로 만든다(webview-bridge §15)
+      fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
+      expect(requestMicPermission).toHaveBeenCalledTimes(1)
       expect(fetch).not.toHaveBeenCalled()
     })
 
@@ -732,9 +737,8 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
         })),
       )
       render(<App navigate={vi.fn()} />)
-      expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
       expect(await screen.findByText(GUEST_PROMPT)).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: '레벨 테스트 시작' })).toBeNull()
+      expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     })
 
     it('회원(member)·모르는 앱은 예전 홈 그대로다', () => {

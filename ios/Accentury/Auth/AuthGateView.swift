@@ -176,13 +176,15 @@ private struct SignedInScreen: View {
     }
 }
 
-/// 게스트의 화면 (KAN-330, 「로그인 없이 둘러보기」). ``SignedInScreen``과 같은 `ZStack` 구조에서 음성 저장 동의 오버레이를 뺐다 — 서버가
-/// 게스트의 동의를 403으로 막는다. 웹은 `getAccountKind() === "guest"`를 보고 계정 전용 화면 대신 로그인 안내를 띄우고, 그 [로그인]이
+/// 게스트의 화면 (KAN-330, 「로그인 없이 둘러보기」). ``SignedInScreen``과 같은 `ZStack` 구조에서 계정 음성 저장 동의 오버레이를 뺐다 — 서버가
+/// 게스트의 동의를 403으로 막는다. 대신 레벨 테스트가 익명 세션이라 동의·지역은 ``AnonymousFlowView``처럼 기기 로컬 값이고, 시작 게이트가
+/// 설치당 한 번 묻는다 — 안드로이드 게스트(`AnonymousVoiceConsentStore`)와 같다(PR #70 리뷰, 2026-11-10 팀 결정: 게스트 레벨 테스트 개방). 웹은 `getAccountKind() === "guest"`를 보고 계정 전용 화면 대신 로그인 안내를 띄우고, 그 [로그인]이
 /// 브리지 `requestLogin`으로 이리 온다. 게스트 세션을 버리면 게이트가 `signedOut`이 되어 이 화면째 로그인 화면으로 바뀐다.
 private struct GuestScreen: View {
 
     let gate: AuthGateController
 
+    @StateObject private var consentStore = AnonymousVoiceConsentStore()
     @State private var settingsOpen = false
     @State private var adConsentRequests = 0
     @State private var adConsentAvailable = false
@@ -192,6 +194,7 @@ private struct GuestScreen: View {
         ZStack {
             TestFlowView(
                 restoresSavedState: restorable,
+                anonymousConsent: consentStore,
                 tabBarEntry: true,
                 covered: settingsOpen,
                 adConsentRequests: adConsentRequests,
@@ -205,6 +208,8 @@ private struct GuestScreen: View {
                 .onAppear { restorable = true }
             if settingsOpen {
                 GuestSettingsScreen(
+                    consented: consentStore.consented(),
+                    onConsentChange: { consentStore.save(consented: $0) },
                     onClose: { settingsOpen = false },
                     onLogin: { await gate.leaveGuest() },
                     onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
