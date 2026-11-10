@@ -444,6 +444,8 @@ private fun AdConsentRow(consent: AdConsent, available: Boolean, enabled: Boolea
  * 값이고, 계정 섹션·회원 탈퇴는 지울 개인 정보가 없어 두지 않는다. 대신 바닥에 [onLogin]의 「로그인」을 둔다.
  *
  * @param onLogin 게스트만 — 게스트 토큰을 버리고 로그인 화면으로 ([AuthGateController.requestLogin]). null이면 버튼이 없다
+ * @param adConsent 게스트만 — 「맞춤형 광고 설정」 행의 값 (KAN-330 5단계, iOS 게스트 설정과 맞춤). null이면 행이 없다.
+ *   [adConsentEnabled]·[onOpenAdConsent]는 [SettingsScreen]과 같다
  */
 @Composable
 fun AnonymousSettingsScreen(
@@ -453,6 +455,9 @@ fun AnonymousSettingsScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onLogin: (() -> Unit)? = null,
+    adConsent: AdConsent? = null,
+    adConsentEnabled: Boolean = false,
+    onOpenAdConsent: () -> Unit = {},
 ) {
     BackHandler(onBack = onClose)
     PaperScreen(
@@ -473,7 +478,10 @@ fun AnonymousSettingsScreen(
                 onReload = {},
                 onOpenPrivacy = onOpenPrivacy,
                 caption = VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS,
-                extra = { AdReportRow() },
+                extra = {
+                    adConsent?.let { AdConsentRow(consent = it, available = adConsentEnabled, enabled = adConsentEnabled, onClick = onOpenAdConsent) }
+                    AdReportRow()
+                },
             )
         }
     }

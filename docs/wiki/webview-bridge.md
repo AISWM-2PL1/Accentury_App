@@ -904,7 +904,7 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 
 | `getAccountKind` | `@JavascriptInterface`, JS 스레드 동기 반환. `isOriginAllowedNow()`면 `accountKind()`, 아니면 `""`. 공급자는 게이트 StateFlow 값을 읽는 `accountKindOf` |
 | 값 | `Guest` → `"guest"`, `SignedIn` → `"member"`, 그 밖(확인 중·로그인 화면·**NeedsProfile**)은 `""`. 익명 빌드(`LOGIN_ENABLED=false`)는 TestFlow 기본값 `""` |
 | `requestLogin` | `postToMain` 뒤 `isCurrentUrlAllowed()`면 `onRequestLogin()` → `AuthGateController.requestLogin()`. 게스트가 아니면 return, 게스트면 앱 수명 scope에서 `logout()` |
-| 게스트 TestFlow | 세션 생성 클라이언트가 Bearer 없는 `OkHttpClient()`, 음성 동의는 `AnonymousVoiceConsentStore`. 설정은 `AnonymousSettingsScreen(onLogin = gate::requestLogin)` |
+| 게스트 TestFlow | 세션 생성 클라이언트가 Bearer 없는 `OkHttpClient()`, 음성 동의는 `AnonymousVoiceConsentStore`. 설정은 `AnonymousSettingsScreen(onLogin = gate::requestLogin)`에 회원과 같은 「맞춤형 광고 설정」 결선(`adConsentRequested`, KAN-330 5단계) |
 
 #### iOS 구현 (KAN-330 3단계)
 

@@ -146,7 +146,7 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) — 계정 기반이 아닌 기�
 
 1. 로그인 화면의 「로그인 없이 둘러보기」(글자 버튼, 소셜 버튼 묶음 아래 — iOS는 동의 줄 아래) → 같은 화면 안에서 소셜 버튼 묶음이 동의 단계로 바뀐다
 2. 동의 단계: 개인정보처리방침 동의(소셜 가입과 같은 값·같은 버전) + 「만 14세 이상입니다 (필수)」. **둘 다 체크해야** 시작 버튼이 눌린다.
-   시작 버튼 라벨은 Android 「둘러보기」, iOS 「둘러보기 시작」이다. 게스트에게는 생년월일을 받지 않으므로 나이는 이 확인 하나다
+   시작 버튼 라벨은 두 플랫폼 모두 「둘러보기 시작」이다. 게스트에게는 생년월일을 받지 않으므로 나이는 이 확인 하나다
 3. `POST /v0/auth/guest`(`{"privacyConsent":true,"privacyPolicyVersion":"…"}`, API 명세서 §3.21) → 응답 토큰 쌍을 **로그인과 같은 저장소**(Android
    Keystore 암호화 저장소, iOS Keychain)에 같은 저장·세대 규칙으로 저장(Android `saveSession`, iOS `startGuest`) → 게이트 `Guest`
 4. 게스트 판정은 저장하지 않는다. 시작 확인의 `me()`가 `user.provider == "GUEST"`면 게스트다 — 프로필 상태보다 먼저 가른다(게스트는
@@ -154,15 +154,15 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) — 계정 기반이 아닌 기�
 
 | 상황 | 동작 |
 |---|---|
-| 429 `AUTH_GUEST_LIMIT_EXCEEDED` (같은 IP의 하루 상한, `retryable=false`) | 로그인 화면에 안내. 분당 제한(`RATE_LIMITED`)보다 먼저 가른다. Android 「오늘은 로그인 없이 둘러볼 수 없어요」 + 「로그인해서 이용해 주세요」, iOS 「오늘은 둘러보기를 더 시작할 수 없어요」 |
+| 429 `AUTH_GUEST_LIMIT_EXCEEDED` (같은 IP의 하루 상한, `retryable=false`) | 로그인 화면에 안내. 분당 제한(`RATE_LIMITED`)보다 먼저 가른다. 두 플랫폼 모두 「오늘은 로그인 없이 둘러볼 수 없어요」 + 보조 줄 「로그인해서 이용해 주세요」 |
 | 403 `AUTH_GUEST_NOT_ALLOWED` (게스트 토큰으로 막힌 API) | **로그아웃시키지 않는다.** 토큰·게스트 상태 그대로, 갱신도 부르지 않는다. 요청 실패로 로그인 화면에 가는 것은 Refresh 거절(401)뿐이다 (테스트: Android `AuthGateControllerTest`, iOS `StoreReviewFixTests`) |
 | 레벨 테스트 | Bearer 없는 익명 세션(서버 `AccountTokens.forSession`). Android는 음성 동의를 기기 로컬 `AnonymousVoiceConsentStore`에 둔다 |
 | 게스트 설정 | 계정 섹션·로그아웃·회원 탈퇴 대신 [로그인] 하나. 누르면 게스트 로그아웃(서버 로그아웃 최선 노력 + 로컬 비움, IdP 정리 없음) → 로그인 화면. 브리지 `requestLogin`과 같은 경로(Android `AuthGateController.requestLogin`, iOS `leaveGuest`). 회원 상태에서는 아무 일도 하지 않는다 |
 | 버린 게스트 계정 | 서버가 정리한다(서버 `GuestAccountRetention`, 주기는 webview-bridge.md §15 `requestLogin`) |
 
 화면: Android `auth/LoginScreen.kt`(`GuestConsentStep`)·`MainActivity.kt` `AuthGateState.Guest` 갈래, iOS `Auth/LoginScreen.swift`·`Auth/AuthGateView.swift` `GuestScreen`·`Auth/SettingsScreen.swift` `GuestSettingsScreen`.
-게스트 설정의 행은 플랫폼마다 다르다 — Android는 익명 설정 화면(`AnonymousSettingsScreen`, 음성 동의·「광고 신고」)에 [로그인]을 붙였고,
-iOS `GuestSettingsScreen`은 「맞춤형 광고 설정」·「광고 신고」·방침이다.
+게스트 설정의 행은 두 플랫폼 모두 「맞춤형 광고 설정」·「광고 신고」·방침이다(KAN-330 5단계). Android는 익명 설정 화면(`AnonymousSettingsScreen`,
+음성 동의 포함)에 광고 동의 행과 [로그인]을 붙였고, iOS는 `GuestSettingsScreen`이다.
 
 ## 2. 토큰
 

@@ -248,8 +248,9 @@ private fun GuestConsentStep(state: LoginScreenState, onOpenPrivacy: () -> Unit,
                 label = "만 14세 이상입니다 (필수)",
             )
         }
+        // iOS와 같은 라벨 (KAN-330 5단계) — 두 플랫폼 심사 경로를 같은 말로 맞춘다.
         AccenturyButton(
-            text = "둘러보기",
+            text = "둘러보기 시작",
             onClick = onStart,
             modifier = Modifier.fillMaxWidth(),
             enabled = state.guestEnabled,
