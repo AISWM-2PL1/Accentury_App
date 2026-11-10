@@ -128,6 +128,10 @@
      않게 64를 앱바 + 8로 나눴다. 상단 안전 영역은 지금 0이지만(viewport-fit=cover 없음) 켜는 날 앱바와 같이 내려간다.
      앱은 `Dimens.screenPaddingTop`이 같은 값을 든다 */
   --screen-padding-top: calc(var(--app-bar-height) + var(--space-2) + env(safe-area-inset-top));
+  /* 화면 좌우 여백 (KAN-313, PR #68 리뷰 2026-11-10). 값은 --space-6(24)과 같지만 px로 고정한다 — rem이면 글자 200%에서
+     48px이 되어 360 폭 본문이 312→264px로 줄고, 낱말 끊김과 줄 수가 늘어난다. 여백은 글자를 담는 칸이 아니라 화면 가장자리
+     몫이다. .screen·.item-screen·앱바·하단 시트 패널이 같이 쓴다. 위아래 간격은 rem 그대로다 */
+  --screen-padding-x: 24px;
 
   /* 터치 영역 하한 (KAN-313). 글자를 키우면 3rem으로 같이 커지고, 줄여도 48px 아래로는 내려가지 않는다.
      48 하한이 걸린 높이 토큰(--control-height-*)도 같은 max(48px, …) 형식이다 */
