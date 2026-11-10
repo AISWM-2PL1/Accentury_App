@@ -58,6 +58,10 @@ class AdsController(
      * 이 두 줄을 지우는 것으로 끝난다 — 기본값이 이미 "제한 없음"이다.
      * 근거: developers.google.com/admob/android/targeting, rel-notes 25.3.0 (2026-05-21)
      *
+     * 광고 콘텐츠 등급 상한은 PG다 (KAN-344, 팀 결정 2026-11-10). App Store 연령 등급을 13+로 정했고 PG가 그 선에
+     * 맞는다 — 앱 등급보다 높은 광고가 나오면 가이드라인 1.2 심사 위험이다(빌드 15 거절 후속). Play는 같은 상한을 따른다.
+     * 근거: developers.google.com/admob/android/targeting#ad_content_filtering
+     *
      * 테스트 기기 등록은 하지 않는다 — 디버그·미주입 빌드는 애초에 Google 테스트 광고 단위를
      * 쓰므로(build.gradle.kts) 어느 기기에서든 테스트 광고만 나온다.
      */
@@ -67,6 +71,7 @@ class AdsController(
             MobileAds.getRequestConfiguration().toBuilder()
                 .setTagForChildDirectedTreatment(RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_FALSE)
                 .setTagForUnderAgeOfConsent(RequestConfiguration.TAG_FOR_UNDER_AGE_OF_CONSENT_FALSE)
+                .setMaxAdContentRating(RequestConfiguration.MAX_AD_CONTENT_RATING_PG)
                 .build(),
         )
         // 문서 권고: 초기화는 백그라운드에서, 광고 로드는 메인에서.

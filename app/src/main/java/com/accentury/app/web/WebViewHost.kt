@@ -67,6 +67,8 @@ sealed interface WebLoadState {
  *   상위가 시스템 뒤로가기를 문서의 `screen`으로 판정하는 데 쓴다 (KAN-252, [webBackTarget])
  * @param onLocationChanged 웹의 SPA 화면 전환 뒤 새 href (KAN-290, 브리지 `onLocationChanged`). 문서가 안 바뀌어
  *   [onPageStarted]가 오지 않는 이동이다. 메인 스레드로 온다
+ * @param accountKind 브리지 `getAccountKind`의 값 공급자 (KAN-330). JS 스레드에서 동기로 불린다
+ * @param onRequestLogin 브리지 `requestLogin` (KAN-330). 메인 스레드로 온다
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
  */
@@ -94,6 +96,8 @@ fun WebViewHost(
     onRetryUpload: (String) -> Unit = {},
     onPageStarted: (String?) -> Unit = {},
     onLocationChanged: (String) -> Unit = {},
+    accountKind: () -> String = { "" },
+    onRequestLogin: () -> Unit = {},
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
     onWebViewReleased: (WebView) -> Unit = {},
@@ -209,6 +213,8 @@ fun WebViewHost(
                                 onOpenSettings = onOpenSettings,
                                 onRetryUpload = onRetryUpload,
                                 onLocationChanged = onLocationChanged,
+                                accountKind = accountKind,
+                                onRequestLogin = onRequestLogin,
                             ),
                             "AccenturyBridge",
                         )

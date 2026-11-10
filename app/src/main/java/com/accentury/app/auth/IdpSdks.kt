@@ -143,6 +143,14 @@ private object NaverSignIn : IdpSignIn {
 }
 
 /**
+ * 탈퇴 본문의 `naverRefreshToken` (KAN-344, 서버 KAN-343) — 네이버 SDK가 암호화 저장소에 들고 있는 Refresh 토큰이다. 로그인 때
+ * 서버로 보낸 것과 같은 값이고 앱이 따로 저장하지 않는다. 재시작 뒤에도 남아 있고(SDK 저장소), [IdpLogout]의 SDK 로그아웃이
+ * 지우므로 그보다 먼저 읽는다. 초기화 전(설정 없는 빌드)·로그아웃 뒤면 null — 서버는 이 값 없이도 탈퇴시킨다.
+ * https://github.com/naver/naveridlogin-sdk-android (NidOAuth.getRefreshToken)
+ */
+fun naverRefreshToken(): String? = if (NidOAuth.isInitialized()) NidOAuth.getRefreshToken() else null
+
+/**
  * IdP SDK 쪽 세션 정리 (KAN-224). [AuthGateController.logout]의 `idpLogout`에 넘길 몫이다 —
  * `gate.logout { IdpLogout.all(context) }`. 지금은 추가 정보 화면의 [다른 계정으로 로그인]이 부르고,
  * 설정 화면의 로그아웃은 KAN-247이다.
