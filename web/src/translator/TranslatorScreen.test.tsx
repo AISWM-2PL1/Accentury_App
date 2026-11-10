@@ -376,6 +376,8 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     const dialog = screen.getByRole('dialog', { name: '문장을 Google Gemini로 보내도 될까요?' })
     expect(dialog).toHaveTextContent('Google LLC의 Gemini API')
     expect(dialog).toHaveTextContent('자사 제품 개선에 쓸 수 있어요')
+    // 보내지 않는 것도 같은 시트에서 말한다 (KAN-331)
+    expect(dialog).toHaveTextContent('계정 정보·음성은 보내지 않아요')
     expect(within(dialog).getByRole('link', { name: '개인정보처리방침' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '동의하고 보내기' })).toHaveFocus()
     expect(fetchImpl).not.toHaveBeenCalled()
@@ -449,5 +451,80 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('부적절한 결과 신고 (KAN-331·KAN-344)', () => {
+  const REPORT = '부적절한 결과 신고'
+
+  /** 번역은 성공, 신고는 [report]가 답한다. 호출을 경로별로 센다 */
+  function server(report: () => Promise<Response>) {
+    return vi.fn<FetchLike>(async (url) =>
+      String(url).endsWith('/v0/translations/reports') ? report() : jsonResponse(200, { dialect: '밥 뭇나?' }),
+    )
+  }
+  const reports = (fetchImpl: ReturnType<typeof server>) =>
+    fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/reports'))
+
+  it('신고는 그 결과의 방향·원문·결과를 보내고, 성공하면 버튼 대신 안내가 남는다', async () => {
+    const fetchImpl = server(async () => jsonResponse(201, { reportId: 'r1' }))
+    setup(fetchImpl)
+    type('  밥 먹었어?  ')
+    submit()
+    await screen.findByText('밥 뭇나?')
+    fireEvent.click(screen.getByRole('button', { name: REPORT }))
+    expect(await screen.findByText('신고했어요. 확인해 볼게요')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: REPORT })).toBeNull()
+    const [[url, init]] = reports(fetchImpl)
+    expect(url).toBe('/v0/translations/reports')
+    expect(init?.method).toBe('POST')
+    expect(init?.body).toBe(JSON.stringify({ direction: 'toDialect', text: '밥 먹었어?', result: '밥 뭇나?' }))
+  })
+
+  it('보내는 중에는 잠겨 연타해도 한 번만 보낸다', async () => {
+    let finish: (r: Response) => void = () => {}
+    const fetchImpl = server(() => new Promise<Response>((resolve) => (finish = resolve)))
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    await screen.findByText('밥 뭇나?')
+    const button = screen.getByRole('button', { name: REPORT })
+    fireEvent.click(button)
+    fireEvent.click(button)
+    await vi.waitFor(() => expect(reports(fetchImpl)).toHaveLength(1))
+    expect(screen.getByRole('button', { name: REPORT })).toBeDisabled()
+    await act(async () => finish(jsonResponse(201, { reportId: 'r1' })))
+    expect(reports(fetchImpl)).toHaveLength(1)
+  })
+
+  it('실패하면 안내를 띄우고 다시 누를 수 있다', async () => {
+    const fetchImpl = server(async () => jsonResponse(429, envelope('RATE_LIMITED', true)))
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    await screen.findByText('밥 뭇나?')
+    fireEvent.click(screen.getByRole('button', { name: REPORT }))
+    expect(await screen.findByText('신고하지 못했어요. 잠시 뒤 다시 눌러 주세요')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: REPORT })).toBeEnabled()
+  })
+
+  it('게스트도 번역·신고를 보낸다 — 학습 API와 달리 미리 끊지 않는다 (KAN-330)', async () => {
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => 2,
+      getAccountKind: () => 'guest',
+    }
+    try {
+      const fetchImpl = server(async () => jsonResponse(201, { reportId: 'r1' }))
+      setup(fetchImpl)
+      type('밥 먹었어?')
+      submit()
+      await screen.findByText('밥 뭇나?')
+      fireEvent.click(screen.getByRole('button', { name: REPORT }))
+      expect(await screen.findByText('신고했어요. 확인해 볼게요')).toBeInTheDocument()
+    } finally {
+      delete window.AccenturyBridge
+    }
   })
 })

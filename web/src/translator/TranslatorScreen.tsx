@@ -38,6 +38,7 @@ import {
   TRANSLATION_TOO_LONG,
   TRANSLATION_UNAVAILABLE,
   VALIDATION_FAILED,
+  reportTranslation,
   translate,
   type TranslationDirection,
 } from './translationApi'
@@ -178,7 +179,7 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
           <Button disabled={!canSubmit} onClick={onSubmit}>
             바꾸기
           </Button>
-          <TranslatorStatus status={status} onRetry={run} />
+          <TranslatorStatus status={status} onRetry={run} apiBase={apiBase} deps={deps} />
         </div>
       </main>
       {/* 탭 바는 position: fixed라 래퍼 div가 레이아웃에 끼지 않는다. `body:has(.tab-bar)`도 후손 매칭이라 그대로다 */}
@@ -188,14 +189,31 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
   )
 }
 
-function TranslatorStatus({ status, onRetry }: { status: Status; onRetry: (input: string) => void }) {
+function TranslatorStatus({
+  status,
+  onRetry,
+  apiBase,
+  deps,
+}: {
+  status: Status
+  onRetry: (input: string) => void
+  apiBase: string
+  deps?: WordApiDeps
+}) {
   switch (status.kind) {
     case 'idle':
       return null
     case 'waiting':
       return <p className="type-body">바꾸는 중이에요</p>
     case 'done':
-      return <TranslatorResult source={status.source} result={status.result} direction={status.direction} />
+      return (
+        <TranslatorResult
+          source={status.source}
+          result={status.result}
+          direction={status.direction}
+          onReport={() => reportTranslation(apiBase, { direction: status.direction, text: status.source, result: status.result }, deps)}
+        />
+      )
     case 'error': {
       const { error, retryText } = status
       return (
@@ -235,8 +253,40 @@ function errorMessage(error: WordLearningError): string {
  * 화면에 토스트 자리가 없고, 누른 자리에서 바로 보인다. 실패(비보안 컨텍스트라 clipboard가 없는 개발
  * WebView 등)는 같은 자리에 「복사하지 못했어요」.
  */
-function TranslatorResult({ source, result, direction }: { source: string; result: string; direction: TranslationDirection }) {
+/*
+ * 신고 상태는 결과 하나에 묶인다 (KAN-331·KAN-344). 새로 바꾸면 결과가 대기 → 새 결과로 다시 그려져 상태가 처음으로
+ * 돌아간다 — 결과마다 한 번이다. 보내는 중엔 버튼을 잠가 연타가 두 번 보내지 않게 하고, 실패하면 다시 누를 수 있다.
+ */
+type ReportState = 'idle' | 'sending' | 'sent' | 'failed'
+
+function TranslatorResult({
+  source,
+  result,
+  direction,
+  onReport,
+}: {
+  source: string
+  result: string
+  direction: TranslationDirection
+  onReport: () => Promise<unknown>
+}) {
   const [copyLabel, setCopyLabel] = useState('복사')
+  const [report, setReport] = useState<ReportState>('idle')
+  // state는 다음 렌더까지 안 바뀌어 같은 틱의 두 번째 클릭을 못 막는다 — ref로 한 번 더 잠근다
+  const reporting = useRef(false)
+
+  const sendReport = () => {
+    if (reporting.current) return
+    reporting.current = true
+    setReport('sending')
+    onReport().then(
+      () => setReport('sent'),
+      () => {
+        reporting.current = false
+        setReport('failed')
+      },
+    )
+  }
 
   const copy = () => {
     Promise.resolve()
@@ -270,6 +320,22 @@ function TranslatorResult({ source, result, direction }: { source: string; resul
         공유
       </Button>
       <p className="type-caption feedback-hint">AI 번역이라 실제 표현과 다를 수 있어요</p>
+      {report === 'sent' ? (
+        <p className="type-caption feedback-hint" role="status">
+          신고했어요. 확인해 볼게요
+        </p>
+      ) : (
+        <>
+          <Button variant="secondary" disabled={report === 'sending'} onClick={sendReport}>
+            부적절한 결과 신고
+          </Button>
+          {report === 'failed' && (
+            <p className="type-caption feedback-message" role="alert">
+              신고하지 못했어요. 잠시 뒤 다시 눌러 주세요
+            </p>
+          )}
+        </>
+      )}
     </div>
   )
 }

@@ -15,9 +15,11 @@ import {
   logAnalyticsEvent,
   openExternalUrl,
   openSettings,
+  readAccountKind,
   readAdConsent,
   refreshAccessToken,
   REQUIRED_BRIDGE_VERSION,
+  requestLogin,
   requestMicPermission,
   retryUpload,
   shareResult,
@@ -233,6 +235,29 @@ describe('openSettings — 네이티브 설정 화면 (KAN-252)', () => {
     window.AccenturyBridge = fakeBridge({ openSettings: fn })
     expect(canOpenSettings()).toBe(true)
     expect(openSettings()).toBe(true)
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith()
+  })
+})
+
+describe('게스트 계정 (KAN-330)', () => {
+  it('readAccountKind는 member·guest만 그대로 주고, 메서드 없음·빈 값·모르는 값은 null(= 예전처럼 회원)이다', () => {
+    expect(readAccountKind()).toBeNull()
+    window.AccenturyBridge = fakeBridge()
+    expect(readAccountKind()).toBeNull()
+    for (const [raw, kind] of [['member', 'member'], ['guest', 'guest'], ['', null], ['GUEST', null], ['anonymous', null]] as const) {
+      window.AccenturyBridge = fakeBridge({ getAccountKind: () => raw })
+      expect(readAccountKind()).toBe(kind)
+    }
+  })
+
+  it('requestLogin은 메서드가 없으면 false, 있으면 인자 없이 한 번 부르고 true', () => {
+    expect(requestLogin()).toBe(false)
+    window.AccenturyBridge = fakeBridge()
+    expect(requestLogin()).toBe(false)
+    const fn = vi.fn()
+    window.AccenturyBridge = fakeBridge({ requestLogin: fn })
+    expect(requestLogin()).toBe(true)
     expect(fn).toHaveBeenCalledTimes(1)
     expect(fn).toHaveBeenCalledWith()
   })

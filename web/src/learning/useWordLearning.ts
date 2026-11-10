@@ -20,6 +20,7 @@
 import { useEffect, useState } from 'react'
 import { haptic } from '../bridge/bridge'
 import {
+  AUTH_GUEST_NOT_ALLOWED,
   CLIENT_NOT_SIGNED_IN,
   UNAUTHENTICATED,
   WordLearningError,
@@ -48,8 +49,9 @@ export type WordLearningView =
 /** 오류 화면의 출구. 'leave' = 버튼 없이 탭 바(로그인 안내, KAN-252), 'retry' = [다시 시도], 'list' = [세트 목록으로] */
 export type ErrorExit = 'leave' | 'retry' | 'list'
 
+/** 게스트(KAN-330)도 로그인으로만 풀리므로 같은 출구다 — 화면은 `GuestLoginPrompt`를 그린다 */
 export function isSignInCode(code: string | null): boolean {
-  return code === CLIENT_NOT_SIGNED_IN || code === UNAUTHENTICATED
+  return code === CLIENT_NOT_SIGNED_IN || code === UNAUTHENTICATED || code === AUTH_GUEST_NOT_ALLOWED
 }
 
 export function errorExit(view: { error: WordLearningError; fromList: boolean }): ErrorExit {

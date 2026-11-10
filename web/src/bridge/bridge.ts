@@ -154,6 +154,18 @@ export interface AccenturyBridge {
    * 안다(탭 강조·뒤로가기 판단). 회신은 없다. 이 메서드를 아는 앱만 SPA 전환을 받는다([supportsSpaNavigation])
    */
   onLocationChanged?(url: string): void
+  /**
+   * 지금 계정의 종류 (KAN-330, webview-bridge §15). 동기 반환 `'member' | 'guest'`, 로그인 안 됨·로그인 끈 빌드·origin
+   * 불허면 빈 문자열이다([getAccessToken]과 같은 규칙). 게스트(「로그인 없이 둘러보기」)는 서버가 번역 말고는 403
+   * `AUTH_GUEST_NOT_ALLOWED`로 막으므로(서버 KAN-329), 웹이 학습 API를 부르기 전에 로그인 안내로 갈라야 한다.
+   * 토큰만으로는 못 가른다 — 게스트도 Access 토큰을 가진다. [getSessionToken]과 같은 이유로 optional이다
+   */
+  getAccountKind?(): string
+  /**
+   * 게스트의 [로그인하기] → 네이티브가 게스트 세션을 버리고 로그인 화면으로 간다 (KAN-330, §15). 인자도 회신도 없다 —
+   * 성공하면 WebView 자체가 로그인 화면에 가려진다. [getSessionToken]과 같은 이유로 optional이다
+   */
+  requestLogin?(): void
 }
 
 /**
@@ -341,6 +353,9 @@ declare global {
  * 같은 티켓 5단계의 payload `itemNumber`·`totalItems`도 릴리스 전 계약에 넣은 필드라 2를 유지한다.
  *
  * KAN-252의 `openSettings`도 추가라 2를 유지한다. 모르는 앱에서는 탭 바에 [설정] 탭이 없다 — 앱의 기존 톱니가 그대로 남아 있다.
+ *
+ * KAN-330의 `getAccountKind`·`requestLogin`도 추가라 2를 유지한다. 모르는 앱에서는 [readAccountKind]가 null이라 예전처럼
+ * 회원으로 다루고, [requestLogin]이 false라 로그인 안내 버튼이 설정 화면으로 내려간다.
  */
 export const REQUIRED_BRIDGE_VERSION = 2
 
@@ -716,6 +731,34 @@ export function openSettings(): boolean {
  */
 export function canOpenSettings(): boolean {
   return typeof window.AccenturyBridge?.openSettings === 'function'
+}
+
+/** 계정 종류 (KAN-330). 네이티브 값의 미러다 — 늘리려면 §15와 양 플랫폼을 같이 고친다 */
+export type AccountKind = 'member' | 'guest'
+
+/**
+ * 계정 종류를 브리지에서 읽는다 (KAN-330). 브리지·메서드가 없는 실행(구버전 앱·브라우저 단독), 빈 문자열(로그인 안 됨·
+ * origin 불허), 계약 밖 문자열은 전부 null이다 — [readAdConsent]처럼 부재를 null 하나로 접는다.
+ *
+ * **null은 회원처럼 다룬다.** 호출자는 `=== 'guest'`일 때만 갈라야 한다. 게스트를 아는 앱만 `'guest'`를 주므로, 이
+ * 메서드가 없는 구버전 앱은 예전 동작 그대로다. 게스트가 null로 새도 서버가 403으로 막고 화면이 같은 안내로 받는다.
+ */
+export function readAccountKind(): AccountKind | null {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.getAccountKind !== 'function') return null
+  const raw = bridge.getAccountKind()
+  return raw === 'member' || raw === 'guest' ? raw : null
+}
+
+/**
+ * 게스트 세션을 버리고 로그인 화면으로 가라고 네이티브에 요청한다 (KAN-330). 반환 규칙은 [openSettings]와 같다 —
+ * 메서드가 없으면 false라 호출자가 설정 화면(로그아웃)으로 내려간다.
+ */
+export function requestLogin(): boolean {
+  const bridge = window.AccenturyBridge
+  if (typeof bridge?.requestLogin !== 'function') return false
+  bridge.requestLogin()
+  return true
 }
 
 /**

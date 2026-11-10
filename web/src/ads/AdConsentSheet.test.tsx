@@ -3,7 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { REQUIRED_BRIDGE_VERSION, type AccenturyBridge } from '../bridge/bridge'
 import { DEFAULT_PRIVACY_POLICY_URL } from '../legal/privacyPolicy'
 import { AdConsentSheet } from './AdConsentSheet'
-import { AD_CONSENT_ALLOW, AD_CONSENT_CURRENT, AD_CONSENT_DENY, AD_CONSENT_IOS_ATT_NOTE, AD_CONSENT_TITLE } from './adConsentText'
+import {
+  AD_CONSENT_ALLOW,
+  AD_CONSENT_CHANGE_HINT_IOS,
+  AD_CONSENT_CONTINUE,
+  AD_CONSENT_CURRENT,
+  AD_CONSENT_DENY,
+  AD_CONSENT_IOS_ATT_NOTE,
+  AD_CONSENT_TITLE,
+} from './adConsentText'
 
 afterEach(() => {
   delete window.AccenturyBridge
@@ -140,5 +148,51 @@ describe('AdConsentSheet — 맞춤형 광고 동의 시트 (KAN-196)', () => {
     spy.mockRestore()
 
     expect(screen.queryByText(AD_CONSENT_IOS_ATT_NOTE) !== null).toBe(shown)
+  })
+
+  // App Store 5.1.1(iv) 재거절(빌드 15, 2026-11-09): ATT 앞 사전 안내에 「미리 거절」 선택지가 있으면 안 된다 (KAN-330·KAN-344)
+  describe('iOS 앱은 설명 + [계속] 하나다', () => {
+    const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)'
+
+    it('[계속] 하나뿐이고 누르면 granted를 보낸다 — 네이티브가 ATT로 맞춤형을 정한다', () => {
+      const spy = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(IPHONE)
+      const onChoose = vi.fn()
+      render(<AdConsentSheet current="unknown" onChoose={onChoose} />)
+      spy.mockRestore()
+
+      expect(screen.getAllByRole('button')).toHaveLength(1)
+      expect(screen.queryByRole('button', { name: AD_CONSENT_DENY })).toBeNull()
+      const next = screen.getByRole('button', { name: AD_CONSENT_CONTINUE })
+      expect(next).toHaveFocus()
+      fireEvent.click(next)
+      expect(onChoose).toHaveBeenCalledWith('granted')
+      // 고지 4요소는 그대로 — 사업자·식별자·목적·거부 시 영향, 바꾸는 길은 iOS 추적 설정
+      expect(screen.getByText(/Google AdMob/)).toBeInTheDocument()
+      expect(screen.getByText(/추적 허용 창에서 허용하시면 기기의 광고 식별자/)).toBeInTheDocument()
+      expect(screen.getByText(/일반 광고만 나와요/)).toBeInTheDocument()
+      expect(screen.getByText(new RegExp(AD_CONSENT_CHANGE_HINT_IOS))).toBeInTheDocument()
+    })
+
+    it('다시 열어도 지금 상태 줄이 없다 — 맞춤형 여부는 ATT가 정한다', () => {
+      const spy = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(IPHONE)
+      render(<AdConsentSheet current="denied" onChoose={vi.fn()} />)
+      spy.mockRestore()
+
+      expect(screen.queryByText(AD_CONSENT_CURRENT.denied)).toBeNull()
+      expect(screen.getAllByRole('button')).toHaveLength(1)
+    })
+
+    it.each([
+      ['admob', 'Mozilla/5.0 (Linux; Android 15)'],
+      ['adsense', IPHONE],
+    ] as const)('%s · %s는 두 선택지 그대로다', (vendor, userAgent) => {
+      const spy = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent)
+      render(<AdConsentSheet current="unknown" onChoose={vi.fn()} vendor={vendor} />)
+      spy.mockRestore()
+
+      expect(screen.getByRole('button', { name: AD_CONSENT_ALLOW })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: AD_CONSENT_DENY })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: AD_CONSENT_CONTINUE })).toBeNull()
+    })
   })
 })

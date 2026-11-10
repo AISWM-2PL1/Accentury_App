@@ -519,3 +519,48 @@ describe('WordSetCompleteScreen', () => {
     expect(onBackToList).toHaveBeenCalledTimes(1)
   })
 })
+
+// ── 게스트 (KAN-330) ─────────────────────────────────────────────────────
+
+describe('게스트 로그인 안내 (KAN-330)', () => {
+  function guestBridge(extra: Partial<NonNullable<Window['AccenturyBridge']>> = {}) {
+    window.AccenturyBridge = {
+      requestMicPermission: vi.fn(),
+      startVoiceItem: vi.fn(),
+      getContractVersion: () => 2,
+      getAccountKind: () => 'guest',
+      ...extra,
+    }
+  }
+
+  it('게스트면 학습 API를 부르지 않고 안내와 탭 바를 그린다, [로그인하기]는 requestLogin', async () => {
+    const requestLogin = vi.fn()
+    const openSettings = vi.fn()
+    guestBridge({ requestLogin, openSettings })
+    const server = fakeServer(happyRoutes())
+    render(<WordLearningRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl)} />)
+
+    expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
+    expect(server.calls).toHaveLength(0)
+    expect(screen.getByRole('navigation', { name: '탭 바' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '로그인하기' }))
+    expect(requestLogin).toHaveBeenCalledTimes(1)
+    expect(openSettings).not.toHaveBeenCalled()
+  })
+
+  it('requestLogin을 모르는 앱이면 [로그인하기]가 설정 화면으로 내려간다', async () => {
+    const openSettings = vi.fn()
+    guestBridge({ openSettings })
+    render(<WordLearningRoute apiBase="http://api" deps={deps(fakeServer(happyRoutes()).fetchImpl)} />)
+    fireEvent.click(await screen.findByRole('button', { name: '로그인하기' }))
+    expect(openSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('계정 종류를 모르는 앱이 서버 403 AUTH_GUEST_NOT_ALLOWED를 받아도 같은 안내다', async () => {
+    const server = fakeServer({ '/word-sets': fail(403, 'AUTH_GUEST_NOT_ALLOWED', '로그인이 필요한 기능입니다.', false) })
+    render(<WordLearningRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl)} />)
+    expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('navigation', { name: '탭 바' })).toBeInTheDocument()
+  })
+})

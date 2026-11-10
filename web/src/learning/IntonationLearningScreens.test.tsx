@@ -790,3 +790,19 @@ describe('A-5 피드백', () => {
   })
 })
 
+describe('게스트 로그인 안내 (KAN-330)', () => {
+  it('서버 403 AUTH_GUEST_NOT_ALLOWED는 오류 대신 로그인 안내와 탭 바다', async () => {
+    renderRoute({ '/intonation-courses': fail(403, 'AUTH_GUEST_NOT_ALLOWED', '로그인이 필요한 기능입니다.', false) })
+    expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '로그인하기' })).toBeInTheDocument()
+    expect(tabBar()).toBeInTheDocument()
+  })
+
+  it('게스트를 아는 앱이면 코스 목록을 부르지 않는다', async () => {
+    window.AccenturyBridge = { requestMicPermission: vi.fn(), startVoiceItem: vi.fn(), getContractVersion: () => 2, getAccountKind: () => 'guest' }
+    const fetchImpl = vi.fn<FetchLike>()
+    render(<IntonationLearningRoute apiBase="http://api" deps={deps(fetchImpl)} />)
+    expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
