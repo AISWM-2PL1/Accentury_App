@@ -227,7 +227,7 @@ private struct AdConsentRow: View {
     }
 }
 
-/// 「광고 신고」 행 (KAN-330, App Store 지침 1.2 — 부적절한 콘텐츠를 신고할 수단). 회원·게스트 설정에 같이 선다. 메일 작성으로
+/// 「광고 신고」 행 (KAN-330, App Store 지침 1.2 — 부적절한 콘텐츠를 신고할 수단). 회원·게스트·익명 설정에 같이 선다. 메일 작성으로
 /// 문의처에 보낸다(``AccenturyCore/adReportMailURL(appVersion:)``) — 광고는 AdMob이 고르므로 받은 신고는 AdMob 광고 검토 센터에서 막는다.
 /// 메일 앱이 없으면 `mailto:`가 열리지 않으니 캡션에 주소를 그대로 보인다.
 private struct AdReportRow: View {
@@ -325,7 +325,7 @@ private struct VoiceConsentSection: View {
     let onOpenPrivacy: () -> Void
     /// 토글 아래 안내. 익명 모드는 ``AccenturyCore/voiceConsentSettingCaptionAnonymous``
     var caption: String = voiceConsentSettingCaption
-    /// 캡션 아래·방침 버튼 위에 끼울 줄 (KAN-315). 로그인 빌드는 「맞춤형 광고 설정」(``AdConsentRow``), 익명은 없다
+    /// 캡션 아래·방침 버튼 위에 끼울 줄 (KAN-315). 로그인 빌드는 「맞춤형 광고 설정」(``AdConsentRow``)·「광고 신고」, 익명 빌드는 「광고 신고」(``AdReportRow``)만
     var extra: AnyView?
 
     @State private var pending: Bool?
@@ -403,7 +403,9 @@ struct AnonymousSettingsScreen: View {
                     onChange: { onChange($0); return true },
                     onReload: {},
                     onOpenPrivacy: onOpenPrivacy,
-                    caption: voiceConsentSettingCaptionAnonymous
+                    caption: voiceConsentSettingCaptionAnonymous,
+                    // 광고는 익명 빌드에도 나온다 — 신고 수단은 안드로이드 익명 설정처럼 둔다 (KAN-344, KAN-330 5단계).
+                    extra: AnyView(AdReportRow())
                 )
             }
             .padding(.horizontal, Papercut.space6)

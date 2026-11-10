@@ -329,7 +329,7 @@ struct AuthFailureBlock<Action: View>: View {
         case .rateLimited: return "잠시 뒤에 \(verb)할 수 있어요"
         case .underAge: return "만 14세 이상만 가입할 수 있어요"
         case .unsupported: return "지금은 \(verb)할 수 없어요"
-        case .guestLimitExceeded: return "오늘은 둘러보기를 더 시작할 수 없어요"
+        case .guestLimitExceeded: return "오늘은 로그인 없이 둘러볼 수 없어요"
         }
     }
 
@@ -342,8 +342,8 @@ struct AuthFailureBlock<Action: View>: View {
                 ?? "접속이 몰리고 있어요 · 잠시 뒤에 다시 눌러 주세요"
         case .underAge: return nil
         case .unsupported: return "앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요"
-        // 같은 IP의 하루 상한이다 (KAN-330, 서버 KAN-329). 소셜 로그인은 막히지 않는다.
-        case .guestLimitExceeded: return "내일 다시 시도하거나 소셜 계정으로 로그인해 주세요"
+        // 같은 IP의 하루 상한이다 (KAN-330, 서버 KAN-329). 소셜 로그인은 막히지 않는다. 문구는 안드로이드와 같다(KAN-330 5단계).
+        case .guestLimitExceeded: return "로그인해서 이용해 주세요"
         }
     }
 }

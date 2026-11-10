@@ -412,6 +412,9 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
              * 웹 학습 API의 계정 토큰은 그대로 게스트 토큰이다 — 번역만 열려 있고, 나머지는 웹이 getAccountKind로 가린다.
              */
             var settingsOpen by rememberSaveable { mutableStateOf(false) }
+            // 게스트도 광고를 본다 — 「맞춤형 광고 설정」은 회원과 같은 결선이다 (KAN-315, iOS GuestScreen과 맞춤, KAN-330 5단계).
+            var adConsentRequested by rememberSaveable { mutableStateOf(false) }
+            var adConsentAvailable by rememberSaveable { mutableStateOf(false) }
             val consentStore = remember(context) { AnonymousVoiceConsentStore(context) }
             val sessionHttpClient = remember { OkHttpClient() }
             Box(modifier = modifier) {
@@ -423,6 +426,9 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                     onProfileIncomplete = {},
                     onOpenSettings = { settingsOpen = true },
                     tabBarEntry = true,
+                    adConsentRequested = adConsentRequested,
+                    onAdConsentHandled = { adConsentRequested = false },
+                    onAdConsentAvailable = { adConsentAvailable = it },
                     accountKind = { accountKindOf(gate.state.value) },
                     onRequestLogin = gate::requestLogin,
                 )
@@ -433,6 +439,12 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
                         onClose = { settingsOpen = false },
                         onLogin = gate::requestLogin,
+                        adConsent = remember { AdsController.from(context).consentStore.read() },
+                        adConsentEnabled = adConsentAvailable,
+                        onOpenAdConsent = {
+                            settingsOpen = false
+                            adConsentRequested = true
+                        },
                     )
                 }
             }
