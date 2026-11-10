@@ -1159,4 +1159,16 @@ class AccenturyBridgeTest {
             locationChanged("https://web.example.com/?screen=home", allowed = false, isUrlAllowed = { true }),
         )
     }
+
+    // Codex 리뷰 P2(2026-11-10): 스텁 대신 실제 판정을 꽂는다. iOS testLocationChangedWithTheRealAllowlistCheckKeepsOnlyAllowedOrigins와 짝.
+    @Test
+    fun `실제 allowlist 판정을 꽂으면 우리 origin만 통과하고 다른 origin과 javascript 스킴은 버린다`() {
+        val real: (String) -> Boolean = { isAllowedWebUrl(it, setOf("https://web.example.com")) }
+        val delivered = listOf(
+            "https://web.example.com/?screen=home",
+            "https://phish.example/?screen=home",
+            "javascript:alert(1)//?screen=home",
+        ).flatMap { locationChanged(it, isUrlAllowed = real) }
+        assertEquals(listOf("https://web.example.com/?screen=home"), delivered)
+    }
 }
