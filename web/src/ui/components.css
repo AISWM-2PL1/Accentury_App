@@ -250,7 +250,7 @@
    * 배치다 — 화면의 첫 요소를 아래로 내려 두면 그림과 제목이 세로 가운데 가까이 앉고,
    * 하단 CTA와의 사이가 벌어져 "누를 것은 아래 하나"가 분명해진다.
    */
-  padding: var(--screen-padding-top) var(--space-6) var(--space-8);
+  padding: var(--screen-padding-top) var(--screen-padding-x) var(--space-8);
 }
 
 .screen__body {
@@ -775,7 +775,7 @@
   min-height: 100dvh;
   /* 인트로·결과와 같은 여백이다 (KAN-161 3단계). 문항 화면만 좁게 두면 음성·어휘·결과를
      오가는 동안 좌우 폭이 바뀌어 카드가 커졌다 작아졌다 하는 것처럼 보인다 */
-  padding: var(--screen-padding-top) var(--space-6) var(--space-8);
+  padding: var(--screen-padding-top) var(--screen-padding-x) var(--space-8);
 }
 
 /*
@@ -1897,7 +1897,7 @@ a.btn {
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
-  padding: 1.75rem var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding: 1.75rem var(--screen-padding-x) calc(var(--space-6) + env(safe-area-inset-bottom));
   background: var(--color-card);
   color: var(--color-card-foreground);
   /* 디자인 3 (KAN-288, 시안 `.paper-modal`): 위 테두리 1px 잉크 + 위로 8 올린 종이 그림자 한 겹.
@@ -1999,7 +1999,7 @@ a.btn {
   width: 100%;
   max-height: calc(100dvh - var(--space-8));
   overflow-y: auto;
-  padding: 1.75rem var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding: 1.75rem var(--screen-padding-x) calc(var(--space-6) + env(safe-area-inset-bottom));
   background: var(--color-card);
   color: var(--color-card-foreground);
   /* `.ad-consent-panel`과 같은 시안 `.paper-modal` 규칙 (KAN-288) */
@@ -2389,7 +2389,7 @@ body:has(.tab-bar) main {
   display: flex;
   align-items: center;
   height: calc(var(--app-bar-height) + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) var(--space-6) 0;
+  padding: env(safe-area-inset-top) var(--screen-padding-x) 0;
   background: var(--color-background);
 }
 
