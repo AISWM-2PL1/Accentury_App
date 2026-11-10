@@ -22,7 +22,13 @@ import GoogleMobileAds
 /// 앱 시작마다 저장된 값으로 바로 받아 둔다. 동의가 바뀌면(``setConsent(_:)``) 받아 둔 광고를 버리고
 /// 새 조건으로 다시 받는다 — 허용으로 받아 둔 맞춤형 광고가 거부 뒤에 한 번 더 나가면 안 된다.
 ///
-/// ## ATT — 시트 동의와 프롬프트의 순서 (4단계 결정)
+/// ## ATT — 시트 동의와 프롬프트의 순서 (4단계 결정, KAN-330 / KAN-344-1로 갱신)
+///
+/// **2026-11-10부터 아래 「denied면 부르지 않는다」·「저장값 granted면 맞춤형」은 iOS에서 바뀌었다.** App Store 빌드 15가 5.1.1(iv)로
+/// 거절됐다 — ATT 창 앞에 우리 허용·거부 시트를 세운 것이 시스템 권한 창을 가로막는 사전 화면이라는 지적이다. 웹 사전 시트는 iOS에서
+/// 설명 + [계속] 하나이고 그 [계속]이 `setAdConsent('granted')`다. 그래서 저장값(`granted`·옛 빌드의 `denied`)은 "사전 시트를 봤다"는
+/// 뜻이 되고, ATT가 `notDetermined`면 늘 묻는다(`shouldRequestTracking`). 맞춤형은 ATT가 `authorized`일 때만이고 나머지는 npa다
+/// (`personalizationAllowed(_:tracking:)`). 옛 빌드의 거부는 ATT를 허용해도 npa로 둔다. 아래는 그 전 결정의 기록이다.
 ///
 /// **`setAdConsent("granted")`가 들어온 직후에 `ATTrackingManager.requestTrackingAuthorization`을
 /// 부른다.** 순서가 시트 → ATT인 이유:
@@ -120,6 +126,9 @@ final class AdsController: ObservableObject {
         let configuration = MobileAds.shared.requestConfiguration
         configuration.tagForChildDirectedTreatment = false
         configuration.tagForUnderAgeOfConsent = false
+        // 광고 콘텐츠 상한 PG (KAN-344, 팀 결정: App Store 연령 등급 13+). 등급보다 센 광고가 나오면 심사·이용자 신고(설정 「광고 신고」)
+        // 대상이 된다. 초기화 앞이라 첫 요청부터 걸린다. https://developers.google.com/admob/ios/targeting#ad_content_filtering
+        configuration.maxAdContentRating = GADMaxAdContentRating.parentalGuidance
         MobileAds.shared.start { [weak self] _ in
             // 완료 콜백은 메인 스레드다 (developers.google.com/admob/ios/quick-start). 그래도
             // 격리를 타입으로 못박는다 — SDK가 스레드를 바꾸는 판이 와도 우리 상태는 메인에서만 바뀐다.
@@ -167,7 +176,8 @@ final class AdsController: ObservableObject {
         rewarded.run(onProceed: onProceed, onDismissed: onDismissed)
     }
 
-    /// `granted`이고 ATT가 아직 안 물어본 상태면 먼저 묻고, 답이 난 뒤 프리로드한다. 그 밖에는 바로.
+    /// 사전 시트를 봤고(`unknown`이 아님) ATT가 아직 안 물어본 상태면 먼저 묻고, 답이 난 뒤 프리로드한다. 그 밖에는 바로 (KAN-344-1).
+    /// 답이 난 뒤에 받는 이유는 그대로다 — 요청이 ATT 답을 보고 맞춤형·npa를 가른다(``AdRequests``).
     /// 판정은 Core의 순수 함수 `shouldRequestTracking`이고 `swift test`가 네 갈래를 못박는다 (P2-6).
     private func preloadAfterTrackingSettled() {
         guard shouldRequestTracking(consent: consentStore.read(), status: TrackingAuthorization.status) else {

@@ -4,18 +4,19 @@ import XCTest
 /// 안드로이드 `AdRequestsTest`의 이식본 (KAN-196). `personalizationAllowed` 한 줄이 곧 동의의 법적 의미다.
 final class AdRequestsTests: XCTestCase {
 
+    // ATT까지 허용해야 맞춤형이다 (KAN-344-1) — 전체 표는 StoreReviewFixTests.
     func testOnlyGrantedIsPersonalized() {
-        XCTAssertTrue(personalizationAllowed(.granted))
+        XCTAssertTrue(personalizationAllowed(.granted, tracking: .authorized))
     }
 
     func testDeniedIsNonPersonalized() {
-        XCTAssertFalse(personalizationAllowed(.denied))
+        XCTAssertFalse(personalizationAllowed(.denied, tracking: .authorized))
     }
 
     func testNotYetChosenIsNonPersonalized() {
         // 시트 전에는 요청 자체가 없어야 하지만(AdsController), 어떤 경로로든 나간다면 npa다 —
         // "모르면 맞춤형"은 동의 없이 개인화하는 것이라 방침과 어긋난다 (§8.5).
-        XCTAssertFalse(personalizationAllowed(.unknown))
+        XCTAssertFalse(personalizationAllowed(.unknown, tracking: .authorized))
     }
 
     // MARK: shouldRequestAds — "요청이 나가도 되는가". 게이트의 preload()와 허브의 프리로드가 같은 줄을 쓴다 (P1-1).
@@ -48,9 +49,9 @@ final class AdRequestsTests: XCTestCase {
         XCTAssertFalse(shouldRequestTracking(consent: .granted, status: .restricted))
     }
 
-    func testDeniedNeverAsks() {
-        // 추적 자체가 없는데 추적 허용을 묻지 않는다. npa 요청은 IDFA가 필요 없다.
-        XCTAssertFalse(shouldRequestTracking(consent: .denied, status: .notDetermined))
+    func testEarlierDeniedStillAsks() {
+        // 예전 빌드의 거부도 사전 시트를 본 것이다 — 우리 거부 버튼이 시스템 창을 가로막지 않게 묻는다 (KAN-344-1, 5.1.1(iv)).
+        XCTAssertTrue(shouldRequestTracking(consent: .denied, status: .notDetermined))
     }
 
     func testNotYetChosenNeverAsks() {

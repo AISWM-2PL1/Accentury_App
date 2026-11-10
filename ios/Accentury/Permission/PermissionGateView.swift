@@ -67,7 +67,9 @@ struct PermissionGateView: View {
                     headline: "발음 분석에 마이크가 필요해요",
                     // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
                     supporting: "따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요",
-                    buttonLabel: "마이크 허용",
+                    // 「계속」이다 (KAN-330, App Store 빌드 15 거절 5.1.1(iv)). 시스템 권한 창 앞의 화면은 설명만 하고, 허용을 우리
+                    // 버튼이 말하면 안 된다 — 사용자가 이 화면에서 이미 허용한 것처럼 읽힌다. 허용·거부는 다음에 뜨는 시스템 창이 묻는다.
+                    buttonLabel: "계속",
                     action: .request
                 )
 
@@ -99,7 +101,7 @@ struct PermissionGateView: View {
         // `@Published`의 퍼블리셔는 구독 순간 현재 값부터 흘려주므로, 첫 상태도 여기서 잡힌다.
         .onReceive(model.$state) { onStateChange?($0) }
         #if DEBUG
-        // 스모크용. `xcrun simctl`에 좌표 입력이 없어 시뮬레이터에서는 «마이크 허용»을 누를
+        // 스모크용. `xcrun simctl`에 좌표 입력이 없어 시뮬레이터에서는 «계속»을 누를
         // 방법이 없다. 설정에서 이미 거부된 상태로 이 인자를 주면 요청이 팝업 없이 곧바로
         // 거절돼(iOS 규칙) 영구 거부 화면까지 자동으로 간다. §5에서 걷으려던 배선인데, 게이트가
         // 이제 웹의 requestMicPermission으로도 열리는 만큼 **자동화가 닿는 유일한 통로**로 남긴다.

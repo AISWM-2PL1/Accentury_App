@@ -33,6 +33,7 @@ final class AccenturyBridgeTests: XCTestCase {
         var openSettingsCalls = 0
         var retriedUploads: [String] = []
         var locations: [String] = []
+        var requestLoginCalls = 0
     }
 
     private func makeDispatcher(
@@ -57,7 +58,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onStartIntonationRecording: { sink.intonationStarts.append($0) },
             onOpenSettings: { sink.openSettingsCalls += 1 },
             onRetryUpload: { sink.retriedUploads.append($0) },
-            onLocationChanged: { sink.locations.append($0) }
+            onLocationChanged: { sink.locations.append($0) },
+            onRequestLogin: { sink.requestLoginCalls += 1 }
         )
     }
 
@@ -682,6 +684,20 @@ final class AccenturyBridgeTests: XCTestCase {
         dispatcher.handle(method: "onLocationChanged", payload: "https://phish.example/?screen=home")
         dispatcher.handle(method: "onLocationChanged", payload: "https://w.example/?screen=home")
         XCTAssertEqual(["https://w.example/?screen=home"], sink.locations)
+    }
+
+    // MARK: requestLogin (KAN-330)
+
+    /// 게스트의 [로그인]은 인자 없이 한 번 간다. 처리 시점 origin이 불허면 버린다 — `refreshAccessToken`과 같은 판정이다.
+    func testRequestLoginIsGatedByTheOriginWhenHandled() {
+        let sink = Sink()
+        var allowedNow = true
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { allowedNow })
+        dispatcher.handle(method: "requestLogin", payload: nil)
+        XCTAssertEqual(1, sink.requestLoginCalls)
+        allowedNow = false
+        dispatcher.handle(method: "requestLogin", payload: nil)
+        XCTAssertEqual(1, sink.requestLoginCalls)
     }
 
     // MARK: openSettings (KAN-252)

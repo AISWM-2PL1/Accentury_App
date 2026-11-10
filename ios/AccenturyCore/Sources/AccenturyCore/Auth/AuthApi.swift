@@ -4,6 +4,7 @@ import Foundation
 private let pathLogin = "v0/auth/login"
 private let pathRefresh = "v0/auth/refresh"
 private let pathLogout = "v0/auth/logout"
+private let pathGuest = "v0/auth/guest"
 private let pathMe = "v0/users/me"
 private let pathProfile = "v0/users/me/profile"
 private let pathVoiceConsent = "v0/users/me/voice-consent"
@@ -43,8 +44,12 @@ public enum AuthResult<Value: Sendable>: Sendable {
 extension AuthResult: Equatable where Value: Equatable {}
 
 /// 로그인 제공자 (§3.9). GOOGLE·APPLE은 ID 토큰을, KAKAO·NAVER는 IdP Access 토큰을 보낸다.
+///
+/// `GUEST`는 IdP가 아니다 (KAN-330, 서버 KAN-329 §3.21) — 「로그인 없이 둘러보기」(`POST /v0/auth/guest`)가 만든 계정의
+/// `user.provider`다. 로그인 버튼 목록(``loginProviders``)에는 없다. 이 값이 없으면 게스트의 `me()` 응답을 읽지 못해
+/// 시작 확인이 영영 [다시 시도]에 머문다.
 public enum Provider: String, Codable, Sendable, CaseIterable {
-    case GOOGLE, KAKAO, NAVER, APPLE
+    case GOOGLE, KAKAO, NAVER, APPLE, GUEST
 }
 
 public enum ProfileStatus: String, Codable, Sendable {
@@ -174,16 +179,17 @@ public struct LoginSuccess: Equatable, Sendable {
 /// 추가 정보 입력값 (§3.10).
 ///
 /// - `birthDate`: `YYYY-MM-DD`. 만 14세 미만은 400 `AUTH_UNDER_AGE`
-/// - `gender`: `MALE` | `FEMALE`
+/// - `gender`: `MALE` | `FEMALE` | nil. 선택 항목이다 (KAN-330, 서버 KAN-328 — App Store 5.1.1 「기능에 필요 없는 개인정보를
+///   필수로 받지 않는다」). nil이면 키째 빠지고 서버는 null로 받는다
 /// - `region`: 출신지역 코드 10개 중 하나 (``Region``)
 public struct ProfileInput: Codable, Equatable, Sendable, CustomStringConvertible {
     public let email: String
     public let name: String
     public let birthDate: String
-    public let gender: String
+    public let gender: String?
     public let region: String
 
-    public init(email: String, name: String, birthDate: String, gender: String, region: String) {
+    public init(email: String, name: String, birthDate: String, gender: String?, region: String) {
         self.email = email
         self.name = name
         self.birthDate = birthDate
@@ -286,10 +292,29 @@ public struct AuthApi: Sendable {
     ///   재인증이 실패한 경우로, 서버는 탈퇴를 성공시키고 revoke만 건너뛴다.
     ///   https://developer.apple.com/documentation/sign_in_with_apple/revoke_tokens
     ///
-    /// 이미 탈퇴한 계정의 재요청은 401이다 — 판정은 게이트가 한다(``AuthGateController/withdraw(appleAuthorizationCode:idpLogout:)``).
-    public func withdraw(appleAuthorizationCode: String?) async -> AuthResult<Void> {
-        let body = appleAuthorizationCode.map(WithdrawalBody.init)
+    /// - Parameter naverRefreshToken: 네이버 계정만 — 네이버 SDK가 든 Refresh 토큰(로그인 때 보낸 것과 같은 값). 서버가 교환해
+    ///   네이버 쪽 토큰을 삭제한다(KAN-330, 서버 KAN-343 `WithdrawalRequest`). 앱이 SDK 로그아웃만 하면 네이버 연동이 남는다.
+    ///   고르는 규칙은 ``naverRefreshTokenForWithdrawal(provider:sdkRefreshToken:)``
+    ///
+    /// 이미 탈퇴한 계정의 재요청은 401이다 — 판정은 게이트가 한다(``AuthGateController/withdraw(appleAuthorizationCode:naverRefreshToken:idpLogout:)``).
+    public func withdraw(appleAuthorizationCode: String?, naverRefreshToken: String? = nil) async -> AuthResult<Void> {
+        let body = appleAuthorizationCode == nil && naverRefreshToken == nil
+            ? nil
+            : WithdrawalBody(appleAuthorizationCode: appleAuthorizationCode, naverRefreshToken: naverRefreshToken)
         return await call(authedSend, request(pathWithdrawal, method: "POST", body: body)) { _ in () }
+    }
+
+    /// 게스트 계정 발급 (KAN-330, 서버 KAN-329 §3.21). App Store 5.1.1(v) — 계정 기반이 아닌 기능(사투리 번역기)은 가입 없이 써야
+    /// 한다. 부를 때마다 새 계정이고 토큰 쌍만 쓴다 — 응답의 `user`는 provider `GUEST`에 나머지가 전부 null이라 읽지 않는다.
+    ///
+    /// 동의 두 필드는 ``login(_:privacyPolicyVersion:)``과 같은 규칙이다(게시 중인 버전과 정확히 같아야 한다). 동의 화면이 방침과
+    /// 만 14세 이상 확인을 받은 뒤에만 부른다. 429 `AUTH_GUEST_LIMIT_EXCEEDED`는 같은 IP의 하루 상한이다.
+    public func guest(privacyPolicyVersion: String) async -> AuthResult<AuthTokens> {
+        let body = GuestBody(privacyConsent: true, privacyPolicyVersion: privacyPolicyVersion)
+        return await call(send, request(pathGuest, method: "POST", body: body)) { data in
+            let decoded = try JSONDecoder().decode(TokenResponseBody.self, from: data)
+            return AuthTokens(accessToken: decoded.accessToken, refreshToken: decoded.refreshToken)
+        }
     }
 
     private static func decodeAccount(_ data: Data) throws -> Account {
@@ -368,8 +393,14 @@ private struct RefreshBody: Encodable, CustomStringConvertible {
 }
 
 private struct WithdrawalBody: Encodable, CustomStringConvertible {
-    let appleAuthorizationCode: String
+    let appleAuthorizationCode: String?
+    let naverRefreshToken: String?
     var description: String { "WithdrawalBody[]" }
+}
+
+private struct GuestBody: Encodable {
+    let privacyConsent: Bool
+    let privacyPolicyVersion: String
 }
 
 private struct VoiceConsentBody: Encodable {

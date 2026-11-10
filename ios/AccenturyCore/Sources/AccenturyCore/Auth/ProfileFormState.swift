@@ -24,7 +24,7 @@ public enum Region: String, CaseIterable, Sendable {
     }
 }
 
-/// 성별 (§3.10). `rawValue`가 요청 본문의 값이다.
+/// 성별 (§3.10). `rawValue`가 요청 본문의 값이다. 선택 항목이라(KAN-330) 화면은 이 둘에 「선택 안 함」(nil)을 더해 세운다.
 public enum Gender: String, CaseIterable, Sendable {
     case MALE, FEMALE
 
@@ -55,8 +55,8 @@ public func birthDate(from string: String, calendar: Calendar = .current) -> Dat
     return calendar.date(from: components)
 }
 
-/// 추가 정보 화면의 입력 (KAN-224, §3.10). 안드로이드 `ProfileFormState`의 이식본이다. 다섯 칸이 다 차야 [완료]가
-/// 켜진다 — 건너뛰기는 없다.
+/// 추가 정보 화면의 입력 (KAN-224, §3.10). 안드로이드 `ProfileFormState`의 이식본이다. 성별을 뺀 네 칸이 다 차야 [완료]가
+/// 켜진다 — 건너뛰기는 없다. 성별은 선택이다 (KAN-330, App Store 빌드 15 거절 5.1.1: 기능에 필요 없는 개인정보를 필수로 받았다).
 ///
 /// 서버가 이미 아는 값은 미리 채운다: IdP가 준 이메일·이름, 그리고 다른 기기에서 입력했다가 서버가 미완료로
 /// 되돌린 경우(403 `AUTH_PROFILE_INCOMPLETE`)의 나머지 값. 애플 릴레이 이메일도 고치지 않고 그대로 둔다.
@@ -66,6 +66,7 @@ public final class ProfileFormState: ObservableObject {
     @Published public var name: String
     /// `YYYY-MM-DD`. 달력에서만 고른다 — 손으로 치는 칸이 아니다.
     @Published public var birthDate: String?
+    /// nil = 「선택 안 함」. 고르지 않은 것과 「선택 안 함」을 가르지 않는다 — 둘 다 서버에 성별을 보내지 않는다는 같은 뜻이다(KAN-330).
     @Published public var gender: Gender?
     @Published public var region: Region?
     /// 제출이 나가 있다 — [완료]를 다시 누를 수 없다.
@@ -95,17 +96,17 @@ public final class ProfileFormState: ObservableObject {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmedEmail.isEmpty && trimmedEmail.contains("@")
             && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && birthDate != nil && gender != nil && region != nil
+            && birthDate != nil && region != nil
     }
 
     /// ``isComplete``일 때만 부른다. 앞뒤 공백은 서버로 보내지 않는다.
     public func toInput() -> ProfileInput? {
-        guard isComplete, let birthDate, let gender, let region else { return nil }
+        guard isComplete, let birthDate, let region else { return nil }
         return ProfileInput(
             email: email.trimmingCharacters(in: .whitespacesAndNewlines),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             birthDate: birthDate,
-            gender: gender.rawValue,
+            gender: gender?.rawValue,
             region: region.rawValue
         )
     }

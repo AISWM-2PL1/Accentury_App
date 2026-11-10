@@ -2,8 +2,8 @@ import AccenturyCore
 import SwiftUI
 
 /// 추가 정보 화면 (KAN-224, §3.10). 안드로이드 `auth/ProfileScreen.kt`의 이식본이다. 로그인은 됐지만 프로필이
-/// 미완료일 때 선다. 다섯 칸이 모두 차야 [완료]가 켜지고 건너뛸 수 없다 — 출신지역은 학습 데이터 라벨이고(KAN-201),
-/// 연령은 만 14세 가입 제한의 근거다.
+/// 미완료일 때 선다. 성별을 뺀 네 칸이 차야 [완료]가 켜지고 건너뛸 수 없다 — 출신지역은 학습 데이터 라벨이고(KAN-201),
+/// 연령은 만 14세 가입 제한의 근거다. 성별은 선택이다(KAN-330, App Store 빌드 15 거절 5.1.1).
 struct ProfileScreen: View {
 
     /// 방금 실패한 제출의 안내 (``AccenturyCore/AuthGateState/needsProfile(_:error:)``)
@@ -49,11 +49,13 @@ struct ProfileScreen: View {
                     onTap: { pickingDate = true }
                 )
 
-                ChoiceGroup(title: "성별") {
+                // 「선택 안 함」은 nil이다 — 고르지 않은 것과 같은 값이라 처음부터 골라져 있다. 선택 항목임이 칸을 보자마자 읽힌다 (KAN-330).
+                ChoiceGroup(title: "성별 (선택)") {
                     HStack(spacing: Papercut.space3) {
                         ForEach(Gender.allCases, id: \.self) { gender in
                             ChoiceButton(label: gender.label, selected: form.gender == gender) { form.gender = gender }
                         }
+                        ChoiceButton(label: "선택 안 함", selected: form.gender == nil) { form.gender = nil }
                     }
                 }
 

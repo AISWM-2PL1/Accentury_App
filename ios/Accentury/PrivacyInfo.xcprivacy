@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  앱 타깃의 개인정보 매니페스트 (KAN-330 / KAN-344-3). Xcode가 아카이브 때 이 파일과 SDK 매니페스트 21개를 합쳐
+  개인정보 보고서를 만들고, 애플이 그 보고서를 App Store Connect 라벨과 대조한다 (docs/wiki/app-store-listing.md §6.2).
+
+  이 파일이 맡는 것은 **우리 코드 몫**뿐이다. SDK 몫(기기 ID·광고 데이터·대략적 위치·진단·카카오 기타 데이터)은 각 SDK가
+  자기 매니페스트로 선언한다 — GoogleMobileAds·UserMessagingPlatform·Firebase(Core·Crashlytics·Installations)·
+  GoogleDataTransport·GoogleUtilities·KakaoSDKCommon·Alamofire·nanopb·Promises. 여기 다시 적으면 보고서에 같은 행이 겹친다.
+
+  - NSPrivacyAccessedAPITypes: 앱 타깃(AccenturyCore 정적 링크 포함)이 직접 부르는 필수 사유 API는 UserDefaults 하나다
+    (광고 동의·음성 동의 표시·흐름 상태 저장 — 이 앱만 읽고 쓴다 → CA92.1). 파일 시각·부팅 시각·디스크 용량·키보드 API는
+    쓰지 않는다(2026-11-10 grep). https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api
+  - NSPrivacyTracking: true — ATT를 허용한 사용자에게 맞춤형 광고(AdMob, IDFA)를 요청한다. 라벨 「추적」= 예와 맞춘다.
+  - NSPrivacyTrackingDomains: 비워 둔다. 구글은 AdMob의 추적 도메인을 문서로 주지 않고 GoogleMobileAds 매니페스트에도 없다.
+    광고 도메인을 적으면 ATT 미허용 기기에서 iOS가 그 연결을 막아 비맞춤(npa) 광고까지 끊긴다.
+  - NSPrivacyCollectedDataTypes: 우리 서버·우리 계측이 모으는 행 (§6.2 ①②⑨⑩⑪⑫⑬). 목적은 우리 코드의 몫만 적는다.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<true/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<!-- ① 음성 — 선택 동의한 응시만 서버에 남는다 (KAN-269) -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeAudioData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<!-- ② 제품 상호작용 — 우리 계측 이벤트(Firebase Analytics)와 계정에 묶인 테스트 세션 -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- ⑨ 이메일 — 계정(IdP)과 이용 후기 연락처 -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- ⑩ 기타 사용자 콘텐츠 — 이용 후기·번역기 입력 등 -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- ⑪ 기타 데이터 — 생년월일·성별(선택)·출신 지역 등 계정 값 -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<!-- ⑫ 이름 — 계정(IdP) -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- ⑬ 사용자 ID — 계정 id·IdP 식별값 (게스트 계정 id 포함) -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

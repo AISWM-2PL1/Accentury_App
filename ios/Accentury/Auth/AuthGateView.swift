@@ -21,7 +21,7 @@ struct AuthGateView: View {
                 if state != .checking { checkedOnce = true }
                 switch state {
                 case .signedOut, .needsProfile: TestFlowModel.clearSavedState()
-                case .checking, .checkFailed, .signedIn: break
+                case .checking, .checkFailed, .signedIn, .guest: break
                 }
             }
     }
@@ -41,6 +41,8 @@ struct AuthGateView: View {
                 providers: visibleProviders(configured: configuredProviders(), fakeIdp: AppConfig.fakeIdp),
                 signIn: { await idpSignIn($0) },
                 onLogin: { await gate.login($0, privacyPolicyVersion: AccenturyCore.privacyPolicyVersion) },
+                // 게스트 동의도 가입과 같은 방침 버전이다 — 서버가 같은 값만 받는다 (KAN-330, 서버 KAN-329).
+                onStartGuest: { await gate.startGuest(privacyPolicyVersion: AccenturyCore.privacyPolicyVersion) },
                 onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) }
             )
 
@@ -56,6 +58,9 @@ struct AuthGateView: View {
 
         case .signedIn(let user, let voiceConsent):
             SignedInScreen(user: user, voiceConsent: voiceConsent, gate: gate)
+
+        case .guest:
+            GuestScreen(gate: gate)
         }
     }
 }
@@ -103,6 +108,9 @@ private struct SignedInScreen: View {
                 covered: settingsOpen || consentShown,
                 adConsentRequests: adConsentRequests,
                 adConsentAvailable: $adConsentAvailable,
+                accountKind: AuthGateState.signedIn(user, voiceConsent: voiceConsent).accountKind,
+                // 회원 문서에서 온 요청은 게이트가 무시한다(게스트가 아니다) — 그래도 같은 자리로 보내 판정을 한 곳에 둔다.
+                onRequestLogin: { Task { await gate.leaveGuest() } },
                 onOpenSettings: { settingsOpen = true }
             )
                 // 덮인 동안 스크린 리더가 아래 웹 화면으로 내려가지 않게 한다.
@@ -131,7 +139,11 @@ private struct SignedInScreen: View {
                     // 탈퇴도 IdP SDK 세션까지 정리한다 (KAN-251). 애플 계정만 탈퇴 직전에 재인증해 revoke용 코드를 싣는다.
                     onWithdraw: {
                         await withdrawAccount(provider: user.provider, appleReauth: appleReauthorization) { code in
-                            await gate.withdraw(appleAuthorizationCode: code) { await IdpLogout.all() }
+                            // 네이버 SDK 토큰은 IdP 로그아웃이 지우기 전에 읽는다 (KAN-330, 서버 KAN-343이 교환해 네이버 연동을 끊는다).
+                            await gate.withdraw(
+                                appleAuthorizationCode: code,
+                                naverRefreshToken: naverRefreshTokenForWithdrawal(provider: user.provider, sdkRefreshToken: naverSdkRefreshToken())
+                            ) { await IdpLogout.all() }
                         }
                     },
                     // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의 화면이
@@ -161,6 +173,49 @@ private struct SignedInScreen: View {
 
     private func openPrivacy() {
         ExternalBrowser.open(privacyPolicyURL)
+    }
+}
+
+/// 게스트의 화면 (KAN-330, 「로그인 없이 둘러보기」). ``SignedInScreen``과 같은 `ZStack` 구조에서 음성 저장 동의 오버레이를 뺐다 — 서버가
+/// 게스트의 동의를 403으로 막는다. 웹은 `getAccountKind() === "guest"`를 보고 계정 전용 화면 대신 로그인 안내를 띄우고, 그 [로그인]이
+/// 브리지 `requestLogin`으로 이리 온다. 게스트 세션을 버리면 게이트가 `signedOut`이 되어 이 화면째 로그인 화면으로 바뀐다.
+private struct GuestScreen: View {
+
+    let gate: AuthGateController
+
+    @State private var settingsOpen = false
+    @State private var adConsentRequests = 0
+    @State private var adConsentAvailable = false
+    @SceneStorage(TestFlowView.sceneRestorationKey) private var restorable = false
+
+    var body: some View {
+        ZStack {
+            TestFlowView(
+                restoresSavedState: restorable,
+                tabBarEntry: true,
+                covered: settingsOpen,
+                adConsentRequests: adConsentRequests,
+                adConsentAvailable: $adConsentAvailable,
+                guest: true,
+                accountKind: AuthGateState.guest.accountKind,
+                onRequestLogin: { Task { await gate.leaveGuest() } },
+                onOpenSettings: { settingsOpen = true }
+            )
+                .accessibilityHidden(settingsOpen)
+                .onAppear { restorable = true }
+            if settingsOpen {
+                GuestSettingsScreen(
+                    onClose: { settingsOpen = false },
+                    onLogin: { await gate.leaveGuest() },
+                    onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
+                    adConsentEnabled: adConsentAvailable,
+                    onOpenAdConsent: {
+                        settingsOpen = false
+                        adConsentRequests += 1
+                    }
+                )
+            }
+        }
     }
 }
 

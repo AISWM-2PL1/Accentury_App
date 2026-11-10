@@ -35,6 +35,7 @@
 		3958ED33ADDA31F6FE392B5C /* PcmSourcesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A728677C2DA7FF5644257BD /* PcmSourcesTests.swift */; };
 		3B949FFAAB1FABA338069613 /* PermissionGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3AB85017A7A546F989420EE /* PermissionGateView.swift */; };
 		459AB9A5EE1DE6176CF5F668 /* SessionGateScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4912C22B3DB8478DFFDB15D1 /* SessionGateScreen.swift */; };
+		4859650D1BCA12EDF811C96D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A3B827630D638F0E8A7F3A9D /* PrivacyInfo.xcprivacy */; };
 		4A84448D61B3CBA605DAAA05 /* TestFlowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A0F1602F0CEE2A8462704A /* TestFlowModel.swift */; };
 		4BFF2CB4480E6FDE33185928 /* CurveLane.swift in Sources */ = {isa = PBXBuildFile; fileRef = B886426FC063688254DDCEB6 /* CurveLane.swift */; };
 		4C6FA5157BAC72635CBA0E4E /* VoiceConsentScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F84E5F5058678D37E59DC4B /* VoiceConsentScreen.swift */; };
@@ -189,6 +190,7 @@
 		9732EF804309D56179E479C5 /* StatusBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBlock.swift; sourceTree = "<group>"; };
 		9BC84D70D094663C2EDB0C76 /* AnonymousRegionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnonymousRegionScreen.swift; sourceTree = "<group>"; };
 		A2CE5A25F0FDE137C0C1ACE8 /* AccenturyBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyBridge.swift; sourceTree = "<group>"; };
+		A3B827630D638F0E8A7F3A9D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A70A4F9127A4AF354E2D3DB3 /* VoiceCheckScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCheckScreen.swift; sourceTree = "<group>"; };
 		AC5E217157A2E9F6D8CCB49A /* AccenturyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccenturyButton.swift; sourceTree = "<group>"; };
 		ACC2F25E1BEDC7547F4F9774 /* HapticPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticPlayer.swift; sourceTree = "<group>"; };
@@ -479,6 +481,7 @@
 				519A8D634C011FD35B714408 /* GoogleService-Info.plist */,
 				0DB52A866B3F7B1F6A531D61 /* Info-Debug.plist */,
 				42B781741E830E2F917845E1 /* Info-Release.plist */,
+				A3B827630D638F0E8A7F3A9D /* PrivacyInfo.xcprivacy */,
 				D4E88CD166A278205697CB3F /* Ads */,
 				311F4BAD67776C0EACC850AC /* Analytics */,
 				2A867CA9FAA03EE0E07AB832 /* Audio */,
@@ -647,6 +650,7 @@
 				A371283916C2882A4A4C7C84 /* Assets.xcassets in Resources */,
 				03FD3E88EFCBAEB786922E80 /* GoogleService-Info.plist in Resources */,
 				AF6D7E2053D3891597D8440E /* Jua-Regular.ttf in Resources */,
+				4859650D1BCA12EDF811C96D /* PrivacyInfo.xcprivacy in Resources */,
 				66BF29B84C335095A8902902 /* fake_mic.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
