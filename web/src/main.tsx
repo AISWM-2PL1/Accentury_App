@@ -5,6 +5,7 @@ import { installGa4Tag } from './analytics/ga4'
 import { isStandaloneWeb } from './bridge/bridge'
 import { AppBar } from './ui/AppBar'
 import { markRuntime } from './ui/runtime'
+import { syncLargeText } from './ui/textScale'
 import './tokens.css'
 import './ui/components.css'
 import './learning/learning.css'
@@ -14,6 +15,13 @@ import './learning/learning.css'
  * (`index.html`의 `:root[data-runtime='app'] #site-footer`)가 앱에서 한 프레임 비치지 않게 한다.
  */
 markRuntime(window.location.search)
+
+/*
+ * 큰 글자 표식도 첫 렌더 전에 심는다 (KAN-313, `ui/textScale.ts`). 루트 글자 크기가 바뀌는 때(화면 회전·
+ * 창 크기 변경과 함께 오는 경우, 네이티브 주입 뒤 보내는 `resize`)마다 다시 잰다.
+ */
+syncLargeText()
+window.addEventListener('resize', () => syncLargeText())
 
 /*
  * GA4 태그는 **웹 단독 실행에만** 설치한다 (KAN-33). 앱 안(WebView)에서는 브리지를 건너

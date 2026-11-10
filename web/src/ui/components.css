@@ -539,24 +539,21 @@
  * 등급명도 줄바꿈을 허용한다. 18rem은 기본 글자의 360·412 폭(본문 19.5·20rem)에서 걸리지 않고 125%부터
  * 걸리는 값이다(412 폭 125%가 17.6rem). 조건의 rem은 루트 글자 크기를 따른다.
  *
- * 바깥 `page` 조건은 큰 글자 표식이다(tokens.css의 큰 글자 keep-all과 같은 19.9rem). 칸 폭만 보면 320 폭 기본 글자에서도
- * 본문(17rem)이 18rem보다 좁아 걸려 카드가 200→314px로 바뀌었다(Codex 교차 검증 2026-11-09). 320 폭 100%의 page는
- * 20rem이라 꺼진다. @container 안의 @container는 조건부 규칙 중첩(CSS Conditional 3)이라 컨테이너 쿼리 자체와 같은
- * Chromium 105·Safari 16부터 동작하고, 안쪽 조건은 여전히 가장 가까운 컨테이너(.home-after)를 잰다
+ * 큰 글자 표식(`html[data-large-text]`, tokens.css·`ui/textScale.ts`) 아래에만 둔다. 칸 폭만 보면 320 폭 기본 글자에서도
+ * 본문(17rem)이 18rem보다 좁아 걸려 카드가 200→314px로 바뀌었다(Codex 교차 검증 2026-11-09). 안쪽 조건은 가장 가까운
+ * 컨테이너(.home-after)를 잰다 — .home-after 안에는 position: fixed 자손이 없다(탭 바·시트는 main 밖)
  */
-@container page (max-width: 19.9rem) {
-  @container (max-width: 18rem) {
-    .home-tier {
-      flex-wrap: wrap;
-    }
+@container (max-width: 18rem) {
+  html[data-large-text] .home-tier {
+    flex-wrap: wrap;
+  }
 
-    .home-tier__text {
-      flex-basis: 100%;
-    }
+  html[data-large-text] .home-tier__text {
+    flex-basis: 100%;
+  }
 
-    .home-tier__text h1 {
-      white-space: normal;
-    }
+  html[data-large-text] .home-tier__text h1 {
+    white-space: normal;
   }
 }
 
@@ -1149,14 +1146,11 @@
 
 /*
  * 큰 글자 (KAN-313): 「억양 78점」 한 줄이 들어가는 폭. 칸이 이보다 좁아지면 아래 .result-card의 flex-wrap으로
- * 도넛 아래 줄로 내려간다. min()은 혼자 한 줄이 됐을 때 카드보다 넓어지지 않게. 큰 글자 조건(page 19.9rem,
- * tokens.css)으로 한정한다 — 320 폭 기본 글자에서는 도넛 옆이 8rem보다 좁아 카드가 130→240px로 바뀌었다
- * (Codex 교차 검증 2026-11-09)
+ * 도넛 아래 줄로 내려간다. min()은 혼자 한 줄이 됐을 때 카드보다 넓어지지 않게. 큰 글자 표식(tokens.css)으로
+ * 한정한다 — 320 폭 기본 글자에서는 도넛 옆이 8rem보다 좁아 카드가 130→240px로 바뀌었다 (Codex 교차 검증 2026-11-09)
  */
-@container page (max-width: 19.9rem) {
-  .result-scores {
-    min-width: min(8rem, 100%);
-  }
+html[data-large-text] .result-scores {
+  min-width: min(8rem, 100%);
 }
 
 /*
@@ -2307,7 +2301,7 @@ a.btn {
   justify-content: center;
   gap: var(--space-1);
   min-width: 0;
-  /* 아래 @container (KAN-313)의 기준 칸. 폭은 flex: 1이 정하므로 내용과 무관하다 */
+  /* 아래 큰 글자 라벨의 cqi 기준 칸 (KAN-313). 폭은 flex: 1이 정하므로 내용과 무관하다 */
   container-type: inline-size;
   min-height: var(--touch-target-min);
   padding: 0;
@@ -2354,25 +2348,19 @@ a.btn {
 }
 
 /*
- * 큰 글자 (KAN-313) — 칸이 좁아지면 라벨이 이웃 칸을 덮는 대신 줄을 바꾼다(칸은 .tab-bar__item의
- * container-type). 4rem은 기본 글자의 360·412 폭(칸 4.3·4.95rem)에서 걸리지 않는 값이다 — 기본 글자에서
- * 한 줄로 서는 시안 배치를 그대로 둔다. 낱말 단위 끊기는 tokens.css의 큰 글자 keep-all이 맡는다.
+ * 큰 글자 (KAN-313) — 라벨이 이웃 칸을 덮는 대신 줄을 바꾼다. 낱말 단위 끊기는 tokens.css의 큰 글자 keep-all이 맡는다.
+ * 큰 글자 표식(`html[data-large-text]`) 아래에만 둔다 — 기본 글자에서는 한 줄로 서는 시안 배치 그대로다. 칸 폭 조건
+ * (`@container (max-width: 4rem)`)을 따로 두지 않는다: 412 폭 120~122%·360 폭 106%는 칸(79·69px)이 4rem보다 넓은데도
+ * 「사투리 번역기」가 2px 넘쳤다(2026-11-10 실측). 320 폭 기본 글자는 표식이 없어 걸리지 않는다.
  *
- * 글자는 칸 폭의 32%를 넘지 않는다 — 세 글자 낱말(「사투리」「번역기」)이 칸 안에 들어가는 크기다. 360 폭 200%에서
- * 칸(66px)이 「번역기」(72px)보다 좁아 낱말이 쪼개지고 라벨이 네 줄, 탭 바가 본문 아래 여백(192px)을 넘었다.
- * 여백을 탭 바 높이에 맞춰 키우는 대신 글자를 24→21px로 줄여 두 줄에 묶는다. 412 폭 200%(칸 76px)와
- * 기본 글자(칸 79px, 상한 25px > 12px)에서는 줄지 않는다.
- *
- * 바깥 `page` 조건은 큰 글자 표식이다 — 320 폭 기본 글자에서는 칸(60.8px)이 4rem보다 좁아 라벨 줄바꿈 허용만으로
- * 탭 바가 65→77px로 바뀌었다(Codex 교차 검증 2026-11-09). 중첩 근거는 위 등급 카드 @container 주석과 같다
+ * 글자는 칸 폭(.tab-bar__item의 container-type, cqi)의 32%를 넘지 않는다 — 세 글자 낱말(「사투리」「번역기」)이 칸 안에
+ * 들어가는 크기다. 360 폭 200%에서 칸(66px)이 「번역기」(72px)보다 좁아 낱말이 쪼개지고 라벨이 네 줄, 탭 바가 본문 아래
+ * 여백(192px)을 넘었다. 여백을 탭 바 높이에 맞춰 키우는 대신 글자를 24→21px로 줄여 두 줄에 묶는다. 412 폭 200%(칸 76px)
+ * 에서는 줄지 않는다. .tab-bar__item 안에는 position: fixed 자손이 없다
  */
-@container page (max-width: 19.9rem) {
-  @container (max-width: 4rem) {
-    .tab-bar__label {
-      white-space: normal;
-      font-size: min(var(--text-tab-label), 32cqi);
-    }
-  }
+html[data-large-text] .tab-bar__label {
+  white-space: normal;
+  font-size: min(var(--text-tab-label), 32cqi);
 }
 
 /*

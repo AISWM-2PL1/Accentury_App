@@ -13,23 +13,25 @@
  * 4. **잘림 없음** — `overflow`가 visible이 아닌 글자 칸에서 내용이 칸보다 넓거나 높으면 글자가 잘려 안 보인다.
  *
  * 글자 크기는 화면이 그려진 뒤 `documentElement.style.fontSize`로 건다. `addInitScript`로 미리 걸면 React가 그리기 전에
- * 지워져 적용되지 않는다(2단계 실측). 겹침은 보지 않는다 — 큰 글자에서 sticky·fixed 하단 띠가 본문 위에 오는 것은 의도된
+ * 지워져 적용되지 않는다(2단계 실측). 건 뒤 `resize`를 보내 큰 글자 표식(`html[data-large-text]`, `ui/textScale.ts`)을
+ * 다시 재게 한다 — 앱이 루트 글자 크기를 바꾼 뒤 표식을 갱신하는 경로와 같다. 겹침은 보지 않는다 — 큰 글자에서 sticky·fixed 하단 띠가 본문 위에 오는 것은 의도된
  * 배치이고, 인라인 링크끼리 줄바꿈 상자가 겹치는 것도 오탐이다.
  *
- * 서버 응답은 전부 `page.route`로 가로챈다 — 백엔드·AI 서버 없이 돈다. 녹음은 하지 않는다(문항 화면은 [녹음] 버튼이 서는
- * 데까지만) — 실제 녹음 흐름은 `full-run`이 맡고, 이 스펙이 가짜 마이크 환경에 엮이지 않게 한다. 앱 실행 흉내는
+ * 서버 응답은 전부 `page.route`로 가로챈다 — 백엔드·AI 서버 없이 돈다. 녹음 중 화면(타이머 캡슐·정지 버튼·레벨 바)은
+ * 설정의 가짜 마이크로 [녹음]을 누른 채 잰다. 업로드까지 가는 녹음 흐름은 `full-run`이 맡는다. 앱 실행 흉내는
  * `learning-entry`·`translator` 스펙과 같다(URL의 `bridge=2` + `addInitScript`로 먼저 심은 브리지).
  */
 
 import { expect, test, type Page } from '@playwright/test'
 import { passAdConsentIfShown } from './helpers/testFlow'
 
-const SCALES = [100, 150, 200] as const
-
-/** Pixel 7 폭 412(기준)와 좁은 폰 360. 넘침은 좁은 폭에서 먼저 난다 */
+/**
+ * Pixel 7 폭 412(기준)와 좁은 폰 360. 넘침은 좁은 폭에서 먼저 난다. 100·150·200%에 더해 중간 배율 재현점(KAN-327)을 둔다 —
+ * 화면 폭으로 큰 글자를 가르던 때 360 폭 110%·412 폭 115~125%에서 탭 라벨·등급명이 칸을 넘었다
+ */
 const VIEWPORTS = [
-  { width: 412, height: 915 },
-  { width: 360, height: 740 },
+  { width: 412, height: 915, scales: [100, 115, 125, 150, 200] },
+  { width: 360, height: 740, scales: [100, 110, 150, 200] },
 ] as const
 
 // ── 서버 응답 (learning-entry·translator 스펙과 같은 모양) ──
@@ -230,6 +232,11 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.goto('/?bridge=2&app=1.0&screen=translate')
     await expect(page.getByLabel('표준어 문장')).toBeVisible()
   },
+  '녹음 중': async (page) => {
+    await SCREENS['음성 문항'](page)
+    await page.getByRole('button', { name: '녹음', exact: true }).click()
+    await expect(page.getByRole('button', { name: '정지', exact: true })).toBeVisible({ timeout: 10_000 })
+  },
   '마이크 차단': async (page) => {
     await denyMic(page)
     await page.goto('/')
@@ -288,18 +295,21 @@ function measure() {
   return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth, smallTargets, overflowing, clipped }
 }
 
-for (const viewport of VIEWPORTS) {
+for (const { scales, ...viewport } of VIEWPORTS) {
   test.describe(`폭 ${viewport.width}`, () => {
     test.use({ viewport })
 
     for (const [screen, enter] of Object.entries(SCREENS)) {
-      for (const scale of SCALES) {
+      for (const scale of scales) {
         test(`${screen} ${scale}% - 가로 스크롤·48 미만 터치·글자 넘침·잘림 없음`, async ({ page }) => {
           await stubServer(page)
           await enter(page)
-          await page.evaluate((s) => {
+          const largeText = await page.evaluate((s) => {
             document.documentElement.style.fontSize = `${s}%`
+            window.dispatchEvent(new Event('resize'))
+            return document.documentElement.hasAttribute('data-large-text')
           }, scale)
+          expect(largeText, '큰 글자 표식').toBe(scale > 100)
           await page.evaluate(() => document.fonts.ready)
           // 글자 크기를 바꾼 뒤 컨테이너 쿼리·레이아웃이 다시 잡히기를 한 프레임 기다린다
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
