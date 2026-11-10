@@ -345,7 +345,7 @@ App Store의 키워드 필드는 **이용자에게 보이지 않고 검색에만
 새 버전을 제출해야 하지만 이 칸은 즉시 반영된다. 그래서 여기에는 버전을 타지 않는 말만
 넣는다 — 이벤트나 한시적 안내를 넣을 자리로 남겨 둔다.
 
-### 설명 (4000자, 현재 870자)
+### 설명 (4000자, 현재 888자)
 
 ```
 내 말투에 사투리가 얼마나 남아 있을까?
@@ -372,9 +372,9 @@ App Store의 키워드 필드는 **이용자에게 보이지 않고 검색에만
 · 사투리 번역기: 표준어와 경남 사투리 사이로 문장을 바꿔 봐요
 · 출석: 학습한 날이 홈에 쌓여요
 
-■ 로그인 없이도 번역기를 써 볼 수 있어요
-로그인 화면의 「로그인 없이 둘러보기」로 사투리 번역기를 쓸 수 있어요. 레벨 테스트와 학습은 기록을
-계정에 남기므로 로그인한 뒤에 쓸 수 있어요. 만 14세부터 이용할 수 있어요.
+■ 로그인 없이도 레벨 테스트와 번역기를 써 볼 수 있어요
+로그인 화면의 「로그인 없이 둘러보기」로 레벨 테스트와 사투리 번역기를 쓸 수 있어요. 억양 학습과 단어 학습은
+기록을 계정에 남기므로 로그인한 뒤에 쓸 수 있어요. 만 14세부터 이용할 수 있어요.
 
 ■ 목소리는 동의하신 경우에만 보관해요
 녹음한 음성은 점수를 매기는 데 쓰고 곧바로 지워요. 음성 저장과 AI 모델 학습 활용에
@@ -387,8 +387,10 @@ App Store의 키워드 필드는 **이용자에게 보이지 않고 검색에만
 **KAN-330·KAN-344로 학습·번역기·출석과 게스트 문단을 넣었다 (2026-11-10, 빌드 16).** 앞 판은 레벨 테스트만 말해
 번역기·학습 탭을 쓰는 앱과 어긋났고(2.3.1 정확한 메타데이터), 「로그인이 필요해요」 문단은 게스트 경로가 생겨 거짓이 됐다.
 성별은 KAN-328로 선택 항목이다. 프로모션 텍스트의 「문장 다섯 개」는 7문항(음성 3) 개편 뒤 틀린 수라 「몇 개」로 바꿨다 — 문항 수는
-다시 바뀔 수 있어 적지 않는다. 글자 수(95자·870자)는 Python `len`으로 센 값이다. 보조 카테고리(교육)는 학습 기능이 생겼으니
+다시 바뀔 수 있어 적지 않는다. 글자 수(95자·888자)는 Python `len`으로 센 값이다. 보조 카테고리(교육)는 학습 기능이 생겼으니
 다시 판단할 거리지만 이번 범위가 아니다.
+게스트 문단은 PR #70 리뷰 뒤 팀 결정(2026-11-10)으로 레벨 테스트를 게스트에게 열면서 「레벨 테스트와 번역기」로 고쳤다 —
+로그인이 필요한 것은 억양 학습·단어 학습뿐이다. 진행 순서 1번의 로그인은 회원 경로라 그대로 둔다.
 
 **KAN-269로 음성 문단이 바뀌었다 (2026-10-04).** 앞 판의 「목소리는 남기지 않아요」는 선택 동의한
 이용자에게는 거짓이 된다. 위 문안은 레포의 원안이고, App Store Connect의 설명 칸은 계정 소유자가 직접
@@ -897,7 +899,7 @@ national ID, or other means of age assurance」를 든다
 
 | 필드 | 값 |
 |---|---|
-| 로그인 필요 | **예** (KAN-224) — 레벨 테스트·학습. 번역기는 「로그인 없이 둘러보기」로 계정 없이 쓴다(KAN-330, 빌드 16) |
+| 로그인 필요 | **예** (KAN-224) — 단어 학습·억양 학습만. 레벨 테스트와 번역기는 「로그인 없이 둘러보기」로 계정 없이 쓴다(KAN-330, 빌드 16, 레벨 테스트는 2026-11-10 팀 결정) |
 | 데모 계정 | **제공** — 카카오 1·네이버 1 테스트 계정. 팀이 만들어 **콘솔 심사 정보에만** 입력한다. 아이디·비밀번호를 레포·문서·커밋에 적지 않는다 (2026-10-01 팀장 결정) |
 | 연락처 이름 | 이성주 |
 | 연락처 이메일 | `team2pl1@gmail.com` |
@@ -937,10 +939,12 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 
 [계정 없이 쓰기]
 로그인 화면의 「로그인 없이 둘러보기」를 누르고 개인정보처리방침 동의와 만 14세 이상 확인을 마치면,
-계정 없이 하단 탭 「사투리 번역기」를 쓸 수 있습니다. 레벨 테스트와 학습 탭에는 [로그인하기] 안내가 나옵니다.
+계정 없이 홈의 [레벨 테스트 시작]으로 레벨 테스트를 보고 하단 탭 「사투리 번역기」를 쓸 수 있습니다.
+게스트의 레벨 테스트는 처음 한 번 음성 저장 선택 동의와 출신 지역을 묻습니다. 단어 학습과 억양 학습 탭에만
+[로그인하기] 안내가 나옵니다.
 
 [로그인]
-레벨 테스트와 학습은 계정별 기록을 남기므로 구글, 카카오, 네이버, 애플 중 하나로 로그인해야 합니다.
+단어 학습과 억양 학습은 계정별 학습 기록을 남기므로 구글, 카카오, 네이버, 애플 중 하나로 로그인해야 합니다.
 심사에는 심사관님의 Apple ID로 Sign in with Apple을 쓰시거나, 로그인 칸에 적어 둔 네이버 테스트 계정으로
 로그인해 주세요.
 첫 로그인에서 개인정보처리방침 동의를 받고, 이어지는 추가 정보 화면에서 이메일, 이름, 생년월일,
@@ -958,8 +962,9 @@ includes a login」을 요구한다 (<https://developer.apple.com/app-store/revi
 단어 학습과 사투리 번역기는 마이크 권한 없이 쓸 수 있습니다.
 
 [진행 경로 — 7문항, 약 3분]
-로그인 → 추가 정보(신규 계정만) → 홈 → [레벨 테스트 시작] → 마이크 권한 →
-목소리 점검 → 음성 3문항·어휘 4문항(섞여 나옴) → 분석 대기 → 결과
+로그인 또는 「로그인 없이 둘러보기」 → 추가 정보(신규 계정만) → 홈 → [레벨 테스트 시작] → 마이크 권한 →
+(게스트만, 처음 한 번: 음성 저장 선택 동의·출신 지역) → 목소리 점검 → 음성 3문항·어휘 4문항(섞여 나옴) →
+분석 대기 → 결과
 
 [추적 허용(ATT) 프롬프트]
 홈이 처음 열릴 때 광고 안내 시트가 뜨고 버튼은 [계속] 하나입니다. 누르면 ATT 프롬프트가 이어집니다.
@@ -1008,16 +1013,16 @@ Google LLC의 Gemini API로 전송되며, 보내는 것은 사용자가 입력�
 The core of this app is a level test that measures how strongly a speaker's accent matches the Gyeongnam dialect of Korean. The bottom tab bar also offers accent lessons, vocabulary lessons and a dialect translator; the home tab shows the attendance streak.
 
 [Use without an account]
-On the login screen, tap 로그인 없이 둘러보기 (Browse without signing in). After agreeing to the privacy policy and confirming age 14 or older, the guest can use the 사투리 번역기 (Dialect translator) tab without an account. The level test and lessons show a 로그인하기 (Sign in) prompt.
+On the login screen, tap 로그인 없이 둘러보기 (Browse without signing in). After agreeing to the privacy policy and confirming age 14 or older, the guest can take the level test from 레벨 테스트 시작 (Start level test) on the Home screen and use the 사투리 번역기 (Dialect translator) tab without an account. Only the vocabulary and accent lessons show a 로그인하기 (Sign in) prompt.
 
 [Sign-in]
-Sign-in (Google, Kakao, Naver or Apple) is needed for the level test and lessons, which keep per-account records. Please use your own Apple ID via Sign in with Apple, or the Naver test account in the login fields. On first sign-in the user agrees to the privacy policy, then enters email, name, date of birth and home region; gender is optional. The Home screen then opens and the test starts from 레벨 테스트 시작 (Start level test). Users under 14 cannot sign up.
+Sign-in (Google, Kakao, Naver or Apple) is needed only for the vocabulary and accent lessons, which keep per-account learning records. Please use your own Apple ID via Sign in with Apple, or the Naver test account in the login fields. On first sign-in the user agrees to the privacy policy, then enters email, name, date of birth and home region; gender is optional. The Home screen then opens and the test starts from 레벨 테스트 시작 (Start level test). Users under 14 cannot sign up.
 
 [Microphone]
 Voice analysis is the core of the level test and the accent lessons, so they need the microphone; they cannot be completed on a simulator. Before the system prompt, an explanation screen with a single 계속 (Continue) button appears. If permission is denied, an "Open Settings" button appears and the flow resumes after returning. The vocabulary lessons and the translator work without the microphone.
 
 [Walkthrough - 7 questions, about 3 minutes]
-Sign-in -> additional info (new accounts only) -> home -> 레벨 테스트 시작 -> microphone -> voice check -> 3 voice and 4 vocabulary questions -> analysis wait -> result
+Sign-in or guest -> additional info (new accounts only) -> home -> 레벨 테스트 시작 -> microphone -> (guests, first time only: optional voice storage consent and home region) -> voice check -> 3 voice and 4 vocabulary questions -> analysis wait -> result
 
 [App Tracking Transparency]
 When the Home screen first opens, a sheet explains the ads with a single 계속 (Continue) button, and the ATT prompt follows. Ads are personalized only if tracking is allowed; otherwise non-personalized ads are served and every feature works the same. Settings > 맞춤형 광고 설정 (Personalized ad settings) reopens the sheet; if tracking was denied, 계속 opens iOS Settings.
@@ -1042,9 +1047,11 @@ In the app: the 설정 (Settings) tab in the bottom tab bar > 계정 (Account) >
 「로그인 없이 둘러보기」 문단과 확인 경로(심사관이 로그인 없이 번역기 동의 시트에 닿게), 성별 선택 항목, 마이크 사전 안내의 [계속] 하나,
 광고 안내 시트의 [계속] 하나와 ATT 결과로 맞춤형 결정(webview-bridge §8.7), 번역기 동의 시트의 「보내지 않는 것(계정 정보·음성)」과
 [부적절한 결과 신고], 탈퇴 경로 「오른쪽 위 톱니」 → 하단 「설정」 탭(KAN-252 탭 바 이후 탭 화면에는 톱니가 없다). 영어 블록은
-**3660자**(ASC 4000자 제한, 끝 줄바꿈 제외)다 — [If microphone permission is denied]를 [Microphone]에 합치고, 첫 줄의 「After sign-in」,
+**3856자**(ASC 4000자 제한, 끝 줄바꿈 제외, Python `len`)다 — [If microphone permission is denied]를 [Microphone]에 합치고, 첫 줄의 「After sign-in」,
 [Sign-in]의 「(all required)」와 거절 생년월일 문장, 번역기 문단의 「persistent」·「or if the user cancels」·재설치 문장, 방침 절 이름 앞
 「the section」을 뺐다. 마이크·ATT 문장은 빌드 16 네이티브(KAN-330 2·3단계)로 참이 됐다 — 마이크 사전 화면 버튼 「계속」(Android `MainActivity.kt` `PermissionGate`, iOS `PermissionGateView.swift`), ATT 판정은 §5. 두 메모는 게스트 시작 버튼 이름 대신 「동의」(agree)라고만 적는다 — 라벨은 KAN-330 5단계부터 두 플랫폼 모두 「둘러보기 시작」이다(social-login.md §1).
+PR #70 리뷰 뒤 팀 결정(2026-11-10)으로 게스트에게 레벨 테스트를 열어, 두 메모의 [계정 없이 쓰기]·[로그인]·진행 경로를 「로그인은 단어
+학습·억양 학습만」으로 고쳤다(3660자 → 3856자). 게스트 레벨 테스트는 익명 세션이라 음성 저장 동의·출신 지역을 기기에 두고 처음 한 번 묻는다(webview-bridge §15).
 
 ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때 5513자 판을 이 압축판(3840자)으로 줄였다. 문단 주제는 유지, 아래 문장은 뺐다. 한국어 원안은 압축하지 않았다. 데모 계정 사실은 영어와 맞췄다(PR #65 리뷰).
 
@@ -1184,7 +1191,7 @@ ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때
 |---|---|---|---|---|---|---|
 | 2026-10-30 | 1.0 (13) | 5.1.1(i) · 5.1.2(i) | 앱이 개인정보를 제3자 AI 서비스와 공유하는 것으로 보이는데, 보내기 전에 누구에게 보내는지 밝히지 않는다. 무엇을 보내는지·누구에게 보내는지 고지, 보내기 전 허락, 방침의 수집·이용·제3자 보호 고지를 요구 | 사투리 번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에 고지·동의가 없었다. 2026-10-08에 「방침 고지로 갈음」하기로 한 결정이 원인이다 | **KAN-304**(PR #59) 번역기 상시 고지·사전 동의 시트, 홈 광고 동의 시트 / **KAN-315**(PR #60) 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로 → 빌드 15로 재제출 | 빌드 15로 재제출(2026-11-04 23:51) → **2026-11-09 다시 거절 — 아래 행** |
 | 2026-11-09 | 1.0 (15) | 5.1.1(v) | 성별 입력이 필수다 | 서버·앱 모두 성별을 프로필 완료 조건에 넣었다. 성별을 쓰는 기능은 없다 | 서버 **KAN-328**(PR 머지, null 허용) / 앱 **KAN-330** 「선택 안 함」 칩 | 빌드 16 준비 중 |
-| 2026-11-09 | 1.0 (15) | 5.1.1(v) | 계정 기반이 아닌 기능(단어 학습·억양 학습·번역기)까지 로그인을 강제한다 | 앱 진입이 로그인 게이트 뒤에 있고 모든 API가 계정 토큰을 요구했다 | 서버 **KAN-329**(게스트 계정 `POST /v0/auth/guest`, 번역만 허용) / 앱 **KAN-330** 「로그인 없이 둘러보기」, 학습 탭 로그인 안내(webview-bridge §15). 학습은 계정별 기록이라 로그인 유지(팀 결정) | 빌드 16 준비 중 |
+| 2026-11-09 | 1.0 (15) | 5.1.1(v) | 계정 기반이 아닌 기능(단어 학습·억양 학습·번역기)까지 로그인을 강제한다 | 앱 진입이 로그인 게이트 뒤에 있고 모든 API가 계정 토큰을 요구했다 | 서버 **KAN-329**(게스트 계정 `POST /v0/auth/guest`, 번역만 허용) / 앱 **KAN-330** 「로그인 없이 둘러보기」, 학습 탭 로그인 안내(webview-bridge §15). 학습은 계정별 기록이라 로그인 유지(팀 결정). 레벨 테스트는 게스트에게 연다 — 익명 세션이라 계정이 필요 없다(PR #70 리뷰 뒤 팀 결정 2026-11-10) | 빌드 16 준비 중 |
 | 2026-11-09 | 1.0 (15) | 5.1.1(i) · 5.1.2(i) | 제3자 AI 서비스 수신자 고지 재지적 | 코드 결함은 없다 — 동의 시트가 전송 전에 Google LLC Gemini API를 밝힌다. 로그인 벽 때문에 심사관이 번역기에 닿지 못했을 가능성이 크고, 새 제출에는 빌드 13 회신 스레드가 없었다 | **KAN-331** 동의 시트에 「계정 정보·음성은 보내지 않아요」, 게스트 확인 경로를 메모 첫머리에 / **KAN-344** 결과 신고 버튼 | 빌드 16 준비 중 |
 | 2026-11-09 | 1.0 (15) | 5.1.1(iv) | 마이크 사전 안내의 「마이크 허용」 버튼이 시스템 권한 창을 대신하는 것처럼 보인다 | 사전 안내 버튼 문구 | 앱 **KAN-330** [계속]으로. 같은 구조인 광고 사전 시트의 두 선택지도 iOS에서 [계속] 하나로(KAN-344, webview-bridge §8.7) | 빌드 16 준비 중 |
 
@@ -1336,9 +1343,9 @@ following changes. Please review build 16.
 
 5.1.1(v) - Account sign-in
 The login screen now has 로그인 없이 둘러보기 (Browse without signing in). After agreeing
-to the privacy policy and confirming age 14 or older, the user can use the dialect
-translator without an account. The level test and the accent and vocabulary lessons keep
-per-account records and progress, so they still ask the user to sign in.
+to the privacy policy and confirming age 14 or older, the user can take the level test
+and use the dialect translator without an account. Only the accent and vocabulary lessons,
+which keep per-account learning records and progress, still ask the user to sign in.
 
 5.1.1(v) - Gender
 Gender is now optional. The user can choose 선택 안 함 (Prefer not to say) or skip it.
@@ -1365,7 +1372,7 @@ Thank you for your time.
 Accentury team
 ```
 
-한국어 요약. 빌드 16으로 심사해 달라고 하고, 거절 넷에 하나씩 답한다 — 로그인 없이 번역기를 쓰는 길(학습은 계정 기록이라 로그인),
+한국어 요약. 빌드 16으로 심사해 달라고 하고, 거절 넷에 하나씩 답한다 — 로그인 없이 레벨 테스트와 번역기를 쓰는 길(억양·단어 학습만 계정 기록이라 로그인, 2026-11-10 팀 결정),
 성별 선택, 마이크·광고 사전 안내의 [계속] 하나, 번역기 동의 시트가 보내는 것·받는 곳·안 보내는 것을 전송 전에 밝힌다는 점과 결과 신고.
 마지막에 계정 없이 동의 시트까지 가는 세 단계를 준다.
 
