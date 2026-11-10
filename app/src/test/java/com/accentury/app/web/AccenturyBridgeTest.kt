@@ -2,6 +2,10 @@ package com.accentury.app.web
 
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.analytics.EventParam
+import com.accentury.app.auth.AuthGateState
+import com.accentury.app.auth.AuthUser
+import com.accentury.app.auth.Provider
+import com.accentury.app.auth.accountKindOf
 import com.accentury.app.bridge.GuideF0
 import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.recording.GuideF0Fixture
@@ -881,9 +885,14 @@ class AccenturyBridgeTest {
     }
 
     /** 계정 토큰 두 메서드용 (KAN-255). 이 둘 말고는 아무 것도 하지 않는 브리지다. */
-    private class TokenHarness(originAllowedNow: Boolean = true, urlAllowed: () -> Boolean = { true }) {
+    private class TokenHarness(
+        originAllowedNow: Boolean = true,
+        urlAllowed: () -> Boolean = { true },
+        kind: String = "",
+    ) {
         val queue = FakeMainQueue()
         var refreshRequested = 0
+        var loginRequested = 0
         val bridge = AccenturyBridge(
             postToMain = queue::post,
             isCurrentUrlAllowed = urlAllowed,
@@ -903,7 +912,42 @@ class AccenturyBridgeTest {
             onHaptic = {},
             accessToken = { "access-1" },
             onRefreshAccessToken = { refreshRequested++ },
+            accountKind = { kind },
+            onRequestLogin = { loginRequested++ },
         )
+    }
+
+    @Test
+    fun `계정 종류는 공급자 값 그대로이고 origin 불허면 빈 문자열이다 - KAN-330`() {
+        assertEquals("guest", TokenHarness(kind = "guest").bridge.getAccountKind())
+        assertEquals("member", TokenHarness(kind = "member").bridge.getAccountKind())
+        assertEquals("", TokenHarness(kind = "").bridge.getAccountKind())
+        assertEquals("", TokenHarness(originAllowedNow = false, kind = "guest").bridge.getAccountKind())
+    }
+
+    @Test
+    fun `게이트 상태가 계정 종류로 접힌다 - 홈이 서는 두 상태만 값이 있다`() {
+        val u = AuthUser(id = "u", provider = Provider.GUEST)
+        assertEquals("guest", accountKindOf(AuthGateState.Guest(u)))
+        assertEquals("member", accountKindOf(AuthGateState.SignedIn(u.copy(provider = Provider.GOOGLE))))
+        assertEquals("", accountKindOf(AuthGateState.SignedOut()))
+        assertEquals("", accountKindOf(AuthGateState.Checking))
+        assertEquals("", accountKindOf(AuthGateState.NeedsProfile(u)))
+    }
+
+    @Test
+    fun `로그인 요청은 실행 시점 origin이 허용일 때만 간다`() {
+        val ok = TokenHarness()
+        ok.bridge.requestLogin()
+        ok.queue.drain()
+        assertEquals(1, ok.loginRequested)
+
+        var allowedNow = true
+        val moved = TokenHarness(urlAllowed = { allowedNow })
+        moved.bridge.requestLogin()
+        allowedNow = false
+        moved.queue.drain()
+        assertEquals(0, moved.loginRequested)
     }
 
     @Test

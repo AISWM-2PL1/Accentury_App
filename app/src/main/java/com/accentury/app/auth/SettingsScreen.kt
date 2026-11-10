@@ -1,5 +1,9 @@
 package com.accentury.app.auth
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -58,6 +63,52 @@ internal fun providerName(provider: Provider): String = when (provider) {
     Provider.KAKAO -> "카카오"
     Provider.NAVER -> "네이버"
     Provider.APPLE -> "애플"
+    Provider.GUEST -> "게스트"
+}
+
+/**
+ * 광고 신고 메일의 받는 주소 — 방침 13항 문의처·스토어 연락처와 같은 주소다 (docs/wiki/play-store-listing.md §3).
+ * 신고 창구가 문의처와 다르면 이용자가 두 곳에 묻게 된다.
+ */
+internal const val SUPPORT_EMAIL = "team2pl1@gmail.com"
+
+/**
+ * 「광고 신고」 메일 작성 화면을 연다 (KAN-344-4, 애플 가이드라인 1.2 — 부적절한 콘텐츠를 신고할 수단). 광고 SDK에는 앱이 띄울 신고
+ * 화면이 없어 문의 메일로 받는다. 메일 앱이 없으면 아무 일도 하지 않는다 — 방침 문서의 문의처가 남은 경로다.
+ */
+internal fun openAdReportMail(context: Context) {
+    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
+        .putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
+        .putExtra(Intent.EXTRA_SUBJECT, "[광고 신고] Accentury")
+        .putExtra(
+            Intent.EXTRA_TEXT,
+            "신고할 광고의 화면 캡처를 붙여 주세요.\n\n- 광고를 본 시각:\n- 광고가 나온 화면:\n- 신고 사유:\n",
+        )
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        // 메일 앱 없음 — 위 KDoc
+    }
+}
+
+/** 「광고 신고」 행 (KAN-344-4). [AdConsentRow]와 같은 꼴이다. 회원·게스트·익명 설정 모두에 선다. */
+@Composable
+private fun AdReportRow() {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTargetMin)
+            .clickable(role = Role.Button) { openAdReportMail(context) },
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("광고 신고", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            "부적절한 광고를 메일로 알려 주세요",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /**
@@ -187,6 +238,7 @@ fun SettingsScreen(
                 onOpenPrivacy = onOpenPrivacy,
             ) {
                 AdConsentRow(consent = adConsent, available = adConsentEnabled, enabled = !busy && adConsentEnabled, onClick = onOpenAdConsent)
+                AdReportRow()
             }
         }
     }
@@ -387,6 +439,11 @@ private fun AdConsentRow(consent: AdConsent, available: Boolean, enabled: Boolea
  * 로그인을 끈 빌드(익명 모드)의 설정 화면 (KAN-270 5단계). 톱니는 그대로 두고 「개인정보」만 남긴다 — 계정 섹션·
  * 로그아웃·계정 동의 토글은 없다. 스위치는 [AnonymousVoiceConsentStore]를 바꾸고 다음 세션 생성부터 반영된다.
  * 덮는 방식·뒤로 가기는 [SettingsScreen]과 같다.
+ *
+ * 게스트 계정(KAN-330)도 이 화면이다 — 게스트의 레벨 테스트는 서버가 익명 세션으로 받아(§3.21) 음성 동의가 같은 기기 로컬
+ * 값이고, 계정 섹션·회원 탈퇴는 지울 개인 정보가 없어 두지 않는다. 대신 바닥에 [onLogin]의 「로그인」을 둔다.
+ *
+ * @param onLogin 게스트만 — 게스트 토큰을 버리고 로그인 화면으로 ([AuthGateController.requestLogin]). null이면 버튼이 없다
  */
 @Composable
 fun AnonymousSettingsScreen(
@@ -395,9 +452,18 @@ fun AnonymousSettingsScreen(
     onOpenPrivacy: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onLogin: (() -> Unit)? = null,
 ) {
     BackHandler(onBack = onClose)
-    PaperScreen(modifier = modifier, onClose = onClose) {
+    PaperScreen(
+        modifier = modifier,
+        onClose = onClose,
+        footer = onLogin?.let { login ->
+            {
+                AccenturyButton(text = "로그인", onClick = login, modifier = Modifier.fillMaxWidth())
+            }
+        },
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.x6)) {
             PaperTitle("설정")
             // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다.
@@ -407,6 +473,7 @@ fun AnonymousSettingsScreen(
                 onReload = {},
                 onOpenPrivacy = onOpenPrivacy,
                 caption = VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS,
+                extra = { AdReportRow() },
             )
         }
     }

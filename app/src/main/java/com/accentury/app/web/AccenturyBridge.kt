@@ -19,7 +19,7 @@ import com.accentury.app.ui.components.Haptic
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
  * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
- * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 화면 전환 알림(KAN-290)까지 필요한 열아홉 메서드만 둔다.
+ * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 화면 전환 알림(KAN-290)·계정 종류와 게스트 로그인 요청(KAN-330)까지 필요한 스물한 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -69,6 +69,10 @@ import com.accentury.app.ui.components.Haptic
  *   있는 실패인지는 창구 너머(UploadManager.retry)가 판정한다 (webview-bridge.md §14). 기본값은 [onStartIntonationRecording]과 같은 이유다
  * @param onLocationChanged 웹의 SPA 화면 전환 뒤 새 href (KAN-290). 문서가 바뀌지 않아 onPageStarted가 안 오는 이동을
  *   창구 너머가 같은 URL 추적에 싣는다. 기본값은 [onStartIntonationRecording]과 같은 이유다
+ * @param accountKind 계정 종류 공급자 (KAN-330). [getAccountKind]가 **JS 스레드에서 동기로** 부르므로 임의 스레드에서 안전해야 한다
+ *   (게이트의 StateFlow 값 읽기). `guest`·`member`, 로그인 안 됨·로그인 끈 빌드면 빈 문자열. 기본값은 [onStartIntonationRecording]과 같은 이유다
+ * @param onRequestLogin 게스트가 웹에서 [로그인]을 눌렀다 (KAN-330). 게스트 세션을 버리고 로그인 화면으로 — 회원이면 창구 너머가
+ *   무시한다(AuthGateController.requestLogin). 기본값은 [onStartIntonationRecording]과 같은 이유다
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
@@ -93,6 +97,8 @@ class AccenturyBridge(
     private val onOpenSettings: () -> Unit = {},
     private val onRetryUpload: (String) -> Unit = {},
     private val onLocationChanged: (String) -> Unit = {},
+    private val accountKind: () -> String = { "" },
+    private val onRequestLogin: () -> Unit = {},
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -357,6 +363,29 @@ class AccenturyBridge(
     fun refreshAccessToken() {
         postToMain {
             if (isCurrentUrlAllowed()) onRefreshAccessToken()
+        }
+    }
+
+    /**
+     * 계정 종류 (KAN-330) — `guest` | `member` | 빈 문자열(로그인 안 됨·로그인 끈 빌드·origin 불허). 웹이 게스트에게는 계정 기능
+     * 대신 로그인 유도를 보인다 — 서버가 게스트를 번역 말고는 403 `AUTH_GUEST_NOT_ALLOWED`로 막기 때문이다.
+     *
+     * [getAccessToken]과 같은 꼴이다: 동기 반환이라 메인 스레드가 유지하는 [isOriginAllowedNow] 플래그를 본다. 비밀값은 아니지만
+     * 우리 웹이 아닌 페이지에 로그인 상태를 알려 줄 이유가 없다. 메서드 추가라 계약 버전은 2 그대로다(§5) — 이 메서드가 없는
+     * 구버전 앱에서는 웹 래퍼가 부재를 접는다.
+     */
+    @JavascriptInterface
+    fun getAccountKind(): String = if (isOriginAllowedNow()) accountKind() else ""
+
+    /**
+     * 게스트의 [로그인] (KAN-330). fire-and-forget — 게스트 토큰을 버리고 게이트가 로그인 화면으로 바뀌면 WebView째 내려가므로
+     * 회신할 상대가 없다. origin 검증은 [refreshAccessToken]과 같다 — 불허 문서의 요청은 조용히 버린다. 남의 페이지가 사용자를
+     * 로그아웃시키는 통로가 되면 안 된다.
+     */
+    @JavascriptInterface
+    fun requestLogin() {
+        postToMain {
+            if (isCurrentUrlAllowed()) onRequestLogin()
         }
     }
 

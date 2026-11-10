@@ -294,8 +294,10 @@ android {
         // 2026-10-25 TestFlight 업로드(KAN-292 R8 대응, 미제출)로 소모됐다. 15가 KAN-304·KAN-315 리젝
         // 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행)을 담은
         // 재제출 빌드다 - Play는 업로드된 번호만 막으니 14를 건너뛰어도 된다 (xcconfig 주석).
+        // 16은 빌드 15의 2026-11-09 2차 거절 대응(KAN-328~331·KAN-344: 성별 선택 항목화, 마이크 안내 「계속」,
+        // 로그인 없이 둘러보기, 네이버 탈퇴 연동 해제, 광고 등급 PG, 광고 신고) 재제출 빌드다.
         // iOS·Android는 같은 번호를 쓴다.
-        versionCode = 15
+        versionCode = 16
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -40,6 +40,7 @@ class AuthApiTest {
         Provider.GOOGLE, Provider.APPLE -> LoginCredential(provider, idToken = "fake:g")
         Provider.KAKAO -> LoginCredential(provider, accessToken = "fake:k")
         Provider.NAVER -> loginCredentialOf(provider, "fake:n", refreshToken = "fake:nr")
+        Provider.GUEST -> error("게스트는 로그인 자격이 없다")
     }
 
     @Test

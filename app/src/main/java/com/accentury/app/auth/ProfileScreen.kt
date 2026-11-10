@@ -38,7 +38,7 @@ private const val DEFAULT_PICKER_YEAR = 2000
 private const val OLDEST_BIRTH_YEAR = 1900
 
 /**
- * 추가 정보 화면 (KAN-224, §3.10). 로그인은 됐지만 프로필이 미완료일 때 선다. 다섯 칸이 모두 차야
+ * 추가 정보 화면 (KAN-224, §3.10). 로그인은 됐지만 프로필이 미완료일 때 선다. 성별(선택, KAN-330)을 뺀 네 칸이 모두 차야
  * [완료]가 켜지고 건너뛸 수 없다 — 출신지역은 학습 데이터 라벨이고(KAN-201), 연령은 만 14세 가입 제한의 근거다.
  *
  * @param user 서버가 아는 계정 값. 칸을 미리 채운다
@@ -100,6 +100,13 @@ fun ProfileScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
+                    // 성별은 선택 항목이다 (KAN-330, 서버 KAN-328). null과 같은 값이라 처음부터·서버 값이 없을 때 이것이 골라져 있다.
+                    ChoiceButton(
+                        label = "선택 안 함",
+                        selected = form.gender == null,
+                        onClick = { form.gender = null },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
 
