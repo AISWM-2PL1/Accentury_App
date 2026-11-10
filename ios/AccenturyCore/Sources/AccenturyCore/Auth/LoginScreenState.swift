@@ -13,6 +13,28 @@ public let privacyPolicyVersion = "2026-10-20"
 /// WEB_URL(로컬 Vite)에는 이 정적 파일이 없고, 법적 고지는 정본이 하나여야 한다.
 public let privacyPolicyURL = "https://accentury.app/privacy.html"
 
+/// 문의처 메일 (KAN-330). 방침 13항 문의처·App Store 연락처 이메일과 같은 주소다(docs/wiki/app-store-listing.md §3·§8).
+public let supportEmail = "team2pl1@gmail.com"
+
+/// 설정 「광고 신고」의 메일 작성 주소 (KAN-330, App Store 지침 1.2 — 사용자가 부적절한 콘텐츠를 신고할 수단). 광고는 AdMob이 고르므로
+/// 우리가 막을 자리는 AdMob 콘솔의 광고 검토 센터다. 그래서 신고를 받는 통로만 두고, 찾는 데 필요한 값(언제·어느 화면·어떤 광고)을
+/// 본문 틀로 묻는다. 메일 앱이 없는 기기는 열리지 않으므로 화면이 주소를 함께 보인다.
+/// https://developer.apple.com/app-store/review/guidelines/#user-generated-content
+public func adReportMailURL(appVersion: String) -> URL? {
+    var components = URLComponents()
+    components.scheme = "mailto"
+    components.path = supportEmail
+    components.queryItems = [
+        URLQueryItem(name: "subject", value: "[광고 신고] Accentury"),
+        URLQueryItem(
+            name: "body",
+            value: "신고할 광고에 대해 알려 주세요.\n\n- 광고가 나온 화면(예: 분석 대기, 다시 테스트하기 전):\n- 본 날짜와 시각:\n"
+                + "- 광고 내용(광고주·문구, 캡처를 붙여 주시면 확인이 빨라요):\n- 문제라고 느낀 점:\n\n앱 버전: \(appVersion)"
+        ),
+    ]
+    return components.url
+}
+
 /// 로그인 화면이 버튼을 세우는 순서 (KAN-224 팀 결정 2026-09-28: "구글, 카카오, 네이버, iOS는 apple 추가").
 /// 안드로이드 `LOGIN_PROVIDERS` 끝에 APPLE 하나를 더한 것이다.
 public let loginProviders: [Provider] = [.GOOGLE, .KAKAO, .NAVER, .APPLE]
@@ -34,6 +56,8 @@ public func providerName(_ provider: Provider) -> String {
     case .KAKAO: return "카카오"
     case .NAVER: return "네이버"
     case .APPLE: return "애플"
+    // 게스트 설정 화면은 계정 섹션을 세우지 않아 이 값이 화면에 닿지 않는다 (KAN-330). 빈칸 대신 읽히는 말을 둔다.
+    case .GUEST: return "로그인 없이 둘러보기"
     }
 }
 
@@ -68,6 +92,9 @@ public func loginCredential(
         // 네이버는 Refresh 토큰도 필수다 (KAN-243). 네이버 사용자 조회 API는 토큰의 발급 앱을 알려 주지 않아서, 서버가
         // 이 Refresh 토큰을 우리 Client로 교환해 봐야 우리 앱의 토큰인지 가릴 수 있다. 없으면 400 `VALIDATION_FAILED`다.
         return LoginCredential(provider: provider, accessToken: token, refreshToken: refreshToken)
+    case .GUEST:
+        // 게스트는 로그인으로 만들지 않는다(서버가 400으로 거절한다, KAN-329). 버튼 목록에 없어 여기 오지 않는다.
+        return LoginCredential(provider: provider)
     }
 }
 
@@ -104,11 +131,28 @@ public final class LoginScreenState: ObservableObject {
     /// IdP SDK가 토큰을 주지 못했다. 다음 시도를 시작하면 지운다.
     @Published public private(set) var idpError: AuthFailure?
 
+    /// 「로그인 없이 둘러보기」 동의 단계의 「만 14세 이상입니다」 (KAN-330, 필수). 소셜 가입은 추가 정보의 생년월일이 나이를
+    /// 확인하지만 게스트에게는 그 화면이 없어 여기서 받는다. 방침 동의는 소셜 로그인과 같은 ``consented``를 쓴다 — 같은 방침·같은 버전이다.
+    @Published public var ageConfirmed = false
+
     public init(consented: Bool = false) {
         self.consented = consented
     }
 
     public var buttonsEnabled: Bool { consented && !inFlight }
+
+    /// 게스트 [둘러보기 시작]을 누를 수 있나 (KAN-330). 동의 둘 다 필수다.
+    public var guestEnabled: Bool { consented && ageConfirmed && !inFlight }
+
+    /// 게스트 발급을 시작한다 (KAN-330). 진행 중 막기는 소셜 로그인과 같은 ``inFlight``다 — 둘이 동시에 나가면 토큰 쌍 둘이 서로를 덮는다.
+    /// 결과 안내는 게이트의 ``AuthGateState/signedOut(_:)``이 든다. 막혀 있을 때 들어온 호출은 무시한다.
+    public func startGuest(_ start: () async -> Void) async {
+        guard guestEnabled else { return }
+        inFlight = true
+        idpError = nil
+        defer { inFlight = false }
+        await start()
+    }
 
     /// 버튼 하나를 눌렀다. `idp`로 SDK 로그인을 하고, 토큰을 받으면 `login`(서버 로그인)으로 넘긴다.
     /// 취소는 아무 흔적도 남기지 않는다. 막혀 있을 때(``buttonsEnabled``가 false) 들어온 호출은 무시한다.

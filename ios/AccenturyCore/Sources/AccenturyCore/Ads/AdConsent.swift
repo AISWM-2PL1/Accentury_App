@@ -38,9 +38,14 @@ public enum AdConsent: String, Equatable, Sendable, CaseIterable {
 /// 경로로든 요청이 나간다면 비맞춤이 안전한 쪽이다. "모르면 맞춤형"은 동의 없이 개인화하는 것이라
 /// 방침(6항)이 약속한 것과 어긋난다.
 ///
+/// **iOS는 ATT가 `authorized`일 때만 true다** (KAN-330 / KAN-344-1, App Store 빌드 15 거절 5.1.1(iv)). 웹 사전 시트는 iOS에서
+/// 선택지 없는 설명 + [계속] 하나가 됐다 — 시스템 권한 창 앞에 우리 허용·거부를 세우는 것이 지침 위반이라서다. 그래서 저장된
+/// `granted`는 이제 "사전 시트를 봤다"는 뜻이고, 맞춤형 여부는 ATT 답이 정한다. 예전 빌드에서 거부(`denied`)를 고른 사람은
+/// ATT를 허용해도 비맞춤으로 둔다 — 고른 적 있는 거부를 앱이 뒤집지 않는다.
+///
 /// 순수 함수로 뺀 이유는 이 한 줄이 곧 동의의 법적 의미이기 때문이다 — `swift test`가 못박는다.
-public func personalizationAllowed(_ consent: AdConsent) -> Bool {
-    consent == .granted
+public func personalizationAllowed(_ consent: AdConsent, tracking: TrackingStatus) -> Bool {
+    consent == .granted && tracking == .authorized
 }
 
 /// 동의 → 요청 가능 판정 (KAN-196 리뷰 P1-1). 안드로이드 `AdRequests.kt`의 `shouldRequestAds`.
@@ -61,11 +66,13 @@ public func shouldRequestAds(_ consent: AdConsent) -> Bool {
 /// iOS ATT 프롬프트를 지금 띄워야 하는가 (KAN-196 리뷰 P2-6). `AdsController.preloadAfterTrackingSettled`의
 /// 판정을 순수 함수로 뺀 것이다 — ads-admob.md §7.5의 순서 규칙이 곧 이 한 줄이다.
 ///
-/// - `granted`일 때만 묻는다. `denied`는 추적 자체가 없는데 추적 허용을 묻는 셈이라 사용자에게도 심사에도
-///   설명이 안 되고(npa 요청은 IDFA가 필요 없다), `unknown`은 시트가 아직 안 뜬 것이라 ATT가 먼저면 맥락이 없다
+/// - **사전 시트를 본 뒤면(`unknown`이 아니면) 늘 묻는다** (KAN-330 / KAN-344-1, 지침 5.1.1(iv)). 사전 시트는 설명 + [계속]이고
+///   추적 허용 여부는 ATT 창 하나가 묻는다. 예전 빌드에서 `denied`를 고른 사람도 묻는다 — 우리 거부 버튼이 시스템 창을 가로막는
+///   것이 거절 사유였다. 그 사람이 ATT를 허용해도 광고는 비맞춤이다(``personalizationAllowed(_:tracking:)``)
+/// - `unknown`은 사전 시트가 아직 안 뜬 것이라 ATT가 먼저면 맥락이 없다
 /// - ATT가 ``TrackingStatus/notDetermined``일 때만 묻는다. 이미 답이 있으면 iOS가 다시 띄우지 않는다
 public func shouldRequestTracking(consent: AdConsent, status: TrackingStatus) -> Bool {
-    consent == .granted && status == .notDetermined
+    consent != .unknown && status == .notDetermined
 }
 
 /// iOS 설정 앱(이 앱 화면)을 열어야 하는가 (KAN-315, 팀장 결정 2026-11-03). 재열기 시트에서 [맞춤형 광고 받기]를

@@ -43,7 +43,7 @@ struct SettingsScreen: View {
     /// 화면으로 바뀐다.
     let onLogout: () async -> Void
     /// ``AccenturyCore/withdrawAccount(provider:reauthDelay:appleReauth:withdraw:)`` — 애플 계정이면 재인증 뒤
-    /// ``AccenturyCore/AuthGateController/withdraw(appleAuthorizationCode:idpLogout:)``. 탈퇴되면 로그아웃과 같이 로그인 화면으로
+    /// ``AccenturyCore/AuthGateController/withdraw(appleAuthorizationCode:naverRefreshToken:idpLogout:)``. 탈퇴되면 로그아웃과 같이 로그인 화면으로
     /// 바뀌고, 실패하면 로그인 상태 그대로 안내를 남긴다. nil = 사용자가 애플 창에서 취소했다(서버 호출 없음)
     let onWithdraw: () async -> WithdrawOutcome?
     /// ``AccenturyCore/AuthGateController/setVoiceConsent(_:)``
@@ -115,7 +115,10 @@ struct SettingsScreen: View {
                     },
                     onReload: onReloadVoiceConsent,
                     onOpenPrivacy: onOpenPrivacy,
-                    extra: AnyView(AdConsentRow(enabled: adConsentEnabled && !busy, available: adConsentEnabled, action: onOpenAdConsent))
+                    extra: AnyView(VStack(alignment: .leading, spacing: Papercut.space3) {
+                        AdConsentRow(enabled: adConsentEnabled && !busy, available: adConsentEnabled, action: onOpenAdConsent)
+                        AdReportRow()
+                    })
                 )
 
                 AccenturyButton(text: "로그아웃", variant: .secondary, enabled: !busy, fillsWidth: true) {
@@ -221,6 +224,87 @@ private struct AdConsentRow: View {
         case .denied: return "일반 광고만 보기"
         case .unknown: return "아직 고르지 않음"
         }
+    }
+}
+
+/// 「광고 신고」 행 (KAN-330, App Store 지침 1.2 — 부적절한 콘텐츠를 신고할 수단). 회원·게스트 설정에 같이 선다. 메일 작성으로
+/// 문의처에 보낸다(``AccenturyCore/adReportMailURL(appVersion:)``) — 광고는 AdMob이 고르므로 받은 신고는 AdMob 광고 검토 센터에서 막는다.
+/// 메일 앱이 없으면 `mailto:`가 열리지 않으니 캡션에 주소를 그대로 보인다.
+private struct AdReportRow: View {
+
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        Button {
+            let info = Bundle.main.infoDictionary
+            let version = "\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
+            if let url = adReportMailURL(appVersion: version) { openURL(url) }
+        } label: {
+            VStack(alignment: .leading, spacing: Papercut.space1) {
+                Text("광고 신고").papercutType(.body).foregroundColor(Papercut.ink)
+                Text("부적절한 광고를 \(supportEmail)로 알려 주세요").papercutType(.bodySmall).foregroundColor(Papercut.muted)
+            }
+            .frame(maxWidth: .infinity, minHeight: Papercut.touchTargetMin, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 게스트의 설정 화면 (KAN-330, 「로그인 없이 둘러보기」). 계정 섹션·로그아웃·회원 탈퇴 대신 [로그인] 하나다 — 게스트 계정은 앱 안에서
+/// 되찾을 길이 없어 탈퇴를 두지 않고, 서버가 30일 미사용 게스트를 자동 파기한다(서버 privacy-policy.md 「게스트 계정 (앱)」). 음성 저장
+/// 동의도 없다 — 서버가 게스트의 동의를 403으로 막는다. 광고는 게스트에게도 나오므로 「맞춤형 광고 설정」·「광고 신고」는 남긴다.
+struct GuestSettingsScreen: View {
+
+    let onClose: () -> Void
+    /// ``AccenturyCore/AuthGateController/leaveGuest()``. 끝나면 게이트가 `signedOut`이 되어 이 화면째 로그인 화면으로 바뀐다
+    let onLogin: () async -> Void
+    let onOpenPrivacy: () -> Void
+    let adConsentEnabled: Bool
+    let onOpenAdConsent: () -> Void
+
+    @State private var leaving = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Papercut.space6) {
+                Text("설정")
+                    .papercutType(.headline)
+                    .foregroundColor(Papercut.ink)
+                    .accessibilityAddTraits(.isHeader)
+
+                VStack(alignment: .leading, spacing: Papercut.space3) {
+                    Text("계정")
+                        .papercutType(.label)
+                        .foregroundColor(Papercut.muted)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("로그인하면 억양 학습과 단어 학습 기록을 남길 수 있어요")
+                        .papercutType(.body)
+                        .foregroundColor(Papercut.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    AccenturyButton(text: leaving ? "이동하는 중" : "로그인", enabled: !leaving, fillsWidth: true) {
+                        leaving = true
+                        Task {
+                            await onLogin()
+                            leaving = false
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: Papercut.space3) {
+                    Text("개인정보")
+                        .papercutType(.label)
+                        .foregroundColor(Papercut.muted)
+                        .accessibilityAddTraits(.isHeader)
+                    AdConsentRow(enabled: adConsentEnabled && !leaving, available: adConsentEnabled, action: onOpenAdConsent)
+                    AdReportRow()
+                    AccenturyButton(text: "개인정보처리방침", variant: .text, action: onOpenPrivacy)
+                }
+            }
+            .padding(.horizontal, Papercut.space6)
+            .padding(.vertical, Papercut.space4)
+        }
+        .paperAppBar(onClose: onClose, closeEnabled: !leaving)
     }
 }
 

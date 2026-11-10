@@ -28,6 +28,7 @@ final class AuthApiTests: XCTestCase {
         case .GOOGLE, .APPLE: return LoginCredential(provider: provider, idToken: "fake:g")
         case .KAKAO: return LoginCredential(provider: provider, accessToken: "fake:k")
         case .NAVER: return LoginCredential(provider: provider, accessToken: "fake:n", refreshToken: "fake:nr")
+        case .GUEST: return LoginCredential(provider: provider)
         }
     }
 

@@ -35,7 +35,19 @@ func idpSignIn(_ provider: Provider) async -> IdpOutcome {
     case .KAKAO: return await KakaoIdp.signIn()
     case .NAVER: return await NaverIdp.signIn()
     case .APPLE: return await AppleIdp().signIn()
+    // 게스트는 IdP 로그인이 아니다 (KAN-330) — 버튼 목록에 없어 여기 오지 않는다.
+    case .GUEST: return .failed
     }
+}
+
+/// 탈퇴 요청에 실을 네이버 SDK의 Refresh 토큰 (KAN-330, 서버 KAN-343). SDK가 키체인에 든 값을 읽기만 한다 — `NidOAuth.refreshToken`은
+/// "현재 클라이언트의 저장된 RefreshToken, 없으면 nil"이고 초기화가 전제다. 설정이 없는 빌드는 초기화하지 않으므로 묻지 않는다.
+/// 네이버 계정인지는 호출자가 ``AccenturyCore/naverRefreshTokenForWithdrawal(provider:sdkRefreshToken:)``로 가른다.
+/// https://github.com/naver/naveridlogin-sdk-ios-swift/blob/main/_autodocs/api-reference/nidoauth.md
+@MainActor
+func naverSdkRefreshToken() -> String? {
+    guard !AppConfig.fakeIdp, configuredProviders().contains(.NAVER) else { return nil }
+    return NidOAuth.shared.refreshToken?.tokenString
 }
 
 /// 탈퇴 직전 애플 재인증 (KAN-251). 받은 `authorizationCode`를 탈퇴 요청에 실어 서버가 애플 토큰을 revoke한다
@@ -232,7 +244,7 @@ private final class AppleIdp: NSObject, ASAuthorizationControllerDelegate, ASAut
 
 /// IdP SDK 쪽 세션 정리 (KAN-224). ``AccenturyCore/AuthGateController/logout(idpLogout:)``에 넘길 몫이다 —
 /// `await gate.logout { await IdpLogout.all() }`. 추가 정보 화면의 [다른 계정으로 로그인]과 설정 화면의
-/// [로그아웃](KAN-247), 회원 탈퇴(KAN-251, ``AccenturyCore/AuthGateController/withdraw(appleAuthorizationCode:idpLogout:)``)가 부른다.
+/// [로그아웃](KAN-247), 회원 탈퇴(KAN-251, ``AccenturyCore/AuthGateController/withdraw(appleAuthorizationCode:naverRefreshToken:idpLogout:)``)가 부른다.
 ///
 /// 셋 다 최선 노력이다: 우리 토큰은 이미 서버에서 폐기됐고, SDK 세션이 남으면 다음 로그인에서 계정 선택이
 /// 생략될 뿐이다. 하나가 실패해도 나머지는 정리한다. 애플은 앱이 부를 로그아웃 API가 없다(사용자가 설정에서 끊는다).

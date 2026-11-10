@@ -7,6 +7,9 @@ private let codeRateLimited = "RATE_LIMITED"
 /// 만 14세 미만 가입 거절 (§3.10).
 private let codeUnderAge = "AUTH_UNDER_AGE"
 
+/// 게스트 발급의 IP당 하루 상한 (429, 서버 KAN-329 §3.21). 분당 제한(`RATE_LIMITED`)과 달리 기다려 풀리는 수 초가 아니라 다음 날이다.
+private let codeGuestLimitExceeded = "AUTH_GUEST_LIMIT_EXCEEDED"
+
 private let statusUnauthorized = 401
 
 /// 앱 진입 게이트의 로그인 관문 상태 (KAN-224). 세션 게이트(KAN-34)보다 앞에 선다.
@@ -29,9 +32,37 @@ public enum AuthGateState: Equatable, Sendable {
     /// 화면이 다시 읽게 한다.
     case signedIn(AuthUser, voiceConsent: VoiceConsent?)
 
+    /// 「로그인 없이 둘러보기」의 게스트 계정 (KAN-330, 서버 KAN-329 §3.21, App Store 5.1.1(v)). 홈 웹으로 들어가되 추가 정보·음성
+    /// 저장 동의는 없다 — 서버가 프로필·동의를 403 `AUTH_GUEST_NOT_ALLOWED`로 막는다. 게스트인지는 서버 계정의
+    /// `provider == GUEST`로 가른다(``AuthGateController`` 의 `state(of:)`). 따로 플래그를 두지 않는 이유: 토큰은 키체인이라 앱을 지웠다
+    /// 깔아도 남는데 UserDefaults 플래그는 지워져, 둘이 어긋나면 게스트가 추가 정보 화면으로 떨어진다. 서버 값 하나가 정본이다.
+    case guest
+
     /// 시작 확인이 판정 없이 끝났다 (전송 실패·429·5xx). **토큰은 그대로다** — 여기서 로그인 화면으로 보내면
     /// 망이 잠깐 끊긴 사용자를 로그아웃시키는 셈이다. 화면은 [다시 시도]로 ``AuthGateController/bootstrap()``을 다시 부른다.
     case checkFailed(AuthFailure)
+}
+
+public extension AuthGateState {
+
+    /// 브리지 `getAccountKind()`의 값 (KAN-330, webview-bridge.md §11). 웹은 이것으로 게스트에게 계정 전용 화면 대신 로그인 안내를 보인다.
+    /// 확인 중·확인 실패·로그인 화면은 `""`다 — 그때는 웹이 떠 있지 않거나 계정을 모른다. origin 불허 문서와 로그인을 끈 빌드의
+    /// `""`는 미는 쪽(`WebViewHost`·`TestFlowView`)이 정한다.
+    var accountKind: String {
+        switch self {
+        case .guest: return "guest"
+        case .signedIn, .needsProfile: return "member"
+        case .checking, .signedOut, .checkFailed: return ""
+        }
+    }
+}
+
+/// 탈퇴 요청에 실을 네이버 Refresh 토큰 (KAN-330, 서버 KAN-343). 네이버 계정이고 SDK가 토큰을 들고 있을 때만 싣는다 — 다른
+/// 제공자의 값은 서버가 무시하지만 보낼 이유가 없고, 빈 문자열은 서버 교환이 실패할 값이라 없는 것으로 친다. 토큰이 없으면(앱 재설치로
+/// 네이버 SDK 키체인이 비었을 때 등) 탈퇴는 그대로 하고 서버가 네이버 정리만 건너뛴다 — 애플 코드가 없을 때와 같은 판단이다.
+public func naverRefreshTokenForWithdrawal(provider: Provider, sdkRefreshToken: String?) -> String? {
+    guard provider == .NAVER, let sdkRefreshToken, !sdkRefreshToken.isEmpty else { return nil }
+    return sdkRefreshToken
 }
 
 /// 회원 탈퇴 한 번의 결말 (KAN-251). 안드로이드 `WithdrawOutcome`과 같다.
@@ -126,6 +157,10 @@ public enum AuthFailureReason: Sendable {
 
     /// 서버가 재시도 불가로 못박았다 (`VALIDATION_FAILED`·`AUTH_CONSENT_REQUIRED`) — 앱과 서버 계약이 어긋난 경우다.
     case unsupported
+
+    /// 게스트 발급의 하루 상한 (429 `AUTH_GUEST_LIMIT_EXCEEDED`, KAN-330). 몇 초 뒤 다시 누르라는 ``rateLimited``와 달리 오늘은
+    /// 안 되고 소셜 로그인은 된다는 안내가 필요하다. 로그인 화면의 게스트 단계에서만 나온다.
+    case guestLimitExceeded
 }
 
 /// - `retryAfterSeconds`: ``AuthFailureReason/rateLimited``일 때 서버가 알려준 대기 시간(초). 그 외에는 nil
@@ -180,7 +215,7 @@ public final class AuthGateController: ObservableObject {
         return await task.value
     }
 
-    /// 진행 중인 탈퇴. 겹친 호출은 이 결과를 함께 기다린다 — ``withdraw(appleAuthorizationCode:idpLogout:)`` 참고.
+    /// 진행 중인 탈퇴. 겹친 호출은 이 결과를 함께 기다린다 — ``withdraw(appleAuthorizationCode:naverRefreshToken:idpLogout:)`` 참고.
     private var withdrawal: Task<WithdrawOutcome, Never>?
 
     /// - Parameters:
@@ -329,6 +364,41 @@ public final class AuthGateController: ObservableObject {
         }
     }
 
+    /// 「로그인 없이 둘러보기」 (KAN-330, 서버 KAN-329 §3.21). 동의는 로그인 화면이 받았다(``LoginScreenState/guestEnabled``).
+    /// 저장·세대 규칙은 ``login(_:privacyPolicyVersion:)``과 같다 — 게스트 토큰도 같은 키체인 저장소·같은 갱신 관문을 쓴다.
+    /// 실패하면 로그인 화면에 안내를 남긴다(429 `AUTH_GUEST_LIMIT_EXCEEDED`는 ``AuthFailureReason/guestLimitExceeded``).
+    public func startGuest(privacyPolicyVersion: String) async {
+        await registerSignedOutHook()
+        let result = await api.guest(privacyPolicyVersion: privacyPolicyVersion)
+        guard case .success(let tokens) = result else {
+            state = .signedOut(Self.failure(of: result))
+            return
+        }
+        let store = store
+        let saved = await withSessionLock { [self] in
+            let saved = await store.save(tokens)
+            if saved { loginGeneration += 1 }
+            return saved
+        }
+        guard saved else {
+            // 로그인과 같은 이유 — 키체인에 닿지 못한 쌍은 다음 실행 때 조용히 사라진다.
+            await store.clear()
+            state = .signedOut(AuthFailure(.retry))
+            return
+        }
+        state = .guest
+    }
+
+    /// 게스트 세션을 버리고 로그인 화면으로 (KAN-330). 게스트 설정의 [로그인]과 브리지 `requestLogin()`이 부른다. 게스트가 아니면
+    /// 아무것도 하지 않는다 — 웹이 회원 문서에서 이 메서드를 불러도 로그아웃되면 안 된다.
+    ///
+    /// 서버 로그아웃(게스트 허용 API)은 최선 노력이고 로컬은 반드시 비운다 — ``logout(idpLogout:)`` 그대로다. 게스트는 IdP SDK
+    /// 세션이 없어 IdP 정리는 빈 함수다. 버린 게스트 계정은 서버가 30일 뒤 자동 파기한다(서버 `GuestAccountRetention`).
+    public func leaveGuest() async {
+        guard case .guest = state else { return }
+        await logout()
+    }
+
     /// 추가 정보를 제출한다. ``AuthGateState/needsProfile(_:error:)``가 아니면 무시한다.
     public func submitProfile(_ input: ProfileInput) async {
         guard case .needsProfile(let user, _) = state else { return }
@@ -370,7 +440,7 @@ public final class AuthGateController: ObservableObject {
         await signOutLocally(idpLogout)
     }
 
-    /// 회원 탈퇴 (KAN-251, 서버 KAN-241). 애플 5.1.1(v)가 앱 안 탈퇴를 요구한다. 안드로이드 `AuthGateController.withdraw`와
+    /// 회원 탈퇴 (KAN-251, 서버 KAN-241). 네이버 계정은 SDK Refresh 토큰을 함께 싣는다(KAN-330, ``naverRefreshTokenForWithdrawal(provider:sdkRefreshToken:)``). 애플 5.1.1(v)가 앱 안 탈퇴를 요구한다. 안드로이드 `AuthGateController.withdraw`와
     /// 같은 판정이다.
     ///
     /// **판정이 로그아웃과 반대다.** 로그아웃은 서버가 실패해도 로컬을 지우지만, 탈퇴는 서버가 파기했다고 말할 때만
@@ -396,9 +466,11 @@ public final class AuthGateController: ObservableObject {
     ///
     /// - Parameters:
     ///   - appleAuthorizationCode: 애플 계정의 재인증 코드 (``withdrawAccount(provider:reauthDelay:appleReauth:withdraw:)``). 그 외 nil
-    ///   - idpLogout: IdP SDK 쪽 로그아웃 (앱 타깃 `IdpLogout.all`). 탈퇴됐을 때만 부른다
+    ///   - naverRefreshToken: 네이버 계정의 SDK Refresh 토큰. 그 외 nil
+    ///   - idpLogout: IdP SDK 쪽 로그아웃 (앱 타깃 `IdpLogout.all`). 탈퇴됐을 때만 부른다 — 네이버 토큰을 지우므로 그 값은 미리 읽어 넘긴다
     public func withdraw(
         appleAuthorizationCode: String? = nil,
+        naverRefreshToken: String? = nil,
         idpLogout: @escaping @MainActor () async -> Void = {}
     ) async -> WithdrawOutcome {
         if let running = withdrawal { return await running.value }
@@ -409,7 +481,7 @@ public final class AuthGateController: ObservableObject {
         let task = Task { @MainActor in
             defer { withdrawal = nil }
             let result = await withCancellingDeadline(withdrawServerTimeout) {
-                await api.withdraw(appleAuthorizationCode: appleAuthorizationCode)
+                await api.withdraw(appleAuthorizationCode: appleAuthorizationCode, naverRefreshToken: naverRefreshToken)
             }
             switch result {
             case .success?, .rejected(statusUnauthorized, _, _, _, _)?:
@@ -444,6 +516,8 @@ public final class AuthGateController: ObservableObject {
     }
 
     private static func state(of account: Account) -> AuthGateState {
+        // 게스트는 프로필이 늘 미완료(INCOMPLETE)로 온다 — 서버가 게스트를 그렇게 본다. 추가 정보 화면으로 보내면 저장이 403이라 갇힌다 (KAN-330).
+        if account.user.provider == .GUEST { return .guest }
         switch account.profileStatus {
         case .COMPLETE: return .signedIn(account.user, voiceConsent: account.voiceConsent)
         case .INCOMPLETE: return .needsProfile(account.user, error: nil)
@@ -458,6 +532,8 @@ public final class AuthGateController: ObservableObject {
         case .transportError:
             return AuthFailure(.retry)
         case .rejected(let status, let code, _, let retryable, let retryAfterMs):
+            // 하루 상한은 대기 시간이 실려 와도 분당 제한과 다른 안내다 — 먼저 가른다 (KAN-330).
+            if code == codeGuestLimitExceeded { return AuthFailure(.guestLimitExceeded) }
             // 봉투를 읽었으면 코드가 정본이고, 못 읽었으면 대기 시간의 존재가 대신 말해 준다 (SessionGateController와 같은 판정).
             if code == codeRateLimited || retryAfterMs != nil {
                 return AuthFailure(.rateLimited, retryAfterSeconds: retryAfterMs.map(ceilSeconds))

@@ -23,7 +23,7 @@ final class BridgeUserScriptTests: XCTestCase {
         XCTAssertTrue(bumped.contains("return \(bridgeContractVersion + 1);"))
     }
 
-    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 열일곱 이름. 하나라도 빠지면
+    /// `bridge.ts`가 `typeof bridge?.foo === 'function'`으로 찾는 이름 전부(KAN-330의 `getAccountKind`·`requestLogin` 포함). 하나라도 빠지면
     /// 웹 래퍼가 false로 내려가 그 경로가 조용히 죽는다 — 광고 셋(KAN-196)은 `readAdConsent()`가
     /// null이 되어 시트도 링크도 광고도 없는 "웹 단독" 모양으로 떨어진다.
     func testAllContractMethodsAreDefined() {
@@ -47,6 +47,8 @@ final class BridgeUserScriptTests: XCTestCase {
             "openSettings",
             "retryUpload",
             "onLocationChanged",
+            "getAccountKind",
+            "requestLogin",
         ] {
             XCTAssertTrue(source.contains("\(method):"), "브리지 객체에 \(method)이(가) 없다")
         }
@@ -189,6 +191,23 @@ final class BridgeUserScriptTests: XCTestCase {
         XCTAssertTrue(
             second.evaluateScript("typeof window.__accenturyPendingAccessToken === 'undefined'").toBool()
         )
+    }
+
+    /// 계정 종류 (KAN-330) — Access 토큰과 같은 구조다. 심이 먼저든 push가 먼저든 민 값이 읽히고, 밀기 전에는 `""`다.
+    func testAccountKindReachesTheDocumentInEitherOrder() {
+        let first = makeContext()
+        first.evaluateScript(BridgeUserScript.source)
+        XCTAssertEqual("", first.evaluateScript("window.AccenturyBridge.getAccountKind()")?.toString())
+        first.evaluateScript(BridgeUserScript.accountKindPushJs("guest"))
+        XCTAssertEqual("guest", first.evaluateScript("window.AccenturyBridge.getAccountKind()")?.toString())
+        XCTAssertEqual("", first.evaluateScript("window.AccenturyBridge.getAccessToken()")?.toString())
+
+        let second = makeContext()
+        second.evaluateScript(BridgeUserScript.accountKindPushJs("member"))
+        second.evaluateScript(BridgeUserScript.source)
+        XCTAssertEqual("member", second.evaluateScript("window.AccenturyBridge.getAccountKind()")?.toString())
+        XCTAssertTrue(second.evaluateScript("typeof window.__accenturyPendingAccountKind === 'undefined'").toBool())
+        XCTAssertTrue(BridgeUserScript.source.contains(#"post("requestLogin")"#))
     }
 
     /// 갱신 성공 회신의 순서 (KAN-255, §11): 새 토큰을 먼저 밀고 그 뒤에 'ok'를 보낸다. 웹은 'ok'를 받는 그 자리에서
