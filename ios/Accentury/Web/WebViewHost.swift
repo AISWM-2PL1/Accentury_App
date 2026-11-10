@@ -582,6 +582,11 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
                 guard let self else { return false }
                 return isAllowedWebUrl(self.webView?.url?.absoluteString, allowedOrigins: self.allowedOrigins)
             },
+            // 웹이 넘긴 URL 인자 판정 (KAN-324). 최신 allowlist를 self에서 읽는다.
+            isUrlAllowed: { [weak self] url in
+                guard let self else { return false }
+                return isAllowedWebUrl(url, allowedOrigins: self.allowedOrigins)
+            },
             onRequestMicPermission: { [weak self] in self?.onRequestMicPermission() },
             onStartVoiceItem: { [weak self] in self?.onStartVoiceItem($0) },
             onStartRetest: { [weak self] in self?.onStartRetest() },
