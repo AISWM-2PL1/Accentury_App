@@ -39,7 +39,7 @@ stateDiagram-v2
 | `SignedOut` | 로그인 (`auth/LoginScreen.kt` · `Auth/LoginScreen.swift`) | |
 | `NeedsProfile` | 추가 정보 (`auth/ProfileScreen.kt` · `Auth/ProfileScreen.swift`) | |
 | `SignedIn` | 기존 테스트 흐름(WebView 인트로) | 안드로이드 `MainActivity`의 `AuthGate`, iOS `AuthGateView` |
-| `Guest` (KAN-330) | 테스트 흐름(WebView 홈). 웹이 번역기 말고는 로그인 안내를 그린다 | Android `AuthGateState.Guest`, iOS `AuthGateState.guest` — 「게스트 둘러보기」 |
+| `Guest` (KAN-330) | 테스트 흐름(WebView 홈). 웹이 번역기·레벨 테스트 말고는 로그인 안내를 그린다 | Android `AuthGateState.Guest`, iOS `AuthGateState.guest` — 「게스트 둘러보기」 |
 
 시작 확인은 저장된 Access로 `me()`를 바로 부르지 않고 **Refresh부터 한다.** Refresh가 살아 있는지가 로그인
 상태의 정본이고, 오래 안 연 앱의 Access(30분)는 어차피 만료돼 있다. 거절(401)은 로그인 화면으로,
@@ -141,8 +141,8 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
 
 ### 게스트 둘러보기 (KAN-330, 서버 KAN-329)
 
-App Store 빌드 15 거절(2026-11-09, 5.1.1(v) — 계정 기반이 아닌 기능에 로그인을 강제하지 말 것) 대응이다. 게스트는 사투리 번역기만
-쓴다(팀 결정). 브리지 계약은 [webview-bridge.md](webview-bridge.md) §15.
+App Store 빌드 15 거절(2026-11-09, 5.1.1(v) — 계정 기반이 아닌 기능에 로그인을 강제하지 말 것) 대응이다. 게스트는 사투리 번역기와
+레벨 테스트를 쓴다(팀 결정, 레벨 테스트는 PR #70 리뷰 뒤 2026-11-10 추가). 단어·억양 학습만 로그인이 필요하다. 브리지 계약은 [webview-bridge.md](webview-bridge.md) §15.
 
 1. 로그인 화면의 「로그인 없이 둘러보기」(글자 버튼, 소셜 버튼 묶음 아래 — iOS는 동의 줄 아래) → 같은 화면 안에서 소셜 버튼 묶음이 동의 단계로 바뀐다
 2. 동의 단계: 개인정보처리방침 동의(소셜 가입과 같은 값·같은 버전) + 「만 14세 이상입니다 (필수)」. **둘 다 체크해야** 시작 버튼이 눌린다.
@@ -156,13 +156,14 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) — 계정 기반이 아닌 기�
 |---|---|
 | 429 `AUTH_GUEST_LIMIT_EXCEEDED` (같은 IP의 하루 상한, `retryable=false`) | 로그인 화면에 안내. 분당 제한(`RATE_LIMITED`)보다 먼저 가른다. 두 플랫폼 모두 「오늘은 로그인 없이 둘러볼 수 없어요」 + 보조 줄 「로그인해서 이용해 주세요」 |
 | 403 `AUTH_GUEST_NOT_ALLOWED` (게스트 토큰으로 막힌 API) | **로그아웃시키지 않는다.** 토큰·게스트 상태 그대로, 갱신도 부르지 않는다. 요청 실패로 로그인 화면에 가는 것은 Refresh 거절(401)뿐이다 (테스트: Android `AuthGateControllerTest`, iOS `StoreReviewFixTests`) |
-| 레벨 테스트 | Bearer 없는 익명 세션(서버 `AccountTokens.forSession`). Android는 음성 동의를 기기 로컬 `AnonymousVoiceConsentStore`에 둔다 |
+| 레벨 테스트 | Bearer 없는 익명 세션(서버 `AccountTokens.forSession`). 두 플랫폼 모두 음성 저장 동의·출신 지역을 기기 로컬 `AnonymousVoiceConsentStore`에 두고 설치당 한 번 묻는다(익명 빌드와 같다, PR #70 리뷰) |
 | 게스트 설정 | 계정 섹션·로그아웃·회원 탈퇴 대신 [로그인] 하나. 누르면 게스트 로그아웃(서버 로그아웃 최선 노력 + 로컬 비움, IdP 정리 없음) → 로그인 화면. 브리지 `requestLogin`과 같은 경로(Android `AuthGateController.requestLogin`, iOS `leaveGuest`). 회원 상태에서는 아무 일도 하지 않는다 |
 | 버린 게스트 계정 | 서버가 정리한다(서버 `GuestAccountRetention`, 주기는 webview-bridge.md §15 `requestLogin`) |
 
 화면: Android `auth/LoginScreen.kt`(`GuestConsentStep`)·`MainActivity.kt` `AuthGateState.Guest` 갈래, iOS `Auth/LoginScreen.swift`·`Auth/AuthGateView.swift` `GuestScreen`·`Auth/SettingsScreen.swift` `GuestSettingsScreen`.
-게스트 설정의 행은 두 플랫폼 모두 「맞춤형 광고 설정」·「광고 신고」·방침이다(KAN-330 5단계). Android는 익명 설정 화면(`AnonymousSettingsScreen`,
-음성 동의 포함)에 광고 동의 행과 [로그인]을 붙였고, iOS는 `GuestSettingsScreen`이다.
+게스트 설정의 행은 두 플랫폼 모두 음성 저장 동의 스위치(기기 로컬)·「맞춤형 광고 설정」·「광고 신고」·방침과 [로그인]이다(KAN-330 5단계, 음성 동의는
+PR #70 리뷰). Android는 익명 설정 화면(`AnonymousSettingsScreen`)에 광고 동의 행과 [로그인]을 붙였고, iOS는 `GuestSettingsScreen`이 익명 설정과 같은
+`VoiceConsentSection`을 쓴다.
 
 ## 2. 토큰
 

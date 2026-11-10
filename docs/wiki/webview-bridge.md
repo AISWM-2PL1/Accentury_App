@@ -864,7 +864,9 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 ## 15. 게스트 계정 (KAN-330)
 
 App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 로그인 화면의 「로그인 없이 둘러보기」가 서버 `POST /v0/auth/guest`
-(KAN-329)로 게스트 계정을 받는다. 게스트는 **사투리 번역기만** 쓴다(팀 결정). 서버는 게스트 토큰을 번역(`/v0/translations`,
+(KAN-329)로 게스트 계정을 받는다. 게스트는 **사투리 번역기와 레벨 테스트**를 쓴다 — 처음 팀 결정은 번역기만이었고, PR #70 리뷰 뒤
+2026-11-10 팀 결정으로 레벨 테스트를 열었다(빌드 15가 비계정 기능의 로그인 강제로 거절됐고, 레벨 테스트는 계정이 필요 없는 익명 세션이다).
+단어·억양 학습은 계정별 기록이라 로그인 전용이다. 서버는 게스트 토큰을 번역(`/v0/translations`,
 `/v0/translations/reports`)·내 계정 조회·로그아웃·탈퇴에서만 받고, 나머지(학습·홈·세션 생성 등)는 403 `AUTH_GUEST_NOT_ALLOWED`다.
 계약 버전은 2 그대로다 — 메서드 둘을 **추가**만 했다(§1).
 
@@ -889,9 +891,11 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 
 - **`requestLogin`은 게스트일 때만 로그아웃이다.** 회원 상태에서 오면 게이트가 무시한다. 서버 로그아웃은 최선 노력이고 로컬 토큰은 반드시
   비운다(기존 `logout` 경로). 게스트에는 IdP SDK 세션이 없어 IdP 정리가 없다
 - **게스트의 레벨 테스트는 Bearer 없는 익명 세션이다** — 두 플랫폼 공통. 서버 `AccountTokens.forSession`이 게스트 Bearer의 세션 생성을
-  403 `AUTH_GUEST_NOT_ALLOWED`로 막고 토큰 없는 요청은 익명 세션으로 받는다. 브리지의 Access 토큰은
+  403 `AUTH_GUEST_NOT_ALLOWED`로 막고 토큰 없는 요청은 익명 세션으로 받는다. 음성 저장 동의·출신 지역도 익명 빌드처럼 기기 로컬
+  값(`AnonymousVoiceConsentStore`)이고 시작 게이트가 설치당 한 번 묻는다 — 두 플랫폼 공통(PR #70 리뷰). 브리지의 Access 토큰은
   그대로 게스트 토큰을 민다 — 번역기(`allowGuest`)가 쓴다
-- **게스트의 앱 시작 URL은 회원과 같다** — `?bridge=…&app=…&screen=home`. 홈에서 웹이 로그인 안내를 그리고, 번역기는 탭 바로 간다.
+- **게스트의 앱 시작 URL은 회원과 같다** — `?bridge=…&app=…&screen=home`. 홈에서 웹이 레벨 테스트 카드와 학습용 로그인 안내를 그리고,
+  [레벨 테스트 시작]은 회원과 같은 `requestMicPermission`이다. 번역기는 탭 바로 간다.
   탭 바(설정 탭 포함)는 게스트에게도 선다. 게스트 설정에는 계정 섹션·로그아웃·탈퇴 대신 [로그인] 하나가 있고, 이것이 `requestLogin`과
   같은 게스트 로그아웃이다
 - **게스트 동의(방침 + 「만 14세 이상입니다」, 둘 다 필수)는 네이티브 로그인 화면**이다. 웹은 모른다 (social-login.md 「게스트 둘러보기」)
@@ -915,7 +919,7 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 
 | 미는 시점 | `didCommit`, `didFinish`(강제 재주입), `updateUIView`(게이트 상태가 바뀌면 뷰가 다시 그려진다). 문서마다 마지막 민 값(`pushedAccountKind`)을 지운다 |
 | 값 | `.guest` → `"guest"`, `.signedIn`·**`.needsProfile`** → `"member"`, `.checking`·`.signedOut`·`.checkFailed` → `""`. 익명 빌드는 TestFlowView 기본값 `""` |
 | `requestLogin` | 디스패처의 처리 시점 origin 판정(`refreshAccessToken`과 같다) 뒤 `onRequestLogin()` → `AuthGateController.leaveGuest()`. 게스트가 아니면 return, 게스트면 `logout()` |
-| 게스트 TestFlow | 세션 생성이 Bearer 없는 `URLSessionSessionClient(baseURL:)`, 프로필 미완료 거절 처리 없음. 억양 학습 녹음 호출은 버린다(`guard … !guest`) |
+| 게스트 TestFlow | 세션 생성이 Bearer 없는 `URLSessionSessionClient(baseURL:)`, 프로필 미완료 거절 처리 없음. 음성 동의·지역은 `GuestScreen`의 `AnonymousVoiceConsentStore`(익명 빌드와 같은 시작 게이트 화면, PR #70 리뷰). 설정은 `GuestSettingsScreen`에 익명 설정과 같은 음성 동의 섹션 + 광고 두 행. 억양 학습 녹음 호출은 버린다(`guard … !guest`) |
 
 **플랫폼 차이 (알려진 것)**: `NeedsProfile`의 값이 Android `""`, iOS `"member"`다. 이 상태에서는 두 플랫폼 모두 WebView가 아니라 추가
 정보 화면이 서므로 웹이 이 값을 읽을 일은 없다. 억양 학습 녹음은 iOS만 게스트 호출을 네이티브에서 버리고, Android는 웹이 게스트에게
@@ -931,4 +935,6 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 
 - 화면: 단어·억양 학습의 오류 화면과 홈이 code `AUTH_GUEST_NOT_ALLOWED`면 `GuestLoginPrompt`(「로그인하면 단어 학습과 억양 학습을 할 수
   있어요」 + [로그인하기])를 그린다. 미리 끊은 경우와 서버 403이 같은 code라, 종류를 늦게 미는 실행(iOS 첫 문서)에서도 같은 안내로 떨어진다.
   [로그인하기]는 `requestLogin()`, false면 `openSettings()`
-- 홈의 게스트는 등급 카드·[레벨 테스트 시작]·출석 대신 안내 하나다. 광고 동의 시트 규칙은 회원과 같다
+- 홈의 게스트는 테스트 전 카드([레벨 테스트 시작])와 그 아래 학습용 로그인 안내다. 등급 카드·출석은 없고, `getAccountKind`가 `'guest'`면 홈
+  조회(`GET /v0/learning/home`)를 부르지 않는다(PR #70 리뷰). 레벨 테스트 흐름(문항·업로드·분석 대기·결과·재응시·공유)의 웹 호출은 전부
+  세션 토큰(`st_`)이라 게스트 차단 API가 없다. 결과 화면의 [억양 학습 시작]은 학습 탭의 로그인 안내로 간다. 광고 동의 시트 규칙은 회원과 같다
