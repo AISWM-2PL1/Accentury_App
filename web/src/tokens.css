@@ -240,24 +240,22 @@ body {
      한 낱말이 가로 스크롤을 만든다. 낱말 단위 끊기(keep-all)는 전역으로 걸지 않는다 — 기본 글자에서
      이미 줄이 바뀌는 문단의 끊는 자리가 달라져 시안 배치가 바뀐다. 문단마다 건 keep-all은 그대로다 */
   overflow-wrap: anywhere;
-  /* 아래 큰 글자 keep-all @container (KAN-313)의 기준 칸. 이름을 붙이는 이유: 이름 없는 조건은 가장 가까운
-     컨테이너(.home-after, .tab-bar__item)를 재서 기본 글자에서도 걸린다 */
-  container: page / inline-size;
 }
 
 /*
  * 큰 글자에서는 낱말 단위로 줄을 바꾼다 (KAN-313). 한국어 기본 끊기(word-break: normal)는 음절 사이 어디서나
  * 끊어 「명예주/민」「오/늘」처럼 낱말이 쪼개진다. 기본 글자에는 걸지 않는다 — 이미 두 줄인 문단의 끊는 자리가
- * 바뀌어 시안 배치가 달라진다(body 주석). 19.9rem은 화면 폭 기준으로 Android 글자 단계 360 폭 115%(19.57rem)·
- * 412 폭 130%(19.81rem)부터 걸리고, 기본 글자에서는 320 폭(20rem)까지 걸리지 않는 값이다. 19.5rem이던 것을 리뷰 P1
- * (2026-11-09)에서 올렸다 — components.css의 확대용 재배치도 이 조건을 큰 글자 표식으로 쓰는데, 19.5rem이면 360 폭
- * 115%가 빠져 등급명·탭 라벨이 칸을 넘쳤다. 칸보다 긴 한 낱말은 위 overflow-wrap이 여전히 끊는다.
- * body 자식에 걸고 상속시킨다 — 문단마다 따로 정한 끊기 규칙은 그대로 이긴다
+ * 바뀌어 시안 배치가 달라진다(body 주석). 칸보다 긴 한 낱말은 위 overflow-wrap이 여전히 끊는다.
+ * body에 걸고 상속시킨다 — 문단마다 따로 정한 끊기 규칙은 그대로 이긴다.
+ *
+ * 큰 글자 표식 `html[data-large-text]`는 `ui/textScale.ts`가 루트 글자 크기 > 16px일 때 단다. 처음엔 body를
+ * 컨테이너(`container: page / inline-size`)로 두고 화면 폭 rem으로 쟀는데 버렸다(PR #68 리뷰 2026-11-10) — 옛 엔진
+ * (Chromium 128 이하, WebKit 284730@main 이전 = iOS 16~17)은 container-type에 layout containment를 걸어 body가
+ * position: fixed 앱바·탭 바·시트의 기준 상자가 되고(Chromium 129·WebKit 284730@main에서 수정), 화면 폭으로는
+ * 320 폭 기본 글자와 412 폭 125%를 가르지 못해 중간 배율에서 넘침이 남았다(KAN-327)
  */
-@container page (max-width: 19.9rem) {
-  body > * {
-    word-break: keep-all;
-  }
+html[data-large-text] body {
+  word-break: keep-all;
 }
 
 /*
