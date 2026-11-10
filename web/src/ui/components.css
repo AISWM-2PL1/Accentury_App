@@ -480,7 +480,7 @@
 
 /* 테스트 후 홈 (KAN-288, 시안 32) — 위에서부터 쌓고 왼쪽 정렬. 카드·버튼은 폭을 꽉 채운다 */
 .home-after {
-  /* 아래 등급 카드 @container (KAN-313)의 기준 칸. 폭은 .screen__body의 width·max-width가 정한다 */
+  /* 아래 등급명 글자 크기 cqi의 기준 칸 (KAN-313). 폭은 .screen__body의 width·max-width가 정한다 */
   container-type: inline-size;
   justify-content: flex-start;
   align-items: stretch;
@@ -536,25 +536,26 @@
 
 /*
  * 글자를 키우면 (KAN-313) 그림 옆 칸이 등급명 한 낱말보다 좁아진다 — 글자 칸을 그림 아래 한 줄로 내리고
- * 등급명도 줄바꿈을 허용한다. 18rem은 기본 글자의 360·412 폭(본문 19.5·20rem)에서 걸리지 않고 125%부터
- * 걸리는 값이다(412 폭 125%가 17.6rem). 조건의 rem은 루트 글자 크기를 따른다.
+ * 등급명도 줄바꿈을 허용한다. 글자 칸의 기준 폭 calc(15.25rem - 122px)는 카드 폭(.home-after) 18rem에서 그림(120)·테두리(2)·
+ * 좌우 padding(2rem)·gap(0.75rem)을 뺀 값이라, .home-after가 18rem보다 좁을 때 flex-wrap이 글자 칸을 다음 줄로 넘긴다.
+ * 넘어간 칸은 flex-grow로 한 줄을 채운다. 18rem은 기본 글자의 360·412 폭(본문 19.5·20rem)에서 걸리지 않고 412 폭 125%
+ * (17.6rem)부터 걸리는 값이다.
  *
- * 큰 글자 표식(`html[data-large-text]`, tokens.css·`ui/textScale.ts`) 아래에만 둔다. 칸 폭만 보면 320 폭 기본 글자에서도
- * 본문(17rem)이 18rem보다 좁아 걸려 카드가 200→314px로 바뀌었다(Codex 교차 검증 2026-11-09). 안쪽 조건은 가장 가까운
- * 컨테이너(.home-after)를 잰다 — .home-after 안에는 position: fixed 자손이 없다(탭 바·시트는 main 밖)
+ * 큰 글자 표식(`html[data-large-text]`, tokens.css·`ui/textScale.ts`) 아래에만 둔다 — 320 폭 기본 글자에서는 본문(17rem)이
+ * 18rem보다 좁아 카드가 200→314px로 바뀌었다(Codex 교차 검증 2026-11-09). `@container (max-width: 18rem)`으로 쓰지 않는
+ * 이유: Chromium은 칸 크기가 그대로이고 루트 글자 크기만 바뀌면 rem·em 조건을 다시 재지 않아(2026-11-10 실측, 360 폭에서
+ * 100%→150%로 바꾸면 조건이 계속 거짓이라 등급명이 넘쳐 가로 스크롤 13px), 앱이 실행 중 글자 크기를 바꾸면 배치가 남는다
  */
-@container (max-width: 18rem) {
-  html[data-large-text] .home-tier {
-    flex-wrap: wrap;
-  }
+html[data-large-text] .home-tier {
+  flex-wrap: wrap;
+}
 
-  html[data-large-text] .home-tier__text {
-    flex-basis: 100%;
-  }
+html[data-large-text] .home-tier__text {
+  flex: 1 1 calc(15.25rem - 122px);
+}
 
-  html[data-large-text] .home-tier__text h1 {
-    white-space: normal;
-  }
+html[data-large-text] .home-tier__text h1 {
+  white-space: normal;
 }
 
 .home-tier__rank,
