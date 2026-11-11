@@ -17,9 +17,12 @@ import GoogleMobileAds
 /// (§8 「맞춤형 광고 설정」). 요청마다 그 시점의 값으로 나가야 하므로 요청 단위 extras가 맞다.
 enum AdRequests {
 
+    /// 맞춤형은 사전 시트 `granted` + ATT `authorized`일 때만이다 (KAN-344-1, 5.1.1(iv)). ATT 상태는 요청을 만드는 순간 읽는다 — 사용자가
+    /// iOS 설정에서 추적을 끄면 다음 요청부터 npa다.
+    @MainActor
     static func make(consent: AdConsent) -> Request {
         let request = Request()
-        if !personalizationAllowed(consent) {
+        if !personalizationAllowed(consent, tracking: TrackingAuthorization.status) {
             let extras = Extras()
             extras.additionalParameters = ["npa": "1"]
             request.register(extras)

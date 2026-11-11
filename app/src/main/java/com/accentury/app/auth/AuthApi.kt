@@ -19,6 +19,7 @@ import java.util.UUID
 
 // 서버 계약(KAN-223, API 명세서 §3.9~§3.13)에 묶인 값들. 계약이 바뀌면 여기만 고친다.
 private const val PATH_LOGIN = "v0/auth/login"
+private const val PATH_GUEST = "v0/auth/guest"
 private const val PATH_REFRESH = "v0/auth/refresh"
 private const val PATH_LOGOUT = "v0/auth/logout"
 private const val PATH_ME = "v0/users/me"
@@ -52,8 +53,12 @@ sealed interface AuthResult<out T> {
     data class TransportError(val reason: String) : AuthResult<Nothing>
 }
 
-/** 로그인 제공자 (§3.9). GOOGLE·APPLE은 ID 토큰을, KAKAO·NAVER는 IdP Access 토큰을 보낸다. */
-enum class Provider { GOOGLE, KAKAO, NAVER, APPLE }
+/**
+ * 계정 출처 (§3.9·§3.21). GOOGLE·APPLE은 ID 토큰을, KAKAO·NAVER는 IdP Access 토큰을 보낸다.
+ * GUEST는 IdP가 아니다 — 「로그인 없이 둘러보기」(`POST /v0/auth/guest`, KAN-330·서버 KAN-329)만 만든다. 값이 없으면
+ * 게스트의 `me()` 응답을 읽지 못해 시작 확인이 매번 실패한다.
+ */
+enum class Provider { GOOGLE, KAKAO, NAVER, APPLE, GUEST }
 
 enum class ProfileStatus { COMPLETE, INCOMPLETE }
 
@@ -132,7 +137,7 @@ data class LoginSuccess(val tokens: AuthTokens, val isNewUser: Boolean, val acco
  * 추가 정보 입력값 (§3.10).
  *
  * @property birthDate `YYYY-MM-DD`. 만 14세 미만은 400 `AUTH_UNDER_AGE`
- * @property gender `MALE` | `FEMALE`
+ * @property gender `MALE` | `FEMALE` | null. 선택 항목이다 (KAN-330, 서버 KAN-328 — 애플 5.1.1(v)). null이면 성별 없이 저장한다
  * @property region 출신지역 코드 10개 중 하나 (`SEOUL`, `GYEONGGI`, `GANGWON`, `CHUNGBUK`, `CHUNGNAM`,
  *   `JEONBUK`, `JEONNAM`, `GYEONGBUK`, `GYEONGNAM`, `JEJU`)
  */
@@ -141,7 +146,7 @@ data class ProfileInput(
     val email: String,
     val name: String,
     val birthDate: String,
-    val gender: String,
+    val gender: String?,
     val region: String,
 ) {
     override fun toString(): String = "ProfileInput[]"
@@ -197,6 +202,25 @@ class AuthApi(
         }
     }
 
+    /**
+     * 게스트 계정 발급 (§3.21, KAN-330·서버 KAN-329). 동의 두 필드는 [login]의 가입 동의와 같은 규칙이다 — 화면이 동의를
+     * 받은 뒤에만 부르므로 늘 `privacyConsent: true`다. 응답에는 isNewUser·profileStatus가 없다(부를 때마다 새 계정이고 추가
+     * 정보 화면으로 가지 않는다). [LoginSuccess]로 접는 이유는 저장 규칙을 로그인과 하나로 두려는 것이다 — profileStatus는
+     * 게이트가 provider GUEST로 먼저 가르므로 보지 않는다. 429 `AUTH_GUEST_LIMIT_EXCEEDED`(IP당 하루 상한)는 게이트가 판정한다.
+     */
+    suspend fun guest(privacyPolicyVersion: String): AuthResult<LoginSuccess> {
+        val body = json.encodeToString(GuestBody.serializer(), GuestBody(true, privacyPolicyVersion))
+        return call(client, post(PATH_GUEST, body)) { text ->
+            json.decodeFromString(GuestResponseBody.serializer(), text).let {
+                LoginSuccess(
+                    tokens = AuthTokens(it.accessToken, it.refreshToken),
+                    isNewUser = true,
+                    account = Account(ProfileStatus.INCOMPLETE, it.user),
+                )
+            }
+        }
+    }
+
     /** Refresh 회전 (§3.12). 성공하면 받은 쌍을 반드시 통째로 저장해야 한다 — 보낸 Refresh는 이미 죽었다. */
     suspend fun refresh(refreshToken: String): AuthResult<AuthTokens> =
         call(client, post(PATH_REFRESH, refreshBody(refreshToken))) { text ->
@@ -237,11 +261,17 @@ class AuthApi(
     /**
      * 회원 탈퇴 (KAN-251, 서버 KAN-241 §3.14). 204면 계정 정보가 파기됐고 서버의 Refresh도 전부 폐기됐다.
      *
-     * 본문은 비운다 — 서버가 받는 선택 본문은 애플의 `appleAuthorizationCode`뿐이고 Android에는 애플 로그인이 없다.
-     * OkHttp의 POST는 본문이 꼭 있어야 해서 빈 본문을 싣는다. 이미 탈퇴한 계정의 재요청은 401이다 — 판정은 게이트가 한다.
+     * @param naverRefreshToken 네이버 계정만 — 네이버 SDK가 가진 Refresh 토큰 (KAN-344, 서버 KAN-343). 서버가 교환해 네이버
+     *   연동을 끊는다(애플 가이드라인 5.1.1(v) — 탈퇴가 IdP 연결까지 지운다). null이면 본문을 비운다 — 서버는 이 값 없이도
+     *   탈퇴시키고, 애플의 `appleAuthorizationCode`는 Android에 애플 로그인이 없어 싣지 않는다. OkHttp의 POST는 본문이 꼭
+     *   있어야 해서 빈 본문을 싣는다. 이미 탈퇴한 계정의 재요청은 401이다 — 판정은 게이트가 한다.
      */
-    suspend fun withdraw(): AuthResult<Unit> =
-        call(authedClient, request(PATH_WITHDRAWAL).post(ByteArray(0).toRequestBody()).build()) { }
+    suspend fun withdraw(naverRefreshToken: String? = null): AuthResult<Unit> {
+        val payload = naverRefreshToken
+            ?.let { json.encodeToString(WithdrawalBody.serializer(), WithdrawalBody(it)).toRequestBody(JSON_MEDIA_TYPE.toMediaType()) }
+            ?: ByteArray(0).toRequestBody()
+        return call(authedClient, request(PATH_WITHDRAWAL).post(payload).build()) { }
+    }
 
     private fun decodeAccount(text: String): Account = json.decodeFromString(Account.serializer(), text)
 
@@ -306,6 +336,19 @@ private data class LoginBody(
     val privacyPolicyVersion: String,
 ) {
     override fun toString(): String = "LoginBody[provider=$provider]"
+}
+
+@Serializable
+private data class GuestBody(val privacyConsent: Boolean, val privacyPolicyVersion: String)
+
+@Serializable
+private data class GuestResponseBody(val accessToken: String, val refreshToken: String, val user: AuthUser) {
+    override fun toString(): String = "GuestResponseBody[user=$user]"
+}
+
+@Serializable
+private data class WithdrawalBody(val naverRefreshToken: String) {
+    override fun toString(): String = "WithdrawalBody[]"
 }
 
 @Serializable

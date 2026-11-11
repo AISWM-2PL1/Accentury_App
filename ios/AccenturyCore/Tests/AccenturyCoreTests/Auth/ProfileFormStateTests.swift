@@ -15,10 +15,11 @@ final class ProfileFormStateTests: XCTestCase {
         return calendar
     }
 
-    func test다섯_칸이_다_차야_완료할_수_있다() {
+    // 성별은 선택이라 빠진다 (KAN-330) — 성별 없는 완료는 StoreReviewFixTests.
+    func test성별을_뺀_네_칸이_다_차야_완료할_수_있다() {
         XCTAssertTrue(complete().isComplete)
         let cases: [(ProfileFormState) -> Void] = [
-            { $0.email = "" }, { $0.name = "" }, { $0.birthDate = nil }, { $0.gender = nil }, { $0.region = nil },
+            { $0.email = "" }, { $0.name = "" }, { $0.birthDate = nil }, { $0.region = nil },
         ]
         for clear in cases {
             let form = complete()

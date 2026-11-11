@@ -92,9 +92,11 @@ import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
 import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VoiceConsentScreen
+import com.accentury.app.auth.accountKindOf
 import com.accentury.app.auth.anonymousVoiceConsentVersion
 import com.accentury.app.auth.configuredProviders
 import com.accentury.app.auth.idpSignInFor
+import com.accentury.app.auth.naverRefreshToken
 import com.accentury.app.auth.needsAnonymousRegion
 import com.accentury.app.auth.shouldPromptVoiceConsent
 import com.accentury.app.auth.visibleProviders
@@ -304,6 +306,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             signInFor = ::idpSignInFor,
             onLogin = { gate.login(it, PRIVACY_POLICY_VERSION) },
             onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+            // 「로그인 없이 둘러보기」 (KAN-330) — 동의 버전은 소셜 가입 동의와 같은 값이다.
+            onStartGuest = { gate.startGuest(PRIVACY_POLICY_VERSION) },
             modifier = modifier,
         )
 
@@ -347,6 +351,9 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                     adConsentRequested = adConsentRequested,
                     onAdConsentHandled = { adConsentRequested = false },
                     onAdConsentAvailable = { adConsentAvailable = it },
+                    accountKind = { accountKindOf(gate.state.value) },
+                    // 회원에게는 게이트가 무시한다 (KAN-330)
+                    onRequestLogin = gate::requestLogin,
                 )
                 if (!consentPromptDone && shouldPromptVoiceConsent(state, promptStore.wasPrompted(state.user.id))) {
                     val finish = {
@@ -371,7 +378,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         onLogout = { gate.logout { IdpLogout.all(context) } },
                         // 탈퇴도 IdP SDK 세션까지 정리한다 (KAN-251). 녹음기 초기화 등 로그인 화면으로 갈 때의 정리는
                         // SignedIn을 벗어나며 TestFlow가 내려갈 때 일어나므로 로그아웃과 같이 따라온다.
-                        onWithdraw = { gate.withdraw { IdpLogout.all(context) } },
+                        // 네이버 계정이면 SDK Refresh 토큰을 실어 서버가 네이버 연동도 끊는다 (KAN-344) — 판정은 게이트가 한다.
+                        onWithdraw = { gate.withdraw(idpLogout = { IdpLogout.all(context) }, naverRefreshToken = ::naverRefreshToken) },
                         // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의
                         // 화면이 뜨던 문제(PR #22 리뷰).
                         onVoiceConsentChange = { consented ->
@@ -385,6 +393,52 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         onReloadVoiceConsent = gate::reloadVoiceConsent,
                         onOpenPrivacy = onOpenPrivacy,
                         // 열 때 한 번 읽는다 (KAN-315) — 시트에서 바꿀 때는 설정이 이미 닫혀 있다.
+                        adConsent = remember { AdsController.from(context).consentStore.read() },
+                        adConsentEnabled = adConsentAvailable,
+                        onOpenAdConsent = {
+                            settingsOpen = false
+                            adConsentRequested = true
+                        },
+                    )
+                }
+            }
+        }
+
+        is AuthGateState.Guest -> {
+            /*
+             * 게스트 (KAN-330). 홈(WebView)은 회원과 같지만 레벨 테스트는 익명 세션이다 — 서버가 게스트 토큰의 세션 생성을
+             * 403 `AUTH_GUEST_NOT_ALLOWED`로 막고 토큰 없는 익명 세션으로 받는다(§3.21). 그래서 세션 생성은 [AnonymousFlow]처럼
+             * Bearer 없는 클라이언트이고 음성 동의·지역은 기기 로컬 값이다. 추가 정보·계정 음성 동의 화면은 게스트 차단 API라 없다.
+             * 웹 학습 API의 계정 토큰은 그대로 게스트 토큰이다 — 번역만 열려 있고, 나머지는 웹이 getAccountKind로 가린다.
+             */
+            var settingsOpen by rememberSaveable { mutableStateOf(false) }
+            // 게스트도 광고를 본다 — 「맞춤형 광고 설정」은 회원과 같은 결선이다 (KAN-315, iOS GuestScreen과 맞춤, KAN-330 5단계).
+            var adConsentRequested by rememberSaveable { mutableStateOf(false) }
+            var adConsentAvailable by rememberSaveable { mutableStateOf(false) }
+            val consentStore = remember(context) { AnonymousVoiceConsentStore(context) }
+            val sessionHttpClient = remember { OkHttpClient() }
+            Box(modifier = modifier) {
+                TestFlow(
+                    appLink = appLink,
+                    sessionHttpClient = sessionHttpClient,
+                    anonymousConsent = consentStore,
+                    // 익명 세션에는 프로필이 없어 서버가 이 거절을 주지 않는다.
+                    onProfileIncomplete = {},
+                    onOpenSettings = { settingsOpen = true },
+                    tabBarEntry = true,
+                    adConsentRequested = adConsentRequested,
+                    onAdConsentHandled = { adConsentRequested = false },
+                    onAdConsentAvailable = { adConsentAvailable = it },
+                    accountKind = { accountKindOf(gate.state.value) },
+                    onRequestLogin = gate::requestLogin,
+                )
+                if (settingsOpen) {
+                    AnonymousSettingsScreen(
+                        consented = consentStore.consented(),
+                        onChange = consentStore::save,
+                        onOpenPrivacy = { ExternalBrowser.open(context, PRIVACY_POLICY_URL) },
+                        onClose = { settingsOpen = false },
+                        onLogin = gate::requestLogin,
                         adConsent = remember { AdsController.from(context).consentStore.read() },
                         adConsentEnabled = adConsentAvailable,
                         onOpenAdConsent = {
@@ -461,6 +515,8 @@ private fun AnonymousFlow(appLink: StateFlow<AppLinkEntry?>, modifier: Modifier 
  * @param adConsentRequested 설정 「맞춤형 광고 설정」을 눌렀다 (KAN-315). 서면 WebView를 [webAdConsentUrl]로 옮기고
  *   [onAdConsentHandled]로 내린다 — 이동은 시스템 뒤로가기 홈 이동과 같은 [navigateInApp]이다. 목적지가 없는 화면이면
  *   옮기지 않고 내리기만 한다
+ * @param accountKind 브리지 `getAccountKind` (KAN-330) — 계정 모드는 [accountKindOf], 익명 빌드는 기본값(빈 문자열)
+ * @param onRequestLogin 브리지 `requestLogin` (KAN-330) — [AuthGateController.requestLogin]. 익명 빌드는 기본값(무시)
  * @param onAdConsentAvailable 지금 문서에서 [webAdConsentUrl]이 목적지를 주는가 (PR #60 리뷰). 문서·시작 게이트가 바뀔 때마다
  *   알린다 — 호출자가 설정 「맞춤형 광고 설정」 행을 켜고 끈다
  */
@@ -476,6 +532,8 @@ private fun TestFlow(
     adConsentRequested: Boolean = false,
     onAdConsentHandled: () -> Unit = {},
     onAdConsentAvailable: (Boolean) -> Unit = {},
+    accountKind: () -> String = { "" },
+    onRequestLogin: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -608,6 +666,8 @@ private fun TestFlow(
     var webView by remember { mutableStateOf<WebView?>(null) }
     // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
     var webUrl by remember { mutableStateOf<String?>(null) }
+    // WebView 로드·브리지 판정과 앱 안 이동 목적지 판정(KAN-324)이 같은 allowlist를 쓰게 한 곳에 둔다.
+    val allowedOrigins = remember { setOfNotNull(webOrigin(BuildConfig.WEB_URL)) }
 
     /*
      * 업로드가 끝난 시도를 웹으로 흘려보낸다.
@@ -1013,7 +1073,7 @@ private fun TestFlow(
                     // 없거나 무효여도 예전처럼 인트로다 — 판정은 [startsAtHome] (PR #33 리뷰 P1).
                     home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLinkEntry != null),
                 ),
-                allowedOrigins = setOfNotNull(webOrigin(BuildConfig.WEB_URL)),
+                allowedOrigins = allowedOrigins,
                 // 웹의 어휘 답안 제출(KAN-13)이 쓸 토큰. 업로드·웹 진입 URL과 같은 세션에서 온다.
                 sessionToken = { bridgeToken.get() },
                 onRequestMicPermission = { startRequested = true },
@@ -1068,6 +1128,8 @@ private fun TestFlow(
                 onPageStarted = { webUrl = it },
                 // SPA 화면 전환 (KAN-290) — 문서 로드가 없어 onPageStarted 대신 온다. 추적은 같다
                 onLocationChanged = { webUrl = it },
+                accountKind = accountKind,
+                onRequestLogin = onRequestLogin,
                 onWebViewCreated = { webView = it },
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.
@@ -1083,14 +1145,14 @@ private fun TestFlow(
              */
             val backTarget = if (tabBarEntry) webBackTarget(webUrl, startRequested) else null
             BackHandler(enabled = backTarget != null && webView != null) {
-                backTarget?.let { webView?.navigateInApp(it) }
+                backTarget?.let { webView?.navigateInApp(it, allowedOrigins) }
             }
 
             // 설정 「맞춤형 광고 설정」 (KAN-315). WebView가 아직 없으면 생길 때까지 요청을 들고 있는다.
             LaunchedEffect(adConsentRequested, webView) {
                 val view = webView ?: return@LaunchedEffect
                 if (!adConsentRequested) return@LaunchedEffect
-                webAdConsentUrl(webUrl, startRequested)?.let { view.navigateInApp(it) }
+                webAdConsentUrl(webUrl, startRequested)?.let { view.navigateInApp(it, allowedOrigins) }
                 onAdConsentHandled()
             }
             LaunchedEffect(webUrl, startRequested) {
@@ -1163,7 +1225,7 @@ private fun TestFlow(
                     IntonationCloseButton(
                         onClick = {
                             intonation.close()
-                            webTabUrl(webUrl, "intonation")?.let { webView?.navigateInApp(it) }
+                            webTabUrl(webUrl, "intonation")?.let { webView?.navigateInApp(it, allowedOrigins) }
                         },
                         modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
                     )
@@ -1490,7 +1552,8 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
             headline = "발음 분석에 마이크가 필요해요",
             // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
             supporting = "따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요",
-            buttonLabel = "마이크 허용",
+            // 「계속」 (KAN-330, 애플 5.1.1(iv)) — 시스템 권한 창 앞의 안내 화면이 「허용」을 말하면 심사가 허용 유도로 본다.
+            buttonLabel = "계속",
             onButtonClick = { launcher.launch(Manifest.permission.RECORD_AUDIO) },
             modifier = modifier,
         )

@@ -33,14 +33,17 @@ final class AccenturyBridgeTests: XCTestCase {
         var openSettingsCalls = 0
         var retriedUploads: [String] = []
         var locations: [String] = []
+        var requestLoginCalls = 0
     }
 
     private func makeDispatcher(
         sink: Sink,
-        isCurrentUrlAllowed: @escaping () -> Bool
+        isCurrentUrlAllowed: @escaping () -> Bool,
+        isUrlAllowed: @escaping (String) -> Bool = { _ in true }
     ) -> BridgeDispatcher {
         BridgeDispatcher(
             isCurrentUrlAllowed: isCurrentUrlAllowed,
+            isUrlAllowed: isUrlAllowed,
             onRequestMicPermission: { sink.micPermissionCalls += 1 },
             onStartVoiceItem: { sink.starts.append($0) },
             onStartRetest: { sink.retestCalls += 1 },
@@ -55,7 +58,8 @@ final class AccenturyBridgeTests: XCTestCase {
             onStartIntonationRecording: { sink.intonationStarts.append($0) },
             onOpenSettings: { sink.openSettingsCalls += 1 },
             onRetryUpload: { sink.retriedUploads.append($0) },
-            onLocationChanged: { sink.locations.append($0) }
+            onLocationChanged: { sink.locations.append($0) },
+            onRequestLogin: { sink.requestLoginCalls += 1 }
         )
     }
 
@@ -637,6 +641,63 @@ final class AccenturyBridgeTests: XCTestCase {
         allowed.handle(method: "onLocationChanged", payload: nil)
         allowed.handle(method: "onLocationChanged", payload: ["url": "x"])
         XCTAssertEqual([], sink.locations)
+    }
+
+    /// 호출 문서가 allowlist 안이어도 인자가 판정을 못 넘으면 버린다 (KAN-324).
+    func testLocationChangedDropsAnHrefThatFailsTheUrlCheck() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }, isUrlAllowed: { _ in false })
+        dispatcher.handle(method: "onLocationChanged", payload: "https://phish.example/?screen=home")
+        dispatcher.handle(method: "onLocationChanged", payload: "javascript:alert(1)//?screen=home")
+        XCTAssertEqual([], sink.locations)
+    }
+
+    /// 판정한 문자열이 그대로 콜백에 간다 — 판정과 저장 사이에 값이 바뀌지 않는다.
+    func testLocationChangedPassesTheJudgedValueThroughUnchanged() {
+        let sink = Sink()
+        var judged: [String] = []
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { true }, isUrlAllowed: { judged.append($0); return true })
+            .handle(method: "onLocationChanged", payload: "https://w.example/?screen=home")
+        XCTAssertEqual(["https://w.example/?screen=home"], judged)
+        XCTAssertEqual(["https://w.example/?screen=home"], sink.locations)
+    }
+
+    /// 호출자 판정이 먼저다 — allowlist 밖 문서가 부르면 인자는 보지도 않는다.
+    func testLocationChangedIgnoresTheArgumentCheckWhenTheCallerIsOutsideTheAllowlist() {
+        let sink = Sink()
+        var urlChecks = 0
+        makeDispatcher(sink: sink, isCurrentUrlAllowed: { false }, isUrlAllowed: { _ in urlChecks += 1; return true })
+            .handle(method: "onLocationChanged", payload: "https://w.example/?screen=home")
+        XCTAssertEqual(0, urlChecks)
+        XCTAssertEqual([], sink.locations)
+    }
+
+    /// 앱이 결선하는 실제 판정(`isAllowedWebUrl`)으로 다른 origin과 `javascript:`가 걸러진다.
+    func testLocationChangedWithTheRealAllowlistCheckKeepsOnlyAllowedOrigins() {
+        let sink = Sink()
+        let dispatcher = makeDispatcher(
+            sink: sink,
+            isCurrentUrlAllowed: { true },
+            isUrlAllowed: { isAllowedWebUrl($0, allowedOrigins: ["https://w.example"]) }
+        )
+        dispatcher.handle(method: "onLocationChanged", payload: "javascript:alert(1)//?screen=home")
+        dispatcher.handle(method: "onLocationChanged", payload: "https://phish.example/?screen=home")
+        dispatcher.handle(method: "onLocationChanged", payload: "https://w.example/?screen=home")
+        XCTAssertEqual(["https://w.example/?screen=home"], sink.locations)
+    }
+
+    // MARK: requestLogin (KAN-330)
+
+    /// 게스트의 [로그인]은 인자 없이 한 번 간다. 처리 시점 origin이 불허면 버린다 — `refreshAccessToken`과 같은 판정이다.
+    func testRequestLoginIsGatedByTheOriginWhenHandled() {
+        let sink = Sink()
+        var allowedNow = true
+        let dispatcher = makeDispatcher(sink: sink, isCurrentUrlAllowed: { allowedNow })
+        dispatcher.handle(method: "requestLogin", payload: nil)
+        XCTAssertEqual(1, sink.requestLoginCalls)
+        allowedNow = false
+        dispatcher.handle(method: "requestLogin", payload: nil)
+        XCTAssertEqual(1, sink.requestLoginCalls)
     }
 
     // MARK: openSettings (KAN-252)

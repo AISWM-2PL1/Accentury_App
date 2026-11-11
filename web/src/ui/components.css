@@ -4,6 +4,14 @@
  *
  * 인라인 style이 아니라 CSS 파일인 이유: :active·:disabled·:focus-visible 같은 상태는
  * 인라인으로 표현할 수 없다. 눌림 효과가 이 버튼의 정체성이라 상태 표현이 필수다.
+ *
+ * 크기 단위 (KAN-313, `docs/wiki/ux-ui.md` 「크기 단위 규칙」). 글자와 함께 커져야 하는 치수
+ * (글자 크기·행간·글자를 품은 칸의 폭·높이·padding)는 rem(16px = 1rem)이라 OS 글자 크기를
+ * 따른다. 이 파일에 남은 px는 글자와 함께 커지면 안 되는 것뿐이다 — 테두리·밑줄·파선·눈금
+ * 두께, 그림자 오프셋, 포커스 링, 테이프·탭 띠 같은 장식 조각, `.sr-only`의 1px,
+ * 그림 슬롯(`.illustration--*`·`.home-card__icon`·`.intonation-curve`)과 광고 칸,
+ * `.score-donut`의 하한 max(96px, …). 그림은 글자 크기와 무관하고, 같이 키우면 큰 글자에서
+ * 글자가 들어갈 자리를 그림이 먼저 먹는다.
  */
 
 /*
@@ -30,6 +38,8 @@
   font-family: var(--font-body);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
+  /* 큰 글자에서 라벨이 두 줄이 될 때 낱말 가운데서 끊기지 않게 (KAN-313). 기본 글자의 라벨은 한 줄이다 */
+  word-break: keep-all;
   line-height: 1;
 
   cursor: pointer;
@@ -240,7 +250,7 @@
    * 배치다 — 화면의 첫 요소를 아래로 내려 두면 그림과 제목이 세로 가운데 가까이 앉고,
    * 하단 CTA와의 사이가 벌어져 "누를 것은 아래 하나"가 분명해진다.
    */
-  padding: var(--screen-padding-top) var(--space-6) var(--space-8);
+  padding: var(--screen-padding-top) var(--screen-padding-x) var(--space-8);
 }
 
 .screen__body {
@@ -470,6 +480,8 @@
 
 /* 테스트 후 홈 (KAN-288, 시안 32) — 위에서부터 쌓고 왼쪽 정렬. 카드·버튼은 폭을 꽉 채운다 */
 .home-after {
+  /* 아래 등급명 글자 크기 cqi의 기준 칸 (KAN-313). 폭은 .screen__body의 width·max-width가 정한다 */
+  container-type: inline-size;
   justify-content: flex-start;
   align-items: stretch;
   gap: var(--space-3);
@@ -516,6 +528,35 @@
 .home-tier__text h1 {
   margin: 0;
   white-space: nowrap;
+  /* 큰 글자 (KAN-313): 등급명 한 낱말(최장 「명예주민」 4자)이 카드 안 칸보다 넓으면 칸에 맞춰 줄인다.
+     칸 = .home-after 폭(100cqi) - 카드 좌우 padding·테두리, 한글 한 자 ≈ 1em이라 4.5로 나눈다.
+     기본 글자에서는 계산값(360 폭 약 61px)이 --text-display(40px)보다 커서 그대로다 */
+  font-size: min(var(--text-display), calc((100cqi - 2 * var(--space-4) - 4px) / 4.5));
+}
+
+/*
+ * 글자를 키우면 (KAN-313) 그림 옆 칸이 등급명 한 낱말보다 좁아진다 — 글자 칸을 그림 아래 한 줄로 내리고
+ * 등급명도 줄바꿈을 허용한다. 글자 칸의 기준 폭 calc(15.25rem - 122px)는 카드 폭(.home-after) 18rem에서 그림(120)·테두리(2)·
+ * 좌우 padding(2rem)·gap(0.75rem)을 뺀 값이라, .home-after가 18rem보다 좁을 때 flex-wrap이 글자 칸을 다음 줄로 넘긴다.
+ * 넘어간 칸은 flex-grow로 한 줄을 채운다. 화면 좌우 여백이 24px 고정이라 카드 폭은 화면 폭 - 48px이다 — 360 폭은
+ * 약 109%, 412 폭은 약 127%부터 18rem보다 좁아져 내려간다(412 폭 125%는 364px > 360px라 같은 행, 150%부터 아래).
+ *
+ * 큰 글자 표식(`html[data-large-text]`, tokens.css·`ui/textScale.ts`) 아래에만 둔다 — 320 폭 기본 글자에서는 본문(17rem)이
+ * 18rem보다 좁아 카드가 200→314px로 바뀌었다(Codex 교차 검증 2026-11-09). `@container (max-width: 18rem)`으로 쓰지 않는
+ * 이유: 이 화면에서는 칸 폭이 그대로이고 루트 글자 크기만 바뀌면 Chromium이 rem 조건을 다시 재지 않았다(2026-11-10
+ * 실측, 360 폭 100%→150%에서 조건이 거짓으로 남아 등급명이 넘쳐 가로 스크롤 13px. Codex 재현 확인. 단순한 최소 예제에서는
+ * 재평가돼 항상 그렇다고는 할 수 없다). 앱이 실행 중 글자 크기를 바꾸면 배치가 남을 수 있어 rem 조건을 피한다
+ */
+html[data-large-text] .home-tier {
+  flex-wrap: wrap;
+}
+
+html[data-large-text] .home-tier__text {
+  flex: 1 1 calc(15.25rem - 122px);
+}
+
+html[data-large-text] .home-tier__text h1 {
+  white-space: normal;
 }
 
 .home-tier__rank,
@@ -544,7 +585,8 @@
 
 .home-attendance__week {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* 7칸이 다 들어가면 repeat(7, 1fr)과 같고, 큰 글자(KAN-313)에서 동그라미가 안 들어가면 다음 줄로 넘긴다 */
+  grid-template-columns: repeat(auto-fit, minmax(2rem, 1fr));
   gap: var(--space-1);
   margin: var(--space-2) 0 0;
   padding: 0;
@@ -556,16 +598,16 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
   color: var(--color-muted-foreground);
 }
 
 .home-attendance__day i {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   border: 1px solid var(--color-foreground);
   border-radius: 50%;
   font-style: normal;
@@ -653,8 +695,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 160px;
-  height: 160px;
+  width: 10rem;
+  height: 10rem;
   margin-top: var(--space-4);
 }
 
@@ -699,7 +741,7 @@
  */
 .test-start__count {
   position: absolute;
-  font-size: 64px;
+  font-size: 4rem;
   color: var(--color-foreground);
   animation: test-start-pop var(--duration-base) var(--ease-out);
 }
@@ -735,7 +777,7 @@
   min-height: 100dvh;
   /* 인트로·결과와 같은 여백이다 (KAN-161 3단계). 문항 화면만 좁게 두면 음성·어휘·결과를
      오가는 동안 좌우 폭이 바뀌어 카드가 커졌다 작아졌다 하는 것처럼 보인다 */
-  padding: var(--screen-padding-top) var(--space-6) var(--space-8);
+  padding: var(--screen-padding-top) var(--screen-padding-x) var(--space-8);
 }
 
 /*
@@ -864,8 +906,8 @@
   display: grid;
   place-content: center;
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-sm);
   font-size: var(--text-tab-label);
@@ -974,8 +1016,8 @@
 .choice--check input {
   flex-shrink: 0;
   /* 시안 `.check-label input` 24px (KAN-288) */
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   margin: 0;
   accent-color: var(--color-primary);
 }
@@ -1105,12 +1147,23 @@
 }
 
 /*
+ * 큰 글자 (KAN-313): 「억양 78점」 한 줄이 들어가는 폭. 칸이 이보다 좁아지면 아래 .result-card의 flex-wrap으로
+ * 도넛 아래 줄로 내려간다. min()은 혼자 한 줄이 됐을 때 카드보다 넓어지지 않게. 큰 글자 표식(tokens.css)으로
+ * 한정한다 — 320 폭 기본 글자에서는 도넛 옆이 8rem보다 좁아 카드가 130→240px로 바뀌었다 (Codex 교차 검증 2026-11-09)
+ */
+html[data-large-text] .result-scores {
+  min-width: min(8rem, 100%);
+}
+
+/*
  * 점수 카드 (KAN-161 3단계). 도넛과 두 점수 줄을 가로로 나란히 둔다 — 세로로 쌓으면 같은
  * 값을 두 번 말하는 블록이 위아래로 길게 늘어져, 종합 점수가 세부 점수의 제목처럼 보인다.
  * 가로로 두면 "왼쪽이 합, 오른쪽이 내역"이라는 관계가 배치만으로 읽힌다.
  */
 .result-card {
   display: flex;
+  /* 큰 글자 (KAN-313): 점수 줄이 .result-scores의 min-width보다 좁아지면 도넛 아래 줄로 내려간다 */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
 }
@@ -1426,8 +1479,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 29px;
-  height: 29px;
+  width: 1.8125rem;
+  height: 1.8125rem;
   border: 1px solid var(--color-muted-foreground);
   border-radius: var(--radius-full);
   background: var(--color-card);
@@ -1605,9 +1658,9 @@ a.btn {
   align-items: center;
   justify-content: center;
   width: fit-content;
-  min-height: 32px;
+  min-height: 2rem;
   margin: 0 auto var(--space-3);
-  padding: 0 14px;
+  padding: 0 0.875rem;
   border-radius: var(--radius-full);
   background: var(--color-primary);
   color: var(--color-primary-foreground);
@@ -1782,7 +1835,7 @@ a.btn {
    * `.type-caption`의 행간(1.5)은 이 크기에 과해서 함께 조인다. 세 줄로 접히는 문구라
    * 줄 간격이 벌어지면 하단 덩어리가 고지보다 커져 위계가 뒤집힌다.
    */
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.4;
   /*
    * 위 고지와의 사이는 하단 자리의 `gap`(12px)에 이만큼 더한다. 둘 다 잔글씨라 같은 간격으로
@@ -1846,7 +1899,7 @@ a.btn {
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
-  padding: 28px var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding: 1.75rem var(--screen-padding-x) calc(var(--space-6) + env(safe-area-inset-bottom));
   background: var(--color-card);
   color: var(--color-card-foreground);
   /* 디자인 3 (KAN-288, 시안 `.paper-modal`): 위 테두리 1px 잉크 + 위로 8 올린 종이 그림자 한 겹.
@@ -1948,7 +2001,7 @@ a.btn {
   width: 100%;
   max-height: calc(100dvh - var(--space-8));
   overflow-y: auto;
-  padding: 28px var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding: 1.75rem var(--screen-padding-x) calc(var(--space-6) + env(safe-area-inset-bottom));
   background: var(--color-card);
   color: var(--color-card-foreground);
   /* `.ad-consent-panel`과 같은 시안 `.paper-modal` 규칙 (KAN-288) */
@@ -2086,6 +2139,8 @@ a.btn {
 /* 번역기 입력 라벨 줄 — 라벨 왼쪽, 방향 전환 버튼 오른쪽 (KAN-317. 시안 B 가운데 교환 배치는 KAN-311) */
 .translator-direction {
   display: flex;
+  /* 큰 글자 (KAN-313): 라벨과 버튼이 한 줄에 안 들어가면 버튼이 아래 줄로 — 줄이면 라벨이 「표준/어」로 쪼개진다 */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -2248,6 +2303,8 @@ a.btn {
   justify-content: center;
   gap: var(--space-1);
   min-width: 0;
+  /* 아래 큰 글자 라벨의 cqi 기준 칸 (KAN-313). 폭은 flex: 1이 정하므로 내용과 무관하다 */
+  container-type: inline-size;
   min-height: var(--touch-target-min);
   padding: 0;
   border: none;
@@ -2288,8 +2345,24 @@ a.btn {
 .tab-bar__label {
   font-size: var(--text-tab-label);
   font-weight: var(--weight-normal);
-  line-height: 16px;
+  line-height: 1rem;
   white-space: nowrap;
+}
+
+/*
+ * 큰 글자 (KAN-313) — 라벨이 이웃 칸을 덮는 대신 줄을 바꾼다. 낱말 단위 끊기는 tokens.css의 큰 글자 keep-all이 맡는다.
+ * 큰 글자 표식(`html[data-large-text]`) 아래에만 둔다 — 기본 글자에서는 한 줄로 서는 시안 배치 그대로다. 칸 폭 조건
+ * (`@container (max-width: 4rem)`)을 따로 두지 않는다: 412 폭 120~122%·360 폭 106%는 칸(79·69px)이 4rem보다 넓은데도
+ * 「사투리 번역기」가 2px 넘쳤다(2026-11-10 실측). 320 폭 기본 글자는 표식이 없어 걸리지 않는다.
+ *
+ * 글자는 칸 폭(.tab-bar__item의 container-type, cqi)의 32%를 넘지 않는다 — 세 글자 낱말(「사투리」「번역기」)이 칸 안에
+ * 들어가는 크기다. 360 폭 200%에서 칸(66px)이 「번역기」(72px)보다 좁아 낱말이 쪼개지고 라벨이 네 줄, 탭 바가 본문 아래
+ * 여백(192px)을 넘었다. 여백을 탭 바 높이에 맞춰 키우는 대신 글자를 24→21px로 줄여 두 줄에 묶는다. 412 폭 200%(칸 76px)
+ * 에서는 줄지 않는다. .tab-bar__item 안에는 position: fixed 자손이 없다
+ */
+html[data-large-text] .tab-bar__label {
+  white-space: normal;
+  font-size: min(var(--text-tab-label), 32cqi);
 }
 
 /*
@@ -2318,7 +2391,7 @@ body:has(.tab-bar) main {
   display: flex;
   align-items: center;
   height: calc(var(--app-bar-height) + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) var(--space-6) 0;
+  padding: env(safe-area-inset-top) var(--screen-padding-x) 0;
   background: var(--color-background);
 }
 
@@ -2326,7 +2399,7 @@ body:has(.tab-bar) main {
   font-family: var(--font-display);
   font-size: var(--text-title-sm);
   font-weight: var(--weight-normal);
-  line-height: 23px;
+  line-height: 1.4375rem;
 }
 
 /*

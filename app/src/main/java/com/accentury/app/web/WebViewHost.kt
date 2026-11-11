@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.accentury.app.BuildConfig
 import com.accentury.app.ads.AdConsent
+import com.accentury.app.analytics.CrashReports
 import com.accentury.app.analytics.EventParam
 import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.bridge.SharePayload
@@ -66,6 +67,8 @@ sealed interface WebLoadState {
  *   상위가 시스템 뒤로가기를 문서의 `screen`으로 판정하는 데 쓴다 (KAN-252, [webBackTarget])
  * @param onLocationChanged 웹의 SPA 화면 전환 뒤 새 href (KAN-290, 브리지 `onLocationChanged`). 문서가 안 바뀌어
  *   [onPageStarted]가 오지 않는 이동이다. 메인 스레드로 온다
+ * @param accountKind 브리지 `getAccountKind`의 값 공급자 (KAN-330). JS 스레드에서 동기로 불린다
+ * @param onRequestLogin 브리지 `requestLogin` (KAN-330). 메인 스레드로 온다
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
  */
@@ -93,6 +96,8 @@ fun WebViewHost(
     onRetryUpload: (String) -> Unit = {},
     onPageStarted: (String?) -> Unit = {},
     onLocationChanged: (String) -> Unit = {},
+    accountKind: () -> String = { "" },
+    onRequestLogin: () -> Unit = {},
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
     onWebViewReleased: (WebView) -> Unit = {},
@@ -187,6 +192,8 @@ fun WebViewHost(
                                 isCurrentUrlAllowed = { isAllowedWebUrl(this.url, allowedOrigins) },
                                 // 동기 반환 메서드용 — 메인 스레드가 갱신해 둔 플래그를 읽기만 한다.
                                 isOriginAllowedNow = { originAllowed.get() },
+                                // onLocationChanged 인자 판정 (KAN-324) — 그 값이 navigateInApp 목적지의 재료라 같은 allowlist로 본다.
+                                isUrlAllowed = { isAllowedWebUrl(it, allowedOrigins) },
                                 sessionToken = sessionToken,
                                 onRequestMicPermission = onRequestMicPermission,
                                 onStartVoiceItem = onStartVoiceItem,
@@ -206,6 +213,8 @@ fun WebViewHost(
                                 onOpenSettings = onOpenSettings,
                                 onRetryUpload = onRetryUpload,
                                 onLocationChanged = onLocationChanged,
+                                accountKind = accountKind,
+                                onRequestLogin = onRequestLogin,
                             ),
                             "AccenturyBridge",
                         )
@@ -263,7 +272,20 @@ private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier
 
 /**
  * 앱 안 이동 (KAN-290). 웹 SPA 라우터([spaNavigateJs])가 처리하면 문서를 다시 읽지 않고, 아니면(구버전 웹 등) loadUrl로 폴백한다.
+ *
+ * 목적지를 먼저 allowlist로 본다 (KAN-324, 보안 리포트 2026-11-04 #10). 판정과 JS 생성은 [inAppNavigationJs]가 한 번에 맡는다 —
+ * JVM 테스트가 가드를 붙들 수 있게 순수 함수로 뺐다(PR #69 리뷰). 앱이 부른 `loadUrl`은 `shouldOverrideUrlLoading`을
+ * 거치지 않아 allowlist(§7)가 걸리지 않고, `javascript:` 목적지는 지금 문서(우리 origin)에서 그대로 실행된다. 목적지는 웹이
+ * 알려 온 `webUrl`로 만든다([webBackTarget]·[webTabUrl]·[webAdConsentUrl]). 시스템 뒤로가기·설정 「맞춤형 광고 설정」·
+ * 억양 녹음 ✕ 세 경로가 모두 여기를 지나므로 호출부마다 검사하지 않고 한 곳에 둔다.
+ * `webUrl`의 입구는 둘이다. `onLocationChanged`는 입구에서 거르지만 `onPageStarted`(문서 전환)는 거르지 않고,
+ * `shouldOverrideUrlLoading`은 POST 요청에는 불리지 않아 allowlist 밖 문서 URL이 `webUrl`이 될 여지가 있다. 그래서 이 함수가
+ * 마지막 문이고, 거절은 계약 위반 신호가 아니라 정상 방어다(PR #69 리뷰). 거절하면 이동하지 않고 흔적만 남긴다.
  */
-fun WebView.navigateInApp(url: String) {
-    evaluateJavascript(spaNavigateJs(url)) { if (it != "true") loadUrl(url) }
+fun WebView.navigateInApp(url: String, allowedOrigins: Set<String>) {
+    val js = inAppNavigationJs(url, allowedOrigins) ?: run {
+        CrashReports.recordInAppNavigationRejected()
+        return
+    }
+    evaluateJavascript(js) { if (it != "true") loadUrl(url) }
 }

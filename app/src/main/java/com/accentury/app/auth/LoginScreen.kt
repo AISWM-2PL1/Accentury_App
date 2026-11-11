@@ -65,6 +65,7 @@ import kotlinx.coroutines.launch
  * @param signInFor 버튼 하나의 IdP 로그인. 실제 빌드는 [idpSignInFor]
  * @param onLogin 토큰을 받은 뒤의 서버 로그인 ([AuthGateController.login])
  * @param onOpenPrivacy [보기] — 방침 문서를 연다
+ * @param onStartGuest 둘러보기 동의 단계의 [둘러보기] ([AuthGateController.startGuest], KAN-330). 실패 안내는 [error]로 돌아온다
  */
 @Composable
 fun LoginScreen(
@@ -73,6 +74,7 @@ fun LoginScreen(
     signInFor: (Provider) -> IdpSignIn,
     onLogin: suspend (LoginCredential) -> Unit,
     onOpenPrivacy: () -> Unit,
+    onStartGuest: suspend () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state = rememberSaveable(saver = LoginScreenState.saver()) { LoginScreenState() }
@@ -87,28 +89,41 @@ fun LoginScreen(
         Spacer(Modifier.weight(1f))
         IntroHero(modifier = Modifier.align(Alignment.CenterHorizontally))
         Spacer(Modifier.weight(1f).heightIn(min = Spacing.x6))
-        ConsentRow(
-            checked = state.consented,
-            onCheckedChange = { state.consented = it },
-            onOpenPrivacy = onOpenPrivacy,
-        )
-        Spacer(Modifier.height(Spacing.x3))
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x3),
-        ) {
-            providers.forEach { provider ->
+        if (state.guestStep) {
+            GuestConsentStep(state = state, onOpenPrivacy = onOpenPrivacy, onStart = { scope.launch { state.startGuest(onStartGuest) } })
+        } else {
+            ConsentRow(
+                checked = state.consented,
+                onCheckedChange = { state.consented = it },
+                onOpenPrivacy = onOpenPrivacy,
+            )
+            Spacer(Modifier.height(Spacing.x3))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.x3),
+            ) {
+                providers.forEach { provider ->
+                    AccenturyButton(
+                        text = "${providerLabel(provider)}로 계속하기",
+                        onClick = {
+                            scope.launch {
+                                state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = ButtonVariant.Secondary,
+                        enabled = state.buttonsEnabled,
+                        leading = { IdpLogo(provider) },
+                    )
+                }
+                // 소셜 버튼 아래 글자 버튼 (KAN-330, 애플 5.1.1(v) — 번역처럼 계정과 무관한 기능은 로그인 없이 쓰게 한다).
+                // 동의 전에도 눌린다 — 누르면 동의 단계가 열리고 거기서 방침 동의와 만 14세 확인을 받는다.
                 AccenturyButton(
-                    text = "${providerLabel(provider)}로 계속하기",
-                    onClick = {
-                        scope.launch {
-                            state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    variant = ButtonVariant.Secondary,
-                    enabled = state.buttonsEnabled,
-                    leading = { IdpLogo(provider) },
+                    text = "로그인 없이 둘러보기",
+                    onClick = { state.guestStep = true },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    variant = ButtonVariant.Text,
+                    enabled = !state.inFlight,
                 )
             }
         }
@@ -182,7 +197,12 @@ private fun IntroHero(modifier: Modifier = Modifier) {
  * 필수 동의 한 줄. 줄 전체가 체크박스 하나로 읽히고 눌린다(48dp 터치). [보기]는 따로 눌리는 글자 버튼이다.
  */
 @Composable
-private fun ConsentRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, onOpenPrivacy: () -> Unit) {
+private fun ConsentRow(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onOpenPrivacy: (() -> Unit)?,
+    label: String = "개인정보 수집·이용 동의 (필수)",
+) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Row(
             modifier = Modifier
@@ -202,13 +222,46 @@ private fun ConsentRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, onO
             )
             // 시안 HIG 수정: 라벨 13/20 잉크
             Text(
-                "개인정보 수집·이용 동의 (필수)",
+                label,
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal),
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(start = Spacing.x2),
             )
         }
-        AccenturyButton(text = "보기", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
+        if (onOpenPrivacy != null) AccenturyButton(text = "보기", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
+    }
+}
+
+/**
+ * 「로그인 없이 둘러보기」 동의 단계 (KAN-330). 소셜 버튼 자리를 갈아 끼운다 — 방침 동의는 소셜 가입과 같은 값([LoginScreenState.consented])
+ * 이라 한쪽에서 체크하면 다른 쪽도 체크돼 있다. [돌아가기]는 소셜 버튼으로 되돌린다.
+ */
+@Composable
+private fun GuestConsentStep(state: LoginScreenState, onOpenPrivacy: () -> Unit, onStart: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
+        Column {
+            ConsentRow(checked = state.consented, onCheckedChange = { state.consented = it }, onOpenPrivacy = onOpenPrivacy)
+            ConsentRow(
+                checked = state.over14,
+                onCheckedChange = { state.over14 = it },
+                onOpenPrivacy = null,
+                label = "만 14세 이상입니다 (필수)",
+            )
+        }
+        // iOS와 같은 라벨 (KAN-330 5단계) — 두 플랫폼 심사 경로를 같은 말로 맞춘다.
+        AccenturyButton(
+            text = "둘러보기 시작",
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = state.guestEnabled,
+        )
+        AccenturyButton(
+            text = "돌아가기",
+            onClick = { state.guestStep = false },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            variant = ButtonVariant.Text,
+            enabled = !state.inFlight,
+        )
     }
 }
 
@@ -222,7 +275,7 @@ private fun IdpLogo(provider: Provider) {
         Provider.GOOGLE -> R.drawable.ic_idp_google
         Provider.KAKAO -> R.drawable.ic_idp_kakao
         Provider.NAVER -> R.drawable.ic_idp_naver
-        Provider.APPLE -> return
+        Provider.APPLE, Provider.GUEST -> return
     }
     // 구글 PNG는 nodpi라 크기를 박아 둔다. 카카오·네이버는 드로어블의 고유 크기(가이드 최소 이상)를 쓴다.
     val size = if (provider == Provider.GOOGLE) Modifier.size(20.dp) else Modifier
@@ -234,6 +287,7 @@ private fun providerLabel(provider: Provider): String = when (provider) {
     Provider.KAKAO -> "카카오"
     Provider.NAVER -> "네이버"
     Provider.APPLE -> "Apple"
+    Provider.GUEST -> "게스트"
 }
 
 /**
@@ -262,6 +316,8 @@ private fun authFailureCopy(failure: AuthFailure, verb: String): Pair<String, St
             ?: "접속이 몰리고 있어요 · 잠시 뒤에 다시 눌러 주세요"
         )
     AuthFailureReason.UnderAge -> "만 14세 이상만 가입할 수 있어요" to null
+    // 서버 문구(「오늘은 로그인 없이 시작할 수 있는 횟수를 다 썼습니다」)와 같은 뜻이다 (KAN-330).
+    AuthFailureReason.GuestLimitExceeded -> "오늘은 로그인 없이 둘러볼 수 없어요" to "로그인해서 이용해 주세요"
     AuthFailureReason.Unsupported -> "지금은 ${verb}할 수 없어요" to "앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요"
 }
 

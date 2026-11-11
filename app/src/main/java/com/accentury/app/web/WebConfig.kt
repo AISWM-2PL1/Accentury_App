@@ -153,6 +153,14 @@ fun spaNavigateJs(url: String): String =
     "(function(u){try{return typeof window.accenturyNavigate===\"function\"&&window.accenturyNavigate(u)===true}" +
         "catch(e){return false}})(${jsStringLiteral(url)})"
 
+/**
+ * 앱 안 이동 JS — 목적지가 allowlist 안일 때만 (KAN-324, 보안 리포트 2026-11-04 #10). 밖이면 null이고 호출자는 이동하지 않는다.
+ * 판정을 [navigateInApp] 안이 아니라 여기 두는 이유: WebView 없는 JVM 테스트가 "가드를 지우면 깨진다"를 붙들 수 있어서다
+ * (PR #69 리뷰). [webOrigin]이 http(s) 밖 스킴을 null로 접으므로 `javascript:`도 같은 판정에서 막힌다.
+ */
+fun inAppNavigationJs(url: String, allowedOrigins: Set<String>): String? =
+    if (isAllowedWebUrl(url, allowedOrigins)) spaNavigateJs(url) else null
+
 /** JS 문자열 리터럴 (KAN-290). org.json 없이 JVM 테스트하려고 직접 이스케이프한다 — `<`는 `</script>` 대비. */
 private fun jsStringLiteral(value: String): String = buildString {
     append('"')

@@ -13,8 +13,9 @@ import { Button, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckSmallIcon } from '../ui/icons'
 import { IntonationCurveLoop } from '../ui/IntonationCurveLoop'
 import { TextHero } from '../ui/TextHero'
-import { CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
+import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
 import type { IntonationCourse, IntonationCourseSummary, PitchFeedbackItem } from './intonationApi'
+import { GuestLoginPrompt } from './GuestLoginPrompt'
 import { errorExit } from './useWordLearning'
 import { recordCard, useIntonationLearning, type CardResult, type IntonationLearningView } from './useIntonationLearning'
 import { SLOW_NOTICE_MS, WAITING_STAGES, waitingStage } from './intonationWaiting'
@@ -159,7 +160,12 @@ function IntonationErrorScreen({
     )
   return (
     <main className="screen">
-      <StatusBlock tone="error" message={message} action={action} />
+      {/* 게스트는 오류가 아니라 로그인 안내다 (KAN-330) — 미리 끊었든 서버 403이든 같은 code */}
+      {view.error.code === AUTH_GUEST_NOT_ALLOWED ? (
+        <GuestLoginPrompt />
+      ) : (
+        <StatusBlock tone="error" message={message} action={action} />
+      )}
     </main>
   )
 }

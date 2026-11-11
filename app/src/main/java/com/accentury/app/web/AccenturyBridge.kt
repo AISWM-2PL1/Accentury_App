@@ -19,7 +19,7 @@ import com.accentury.app.ui.components.Haptic
  *
  * 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
  * 계측(KAN-33)·외부 링크(KAN-177)·광고 동의와 전면 광고(KAN-196)·실패 출구 재응시(KAN-248)·
- * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 화면 전환 알림(KAN-290)까지 필요한 열아홉 메서드만 둔다.
+ * 햅틱(KAN-258)·계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 화면 전환 알림(KAN-290)·계정 종류와 게스트 로그인 요청(KAN-330)까지 필요한 스물한 메서드만 둔다.
  * 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
  *
  * 메서드 추가는 하위호환이라 [BRIDGE_CONTRACT_VERSION]을 올리지 않는다 (§5). KAN-196의 세 메서드도
@@ -35,6 +35,9 @@ import com.accentury.app.ui.components.Haptic
  * @param isOriginAllowedNow 임의 스레드에서 안전하게 읽는 origin 허용 여부 — 값을 **돌려주는**
  *   메서드는 postToMain으로 미룰 수 없어서(동기 반환), 메인 스레드가 페이지 전환마다 갱신해 둔
  *   플래그를 여기로 받는다 (WebViewHost의 AtomicBoolean)
+ * @param isUrlAllowed 웹이 **값으로 넘긴** URL이 allowlist 안인지 답한다 (KAN-324). [isCurrentUrlAllowed]가 "누가 불렀나"를
+ *   본다면 이것은 "무엇을 넘겼나"를 본다 — [onLocationChanged] 인자가 앱 안 이동 목적지의 재료라서다. 기본값을 두지 않는다:
+ *   빠뜨리면 컴파일이 막혀야 할 보안 판정이다
  * @param sessionToken 세션 토큰 공급자 (KAN-13)
  * @param onStartRetest 결과 화면의 [다시 테스트하기] (KAN-34). 중복 호출 무시는 이 콜백 너머의
  *   상태 머신이 맡는다 — 진행 중이라는 사실의 주인이 둘이면 어긋난다 (SessionGateController.retestInFlight)
@@ -66,11 +69,16 @@ import com.accentury.app.ui.components.Haptic
  *   있는 실패인지는 창구 너머(UploadManager.retry)가 판정한다 (webview-bridge.md §14). 기본값은 [onStartIntonationRecording]과 같은 이유다
  * @param onLocationChanged 웹의 SPA 화면 전환 뒤 새 href (KAN-290). 문서가 바뀌지 않아 onPageStarted가 안 오는 이동을
  *   창구 너머가 같은 URL 추적에 싣는다. 기본값은 [onStartIntonationRecording]과 같은 이유다
+ * @param accountKind 계정 종류 공급자 (KAN-330). [getAccountKind]가 **JS 스레드에서 동기로** 부르므로 임의 스레드에서 안전해야 한다
+ *   (게이트의 StateFlow 값 읽기). `guest`·`member`, 로그인 안 됨·로그인 끈 빌드면 빈 문자열. 기본값은 [onStartIntonationRecording]과 같은 이유다
+ * @param onRequestLogin 게스트가 웹에서 [로그인]을 눌렀다 (KAN-330). 게스트 세션을 버리고 로그인 화면으로 — 회원이면 창구 너머가
+ *   무시한다(AuthGateController.requestLogin). 기본값은 [onStartIntonationRecording]과 같은 이유다
  */
 class AccenturyBridge(
     private val postToMain: (() -> Unit) -> Unit,
     private val isCurrentUrlAllowed: () -> Boolean,
     private val isOriginAllowedNow: () -> Boolean,
+    private val isUrlAllowed: (String) -> Boolean,
     private val sessionToken: () -> String,
     private val onRequestMicPermission: () -> Unit,
     private val onStartVoiceItem: (VoiceItemStart) -> Unit,
@@ -89,6 +97,8 @@ class AccenturyBridge(
     private val onOpenSettings: () -> Unit = {},
     private val onRetryUpload: (String) -> Unit = {},
     private val onLocationChanged: (String) -> Unit = {},
+    private val accountKind: () -> String = { "" },
+    private val onRequestLogin: () -> Unit = {},
 ) {
     /** §5 스큐 협상 — 웹이 앱의 계약 버전을 런타임에 재확인할 때 쓴다. 상태 변경이 없어 스레드 무관. */
     @JavascriptInterface
@@ -357,6 +367,29 @@ class AccenturyBridge(
     }
 
     /**
+     * 계정 종류 (KAN-330) — `guest` | `member` | 빈 문자열(로그인 안 됨·로그인 끈 빌드·origin 불허). 웹이 게스트에게는 계정 기능
+     * 대신 로그인 유도를 보인다 — 서버가 게스트를 번역 말고는 403 `AUTH_GUEST_NOT_ALLOWED`로 막기 때문이다.
+     *
+     * [getAccessToken]과 같은 꼴이다: 동기 반환이라 메인 스레드가 유지하는 [isOriginAllowedNow] 플래그를 본다. 비밀값은 아니지만
+     * 우리 웹이 아닌 페이지에 로그인 상태를 알려 줄 이유가 없다. 메서드 추가라 계약 버전은 2 그대로다(§5) — 이 메서드가 없는
+     * 구버전 앱에서는 웹 래퍼가 부재를 접는다.
+     */
+    @JavascriptInterface
+    fun getAccountKind(): String = if (isOriginAllowedNow()) accountKind() else ""
+
+    /**
+     * 게스트의 [로그인] (KAN-330). fire-and-forget — 게스트 토큰을 버리고 게이트가 로그인 화면으로 바뀌면 WebView째 내려가므로
+     * 회신할 상대가 없다. origin 검증은 [refreshAccessToken]과 같다 — 불허 문서의 요청은 조용히 버린다. 남의 페이지가 사용자를
+     * 로그아웃시키는 통로가 되면 안 된다.
+     */
+    @JavascriptInterface
+    fun requestLogin() {
+        postToMain {
+            if (isCurrentUrlAllowed()) onRequestLogin()
+        }
+    }
+
+    /**
      * 억양 학습 녹음 호출 → 네이티브 녹음 화면 (KAN-253, §12). [startVoiceItem]과 같은 순서다 — origin 검증을 통과한
      * payload만 파싱하고, 불량은 조용히 버리되 흔적을 남긴다. 회신(`onIntonationRecorded`)은 업로드 202 때 한 번뿐이다.
      */
@@ -404,12 +437,25 @@ class AccenturyBridge(
 
     /**
      * 웹이 SPA로 화면을 옮긴 뒤 새 href를 알린다 (KAN-290). 문서 로드가 없어 onPageStarted가 오지 않으므로 그 대신이다.
-     * 메인 스레드로 넘긴 뒤 그 시점 origin으로 판정한다(§5) — 값은 뒤로가기·톱니 판정용 URL 추적에만 쓰인다.
+     * 메인 스레드로 넘긴 뒤 그 시점 origin으로 판정한다(§5).
+     *
+     * 인자도 [isUrlAllowed]로 본다 (KAN-324, 보안 리포트 2026-11-04 #10). 값은 뒤로가기·톱니 판정에 그치지 않고 시스템 뒤로가기·
+     * 설정 「맞춤형 광고 설정」·억양 녹음 ✕의 이동 목적지가 되므로, allowlist 밖 origin·`javascript:`는 받지 않는다. 목적지 쪽
+     * ([navigateInApp])에도 같은 검사가 있지만 틀린 값이 `webUrl`에 머물면 톱니·광고 설정 행 판정까지 그 값을 따르므로 입구에서도 막는다.
+     * `webView.url`을 대신 읽지 않는 이유: pushState 직후의 브리지 호출과 브라우저 쪽 URL 갱신은 순서가 보장되지 않아
+     * 한 박자 옛 값을 볼 수 있다. 호출 문서는 통과했는데 인자만 떨어진 경우는 [openExternalUrl]처럼 비치명 이벤트를 남긴다(§5) —
+     * 우리 웹이 계약 밖 값을 보냈거나 우리 origin에 스크립트가 끼어든 것이라 신호 가치가 크다. 호출 문서부터 밖이면 다른
+     * 메서드처럼 조용히 버린다.
      */
     @JavascriptInterface
     fun onLocationChanged(url: String) {
         postToMain {
-            if (isCurrentUrlAllowed()) onLocationChanged.invoke(url)
+            if (!isCurrentUrlAllowed()) return@postToMain
+            if (!isUrlAllowed(url)) {
+                CrashReports.recordBridgeParseFailure("onLocationChanged")
+                return@postToMain
+            }
+            onLocationChanged.invoke(url)
         }
     }
 }

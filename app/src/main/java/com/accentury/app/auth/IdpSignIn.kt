@@ -34,6 +34,8 @@ fun loginCredentialOf(provider: Provider, token: String, refreshToken: String? =
         // 네이버는 Refresh 토큰도 필수다 (KAN-243). 네이버 사용자 조회 API는 토큰의 발급 앱을 알려 주지 않아서, 서버가
         // 이 Refresh 토큰을 우리 Client로 교환해 봐야 우리 앱의 토큰인지 가릴 수 있다. 없으면 400 `VALIDATION_FAILED`다.
         Provider.NAVER -> LoginCredential(provider, accessToken = token, refreshToken = refreshToken)
+        // 게스트는 IdP가 아니라 로그인 자격이 없다 (KAN-330) — `POST /v0/auth/guest`가 따로 만든다.
+        Provider.GUEST -> error("게스트는 IdP 로그인이 아니다")
     }
 
 /**

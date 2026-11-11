@@ -7,8 +7,8 @@ import WebKit
 ///
 /// 최소 표면 원칙 — 화면 전환(KAN-100)·답안 제출 인증(KAN-13)·재응시(KAN-34)·결과 공유(KAN-30)·
 /// 계측(KAN-33)·외부 링크(KAN-177)·광고 동의(KAN-196)·실패 출구 재응시(KAN-248)·햅틱(KAN-258)·
-/// 계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 주소 알림(KAN-290)까지 필요한 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
-/// 그중 값을 돌려주는 넷(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`)은 여기로 오지
+/// 계정 토큰(KAN-255)·억양 학습 녹음(KAN-253)·설정 열기(KAN-252)·업로드 재전송(KAN-288)·SPA 주소 알림(KAN-290)·게스트 로그인 요청(KAN-330)까지 필요한 메서드만 둔다. 늘리기 전에 웹에서 해결 가능한지 먼저 볼 것.
+/// 그중 값을 돌려주는 다섯(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`·`getAccountKind`)은 여기로 오지
 /// 않는다 — JS 안에서 끝난다 (``BridgeUserScript`` 참고).
 ///
 /// ## `postToMain`이 없는 이유
@@ -33,6 +33,11 @@ struct BridgeDispatcher {
 
     /// 지금 로드된 URL이 allowlist 안인가. **처리 시점에** 묻는다.
     let isCurrentUrlAllowed: () -> Bool
+
+    /// 웹이 **값으로 넘긴** URL이 allowlist 안인가 (KAN-324, 보안 리포트 2026-11-04 #10).
+    /// ``isCurrentUrlAllowed``가 "누가 불렀나"를 본다면 이것은 "무엇을 넘겼나"를 본다 — `onLocationChanged`
+    /// 인자가 앱 안 이동 목적지의 재료라서다. 기본값을 두지 않는다: 빠뜨리면 컴파일이 막혀야 할 보안 판정이다.
+    let isUrlAllowed: (String) -> Bool
     let onRequestMicPermission: () -> Void
     let onStartVoiceItem: (VoiceItemStart) -> Void
     let onStartRetest: () -> Void
@@ -80,6 +85,10 @@ struct BridgeDispatcher {
     /// 웹의 SPA 화면 전환 뒤 새 주소 (KAN-290). 문서가 바뀌지 않아 `didStartProvisionalNavigation`이 안 도는 이동을
     /// 창구 너머가 `onPageStarted`와 똑같이 받는다. 기본값은 ``onStartIntonationRecording``과 같은 이유다.
     var onLocationChanged: (String) -> Void = { _ in }
+
+    /// 게스트의 「로그인」 요청 (KAN-330, webview-bridge.md §11). 게스트 세션을 버리고 로그인 화면으로 — 회원이면 받는 쪽
+    /// (``AccenturyCore/AuthGateController/leaveGuest()``)이 아무것도 안 한다. 기본값은 ``onStartIntonationRecording``과 같은 이유다.
+    var onRequestLogin: () -> Void = {}
 
     /// 메시지 한 건을 처리한다. 조건에 맞지 않으면 **조용히** 아무 일도 하지 않는다.
     ///
@@ -250,10 +259,27 @@ struct BridgeDispatcher {
             }
             onRetryUpload(attemptId)
 
+        case "requestLogin":
+            // 게스트가 계정 전용 화면에서 누른 [로그인] (KAN-330, §11). fire-and-forget, 회신 없음. 처리 시점 origin 판정은 위 guard가
+            // 했다(`refreshAccessToken`과 같다). 로그아웃 경로라 연타를 여기서 세지 않는다 — 두 번째는 게스트가 아니라 무시된다.
+            onRequestLogin()
+
         case "onLocationChanged":
             // 웹이 history로 화면을 옮긴 뒤 새 href (KAN-290). 문서 전환의 `onPageStarted(url)`과 같은 자리로 보낸다 —
             // 뒤로 스와이프·탭 판정이 읽는 `currentWebUrl`이 이것으로 갱신된다. 문자열이 아니면 다른 case처럼 버린다.
+            //
+            // 인자도 `isUrlAllowed`로 본다 (KAN-324, 보안 리포트 2026-11-04 #10). 값은 `currentWebUrl`이 되어 뒤로 스와이프·
+            // 탭 판정과 `navigateInApp` 목적지의 재료가 되므로, allowlist 밖 origin·`javascript:`는 받지 않는다. 목적지 쪽은
+            // 앱이 시작한 `load(URLRequest)`도 `decidePolicyFor`를 지나 이미 막히지만, 틀린 값이 `currentWebUrl`에 머물면
+            // 판정이 그 값을 따르므로 입구에서도 막는다. `webView.url`을 대신 읽지 않는 이유: pushState 직후의 브리지 호출과
+            // 브라우저 쪽 URL 갱신은 순서가 보장되지 않아 한 박자 옛 값을 볼 수 있다. origin은 위에서 이미 통과했으므로
+            // 인자만 떨어진 경우는 `openExternalUrl`처럼 비치명 이벤트를 남긴다(§5) — 우리 웹이 계약 밖 값을 보냈거나 우리
+            // origin에 스크립트가 끼어든 것이라 신호 가치가 크다. 문자열이 아니면 다른 case처럼 조용히 버린다.
             guard let url = payload as? String else { return }
+            guard isUrlAllowed(url) else {
+                CrashReports.recordBridgeParseFailure("onLocationChanged")
+                return
+            }
             onLocationChanged(url)
 
         default:

@@ -1,5 +1,6 @@
 package com.accentury.app.auth
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -24,6 +25,9 @@ private const val CODE_RATE_LIMITED = "RATE_LIMITED"
 
 /** 만 14세 미만 가입 거절 (§3.10). */
 private const val CODE_UNDER_AGE = "AUTH_UNDER_AGE"
+
+/** 같은 IP의 하루 게스트 발급 상한 (429, §3.21, 서버 KAN-329). retryable=false — 다음 날에야 풀린다. */
+private const val CODE_GUEST_LIMIT = "AUTH_GUEST_LIMIT_EXCEEDED"
 
 private const val STATUS_UNAUTHORIZED = 401
 
@@ -73,6 +77,14 @@ sealed interface AuthGateState {
     data class SignedIn(val user: AuthUser, val voiceConsent: VoiceConsent? = null) : AuthGateState
 
     /**
+     * 「로그인 없이 둘러보기」 게스트 계정 (KAN-330, 애플 5.1.1(v) — 계정 기반이 아닌 기능에 로그인을 강제하지 말 것).
+     * SignedIn처럼 홈(WebView)에 들어가되 추가 정보·음성 동의 단계가 없다 — 서버가 게스트에게 번역·`me()`·로그아웃·탈퇴 말고는
+     * 403 `AUTH_GUEST_NOT_ALLOWED`로 막는다. 게스트 여부는 따로 저장하지 않고 서버 `me()`의 provider GUEST로 되살린다 —
+     * 시작 확인이 늘 `me()`를 거치므로 재시작해도 이 상태로 돌아오고, 로컬 표식이 서버와 어긋날 일이 없다.
+     */
+    data class Guest(val user: AuthUser) : AuthGateState
+
+    /**
      * 시작 확인이 판정 없이 끝났다 (전송 실패·429·5xx). **토큰은 그대로다** — 여기서 로그인 화면으로 보내면
      * 망이 잠깐 끊긴 사용자를 로그아웃시키는 셈이다. 화면은 [다시 시도]로 [AuthGateController.retry]를 부른다.
      */
@@ -94,6 +106,9 @@ enum class AuthFailureReason {
 
     /** 만 14세 미만 (400 `AUTH_UNDER_AGE`). 추가 정보 화면에서만 나온다. */
     UnderAge,
+
+    /** 429 `AUTH_GUEST_LIMIT_EXCEEDED` — 오늘 이 망에서 게스트를 더 만들 수 없다 (KAN-330). 로그인하면 된다. */
+    GuestLimitExceeded,
 
     /** 서버가 재시도 불가로 못박았다 (`VALIDATION_FAILED`·`AUTH_CONSENT_REQUIRED`) — 앱과 서버 계약이 어긋난 경우다. */
     Unsupported,
@@ -132,6 +147,9 @@ class AuthGateController(
      * 이것으로 가린다 — [signOutLocally] 참고. 갱신·bootstrap은 같은 세션의 이어짐이라 올리지 않는다.
      */
     private val loginGeneration = AtomicLong()
+
+    /** 진행 중인 게스트 이탈 — [requestLogin] 참고. */
+    private val leavingGuest = AtomicBoolean()
 
     /**
      * 로그인 저장·세대 증가와 탈퇴 정리의 판정·비우기를 한 덩어리로 묶는 잠금 (KAN-251 리뷰 P1 재검증 2). 둘이 따로 돌면
@@ -204,20 +222,58 @@ class AuthGateController(
         when (val result = api.login(credential, privacyPolicyVersion)) {
             // 서버가 쌍을 준 뒤에는 취소(화면 회전)되어도 저장과 상태 반영을 끝낸다 — 도중에 끊기면 쌍은 저장됐는데
             // 화면은 로그인에 남는다.
-            is AuthResult.Success -> withContext(NonCancellable) {
-                val saved = sessionLock.withLock {
-                    store.save(result.value.tokens).also { if (it) loginGeneration.incrementAndGet() }
-                }
-                if (saved) {
-                    _state.value = withVoiceConsent(stateOf(result.value.account))
-                } else {
-                    // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
-                    // 메모리에 남은 쌍까지 비우고 실패로 알려 사용자가 다시 시도하게 한다.
-                    store.clear()
-                    _state.value = AuthGateState.SignedOut(AuthFailure(AuthFailureReason.Retry))
-                }
-            }
+            is AuthResult.Success -> saveSession(result.value)
             else -> _state.value = AuthGateState.SignedOut(failureOf(result))
+        }
+    }
+
+    /**
+     * 「로그인 없이 둘러보기」 (KAN-330, 서버 KAN-329 §3.21). 동의는 로그인 화면의 둘러보기 동의 단계가 받았다 — 버전 규칙은
+     * [login]과 같다. 저장·세대·회전 중 취소 처리도 로그인과 같다([saveSession]) — 게스트의 Refresh도 같은 회전 API를 쓴다.
+     * 실패는 로그인 실패처럼 로그인 화면의 안내로 남는다(429 상한은 [AuthFailureReason.GuestLimitExceeded]).
+     */
+    suspend fun startGuest(privacyPolicyVersion: String) {
+        when (val result = api.guest(privacyPolicyVersion)) {
+            is AuthResult.Success -> saveSession(result.value)
+            else -> _state.value = AuthGateState.SignedOut(failureOf(result))
+        }
+    }
+
+    /**
+     * 서버가 준 쌍을 저장하고 상태를 반영한다 — 로그인·게스트 공통.
+     * 서버가 쌍을 준 뒤에는 취소(화면 회전)되어도 저장과 상태 반영을 끝낸다 — 도중에 끊기면 쌍은 저장됐는데 화면은 로그인에 남는다.
+     */
+    private suspend fun saveSession(success: LoginSuccess) = withContext(NonCancellable) {
+        val saved = sessionLock.withLock {
+            store.save(success.tokens).also { if (it) loginGeneration.incrementAndGet() }
+        }
+        if (saved) {
+            _state.value = withVoiceConsent(stateOf(success.account))
+        } else {
+            // 저장되지 않은 첫 로그인은 지금은 들어간 것처럼 보이다가 다음 실행 때 조용히 로그아웃된다(자동 로그인 AC 위반).
+            // 메모리에 남은 쌍까지 비우고 실패로 알려 사용자가 다시 시도하게 한다.
+            store.clear()
+            _state.value = AuthGateState.SignedOut(AuthFailure(AuthFailureReason.Retry))
+        }
+    }
+
+    /**
+     * 게스트의 「로그인」 — 설정 화면 버튼과 브리지 `requestLogin`(KAN-330)이 함께 쓴다. 게스트 토큰을 버리고 로그인 화면으로 간다.
+     * 서버 로그아웃은 [logout]과 같이 최선 노력이다(서버는 게스트 로그아웃을 받는다). 게스트에는 IdP 세션이 없어 SDK 정리를
+     * 하지 않는다. 회원이면 아무것도 하지 않는다 — 웹이 잘못 불러도 멀쩡한 로그인을 버리지 않게.
+     * 앱 수명 [scope]에서 도는 이유: 브리지 호출은 기다릴 화면이 없고, 설정 화면은 상태가 바뀌면 내려가며 자기 스코프를 잃는다.
+     *
+     * 진행 중이면 겹친 호출은 무시한다(KAN-330 리뷰 P1) — 연타한 두 호출이 모두 게스트 판정을 통과하면, 먼저 끝난 쪽 뒤에
+     * 사용자가 회원으로 로그인했을 때 늦게 끝난 쪽 정리가 새 토큰을 지웠다. 그 뒤의 늦은 정리는 [logout]의 세대 검사가 막는다.
+     */
+    fun requestLogin() {
+        if (_state.value !is AuthGateState.Guest || !leavingGuest.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                logout()
+            } finally {
+                leavingGuest.set(false)
+            }
         }
     }
 
@@ -319,12 +375,14 @@ class AuthGateController(
      * 묶이면 응답이 오기 전에 바로 만료된다. IdP 단계는 SDK가 메인 스레드를 기대할 수 있어 호출자 디스패처에 둔다.
      */
     suspend fun logout(idpLogout: suspend () -> Unit = {}): Unit = withContext(NonCancellable) {
+        // 서버 요청 전에 잡는다(KAN-330 리뷰 P1) — 정리 전에 끝난 새 로그인의 토큰을 지우지 않게. [signOutLocally] 참고.
+        val generation = loginGeneration.get()
         try {
             withContext(Dispatchers.IO) {
                 withTimeoutOrNull(logoutServerTimeout) { store.read()?.let { api.logout(it.refreshToken) } }
             }
         } finally {
-            signOutLocally(idpLogout)
+            signOutLocally(idpLogout, generation)
         }
     }
 
@@ -348,8 +406,13 @@ class AuthGateController(
      *
      * 진행 중에 또 불리면 서버 요청을 새로 만들지 않고 진행 중인 결과를 같이 돌려준다. 화면도 진행 중 버튼을 막지만,
      * 두 번째 요청은 401이라 결과가 같아도 서버에 쓸데없는 탈퇴 요청을 남긴다.
+     *
+     * @param naverRefreshToken 네이버 SDK의 Refresh 토큰 공급자 (KAN-344). 계정이 NAVER일 때만 부르고, 없거나 던지면 빼고 보낸다
      */
-    suspend fun withdraw(idpLogout: suspend () -> Unit = {}): WithdrawOutcome {
+    suspend fun withdraw(
+        naverRefreshToken: () -> String? = { null },
+        idpLogout: suspend () -> Unit = {},
+    ): WithdrawOutcome {
         val mine = CompletableDeferred<WithdrawOutcome>()
         val running = synchronized(this) { withdrawal.also { if (it == null) withdrawal = mine } }
         if (running != null) return running.await()
@@ -358,11 +421,16 @@ class AuthGateController(
         val generation = loginGeneration.get()
         val outcome = runCatching {
             withContext(NonCancellable) {
-                val result = withContext(Dispatchers.IO) { withTimeoutOrNull(logoutServerTimeout) { api.withdraw() } }
+                // 네이버 계정이면 SDK의 Refresh 토큰을 실어 서버가 네이버 연동까지 끊게 한다 (KAN-344, 서버 KAN-343). IdP 정리(SDK
+                // 로그아웃이 토큰을 지운다)보다 먼저 읽어야 한다. 다른 제공자의 값은 서버가 무시하지만 보낼 이유가 없다.
+                val naverToken = (_state.value as? AuthGateState.SignedIn)?.user
+                    ?.takeIf { it.provider == Provider.NAVER }
+                    ?.let { runCatching(naverRefreshToken).getOrNull()?.takeIf(String::isNotBlank) }
+                val result = withContext(Dispatchers.IO) { withTimeoutOrNull(logoutServerTimeout) { api.withdraw(naverToken) } }
                 val withdrawn = result is AuthResult.Success ||
                     (result is AuthResult.Rejected && result.status == STATUS_UNAUTHORIZED)
                 if (withdrawn) {
-                    signOutLocally(idpLogout, withdrawGeneration = generation)
+                    signOutLocally(idpLogout, generation)
                     WithdrawOutcome.Withdrawn
                 } else {
                     // null = 서버 단계 상한 초과. 응답을 못 받았으니 전송 실패와 같이 [다시 시도]다.
@@ -378,19 +446,20 @@ class AuthGateController(
     /**
      * 로그아웃·탈퇴 공통 로컬 정리. IdP SDK 정리(상한 [logoutIdpTimeout])가 던져도 저장소는 비우고 로그인 화면으로 돌린다.
      *
-     * @param withdrawGeneration 탈퇴만 넘긴다 — 탈퇴 시작 때 잡은 [loginGeneration] (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신
-     *   거절이 먼저 저장소를 비우고 로그인 화면을 띄우므로, 응답을 마저 받거나 IdP 정리(최대 5초)를 기다리는 사이 사용자가
-     *   새로 로그인할 수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 [sessionLock] 안에서 한 번에) — 달라졌으면
-     *   새 로그인이라 저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나
-     *   쌍이 바뀌면 새 로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). null(로그아웃)은 로그인 상태를 유지한 채
-     *   정리해 이 경합이 없어 무조건 비운다.
+     * @param generation 로그아웃·탈퇴 시작 때 잡은 [loginGeneration] (KAN-251 리뷰 P1). 탈퇴 401에서는 갱신 거절이 먼저
+     *   저장소를 비우고 로그인 화면을 띄우므로, 응답을 마저 받거나 IdP 정리(최대 5초)를 기다리는 사이 사용자가 새로 로그인할
+     *   수 있다. 끝날 때 세대가 그대로일 때만 비운다(판정과 비우기는 [sessionLock] 안에서 한 번에) — 달라졌으면 새 로그인이라
+     *   저장소·상태를 건드리지 않는다. 토큰 값으로 비교하지 않는 이유: 탈퇴 전에 시작된 갱신이 정리 중에 끝나 쌍이 바뀌면 새
+     *   로그인으로 오인해 탈퇴 뒤 로그인이 남는다(리뷰 재검증). 로그아웃도 같이 건다(KAN-330 리뷰 P1) — 게스트 [requestLogin]
+     *   연타처럼 먼저 끝난 정리 뒤 새 로그인이 들어오면 늦은 정리가 그 토큰을 지운다. 보통 로그아웃은 정리 중에 로그인할 화면이
+     *   없어 세대가 그대로라 결과가 같다.
      */
-    private suspend fun signOutLocally(idpLogout: suspend () -> Unit, withdrawGeneration: Long? = null) {
+    private suspend fun signOutLocally(idpLogout: suspend () -> Unit, generation: Long) {
         try {
             withTimeoutOrNull(logoutIdpTimeout) { idpLogout() }
         } finally {
             sessionLock.withLock {
-                if (withdrawGeneration == null || loginGeneration.get() == withdrawGeneration) {
+                if (loginGeneration.get() == generation) {
                     store.clear()
                     _state.value = AuthGateState.SignedOut()
                 }
@@ -398,15 +467,20 @@ class AuthGateController(
         }
     }
 
-    private fun stateOf(account: Account): AuthGateState = when (account.profileStatus) {
-        ProfileStatus.COMPLETE -> AuthGateState.SignedIn(account.user, account.voiceConsent)
-        ProfileStatus.INCOMPLETE -> AuthGateState.NeedsProfile(account.user)
+    // 게스트를 프로필보다 먼저 가른다 — 게스트는 프로필이 없어 INCOMPLETE로 읽히는데, 추가 정보 화면은 게스트 차단 API(프로필 저장)다.
+    private fun stateOf(account: Account): AuthGateState = when {
+        account.user.provider == Provider.GUEST -> AuthGateState.Guest(account.user)
+        account.profileStatus == ProfileStatus.COMPLETE -> AuthGateState.SignedIn(account.user, account.voiceConsent)
+        else -> AuthGateState.NeedsProfile(account.user)
     }
 
     private fun failureOf(result: AuthResult<*>): AuthFailure = when (result) {
         is AuthResult.Success -> error("성공은 실패 안내가 아니다")
         is AuthResult.TransportError -> AuthFailure(AuthFailureReason.Retry)
         is AuthResult.Rejected -> when {
+            // 상한 429는 대기 시간을 기다려도 오늘 안 풀린다 — 요청 몰림 안내보다 먼저 가른다 (KAN-330).
+            result.code == CODE_GUEST_LIMIT -> AuthFailure(AuthFailureReason.GuestLimitExceeded)
+
             // 봉투를 읽었으면 코드가 정본이고, 못 읽었으면 대기 시간의 존재가 대신 말해 준다 (SessionGateController와 같은 판정).
             result.code == CODE_RATE_LIMITED || result.retryAfterMs != null ->
                 AuthFailure(AuthFailureReason.RateLimited, result.retryAfterMs?.let(::ceilSeconds))
@@ -421,4 +495,14 @@ class AuthGateController(
             else -> AuthFailure(AuthFailureReason.Unsupported)
         }
     }
+}
+
+/**
+ * 브리지 `getAccountKind`의 값 (KAN-330, webview-bridge.md). 웹이 게스트에게 로그인 유도 화면을, 회원에게 계정 기능을 보인다.
+ * 홈(WebView)이 서는 두 상태만 값을 주고, 그 밖(확인 중·로그인 화면 등)은 로그인 안 됨과 같은 빈 문자열이다.
+ */
+fun accountKindOf(state: AuthGateState): String = when (state) {
+    is AuthGateState.Guest -> "guest"
+    is AuthGateState.SignedIn -> "member"
+    else -> ""
 }

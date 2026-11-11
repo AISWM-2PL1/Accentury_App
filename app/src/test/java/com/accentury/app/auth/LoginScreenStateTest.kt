@@ -93,4 +93,21 @@ class LoginScreenStateTest {
             visibleProviders(emptySet(), fakeIdp = true),
         )
     }
+
+    @Test
+    fun `둘러보기는 방침 동의와 만 14세 확인이 둘 다 있어야 시작한다 - KAN-330`() = runTest {
+        var started = 0
+        val state = LoginScreenState(guestStep = true)
+        state.startGuest { started++ }
+        state.consented = true
+        state.startGuest { started++ }
+        assertEquals(0, started)
+        assertFalse(state.guestEnabled)
+
+        state.over14 = true
+        assertTrue(state.guestEnabled)
+        state.startGuest { started++ }
+        assertEquals(1, started)
+        assertFalse(state.inFlight)
+    }
 }

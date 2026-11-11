@@ -139,19 +139,21 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 - **Jua** — 제목·대사·등급. 번들 필수(어느 기기에도 없는 디스플레이 폰트). `app/src/main/res/font/jua_regular.ttf`(2.0MB), `web/public/fonts/Jua-Regular.woff2`(360KB), `ios/Accentury/Resources/Fonts/Jua-Regular.ttf`(2.0MB, KAN-178 — `UIAppFonts`로 등록하고 `Font.custom`에 PostScript 이름 `Jua-Regular`를 준다). 라이선스 `LICENSES/Jua-OFL.txt`(SIL OFL 1.1) 하나를 세 런타임이 공유한다.
 - **본문 — 시스템 기본 산세리프.** Android 시스템 폰트가 이미 Noto Sans CJK KR이고 WebView의 `sans-serif`도 같은 폰트로 해석되므로, 네이티브와 웹이 저절로 같은 글꼴로 수렴한다. 9.9MB짜리 Noto Sans KR 가변폰트를 번들해도 타깃 기기에서 보이는 글자는 같아서 넣지 않는다. iOS도 같은 규칙을 그쪽 글꼴로 지킨다 — 네이티브 `.system`과 WKWebView의 `sans-serif`가 둘 다 Apple SD Gothic Neo로 풀린다.
 
-| 토큰 | 크기 | 굵기 | 폰트 | 용도 |
-|---|---|---|---|---|
-| `display` | 40sp | 400 | Jua | 결과 등급 |
-| `headline` | 26sp | 400 | Jua | **대사 카드**·대기 제목 (§5 최소선 24sp 충족) |
-| `title` | 30sp | 400 | Jua | 단어 문항·인트로 제목 |
-| `titleSmall` | 20sp | 400 | Jua | 주 CTA 라벨·화면 제목 |
-| `timer` | 16sp | 400 | Jua | 녹음 타이머·8초 경고 캡슐 (자간 0.04em) |
-| `body` | 16sp | 400 | 시스템 | 본문 |
-| `bodySmall` | 15sp | 400 | 시스템 | 선택지, 보조 버튼 라벨 |
-| `label` | 14sp | 500 | 시스템 | 부가 설명 |
-| `caption` | 13sp | 500 | 시스템 | 카드 위 캡션, 레인 라벨, 진행 표기 |
+| 토큰 | 크기 | 웹 | 굵기 | 폰트 | 용도 |
+|---|---|---|---|---|---|
+| `display` | 40sp | `2.5rem` | 400 | Jua | 결과 등급 |
+| `headline` | 26sp | `1.625rem` | 400 | Jua | **대사 카드**·대기 제목 (§5 최소선 24sp 충족) |
+| `title` | 30sp | `1.875rem` | 400 | Jua | 단어 문항·인트로 제목 |
+| `titleSmall` | 20sp | `1.25rem` | 400 | Jua | 주 CTA 라벨·화면 제목 |
+| `timer` | 16sp | `1rem` | 400 | Jua | 녹음 타이머·8초 경고 캡슐 (자간 0.04em) |
+| `body` | 16sp | `1rem` | 400 | 시스템 | 본문 |
+| `bodySmall` | 15sp | `0.9375rem` | 400 | 시스템 | 선택지, 보조 버튼 라벨 |
+| `label` | 14sp | `0.875rem` | 500 | 시스템 | 부가 설명 |
+| `caption` | 13sp | `0.8125rem` | 500 | 시스템 | 카드 위 캡션, 레인 라벨, 진행 표기 |
 
 행간은 대사·등급이 `1.15`, 나머지가 `1.5`.
+
+웹 열은 `tokens.css`의 값이다. 웹 크기는 rem(16px = 1rem)이라 루트 글자 크기를 따르고, rem과 px를 가르는 규칙은 [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)이 정본이다 (KAN-313).
 
 `timer`만 자간을 벌린다(`0.04em`). 자리가 고정된 숫자라 그 값이 없으면 `00:04`의 두 자리가
 서로 붙어 보인다. 네이티브에서는 M3에 타이머 슬롯이 없어 남아 있던 `titleSmall` **슬롯**이
@@ -166,32 +168,33 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 
 ## 4. 간격 · 반경 · 터치 타겟
 
-4dp 배수. `space-1`=4 / `space-2`=8 / `space-3`=12 / `space-4`=16 / `space-6`=24 / `space-8`=32.
+4dp 배수. `space-1`=4 / `space-2`=8 / `space-3`=12 / `space-4`=16 / `space-6`=24 / `space-8`=32. 웹은 같은 값을 rem으로 적는다(`0.25rem`~`2rem`, ÷16). 아래 표의 웹 열은 `tokens.css` 값이고, 단위 규칙은 [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)을 따른다 (KAN-313).
 
-| 토큰 | 값 | 용도 |
-|---|---|---|
-| `radius-sm` | **4dp** | 칩·별점 칸·선택지 번호 상자 (KAN-288, 이전 12) |
-| `radius-md` | **6dp** | 버튼, 선택지, 입력 칸, 학습 목록 행 (KAN-288, 이전 16) |
-| `radius-lg` | **10dp** | 카드·대사 카드·시트 (KAN-288, 이전 18) |
-| `radius-xl` | **10dp** | `radius-lg`와 같은 값으로 접었다 — 디자인 3에 10보다 큰 종이 모서리가 없다 (KAN-288, 이전 24) |
-| `radius-full` | 9999 | 원형·캡슐 (녹음 버튼, 히어로 아이콘, 진행 도트) |
-| `touch-target-min` | **48dp** | 모든 탭 가능 요소의 최소 높이·너비 |
-| `control-height-lg` | **48dp** | 주 버튼 높이 (KAN-288, 이전 56). 보조 버튼과 같은 높이이고 위계는 면 색(벽돌/크림)이 말한다 |
-| `control-height-choice` | 54dp | 선택지 한 칸 (KAN-288). 글 한 줄 + 위아래 여백 |
-| `text-tab-label` | 12dp | 하단 탭 바 라벨·선택지 번호 상자. 최소 글자 11 규칙 위의 값 (KAN-288 디자인 검수 HIG-A) |
-| `prompt-card-min-height` | 152dp | 대사 카드 (문항 길이가 달라도 카드 크기 고정) |
-| `screen-padding-top` | 64dp (= 앱바 56 + 8) | 화면 위쪽 여백. 좌우 24·아래 32와 다른 값이고, 첫 요소를 내려 그림·제목이 세로 가운데에 앉게 한다. **웹 4화면·네이티브 녹음 화면 반영 완료** (`Dimens.screenPaddingTop`). 디자인 3(KAN-288)부터 웹은 그 자리를 고정 워드마크 앱바(`--app-bar-height` 56, `ui/AppBar`)가 채우고, 브라우저에서 24로 내리던 분기(§7 KAN-199)는 걷었다 — 앱바 아래로 본문이 들어가면 안 돼서다 |
-| `content-max-width` | 320dp | 본문 최대 폭. 넓은 화면에서 한 줄이 길어져 읽기 힘들어지는 것을 막는다 |
-| `opacity-disabled` | 0.6 | 비활성·제출 중 요소 |
-| `prompt-card-padding` | 24dp | 대사·질문 카드 안쪽 여백 |
-| `progress-bar-height` | **8dp** | 막대 두께 (결과 점수 막대·입력 레벨 바·남은 시간 게이지). 12에서 내렸다 — §7 |
-| `progress-dot-height` | 8dp | 진행 도트 하나의 두께. 막대와 값은 같지만 뜻이 다르다 — 저쪽은 그릇, 이쪽은 칸 하나다 |
-| `paper-shadow-x` / `paper-shadow-y` | **4dp / 5dp** | 오프셋 종이 그림자가 어긋난 거리. 눌림도 이 값만큼 내려간다 (§5). KAN-288에서 3/4 → 4/5 |
-| `hero-icon-size` | 112dp | 인트로·권한 화면의 원형 아이콘 (w-28) |
-| `record-button-size` | 80dp | 원형 녹음 버튼 지름 (시안: w-20) |
-| `curve-lane-height` | 120dp | F0 곡선 레인 하나. 시안(72px)보다 키웠다 — 실제 기기에서는 아래가 비어 곡선이 납작했다 |
-| `text-intro-hero` | 56dp | 인트로 제목 전용 크기. §3의 `title`(30)보다 크다 — 첫 화면에서 이 두 줄이 화면의 주인공이라 다른 화면 제목과 같은 슬롯을 쓰면 무게가 안 선다. 웹 전용(`--text-intro-hero`) |
-| `intro-emphasis-line-width` | 7dp | 제목 아래 포인트 컬러 아치의 두께. SVG `stroke-width`로 들어가고 `non-scaling-stroke`라 폭이 변해도 굵기가 일정하다 |
+| 토큰 | 값 | 웹 | 용도 |
+|---|---|---|---|
+| `radius-sm` | **4dp** | `4px` | 칩·별점 칸·선택지 번호 상자 (KAN-288, 이전 12) |
+| `radius-md` | **6dp** | `6px` | 버튼, 선택지, 입력 칸, 학습 목록 행 (KAN-288, 이전 16) |
+| `radius-lg` | **10dp** | `10px` | 카드·대사 카드·시트 (KAN-288, 이전 18) |
+| `radius-xl` | **10dp** | `10px` | `radius-lg`와 같은 값으로 접었다 — 디자인 3에 10보다 큰 종이 모서리가 없다 (KAN-288, 이전 24) |
+| `radius-full` | 9999 | `9999px` | 원형·캡슐 (녹음 버튼, 히어로 아이콘, 진행 도트) |
+| `touch-target-min` | **48dp** | `max(48px, 3rem)` | 모든 탭 가능 요소의 최소 높이·너비 |
+| `control-height-lg` | **48dp** | `max(48px, 3rem)` | 주 버튼 높이 (KAN-288, 이전 56). 보조 버튼과 같은 높이이고 위계는 면 색(벽돌/크림)이 말한다 |
+| `control-height-choice` | 54dp | `max(48px, 3.375rem)` | 선택지 한 칸 (KAN-288). 글 한 줄 + 위아래 여백 |
+| `text-tab-label` | 12dp | `0.75rem` | 하단 탭 바 라벨·선택지 번호 상자. 최소 글자 11 규칙 위의 값 (KAN-288 디자인 검수 HIG-A) |
+| `prompt-card-min-height` | 152dp | `9.5rem` | 대사 카드 (문항 길이가 달라도 카드 크기 고정) |
+| `screen-padding-top` | 64dp (= 앱바 56 + 8) | 앱바 `3.5rem` + `0.5rem` + 안전 영역 | 화면 위쪽 여백. 좌우 24·아래 32와 다른 값이고, 첫 요소를 내려 그림·제목이 세로 가운데에 앉게 한다. **웹 4화면·네이티브 녹음 화면 반영 완료** (`Dimens.screenPaddingTop`). 디자인 3(KAN-288)부터 웹은 그 자리를 고정 워드마크 앱바(`--app-bar-height` 56, `ui/AppBar`)가 채우고, 브라우저에서 24로 내리던 분기(§7 KAN-199)는 걷었다 — 앱바 아래로 본문이 들어가면 안 돼서다 |
+| `screen-padding-x` | 24dp | `24px` | 화면 좌우 여백(`.screen`·`.item-screen`·앱바·하단 시트 패널). 값은 `space-6`과 같고 웹만 px로 고정한다 — 200%에서 48px이 되면 360 폭 본문이 312→264px로 준다 (KAN-313, PR #68 리뷰 2026-11-10) |
+| `content-max-width` | 320dp | `20rem` | 본문 최대 폭. 넓은 화면에서 한 줄이 길어져 읽기 힘들어지는 것을 막는다 |
+| `opacity-disabled` | 0.6 | `0.6` | 비활성·제출 중 요소 |
+| `prompt-card-padding` | 24dp | `1.5rem` | 대사·질문 카드 안쪽 여백 |
+| `progress-bar-height` | **8dp** | `8px` | 막대 두께 (결과 점수 막대·입력 레벨 바·남은 시간 게이지). 12에서 내렸다 — §7 |
+| `progress-dot-height` | 8dp | `8px` | 진행 도트 하나의 두께. 막대와 값은 같지만 뜻이 다르다 — 저쪽은 그릇, 이쪽은 칸 하나다 |
+| `paper-shadow-x` / `paper-shadow-y` | **4dp / 5dp** | `4px / 5px` | 오프셋 종이 그림자가 어긋난 거리. 눌림도 이 값만큼 내려간다 (§5). KAN-288에서 3/4 → 4/5 |
+| `hero-icon-size` | 112dp | `112px` | 인트로·권한 화면의 원형 아이콘 (w-28) |
+| `record-button-size` | 80dp | — (웹 토큰 없음) | 원형 녹음 버튼 지름 (시안: w-20) |
+| `curve-lane-height` | 120dp | `7.5rem` | F0 곡선 레인 하나. 시안(72px)보다 키웠다 — 실제 기기에서는 아래가 비어 곡선이 납작했다 |
+| `text-intro-hero` | 56dp | `3.5rem` | 인트로 제목 전용 크기. §3의 `title`(30)보다 크다 — 첫 화면에서 이 두 줄이 화면의 주인공이라 다른 화면 제목과 같은 슬롯을 쓰면 무게가 안 선다. 웹 전용(`--text-intro-hero`) |
+| `intro-emphasis-line-width` | 7dp | `7px` | 제목 아래 포인트 컬러 아치의 두께. SVG `stroke-width`로 들어가고 `non-scaling-stroke`라 폭이 변해도 굵기가 일정하다 |
 
 ## 5. 모션
 

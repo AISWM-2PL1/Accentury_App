@@ -1,7 +1,11 @@
 package com.accentury.app.auth
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -910,6 +914,194 @@ class AuthGateControllerTest {
         assertNull(store.tokens)
         assertEquals(AuthGateState.SignedOut(), gate.state.value)
     }
+
+    // --- 게스트 「로그인 없이 둘러보기」 (KAN-330, 서버 KAN-329) ---
+
+    private val guestUser = AuthUser(id = "g-1", provider = Provider.GUEST)
+    private val guestIssued =
+        """{"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"user":{"id":"g-1","provider":"GUEST"}}"""
+
+    private suspend fun TestScope.guestGate(store: InMemoryTokenStore): AuthGateController {
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(guestIssued))
+        gate.startGuest(privacyPolicyVersion = "v1")
+        server.takeRequest()
+        return gate
+    }
+
+    @Test
+    fun `둘러보기는 동의를 실어 게스트를 발급받고 토큰을 저장한 뒤 me 없이 게스트로 들어간다`() = runTest {
+        val store = InMemoryTokenStore()
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(guestIssued))
+
+        gate.startGuest(privacyPolicyVersion = "v1")
+
+        assertEquals(AuthGateState.Guest(guestUser), gate.state.value)
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        val request = server.takeRequest()
+        assertEquals("/v0/auth/guest", request.path)
+        assertNull(request.getHeader("Authorization"))
+        assertEquals("""{"privacyConsent":true,"privacyPolicyVersion":"v1"}""", request.body.readUtf8())
+        // 게스트는 음성 동의가 없다 — 로그인과 달리 me를 더 부르지 않는다
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `재시작 때 me가 GUEST면 프로필 미완료여도 추가 정보가 아니라 게스트로 돌아온다`() = runTest {
+        val store = InMemoryTokenStore(AuthTokens("jwt_0", "rt_0"))
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody("""{"profileStatus":"INCOMPLETE","user":{"id":"g-1","provider":"GUEST"}}"""))
+
+        gate.bootstrap()
+
+        assertEquals(AuthGateState.Guest(guestUser), gate.state.value)
+    }
+
+    @Test
+    fun `게스트 발급 하루 상한 429는 대기 시간이 있어도 상한 안내로 로그인 화면에 남는다`() = runTest {
+        val store = InMemoryTokenStore()
+        val gate = controller(store)
+        server.enqueue(
+            MockResponse().setResponseCode(429).setHeader("Retry-After", "3600")
+                .setBody(envelope("AUTH_GUEST_LIMIT_EXCEEDED", false)),
+        )
+
+        gate.startGuest(privacyPolicyVersion = "v1")
+
+        assertEquals(AuthGateState.SignedOut(AuthFailure(AuthFailureReason.GuestLimitExceeded)), gate.state.value)
+        assertNull(store.tokens)
+    }
+
+    @Test
+    fun `게스트의 로그인 요청은 서버 로그아웃 뒤 토큰을 버리고 로그인 화면이다`() = runTest {
+        val store = InMemoryTokenStore()
+        val gate = guestGate(store)
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        gate.requestLogin()
+        gate.state.first { it == AuthGateState.SignedOut() }
+
+        assertNull(store.tokens)
+        assertEquals("/v0/auth/logout", server.takeRequest().path)
+    }
+
+    @Test
+    fun `회원의 로그인 요청은 아무것도 하지 않는다`() = runTest {
+        val store = InMemoryTokenStore()
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        gate.login(google, privacyPolicyVersion = "v1")
+        val before = gate.state.value
+
+        gate.requestLogin()
+        runCurrent()
+
+        assertEquals(before, gate.state.value)
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `게스트 로그인 요청 연타는 한 번만 돌고 그사이 끝난 회원 로그인을 늦은 정리가 지우지 않는다`() = runTest {
+        // KAN-330 리뷰 P1. 앱 스코프를 따로 둬 이탈 정리가 끝나기를 join으로 기다린다 — requestLogin은 Job을 돌려주지 않는다.
+        val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val store = HeldReadTokenStore()
+        val clients = AuthClients(server.url("/").toString(), store)
+        val gate = AuthGateController(clients.api, store, clients.refresher, appScope, 10.seconds)
+        server.enqueue(MockResponse().setBody(guestIssued.replace("_1", "_g")))
+        server.enqueue(MockResponse().setBody(loginComplete))
+        server.enqueue(MockResponse().setBody(account("COMPLETE")))
+        server.enqueue(MockResponse().setResponseCode(204))
+        gate.startGuest(privacyPolicyVersion = "v1")
+
+        // 첫 이탈이 게스트 쌍을 읽은 뒤(서버 로그아웃 전) 붙잡는다. 그사이 두 번째 호출과 회원 로그인을 끝낸다.
+        store.holdNextRead()
+        gate.requestLogin()
+        store.readHeld.await()
+        gate.requestLogin()
+        gate.login(google, privacyPolicyVersion = "v1")
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+        store.release.complete(Unit)
+        appScope.coroutineContext[Job]!!.children.toList().joinAll()
+
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.SignedIn(user), gate.state.value)
+        val paths = List(server.requestCount) { server.takeRequest().path }
+        assertEquals(listOf("/v0/auth/guest", "/v0/auth/login", "/v0/users/me", "/v0/auth/logout"), paths)
+    }
+
+    @Test
+    fun `게스트가 403 AUTH_GUEST_NOT_ALLOWED를 받아도 토큰과 게스트 상태가 그대로다`() = runTest {
+        val store = InMemoryTokenStore()
+        val clients = AuthClients(server.url("/").toString(), store)
+        val gate = AuthGateController(clients.api, store, clients.refresher, backgroundScope)
+        server.enqueue(MockResponse().setBody(guestIssued))
+        gate.startGuest(privacyPolicyVersion = "v1")
+        server.takeRequest()
+        server.enqueue(MockResponse().setResponseCode(403).setBody(envelope("AUTH_GUEST_NOT_ALLOWED", false)))
+
+        // 계정 클라이언트로 나간 게스트 차단 API — Authenticator는 401만 갱신·로그아웃으로 다룬다
+        val result = clients.api.updateProfile(profile)
+
+        assertEquals(403, (result as AuthResult.Rejected).status)
+        assertEquals(AuthTokens("jwt_1", "rt_1"), store.tokens)
+        assertEquals(AuthGateState.Guest(guestUser), gate.state.value)
+        assertEquals(2, server.requestCount)
+        // 게이트의 계정 전용 동작도 게스트에게는 서버에 아무것도 보내지 않는다
+        gate.setVoiceConsent(true)
+        gate.reloadVoiceConsent()
+        gate.submitProfile(profile)
+        assertEquals(2, server.requestCount)
+        assertEquals(AuthGateState.Guest(guestUser), gate.state.value)
+    }
+
+    // --- 네이버 탈퇴 연동 해제 (KAN-344, 서버 KAN-343) ---
+
+    private suspend fun TestScope.signedInAs(provider: String, store: InMemoryTokenStore): AuthGateController {
+        val gate = controller(store)
+        server.enqueue(MockResponse().setBody(tokens(1)))
+        server.enqueue(MockResponse().setBody("""{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"$provider"}}"""))
+        gate.bootstrap()
+        server.takeRequest()
+        server.takeRequest()
+        return gate
+    }
+
+    @Test
+    fun `네이버 계정 탈퇴는 SDK Refresh 토큰을 본문에 싣는다`() = runTest {
+        val gate = signedInAs("NAVER", InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val outcome = gate.withdraw(naverRefreshToken = { "naver-rt" })
+
+        assertEquals(WithdrawOutcome.Withdrawn, outcome)
+        assertEquals("""{"naverRefreshToken":"naver-rt"}""", server.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `네이버 SDK에 토큰이 없으면 빈 본문으로 탈퇴한다`() = runTest {
+        val gate = signedInAs("NAVER", InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        assertEquals(WithdrawOutcome.Withdrawn, gate.withdraw(naverRefreshToken = { null }))
+        assertEquals("", server.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `네이버가 아닌 계정은 네이버 토큰을 읽지도 싣지도 않는다`() = runTest {
+        val gate = signedInAs("GOOGLE", InMemoryTokenStore(AuthTokens("jwt_0", "rt_0")))
+        server.enqueue(MockResponse().setResponseCode(204))
+        var asked = false
+
+        gate.withdraw(naverRefreshToken = { asked = true; "naver-rt" })
+
+        assertFalse(asked)
+        assertEquals("", server.takeRequest().body.readUtf8())
+    }
+
 }
 
 /**
@@ -943,4 +1135,34 @@ private class HeldSaveTokenStore(initial: AuthTokens?) : TokenStore {
     }
 
     override suspend fun clear() = mutex.withLock { inner.clear() }
+}
+
+/** 다음 read 한 번을 값을 읽은 뒤 [release]까지 붙잡는 가짜 (KAN-330 리뷰 P1) — 게스트 이탈이 서버 로그아웃 전에 멈춘 자리. */
+private class HeldReadTokenStore : TokenStore {
+    private val inner = InMemoryTokenStore()
+
+    @Volatile
+    private var holding = false
+    val readHeld = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+
+    val tokens: AuthTokens? get() = inner.tokens
+
+    fun holdNextRead() {
+        holding = true
+    }
+
+    override suspend fun read(): AuthTokens? {
+        val tokens = inner.read()
+        if (holding) {
+            holding = false
+            readHeld.complete(Unit)
+            release.await()
+        }
+        return tokens
+    }
+
+    override suspend fun save(tokens: AuthTokens): Boolean = inner.save(tokens)
+
+    override suspend fun clear() = inner.clear()
 }

@@ -26,7 +26,7 @@ private let jsParagraphSeparator = "\u{2029}"
 ///    본다 — 즉 우리 주입이 페이지 스크립트보다 **먼저** 끝나 있어야 한다
 ///
 /// 그래서 브리지 객체 자체를 JS로 적어 `WKUserScript`(`.atDocumentStart`)로 심는다.
-/// 값을 돌려주는 네 메서드(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`)는 JS 안의 값을
+/// 값을 돌려주는 다섯 메서드(`getContractVersion`·`getSessionToken`·`getAdConsent`·`getAccessToken`·`getAccountKind`)는 JS 안의 값을
 /// 읽고, 상태를 바꾸는 나머지 메서드는 `window.webkit.messageHandlers.accentury.postMessage`로
 /// 네이티브에 넘긴다. **웹은 이 차이를 모른다** — `bridge.ts`는 한 글자도 바뀌지 않는다.
 ///
@@ -103,6 +103,14 @@ enum BridgeUserScript {
     /// 계정 Access 토큰이 setter보다 먼저 도착했을 때 놓아 두는 자리 (KAN-255). ``pendingSlotName``과 같은 규칙·같은 근거.
     static let pendingAccessTokenSlotName = "__accenturyPendingAccessToken"
 
+    /// 네이티브가 계정 종류(`guest`·`member`·`""`)를 밀어 넣는 전역 함수 이름 (KAN-330, webview-bridge.md §11). ``setterName``과 같은 규칙.
+    /// 안드로이드 `getAccountKind`는 JS 스레드에서 게이트 상태를 동기로 읽지만 여기는 동기 반환이 없어 Access 토큰과 같은 구조로 심고,
+    /// 문서 커밋 때와 게이트 상태가 바뀔 때 민다(`WebViewHost`). 미는 조건도 같다(커밋된 origin이 allowlist 안).
+    static let accountKindSetterName = "__accenturySetAccountKind"
+
+    /// 계정 종류가 setter보다 먼저 도착했을 때 놓아 두는 자리 (KAN-330). ``pendingSlotName``과 같은 규칙·같은 근거.
+    static let pendingAccountKindSlotName = "__accenturyPendingAccountKind"
+
     /// 페이지 스크립트보다 먼저 도는 주입 소스.
     ///
     /// 계약 버전을 손으로 적지 않고 ``AccenturyCore/bridgeContractVersion``에서 조립한다 —
@@ -118,6 +126,8 @@ enum BridgeUserScript {
           try { delete window.\(pendingAdConsentSlotName); } catch (e) { window.\(pendingAdConsentSlotName) = ""; }
           var accessToken = (typeof window.\(pendingAccessTokenSlotName) === "string") ? window.\(pendingAccessTokenSlotName) : "";
           try { delete window.\(pendingAccessTokenSlotName); } catch (e) { window.\(pendingAccessTokenSlotName) = ""; }
+          var accountKind = (typeof window.\(pendingAccountKindSlotName) === "string") ? window.\(pendingAccountKindSlotName) : "";
+          try { delete window.\(pendingAccountKindSlotName); } catch (e) { window.\(pendingAccountKindSlotName) = ""; }
           /* payload는 대개 문자열 하나지만 `logEvent`(KAN-33)만 인자가 둘이라 객체로 싣는다 —
              웹 계약(`bridge.ts`)이 `logEvent(name, paramsJson)`이고, 이름을 JSON 안에 끼워 넣으면
              네이티브가 파라미터와 같은 신뢰 수준으로 읽게 된다. 봉투의 모양을 갈라 두면 이름은
@@ -139,6 +149,10 @@ enum BridgeUserScript {
             value: function(a){ accessToken = (typeof a === "string") ? a : ""; },
             writable: false, configurable: false
           });
+          Object.defineProperty(window, "\(accountKindSetterName)", {
+            value: function(k){ accountKind = (typeof k === "string") ? k : ""; },
+            writable: false, configurable: false
+          });
           window.AccenturyBridge = Object.freeze({
             getContractVersion: function(){ return \(contractVersion); },
             getSessionToken: function(){ return token; },
@@ -158,7 +172,9 @@ enum BridgeUserScript {
             startIntonationRecording: function(json){ post("startIntonationRecording", String(json)); },
             openSettings: function(){ post("openSettings"); },
             retryUpload: function(id){ post("retryUpload", String(id)); },
-            onLocationChanged: function(u){ post("onLocationChanged", String(u)); }
+            onLocationChanged: function(u){ post("onLocationChanged", String(u)); },
+            getAccountKind: function(){ return accountKind; },
+            requestLogin: function(){ post("requestLogin"); }
           });
         })();
         """
@@ -208,6 +224,14 @@ enum BridgeUserScript {
         return "(function(){ var a = \(literal);"
             + " if (typeof window.\(accessTokenSetterName) === \"function\") { window.\(accessTokenSetterName)(a); }"
             + " else { window.\(pendingAccessTokenSlotName) = a; } })();"
+    }
+
+    /// 네이티브 → JS 계정 종류 주입 한 조각 (KAN-330). ``adConsentPushJs(_:)``와 같은 모양·같은 근거이고 setter·대기 자리 이름만 다르다.
+    static func accountKindPushJs(_ kind: String) -> String {
+        let literal = jsStringLiteral(kind)
+        return "(function(){ var k = \(literal);"
+            + " if (typeof window.\(accountKindSetterName) === \"function\") { window.\(accountKindSetterName)(k); }"
+            + " else { window.\(pendingAccountKindSlotName) = k; } })();"
     }
 
     /// 임의 문자열을 JS 소스에 넣어도 되는 리터럴로 만든다.

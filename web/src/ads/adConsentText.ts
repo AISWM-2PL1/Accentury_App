@@ -65,12 +65,31 @@ export const AD_CONSENT_DETAIL_TAIL = '을 봐 주세요.'
 export const AD_CONSENT_ALLOW = '맞춤형 광고 받기'
 
 /**
- * iOS 앱에서만 붙는 한 줄 (KAN-288 HIG-A). [맞춤형 광고 받기] 직후 시스템 추적 허용(ATT) 창이 뜨는데
+ * iOS 앱에서만 붙는 한 줄 (KAN-288 HIG-A). [계속](KAN-330 전에는 [맞춤형 광고 받기]) 직후 시스템 추적 허용(ATT) 창이 뜨는데
  * (`ios/Accentury/Ads/AdsController.swift`), 앞에서 고른 직후 또 묻는 창이 예고 없이 뜨면 고장처럼 읽힌다.
  */
 export const AD_CONSENT_IOS_ATT_NOTE = 'iOS에서는 추적 허용 창이 뜨거나, 이미 거부했다면 설정 앱으로 안내해요'
 
 export const AD_CONSENT_DENY = '일반 광고만 보기'
+
+/*
+ * ## iOS 앱은 선택지 없이 설명 + [계속]이다 (KAN-330·KAN-344, 빌드 15 거절 2026-11-09)
+ *
+ * App Store 5.1.1(iv): ATT 창 앞의 사전 안내는 사용자가 ATT 창으로 가는 것을 막거나 미리 거절하게 하면 안 된다. 두 선택지
+ * 시트의 [일반 광고만 보기]가 그 「미리 거절」로 읽혔다. iOS에서 맞춤형 여부는 ATT 결과가 정한다 — [계속]은 늘 같은 값
+ * (`setAdConsent('granted')`)을 보내고 네이티브가 ATT를 띄워 허용일 때만 맞춤형으로 요청한다(webview-bridge §8.7).
+ * 안드로이드 앱과 브라우저 웹은 ATT가 없어 두 선택지를 그대로 둔다. 고지 4요소는 iOS 문안도 다 말한다 — ④가 「추적 허용 창에서
+ * 허용하지 않으셔도」로 바뀔 뿐이다.
+ */
+
+/** iOS 앱의 ②③④. 고르는 자리가 다음에 뜨는 시스템 추적 허용 창이라는 것까지 말한다 */
+export const AD_CONSENT_EFFECT_IOS =
+  '다음에 뜨는 추적 허용 창에서 허용하시면 기기의 광고 식별자로 관심사에 맞는 광고를 보여 드리고, 허용하지 않으셔도 광고는 나오지만 맞춤형이 아닌 일반 광고만 나와요.'
+
+/** iOS 앱의 바꾸는 길 — 맞춤형 여부가 iOS 추적 설정을 따른다 (「맞춤형 광고 설정」 재열기의 [계속]은 거부 상태면 설정 앱을 연다) */
+export const AD_CONSENT_CHANGE_HINT_IOS = '맞춤형 광고 여부는 iPhone 설정 앱의 「추적」에서 언제든 바꿀 수 있어요.'
+
+export const AD_CONSENT_CONTINUE = '계속'
 
 /** 인트로 하단, 방침 링크 옆의 철회·재동의 링크 */
 export const AD_CONSENT_SETTINGS_LINK = '맞춤형 광고 설정'

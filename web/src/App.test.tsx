@@ -702,6 +702,60 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     }
   })
 
+  describe('게스트 홈 (KAN-330)', () => {
+    const GUEST_PROMPT = '로그인하면 단어 학습과 억양 학습을 할 수 있어요'
+
+    it('게스트면 홈 조회 없이 레벨 테스트 카드·학습 로그인 안내·탭 바다 — 등급 카드·출석 없음 (PR #70 리뷰)', () => {
+      setSearch(`${APP}&screen=home`)
+      const requestMicPermission = vi.fn()
+      window.AccenturyBridge = {
+        requestMicPermission,
+        startVoiceItem: vi.fn(),
+        getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+        getAccessToken: () => 'guest-acc',
+        getAccountKind: () => 'guest',
+      }
+      render(<App navigate={vi.fn()} />)
+      expect(screen.getByText(GUEST_PROMPT)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '다시 테스트하기' })).toBeNull()
+      expect(tabBar()).not.toBeNull()
+      // 시작은 회원과 같이 네이티브로 넘긴다 — 세션은 네이티브가 Bearer 없는 익명 세션으로 만든다(webview-bridge §15)
+      fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
+      expect(requestMicPermission).toHaveBeenCalledTimes(1)
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('계정 종류를 모르는 앱이 홈 조회에서 403 AUTH_GUEST_NOT_ALLOWED를 받으면 같은 안내로 바뀐다', async () => {
+      setSearch(`${APP}&screen=home`)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: false,
+          status: 403,
+          json: async () => ({ code: 'AUTH_GUEST_NOT_ALLOWED', message: '로그인이 필요한 기능입니다.', retryable: false }),
+        })),
+      )
+      render(<App navigate={vi.fn()} />)
+      expect(await screen.findByText(GUEST_PROMPT)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
+    })
+
+    it('회원(member)·모르는 앱은 예전 홈 그대로다', () => {
+      setSearch(`${APP}&screen=home`)
+      window.AccenturyBridge = {
+        requestMicPermission: vi.fn(),
+        startVoiceItem: vi.fn(),
+        getContractVersion: () => REQUIRED_BRIDGE_VERSION,
+        getAccessToken: () => 'acc',
+        getAccountKind: () => 'member',
+      }
+      render(<App navigate={vi.fn()} />)
+      expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
+      expect(screen.queryByText(GUEST_PROMPT)).toBeNull()
+    })
+  })
+
   it('인트로(앱 안)에는 탭 바가 없다 — 테스트 진입 쪽 화면이다', () => {
     setSearch(APP)
     render(<App navigate={vi.fn()} />)

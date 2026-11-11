@@ -11,6 +11,8 @@ import { IntroScreen } from './intro/IntroScreen'
 import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
 import { attendanceWeek, fetchLearningHome, formatKstDate, type HomeStreak, type LearningHome } from './learning/homeApi'
 import { WordLearningRoute } from './learning/WordLearningScreens'
+import { GuestLoginPrompt } from './learning/GuestLoginPrompt'
+import { AUTH_GUEST_NOT_ALLOWED, WordLearningError } from './learning/wordApi'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
 import { START_FAILED_MESSAGE, STORAGE_UNAVAILABLE_MESSAGE } from './intro/introText'
@@ -20,6 +22,7 @@ import {
   isBridgeCompatible,
   isStandaloneWeb,
   notifyLocationChanged,
+  readAccountKind,
   requestMicPermission,
   waitForAccessToken,
 } from './bridge/bridge'
@@ -817,6 +820,13 @@ function HomeScreen({
 }) {
   const [home, setHome] = useState<LearningHome | null>(null)
   /*
+   * 게스트(KAN-330)는 등급 카드·출석을 쓸 수 없다(서버 403). 레벨 테스트는 연다 — 빌드 15가 비계정 기능의 로그인 강제로
+   * 거절됐고, 레벨 테스트는 네이티브가 Bearer 없는 익명 세션으로 돌린다(webview-bridge §15, PR #70 리뷰·2026-11-10 팀 결정).
+   * 그래서 게스트 홈은 테스트 전 카드와 [레벨 테스트 시작] 아래에 학습용 로그인 안내를 둔다. 아는 앱이면 홈 조회를 아예
+   * 부르지 않고, 모르는 채 조회했다가 403 `AUTH_GUEST_NOT_ALLOWED`를 받아도 같은 화면으로 바꾼다. 번역기는 탭 바로 간다
+   */
+  const [guest, setGuest] = useState(() => readAccountKind() === 'guest')
+  /*
    * 맞춤형 광고 동의 (KAN-304, PR #59 리뷰 2026-11-03). 로그인 앱은 홈 [레벨 테스트 시작]이 인트로를 건너뛰어
    * 인트로의 동의 시트가 한 번도 안 떴고, 그래서 ATT 창도 안 떴다 — 심사 메모는 「첫 실행 동의 시트에서 허용하면
    * ATT」라 적는다. 홈이 이 실행의 첫 화면이라 인트로와 같이 마운트 시 `unknown`이면 시트를 띄운다(IntroScreen과 같은
@@ -832,17 +842,20 @@ function HomeScreen({
   const [consentSheetOpen, setConsentSheetOpen] = useState(consent === 'unknown' || adConsentRequested)
   const sheetOpen = consentSheetOpen && consent !== null
   useEffect(() => {
+    if (guest) return
     let alive = true
     fetchLearningHome(apiBase).then(
       (result) => {
         if (alive) setHome(result)
       },
-      () => {},
+      (error: unknown) => {
+        if (alive && error instanceof WordLearningError && error.code === AUTH_GUEST_NOT_ALLOWED) setGuest(true)
+      },
     )
     return () => {
       alive = false
     }
-  }, [apiBase])
+  }, [apiBase, guest])
 
   const levelTest = home?.levelTest ?? null
   const streak = home?.streak
@@ -852,17 +865,20 @@ function HomeScreen({
     <>
       <main className="screen" inert={sheetOpen}>
         {/* 테스트 후는 위에서부터 쌓는다(시안 32) — 카드·버튼·출석이 한 화면을 채워 가운데 정렬이면 위만 빈다 */}
-        <div className={levelTest === null ? 'screen__body' : 'screen__body home-after'}>
-          {levelTest === null ? (
-            /* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */
-            <div className="card home-card">
-              <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v3.png`} alt="" />
-              <h1 className="type-title">내 사투리 레벨 테스트</h1>
-              <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
-              <Button onClick={onStartTest} style={{ width: '100%' }}>
-                레벨 테스트 시작
-              </Button>
-            </div>
+        <div className={levelTest === null || guest ? 'screen__body' : 'screen__body home-after'}>
+          {levelTest === null || guest ? (
+            <>
+              {/* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */}
+              <div className="card home-card">
+                <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v3.png`} alt="" />
+                <h1 className="type-title">내 사투리 레벨 테스트</h1>
+                <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
+                <Button onClick={onStartTest} style={{ width: '100%' }}>
+                  레벨 테스트 시작
+                </Button>
+              </div>
+              {guest && <GuestLoginPrompt />}
+            </>
           ) : (
             <>
               {/* 시안 32: 테이프 붙은 종이에 캐릭터 왼쪽, 순위·등급명·응시일 오른쪽 */}
@@ -886,7 +902,7 @@ function HomeScreen({
               </Button>
             </>
           )}
-          {streak !== undefined && (
+          {streak !== undefined && !guest && (
             <section className="home-attendance" aria-labelledby="home-attendance-title">
               <h2 id="home-attendance-title" className="type-label">
                 연속 출석

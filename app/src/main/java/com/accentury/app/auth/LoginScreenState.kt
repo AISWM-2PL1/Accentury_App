@@ -43,7 +43,7 @@ fun visibleProviders(configured: Set<Provider>, fakeIdp: Boolean): List<Provider
  * 서버 로그인의 실패 안내는 [AuthGateController]의 SignedOut.error가 들고, 여기는 서버에 닿기 전
  * IdP 단계의 실패([idpError])만 든다.
  */
-class LoginScreenState(consented: Boolean = false) {
+class LoginScreenState(consented: Boolean = false, guestStep: Boolean = false, over14: Boolean = false) {
 
     /** 개인정보 수집·이용 동의(필수). 동의 없이 로그인 버튼이 눌리지 않는 것이 [AuthApi.login]의 전제다. */
     var consented: Boolean by mutableStateOf(consented)
@@ -57,6 +57,30 @@ class LoginScreenState(consented: Boolean = false) {
         private set
 
     val buttonsEnabled: Boolean get() = consented && !inFlight
+
+    /**
+     * 「로그인 없이 둘러보기」의 동의 단계를 보이는 중 (KAN-330). 소셜 가입은 추가 정보 화면이 생년월일로 만 14세를 확인하지만
+     * 게스트는 그 화면이 없어 여기서 직접 확인을 받는다 — 방침의 만 14세 미만 미수집 원칙(§3.10)과 같은 선이다.
+     */
+    var guestStep: Boolean by mutableStateOf(guestStep)
+
+    /** 「만 14세 이상입니다」(필수, 둘러보기 전용). */
+    var over14: Boolean by mutableStateOf(over14)
+
+    /** 둘러보기는 방침 동의와 만 14세 확인이 둘 다 있어야 눌린다 — 서버는 방침 동의만 검사하므로 나이 확인은 화면이 막는다. */
+    val guestEnabled: Boolean get() = consented && over14 && !inFlight
+
+    /** [둘러보기]. 막혀 있을 때 들어온 호출은 무시하고, 도는 동안 다른 버튼을 막는다 ([signIn]과 같은 규칙). */
+    suspend fun startGuest(start: suspend () -> Unit) {
+        if (!guestEnabled) return
+        inFlight = true
+        idpError = null
+        try {
+            start()
+        } finally {
+            inFlight = false
+        }
+    }
 
     /**
      * 버튼 하나를 눌렀다. [idp]로 SDK 로그인을 하고, 토큰을 받으면 [login](서버 로그인)으로 넘긴다.
@@ -78,10 +102,10 @@ class LoginScreenState(consented: Boolean = false) {
     }
 
     companion object {
-        /** 회전에는 동의만 넘긴다. 진행 중이던 로그인은 화면 코루틴과 함께 취소되므로 되살릴 것이 없다. */
-        fun saver(): Saver<LoginScreenState, Boolean> = Saver(
-            save = { it.consented },
-            restore = { LoginScreenState(consented = it) },
+        /** 회전에는 동의·둘러보기 단계만 넘긴다. 진행 중이던 로그인은 화면 코루틴과 함께 취소되므로 되살릴 것이 없다. */
+        fun saver(): Saver<LoginScreenState, List<Boolean>> = Saver(
+            save = { listOf(it.consented, it.guestStep, it.over14) },
+            restore = { LoginScreenState(consented = it[0], guestStep = it[1], over14 = it[2]) },
         )
     }
 }

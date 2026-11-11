@@ -74,22 +74,22 @@
   --font-display: 'Jua', system-ui, sans-serif;
   --font-body: system-ui, -apple-system, 'Noto Sans KR', sans-serif;
 
-  --text-display: 40px;
-  --text-headline: 26px;
-  --text-title: 30px;
-  --text-title-sm: 20px;
-  --text-body: 16px;
-  --text-body-sm: 15px;
-  --text-label: 14px;
-  --text-caption: 13px;
+  --text-display: 2.5rem;
+  --text-headline: 1.625rem;
+  --text-title: 1.875rem;
+  --text-title-sm: 1.25rem;
+  --text-body: 1rem;
+  --text-body-sm: 0.9375rem;
+  --text-label: 0.875rem;
+  --text-caption: 0.8125rem;
   /* 하단 탭 바 라벨 (KAN-288 디자인 검수 HIG-A). 다섯 칸에 「사투리 번역기」가 한 줄로 들어가는
      크기이자 최소 글자 11px 규칙 위의 값이다. 행간은 16 고정 */
-  --text-tab-label: 12px;
+  --text-tab-label: 0.75rem;
   /* 녹음 타이머·8초 경고 캡슐 (KAN-161 4단계). Jua 16 — 숫자 두 자리가 초마다 바뀌는 자리라
      본문 글꼴로 적으면 "지금 몇 초"가 문단의 한 낱말처럼 읽힌다. 앱은 M3의 titleSmall 슬롯이
      이 값을 든다 (Type.kt) */
-  --text-timer: 16px;
-  --text-intro-hero: 56px;
+  --text-timer: 1rem;
+  --text-intro-hero: 3.5rem;
 
   /* 굵기는 둘뿐이다 (KAN-161 2단계). Jua는 굵기 하나짜리 폰트라 700·900을 주면 브라우저가
      합성 볼드를 만들어 획이 뭉갠다 — 제목·대사·등급은 전부 400이다. 본문에서 무게를 주는
@@ -100,14 +100,18 @@
   --leading-tight: 1.15;
   --leading-normal: 1.5;
 
-  /* ── 간격·반경·크기 (정본 §4) ── */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
+  /* ── 간격·반경·크기 (정본 §4) ──
+     크기 단위 (KAN-313, ux-ui.md 「크기 단위 규칙」): 위 글자 크기와 아래 간격·컨트롤 높이·카드
+     치수는 rem(16px = 1rem)이다 — OS 글자 크기를 키우면 WebView 글자와 그 글자를 담는 칸이 함께
+     커져야 한다 (WCAG 1.4.4). px로 남긴 것은 블록마다 이유를 적었다. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
 
+  /* 반경은 글자와 함께 커지면 안 되는 장식 치수 - px 유지 (KAN-313). 큰 글자에서 모서리만 둥글어지면 종이가 아니라 알약이 된다 */
   /* 디자인 3 (KAN-288)의 4/6/10 체계. sm은 칩·별점 칸, md는 버튼·선택지·입력칸, lg는 카드·시트다.
      xl은 따로 두지 않고 lg와 같은 10으로 접는다 — 시안에 10보다 큰 종이 모서리가 없다 */
   --radius-sm: 4px;
@@ -117,35 +121,43 @@
   --radius-full: 9999px;
 
   /* 상단 워드마크 앱바 높이 (KAN-288, 시안 `.appbar` min-height 56). `ui/AppBar`가 화면 위에 고정으로 선다 */
-  --app-bar-height: 56px;
+  --app-bar-height: 3.5rem;
 
   /* 화면 위쪽 여백 (KAN-161 3단계, 네이티브 반영 4단계). 64는 그대로이고, 디자인 3(KAN-288)부터는 그 자리를
      앱바(56)가 채우고 본문은 앱바 아래 8에서 시작한다 — 앱 안 화면의 세로 배치가 앱바 전과 한 픽셀도 달라지지
      않게 64를 앱바 + 8로 나눴다. 상단 안전 영역은 지금 0이지만(viewport-fit=cover 없음) 켜는 날 앱바와 같이 내려간다.
      앱은 `Dimens.screenPaddingTop`이 같은 값을 든다 */
   --screen-padding-top: calc(var(--app-bar-height) + var(--space-2) + env(safe-area-inset-top));
+  /* 화면 좌우 여백 (KAN-313, PR #68 리뷰 2026-11-10). 값은 --space-6(24)과 같지만 px로 고정한다 — rem이면 글자 200%에서
+     48px이 되어 360 폭 본문이 312→264px로 줄고, 낱말 끊김과 줄 수가 늘어난다. 여백은 글자를 담는 칸이 아니라 화면 가장자리
+     몫이다. .screen·.item-screen·앱바·하단 시트 패널이 같이 쓴다. 위아래 간격은 rem 그대로다 */
+  --screen-padding-x: 24px;
 
-  --touch-target-min: 48px;
+  /* 터치 영역 하한 (KAN-313). 글자를 키우면 3rem으로 같이 커지고, 줄여도 48px 아래로는 내려가지 않는다.
+     48 하한이 걸린 높이 토큰(--control-height-*)도 같은 max(48px, …) 형식이다 */
+  --touch-target-min: max(48px, 3rem);
   /* 화면의 주 컨트롤 높이 — 주 버튼과 선택지가 같이 쓴다. 48은 손가락이 닿는 최소선이고
      이 값은 시안이 "이 화면에서 누를 것"에 준 크기다 */
-  --control-height-lg: 48px;
+  --control-height-lg: max(48px, 3rem);
   /* 선택지 한 칸 (KAN-288). 버튼(48)보다 6 높다 — 시안의 선택지는 글 한 줄 + 위아래 여백 14다 */
-  --control-height-choice: 54px;
-  --prompt-card-min-height: 152px;
-  --content-max-width: 320px;
+  --control-height-choice: max(48px, 3.375rem);
+  --prompt-card-min-height: 9.5rem;
+  --content-max-width: 20rem;
   --opacity-disabled: 0.6;
-  --prompt-card-padding: 24px;
+  --prompt-card-padding: 1.5rem;
+  /* 아래 막대·도트 두께와 강조선 굵기는 글자와 함께 커지면 안 되는 장식 치수 - px 유지 (KAN-313) */
   /* 막대 두께. 결과 점수 막대·입력 레벨 바·남은 시간 게이지가 같이 쓴다.
      12에서 8로 내렸다 (KAN-161 4단계) — 아트보드의 막대가 전부 8이고 진행 도트도 8이라,
      한 화면에 두 굵기가 섞이면 같은 "막대"인데 무게가 달라 보인다 */
   --progress-bar-height: 8px;
   /* 진행 도트 하나의 두께. 막대와 값은 같지만 뜻이 다르다 — 저쪽은 그릇, 이쪽은 칸 하나다 */
   --progress-dot-height: 8px;
+  /* 그림 슬롯 - px 유지 (KAN-313). 원 안 아이콘은 글자 옆에 서지 않는 그림이라 글자 크기를 따라가면 글자 자리만 먹는다 */
   --hero-icon-size: 112px;
   --intro-emphasis-line-width: 7px;
   /* F0 곡선 레인 하나. 앱 Dimens.curveLaneHeight와 같은 값이다 (design-tokens.md) —
      시안(72px)보다 키웠다: 실제 기기에서는 아래가 비어 곡선이 납작했다 */
-  --curve-lane-height: 120px;
+  --curve-lane-height: 7.5rem;
 
   /* ── 그림자 (정본 §5, KAN-161) ──
      오프셋 종이 그림자. 번지지도 흐려지지도 않고, 어긋난 자리에 단색 면이 그대로 깔린다.
@@ -154,6 +166,7 @@
      어긋난 거리를 따로 토큰으로 둔 이유는 눌림이다: 누르면 그림자가 사라지고 본체가
      정확히 이만큼 오른쪽·아래로 내려가 그림자 자리를 덮는다. 두 값이 갈리면 종이가
      바닥에 닿지 않고 어긋난 채로 멈춘다. */
+  /* 그림자 오프셋은 글자와 함께 커지면 안 되는 장식 치수 - px 유지 (KAN-313). 종이 두께는 글자 크기와 무관하다 */
   /* 디자인 3 (KAN-288)에서 3/4 → 4/5. 반경이 작아진 만큼 종이 두께를 한 칸 늘려 떠 있는 것이 읽히게 */
   --paper-shadow-x: 4px;
   --paper-shadow-y: 5px;
@@ -212,6 +225,7 @@
  * 크기는 테두리·여백을 포함해 센다. 기본값(content-box)이면 min-height·width가 콘텐츠
  * 영역에만 걸려서, 같은 152라는 값을 줘도 네이티브(Compose defaultMinSize는 여백 포함)와
  * 웹의 실제 크기가 갈린다 - 대사 카드가 네이티브 152dp, 웹 196px로 벌어져 있었다.
+ * 웹 값은 이제 9.5rem이다(`--prompt-card-min-height`, 기본 글자 16px에서 152px = 152dp, KAN-313).
  */
 *,
 *::before,
@@ -226,6 +240,26 @@ body {
   line-height: var(--leading-normal);
   color: var(--color-foreground);
   background: var(--color-background);
+  /* 칸보다 긴 낱말은 어디서든 끊어 칸 밖으로 넘치지 않게 한다 (KAN-313). OS 글자 크기 200%에서 좁은 칸의
+     한 낱말이 가로 스크롤을 만든다. 낱말 단위 끊기(keep-all)는 전역으로 걸지 않는다 — 기본 글자에서
+     이미 줄이 바뀌는 문단의 끊는 자리가 달라져 시안 배치가 바뀐다. 문단마다 건 keep-all은 그대로다 */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 큰 글자에서는 낱말 단위로 줄을 바꾼다 (KAN-313). 한국어 기본 끊기(word-break: normal)는 음절 사이 어디서나
+ * 끊어 「명예주/민」「오/늘」처럼 낱말이 쪼개진다. 기본 글자에는 걸지 않는다 — 이미 두 줄인 문단의 끊는 자리가
+ * 바뀌어 시안 배치가 달라진다(body 주석). 칸보다 긴 한 낱말은 위 overflow-wrap이 여전히 끊는다.
+ * body에 걸고 상속시킨다 — 문단마다 따로 정한 끊기 규칙은 그대로 이긴다.
+ *
+ * 큰 글자 표식 `html[data-large-text]`는 `ui/textScale.ts`가 루트 글자 크기 > 16px일 때 단다. 처음엔 body를
+ * 컨테이너(`container: page / inline-size`)로 두고 화면 폭 rem으로 쟀는데 버렸다(PR #68 리뷰 2026-11-10) — 옛 엔진
+ * (Chromium 128 이하, WebKit 284730@main 이전 = iOS 16~17)은 container-type에 layout containment를 걸어 body가
+ * position: fixed 앱바·탭 바·시트의 기준 상자가 되고(Chromium 129·WebKit 284730@main에서 수정), 화면 폭으로는
+ * 320 폭 기본 글자와 412 폭 125%를 가르지 못해 중간 배율에서 넘침이 남았다(KAN-327)
+ */
+html[data-large-text] body {
+  word-break: keep-all;
 }
 
 /*

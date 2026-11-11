@@ -437,3 +437,28 @@ Jetpack Compose(상태관리·테마·Navigation-Compose·Canvas·애니메이�
 - prod Release 승격 전까지 prod 앱에서는 동작을 확인할 수 없다(KAN-270 익명 빌드).
 
 관련: [architecture.md](architecture.md), [audio-capture.md](audio-capture.md), [mvp-spec.md](mvp-spec.md)
+
+## 크기 단위 규칙 (rem/px 구분, KAN-313)
+
+루트 글자 크기를 키우면 WebView 글자도 따라 커져야 한다(WCAG 1.4.4, 200%까지). 앱 WebView에서 OS 글자 설정이 루트 글자 크기에 닿게 하는 것은 후속 네이티브 티켓 몫이다 — iOS WKWebView는 Dynamic Type을 루트에 반영하지 않아 지금은 16px 그대로이고, Android `textZoom`이 루트 rem 기준까지 바꾸는지는 실측 전이다(PR #68 리뷰 2026-11-10). 그래서 웹 CSS의 크기는 rem을 기본으로 쓰고, 기준은 16px = 1rem이다. 환산은 ÷16으로 정확히 하고 소수는 4자리까지 적는다(15px → 0.9375rem, 13px → 0.8125rem).
+
+| 단위 | 대상 | 이유 |
+|---|---|---|
+| rem | 글자 크기 `--text-*`, 간격 `--space-*`, `--app-bar-height`, `--prompt-card-min-height`(9.5rem = 152px)·`--prompt-card-padding`, `--content-max-width`, `--curve-lane-height`, 행간 px 값, 글자를 품은 칸의 폭·높이·padding·gap·min-height(번호 상자, 출석 동그라미, 카운트다운 다이얼 등) | 글자가 커질 때 담는 칸도 같이 커져야 넘치거나 겹치지 않는다 |
+| `max(48px, 3rem)` | `--touch-target-min`, `--control-height-lg`, `--control-height-choice`(`max(48px, 3.375rem)`) | 글자를 키우면 같이 커지고, 줄여도 손가락이 닿는 48px 아래로 내려가지 않는다 |
+| px | 테두리(1~2px), 그림자 오프셋(`--paper-shadow-*`, box-shadow), 밑줄·outline·포커스 링 두께와 offset, `--radius-*`, 막대·도트·강조선 두께(`--progress-bar-height`·`--progress-dot-height`·`--intro-emphasis-line-width`), 테이프·탭 띠 같은 장식 조각, `.sr-only` 1px, SVG 좌표 | 장식 치수다. 글자와 함께 두꺼워지면 큰 글자 화면에서 선과 그림자가 무거워지기만 한다 |
+| px | 그림 슬롯(`.illustration--*`, `.home-card__icon`, `.intonation-curve`, `--hero-icon-size` 112px), 광고 칸 | 그림은 글자 크기와 무관하다. 같이 키우면 큰 글자에서 글자 자리를 그림이 먼저 차지한다 |
+| px | 화면 좌우 여백 `--screen-padding-x`(24px: `.screen`·`.item-screen`·`.app-bar`·하단 시트 패널) | 200%에서 48px이 되면 360 폭 본문이 312→264px로 줄어 낱말 끊김과 줄 수가 늘어난다(PR #68 리뷰 2026-11-10). 위아래 간격은 rem 그대로다 |
+| px | `@media` 브레이크포인트 | 미디어 쿼리 안의 rem은 루트 font-size가 아니라 브라우저 초기값을 따른다. 쓸 때 따로 판단하고 주석을 단다 |
+
+남긴 px에는 파일 주석으로 이유를 적는다(`tokens.css` 블록 주석, `components.css`·`learning.css` 머리 주석). 네이티브(android/, ios/)는 이 티켓에서 건드리지 않는다(위 첫 문단의 후속 티켓). TSX 인라인 px는 실측 0건이다(`src`의 px는 전부 주석 속 숫자).
+
+새 CSS를 쓸 때 판정 기준은 하나다 — **글자 크기가 바뀌면 이 값도 같이 커져야 하나?** 그렇다면 rem, 아니면 px와 이유 주석.
+
+**200% 점검 결과 (2단계).** 루트 글자 150·200%, 폭 412·360에서 화면 16종(인트로·홈·음성/단어 문항·결과·억양 코스·단어 세트·번역기·마이크 차단·동의·지역)을 재 보니 가로 스크롤은 홈(출석 7칸, 등급 카드)과 결과(점수 카드)에서, 넘침은 하단 탭 라벨·학습 행 메타에서 났다. 고친 패턴은 넷이다 — 나란히 선 행은 `flex-wrap` + 기준 0/`min-width: min(…, 100%)`로 내림(결과 점수 카드·행 메타), 기본 글자에서 줄이 바뀌면 안 되는 자리는 `@container (max-width: …rem)`로 큰 글자일 때만 내림·줄바꿈(홈 등급 카드, 탭 라벨), 고정 칸 수 격자는 `repeat(auto-fit, minmax(…rem, 1fr))`(출석), 칸보다 긴 낱말은 body 전역 `overflow-wrap: anywhere`. `word-break: keep-all`은 전역으로 걸지 않는다 — 기본 글자에서 이미 두 줄인 문단의 끊는 자리가 달라져 시안이 바뀐다(버튼 라벨에만 더했다). 기본 글자 배치는 수정 전후 34개 화면에서 요소 위치·크기가 전부 같다.
+
+**큰 글자 표식 (`html[data-large-text]`).** 큰 글자 전용 규칙은 전부 이 속성 아래에 둔다. `web/src/ui/textScale.ts`의 `syncLargeText()`가 루트 computed font-size가 16.5px(16px + 부동소수 여유 0.5px)보다 크면 속성을 달고 아니면 걷는다. `main.tsx`가 첫 렌더 전에 한 번, 그리고 `resize` 때마다 부른다. 루트 글자 크기를 주입하는 후속 네이티브 티켓은 주입 직후 `syncLargeText()`를 부르거나 `resize`를 보내야 한다 — 글자 크기 변경은 브라우저가 알려 주지 않는다. 기본 글자(속성 없음)에서는 아래 규칙이 하나도 걸리지 않아, 320·360·412 폭 100%의 요소 위치·크기가 origin/Dev와 같다.
+
+**낱말 가운데 끊김 보정 (3단계).** 한국어 기본 끊기는 음절 사이 어디서나 끊어 큰 글자에서 「명예주/민」「오/늘」「인/사/와」가 났다. 큰 글자 표식이 있을 때만 body에 `word-break: keep-all`을 걸어 상속시킨다(문단마다 정한 끊기 규칙은 그대로 이긴다). 칸보다 넓은 한 낱말은 칸에 맞춰 글자를 줄인다 — 홈 등급명 `min(--text-display, (100cqi - 카드 padding) / 4.5)`, 탭 라벨 `min(--text-tab-label, 32cqi)`(360 폭 200%에서 24→21px, 라벨 두 줄이라 본문 아래 여백 192px 안에 든다). 홈 등급 카드는 큰 글자 표식 아래에서 `flex-wrap: wrap` + 글자 칸 `flex: 1 1 calc(15.25rem - 122px)`로, 카드 칸(`.home-after`, 화면 폭 - 좌우 여백 48px)이 18rem보다 좁으면 글자 칸을 그림 아래로 내린다(360 폭 약 109%, 412 폭 약 127%부터. 412 폭 125%는 364px > 360px라 같은 행). 탭 라벨은 큰 글자 표식만으로 줄바꿈을 허용한다. 크기 조건에 rem·em `@container` 조건을 쓰지 않는다 — 이 앱의 홈 화면에서는 칸 폭이 그대로이고 루트 글자 크기만 바뀌면 Chromium이 그 조건을 다시 재지 않았다(2026-11-10 실측: 360 폭에서 100%→150%로 바꾸면 조건이 거짓으로 남아 등급명이 넘치고 가로 스크롤 13px, Codex 재현 확인. 단순한 최소 예제에서는 재평가되므로 엔진의 일반 동작이라고 단정하지 않는다). 앱이 실행 중에 글자 크기를 바꾸는 경우라 E2E(그린 뒤 배율을 건다)가 잡는다. `cqi` 단위는 칸 크기 기준이라 문제없다. 결과 점수 줄 `min-width: min(8rem, 100%)`도 큰 글자 표식 아래다. 번호·제목·화살표 행(`.word-set-row`)과 번역기 라벨 줄은 `flex-wrap`으로 내린다. 남은 끊김은 칸보다 넓은 한 낱말이 `overflow-wrap: anywhere`로 끊기는 경우다(360 폭 200% 인트로 히어로·문항 제목). `container-type`은 `.home-after`·`.tab-bar__item` 두 곳에만 있고(등급명·탭 라벨 글자 크기의 `cqi` 기준), 두 곳 모두 자손에 `position: fixed`가 없다(탭 바·시트는 `main` 밖, 탭 칸 안은 아이콘·라벨뿐). 회귀 검사는 `web/e2e/text-scale.spec.ts`가 맡는다 — 화면 11종(녹음 중 포함) × 412 폭 100·115·125·150·200%, 360 폭 100·110·150·200%, 가로 스크롤·48 터치·넘침·잘림, 그리고 표식이 배율과 맞는지(100%는 없음, 그 위는 있음).
+
+**경위 (리뷰 2026-11-09 → 2026-11-10).** 처음에는 body를 이름 붙은 컨테이너(`container: page / inline-size`)로 두고 `@container page (max-width: 19.9rem)`(처음 19.5rem, 리뷰 P1 2026-11-09에 올림)로 화면 폭을 rem으로 재서 큰 글자를 가렸다. PR #68 리뷰(2026-11-10)에서 두 문제가 나와 JS 표식으로 바꿨다. ① 옛 엔진(Chromium 128 이하, WebKit 284730@main 이전 = iOS 16~17 Safari·WKWebView)은 `container-type`에 layout containment를 걸어, body가 `position: fixed` 앱바·탭 바·닫기·시트의 기준 상자가 된다 — 기본 글자에서도 긴 문서에서 앱바·탭 바가 어긋날 수 있다(Chromium 129, WebKit 284730@main에서 수정). ② 화면 폭 rem으로는 320 폭 100%(20rem)와 412 폭 125%(20.6rem)를 가르지 못해, 중간 배율(412 폭 약 111~124%, 360 폭 약 106~114%)에서 재배치가 꺼진 채 탭 라벨 「사투리 번역기」·홈 등급명이 칸을 넘었다(KAN-327). 표식을 루트 글자 크기로 바꾼 뒤 360·412 폭 106~124%(2% 간격) 화면 17종에서 넘침·잘림·가로 스크롤은 0건이다(340건 실측 2026-11-10, 화면 좌우 여백 px 고정·등급 카드 flex 전환 뒤 기준). 탭 라벨의 칸 폭 조건 `@container (max-width: 4rem)`은 뺐다 — 412 폭 120~122%·360 폭 106%는 칸이 4rem보다 넓은데도 라벨이 2px 넘쳤다.

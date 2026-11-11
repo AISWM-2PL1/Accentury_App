@@ -1,4 +1,5 @@
 import AccenturyCore
+import AuthenticationServices
 import SwiftUI
 import UIKit
 
@@ -18,10 +19,14 @@ struct LoginScreen: View {
     let signIn: (Provider) async -> IdpOutcome
     /// 토큰을 받은 뒤의 서버 로그인 (``AccenturyCore/AuthGateController/login(_:privacyPolicyVersion:)``)
     let onLogin: (LoginCredential) async -> Void
+    /// 「로그인 없이 둘러보기」 동의를 마친 뒤의 게스트 발급 (KAN-330, ``AccenturyCore/AuthGateController/startGuest(privacyPolicyVersion:)``)
+    let onStartGuest: () async -> Void
     /// [보기] — 방침 문서를 연다
     let onOpenPrivacy: () -> Void
 
     @StateObject private var state = LoginScreenState()
+    /// 「로그인 없이 둘러보기」를 눌러 동의 단계에 있다 (KAN-330). 화면을 갈지 않고 아래 묶음만 바꾼다 — 히어로와 실패 안내 자리가 그대로다.
+    @State private var guestStep = false
 
     var body: some View {
         // 키 작은 화면에서는 히어로와 버튼이 겹치지 않고 스크롤된다 — 최소 높이만 화면에 맞추고 넘치면 늘어난다.
@@ -37,19 +42,33 @@ struct LoginScreen: View {
                     // 아래 묶음 — 웹 인트로의 CTA·안내 자리. 실패 안내·대기 표시는 버튼 바로 위에 붙는다.
                     VStack(spacing: Papercut.space4) {
                         statusRow
-                        VStack(spacing: Papercut.space3) {
-                            ForEach(providers, id: \.self) { provider in
-                                AccenturyButton(
-                                    text: "\(providerLabel(provider))로 계속하기",
-                                    variant: .secondary,
-                                    enabled: state.buttonsEnabled,
-                                    fillsWidth: true,
-                                    leading: AnyView(IdpLogo(provider: provider)),
-                                    action: { Task { await state.signIn(idp: { await signIn(provider) }, login: onLogin) } }
-                                )
+                        if guestStep {
+                            guestConsent
+                        } else {
+                            VStack(spacing: Papercut.space3) {
+                                ForEach(providers, id: \.self) { provider in
+                                    if provider == .APPLE {
+                                        // 애플은 시스템 버튼이다 (KAN-344-6, App Review 4.8 + HIG Sign in with Apple). 로고·글자를 우리가
+                                        // 그리면 HIG 위반으로 거절될 수 있다. 흐름(AppleIdp)과 막기 규칙은 다른 버튼과 같다.
+                                        AppleSignInButton(enabled: state.buttonsEnabled) {
+                                            Task { await state.signIn(idp: { await signIn(provider) }, login: onLogin) }
+                                        }
+                                    } else {
+                                        AccenturyButton(
+                                            text: "\(providerLabel(provider))로 계속하기",
+                                            variant: .secondary,
+                                            enabled: state.buttonsEnabled,
+                                            fillsWidth: true,
+                                            leading: AnyView(IdpLogo(provider: provider)),
+                                            action: { Task { await state.signIn(idp: { await signIn(provider) }, login: onLogin) } }
+                                        )
+                                    }
+                                }
                             }
+                            ConsentRow(checked: $state.consented, onOpenPrivacy: onOpenPrivacy)
+                            // 계정 없이 쓸 수 있는 기능(사투리 번역기)의 입구 (KAN-330, App Store 지침 5.1.1(v)). 소셜 버튼보다 가볍게 글자 버튼이다.
+                            AccenturyButton(text: "로그인 없이 둘러보기", variant: .text, enabled: !state.inFlight) { guestStep = true }
                         }
-                        ConsentRow(checked: $state.consented, onOpenPrivacy: onOpenPrivacy)
                     }
                 }
                 .padding(.horizontal, Papercut.space6)
@@ -60,6 +79,27 @@ struct LoginScreen: View {
         }
         // 워드마크 앱바 (KAN-288 디자인 3). 위 8 + 앱바 48 + 8 = 예전 위 여백 64라 본문 시작 높이는 그대로다.
         .paperAppBar()
+    }
+
+    /// 게스트 동의 단계 (KAN-330). 방침 동의(소셜 로그인과 같은 값·같은 버전)와 만 14세 이상 확인 둘 다 필수다 — 게스트에게는 생년월일을
+    /// 받는 추가 정보 화면이 없어 나이를 여기서 확인한다(가입 연령 제한, 방침 7항). 서버는 동의 두 필드만 받는다.
+    private var guestConsent: some View {
+        VStack(alignment: .leading, spacing: Papercut.space3) {
+            Text("로그인 없이 둘러보기")
+                .papercutType(.headline)
+                .foregroundColor(Papercut.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("사투리 번역기를 바로 쓸 수 있어요. 억양 학습과 단어 학습은 로그인한 뒤에 쓸 수 있어요")
+                .papercutType(.bodySmall)
+                .foregroundColor(Papercut.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            ConsentRow(checked: $state.consented, onOpenPrivacy: onOpenPrivacy)
+            CheckRow(checked: $state.ageConfirmed, label: "만 14세 이상입니다 (필수)")
+            AccenturyButton(text: "둘러보기 시작", enabled: state.guestEnabled, fillsWidth: true) {
+                Task { await state.startGuest(onStartGuest) }
+            }
+            AccenturyButton(text: "돌아가기", variant: .text, enabled: !state.inFlight, fillsWidth: true) { guestStep = false }
+        }
     }
 
     @ViewBuilder
@@ -143,23 +183,78 @@ private struct ConsentRow: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Button { checked.toggle() } label: {
-                HStack(spacing: Papercut.space2) {
-                    ConsentCheckMark(checked: checked)
-                    Text("개인정보 수집·이용 동의 (필수)")
-                        .papercutType(.bodySmall)
-                        .foregroundColor(Papercut.ink)
-                    Spacer(minLength: 0)
-                }
-                .frame(minHeight: Papercut.touchTargetMin)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(checked ? .isSelected : [])
-
+            CheckRow(checked: $checked, label: "개인정보 수집·이용 동의 (필수)")
             AccenturyButton(text: "보기", variant: .text, action: onOpenPrivacy)
         }
+    }
+}
+
+/// 체크박스 한 줄 — 방침 동의와 게스트의 만 14세 확인(KAN-330)이 같은 모양을 쓴다.
+private struct CheckRow: View {
+
+    @Binding var checked: Bool
+    let label: String
+
+    var body: some View {
+        Button { checked.toggle() } label: {
+            HStack(spacing: Papercut.space2) {
+                ConsentCheckMark(checked: checked)
+                Text(label)
+                    .papercutType(.bodySmall)
+                    .foregroundColor(Papercut.ink)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: Papercut.touchTargetMin)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(checked ? .isSelected : [])
+    }
+}
+
+/// 시스템 Sign in with Apple 버튼 (KAN-344-6). `SignInWithAppleButton`(SwiftUI)은 요청·완료를 버튼이 직접 처리해서 지금의 흐름
+/// (``AppleIdp``의 nonce·재인증 공용 `ASAuthorizationController`)을 갈라 놓는다 — 그래서 UIKit 버튼을 감싸 탭만 받는다. 모양은 크림 위
+/// 보조 버튼과 같은 무게인 흰 바탕 + 외곽선(`whiteOutline`), 글자는 `continue`(「Apple로 계속하기」, 시스템이 현지화)다. 높이·모서리는
+/// 다른 소셜 버튼(보조 버튼 48·`radiusMD`)과 맞춘다 — HIG는 최소 높이 30pt 이상, 모서리 반경은 앱에 맞춰 바꿀 수 있다고 한다.
+/// https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple
+/// https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidbutton
+private struct AppleSignInButton: View {
+
+    let enabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        AppleIdButtonView(action: action)
+            .frame(maxWidth: .infinity)
+            .frame(height: Papercut.touchTargetMin)
+            .disabled(!enabled)
+            .opacity(enabled ? 1 : Papercut.opacityDisabled)
+    }
+}
+
+private struct AppleIdButtonView: UIViewRepresentable {
+
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
+        let button = ASAuthorizationAppleIDButton(authorizationButtonType: .continue, authorizationButtonStyle: .whiteOutline)
+        button.cornerRadius = Papercut.radiusMD
+        button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
+        return button
+    }
+
+    func updateUIView(_ button: ASAuthorizationAppleIDButton, context: Context) {
+        context.coordinator.action = action
+        // SwiftUI `.disabled`는 UIKit 컨트롤에 번지지 않는다 — 막기는 ``LoginScreenState/buttonsEnabled``와 같은 값을 직접 건다.
+        button.isEnabled = context.environment.isEnabled
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void = {}
+        @objc func tapped() { action() }
     }
 }
 
@@ -197,6 +292,7 @@ private struct IdpLogo: View {
             case .NAVER: Image("IdpNaver")
             // HIG: 로고와 글자는 검정(또는 흰색) — 우리 잉크가 그 자리다. 크기는 글자 높이에 맞춘다.
             case .APPLE: Image(systemName: "apple.logo").font(.system(size: 19, weight: .medium)).foregroundColor(Papercut.ink)
+            case .GUEST: EmptyView()
             }
         }
         .accessibilityHidden(true)
@@ -209,6 +305,7 @@ private func providerLabel(_ provider: Provider) -> String {
     case .KAKAO: return "카카오"
     case .NAVER: return "네이버"
     case .APPLE: return "Apple"
+    case .GUEST: return "게스트"
     }
 }
 
@@ -232,6 +329,7 @@ struct AuthFailureBlock<Action: View>: View {
         case .rateLimited: return "잠시 뒤에 \(verb)할 수 있어요"
         case .underAge: return "만 14세 이상만 가입할 수 있어요"
         case .unsupported: return "지금은 \(verb)할 수 없어요"
+        case .guestLimitExceeded: return "오늘은 로그인 없이 둘러볼 수 없어요"
         }
     }
 
@@ -244,6 +342,8 @@ struct AuthFailureBlock<Action: View>: View {
                 ?? "접속이 몰리고 있어요 · 잠시 뒤에 다시 눌러 주세요"
         case .underAge: return nil
         case .unsupported: return "앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요"
+        // 같은 IP의 하루 상한이다 (KAN-330, 서버 KAN-329). 소셜 로그인은 막히지 않는다. 문구는 안드로이드와 같다(KAN-330 5단계).
+        case .guestLimitExceeded: return "로그인해서 이용해 주세요"
         }
     }
 }

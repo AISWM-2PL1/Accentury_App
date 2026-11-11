@@ -218,6 +218,13 @@ struct WebViewHost: View {
     /// 탭 바의 [설정] (KAN-252). 메인 스레드로 온다.
     var onOpenSettings: () -> Void = {}
 
+    /// 브리지 `getAccountKind`가 웹에 건넬 값 — `guest`·`member`·`""` (KAN-330, ``AccenturyCore/AuthGateState/accountKind``).
+    /// 광고 동의와 같은 이유로 값이다: 문서 변수라 미는 쪽이 변화를 봐야 하고, 게이트 상태가 바뀌면 이 뷰가 다시 그려져 다시 민다.
+    var accountKind: String = ""
+
+    /// 게스트의 [로그인] (브리지 `requestLogin`, KAN-330). 메인 스레드로 온다.
+    var onRequestLogin: () -> Void = {}
+
     /// 대기 화면의 [다시 보내기] (KAN-288, webview-bridge.md §14). 빈 값이 아닌 attemptId가 메인 스레드로 온다.
     var onRetryUpload: (String) -> Void = { _ in }
 
@@ -268,6 +275,8 @@ struct WebViewHost: View {
                     refreshAccessToken: refreshAccessToken,
                     onStartIntonationRecording: onStartIntonationRecording,
                     onOpenSettings: onOpenSettings,
+                    accountKind: accountKind,
+                    onRequestLogin: onRequestLogin,
                     onRetryUpload: onRetryUpload,
                     onPageStarted: onPageStarted,
                     onEdgeSwipeBack: onEdgeSwipeBack,
@@ -328,6 +337,8 @@ private struct WebViewRepresentable: UIViewRepresentable {
     let refreshAccessToken: () async -> RefreshOutcome?
     let onStartIntonationRecording: (IntonationRecordingStart) -> Void
     let onOpenSettings: () -> Void
+    let accountKind: String
+    let onRequestLogin: () -> Void
     let onRetryUpload: (String) -> Void
     let onPageStarted: (String?) -> Void
     let onEdgeSwipeBack: () -> Void
@@ -358,6 +369,8 @@ private struct WebViewRepresentable: UIViewRepresentable {
         )
         // 해제 콜백은 `dismantleUIView`가 static이라 Coordinator를 거쳐야 한다.
         coordinator.onReleased = onWebViewReleased
+        coordinator.onRequestLogin = onRequestLogin
+        coordinator.accountKind = accountKind
         return coordinator
     }
 
@@ -441,6 +454,7 @@ private struct WebViewRepresentable: UIViewRepresentable {
         context.coordinator.allowedOrigins = allowedOrigins
         context.coordinator.sessionToken = sessionToken
         context.coordinator.adConsent = adConsent
+        context.coordinator.accountKind = accountKind
         context.coordinator.edgePan?.isEnabled = edgeSwipeEnabled
 
         // 실제로 로드를 건 URL. update는 갱신마다 도는데 매번 load하면 로드가 끝나지 않으므로,
@@ -466,6 +480,8 @@ private struct WebViewRepresentable: UIViewRepresentable {
         context.coordinator.pushSessionToken()
         // 광고 동의도 같은 자리에서 (KAN-196) — 시트에서 고른 직후 저장값이 바뀌는데 문서는 인트로 그대로다.
         context.coordinator.pushAdConsent()
+        // 계정 종류도 (KAN-330) — 게이트 상태가 바뀌면 이 뷰가 다시 그려진다.
+        context.coordinator.pushAccountKind()
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: WebViewCoordinator) {
@@ -527,6 +543,13 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
     /// 이 문서에 마지막으로 밀어 넣은 광고 동의 (KAN-196). ``pushedToken``과 같은 수명·같은 규칙.
     private var pushedAdConsent: String?
 
+    /// 지금 네이티브가 든 계정 종류 (KAN-330). 광고 동의와 같은 규칙으로 문서에 민다.
+    var accountKind: String = ""
+    /// 이 문서에 마지막으로 밀어 넣은 계정 종류 (KAN-330). ``pushedToken``과 같은 수명·같은 규칙.
+    private var pushedAccountKind: String?
+    /// 브리지 `requestLogin` (KAN-330). 만들 때 ``WebViewRepresentable``이 넣는다.
+    var onRequestLogin: () -> Void = {}
+
     /// 마지막으로 읽은 계정 Access 토큰 (KAN-255). 문서 커밋 때 ``readAccessToken``으로, 갱신 성공 때 새 값으로 바뀐다.
     private var accessToken: String = ""
 
@@ -582,6 +605,11 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
                 guard let self else { return false }
                 return isAllowedWebUrl(self.webView?.url?.absoluteString, allowedOrigins: self.allowedOrigins)
             },
+            // 웹이 넘긴 URL 인자 판정 (KAN-324). 최신 allowlist를 self에서 읽는다.
+            isUrlAllowed: { [weak self] url in
+                guard let self else { return false }
+                return isAllowedWebUrl(url, allowedOrigins: self.allowedOrigins)
+            },
             onRequestMicPermission: { [weak self] in self?.onRequestMicPermission() },
             onStartVoiceItem: { [weak self] in self?.onStartVoiceItem($0) },
             onStartRetest: { [weak self] in self?.onStartRetest() },
@@ -598,7 +626,8 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
             onOpenSettings: { [weak self] in self?.onOpenSettings() },
             onRetryUpload: { [weak self] in self?.onRetryUpload($0) },
             // SPA 이동은 문서 전환과 같은 URL 추적으로 접는다 (KAN-290).
-            onLocationChanged: { [weak self] in self?.onPageStarted($0) }
+            onLocationChanged: { [weak self] in self?.onPageStarted($0) },
+            onRequestLogin: { [weak self] in self?.onRequestLogin() }
         )
     )
 
@@ -717,6 +746,25 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
         #endif
     }
 
+    /// 계정 종류를 지금 문서에 민다 (KAN-330). ``pushAdConsent(force:)``와 같은 판정·같은 인자 자리다 — allowlist 밖 문서의
+    /// `getAccountKind()`는 영영 `""`다. 값은 비밀이 아니라 찍어도 된다.
+    func pushAccountKind(force: Bool = false) {
+        guard let webView else { return }
+        let current = webView.url?.absoluteString
+        guard shouldPushToken(
+            hasCommitted: hasCommittedDocument,
+            forced: force,
+            pushedToken: pushedAccountKind,
+            sessionToken: accountKind,
+            urlAllowed: isAllowedWebUrl(current, allowedOrigins: allowedOrigins)
+        ) else { return }
+        pushedAccountKind = accountKind
+        webView.evaluateJavaScript(BridgeUserScript.accountKindPushJs(accountKind), completionHandler: nil)
+        #if DEBUG
+        smokeLog("ACCOUNT: pushed origin=\(webOrigin(current ?? "") ?? "?") kind=\(accountKind) forced=\(force)")
+        #endif
+    }
+
     /// 저장소에서 Access를 새로 읽어 민다 (KAN-255). 읽기가 `async`라 결과가 돌아올 때의 문서에 민다 — 그 사이 문서가
     /// 바뀌었어도 ``pushAccessToken(force:)``의 판정이 지금 문서의 origin을 다시 본다.
     private func reloadAndPushAccessToken() {
@@ -829,6 +877,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
         pushedToken = nil
         pushedAdConsent = nil
         pushedAccessToken = nil
+        pushedAccountKind = nil
         // 이 로드가 지금부터 "기다리는 메인 프레임 로드"다. 앞 로드가 밀려났다면 그 신원은
         // 여기서 버려지고, 뒤늦게 도착할 앞 로드의 실패는 아래 판정이 걸러낸다.
         currentMainFrameNavigation = identity(navigation)
@@ -843,8 +892,10 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
         pushedToken = nil
         pushedAdConsent = nil
         pushedAccessToken = nil
+        pushedAccountKind = nil
         pushSessionToken()
         pushAdConsent()
+        pushAccountKind()
         // 계정 토큰 (KAN-255): 든 값을 바로 밀고(대기 자리에라도 놓인다), 저장소를 새로 읽어 바뀌었으면 다시 민다.
         pushAccessToken()
         reloadAndPushAccessToken()
@@ -869,6 +920,7 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
         pushSessionToken(force: true)
         pushAdConsent(force: true)
         pushAccessToken(force: true)
+        pushAccountKind(force: true)
         currentMainFrameNavigation = nil
         model.onPageFinished()
         #if DEBUG

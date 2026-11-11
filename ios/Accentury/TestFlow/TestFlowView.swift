@@ -41,6 +41,17 @@ struct TestFlowView: View {
     /// 「맞춤형 광고 설정」 행을 켜고 끈다(테스트 진행·시작 게이트 중엔 비활성). 안드로이드 `TestFlow(onAdConsentAvailable)`의 거울이다.
     @Binding private var adConsentAvailable: Bool
 
+    /// 게스트 계정인가 (KAN-330, ``AccenturyCore/AuthGateState/guest``). 게스트는 서버가 계정 전용 API를 403으로 막으므로 네이티브도
+    /// 그 길을 열지 않는다 — 레벨 테스트 세션은 Bearer 없는 익명 세션이고(서버 `AccountTokens.forSession`: "게스트의 레벨테스트는 토큰 없이
+    /// 익명 세션으로 본다"), 억양 학습 녹음 호출은 버린다(학습은 회원 전용, 웹이 게스트에게 로그인 안내를 띄운다).
+    private let guest: Bool
+
+    /// 브리지 `getAccountKind`의 값 (KAN-330). 로그인 빌드의 호출자가 게이트 상태에서 넣는다 — 익명 빌드는 `""`.
+    private let accountKind: String
+
+    /// 브리지 `requestLogin` (KAN-330). 게스트를 로그인 화면으로 보내는 것은 호출자(``AuthGateView``)가 한다.
+    private let onRequestLogin: () -> Void
+
     /*
      * "이번 실행이 시스템 종료 뒤 장면 복원인가" 표시의 `@SceneStorage` 키 (KAN-252 4단계 보완). 호출자(``AuthGateView``의
      * 로그인 화면·``AnonymousFlowView``)가 이 키로 들고 처음 나타날 때 true로 세운다. 장면 저장소는 시스템이 프로세스를 죽였다
@@ -52,7 +63,7 @@ struct TestFlowView: View {
     static let sceneRestorationKey = "TestFlowView.restorable"
 
     /// - Parameters:
-    ///   - anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). nil이면 계정 모드다
+    ///   - anonymousConsent: 익명 모드의 로컬 동의 (KAN-270 6단계, ``AnonymousFlowView``). 게스트도 쓴다(KAN-330, PR #70 리뷰). nil이면 계정 모드다
     ///   - restoresSavedState: 장면 복원 표시(``sceneRestorationKey``)의 지금 값. 모델이 처음 만들어질 때만 쓰인다
     init(
         restoresSavedState: Bool,
@@ -61,20 +72,37 @@ struct TestFlowView: View {
         covered: Bool = false,
         adConsentRequests: Int = 0,
         adConsentAvailable: Binding<Bool> = .constant(false),
+        guest: Bool = false,
+        accountKind: String = "",
+        onRequestLogin: @escaping () -> Void = {},
         onOpenSettings: @escaping () -> Void
     ) {
         self.onOpenSettings = onOpenSettings
+        self.guest = guest
+        self.accountKind = accountKind
+        self.onRequestLogin = onRequestLogin
         self.adConsentRequests = adConsentRequests
         _adConsentAvailable = adConsentAvailable
         self.tabBarEntry = tabBarEntry
         self.covered = covered
         // 익명 세션에는 프로필이 없어 서버가 프로필 미완료 거절을 주지 않는다 — 관문(AuthHub)을 깨우지 않게 빈 함수다.
         _model = StateObject(
-            wrappedValue: anonymousConsent.map {
-                TestFlowModel(
-                    restoresSavedState: restoresSavedState, onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry
+            wrappedValue: guest
+                // 게스트는 Bearer를 싣지 않는다 — 실으면 세션 생성이 403 `AUTH_GUEST_NOT_ALLOWED`다 (KAN-330). 프로필 미완료 거절도 오지 않는다.
+                // 익명 세션이라 동의·지역은 익명 빌드처럼 기기 로컬 값이다 — 안드로이드 게스트와 같다(PR #70 리뷰). 기본 클라이언트는
+                // 로그인 빌드에서 Bearer를 실으므로 익명 갈래로 합치지 않고 plain 클라이언트를 직접 준다.
+                ? TestFlowModel(
+                    restoresSavedState: restoresSavedState,
+                    sessionClient: URLSessionSessionClient(baseURL: AppConfig.apiBaseURL),
+                    onProfileIncomplete: {},
+                    anonymousConsent: anonymousConsent,
+                    tabBarEntry: tabBarEntry
                 )
-            } ?? TestFlowModel(restoresSavedState: restoresSavedState, tabBarEntry: tabBarEntry)
+                : anonymousConsent.map {
+                    TestFlowModel(
+                        restoresSavedState: restoresSavedState, onProfileIncomplete: {}, anonymousConsent: $0, tabBarEntry: tabBarEntry
+                    )
+                } ?? TestFlowModel(restoresSavedState: restoresSavedState, tabBarEntry: tabBarEntry)
         )
     }
 
@@ -196,11 +224,13 @@ struct TestFlowView: View {
                     // 억양 학습 녹음 호출 (KAN-253). 학습은 로그인 필수라 로그인을 끈 빌드는 버린다 — 그 빌드의 웹은 계정
                     // 토큰이 없어 A-2까지 오지 못한다(안드로이드와 같다).
                     onStartIntonationRecording: { start in
-                        guard AppConfig.loginEnabled else { return }
+                        guard AppConfig.loginEnabled, !guest else { return }
                         intonationMicOk = MicPermission.currentStatus().granted
                         intonation.open(start)
                     },
                     onOpenSettings: onOpenSettings,
+                    accountKind: accountKind,
+                    onRequestLogin: onRequestLogin,
                     // 대기 화면의 [다시 보내기] (KAN-288, §14) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 결과 전달이 싣는다
                     onRetryUpload: { uploads.retry($0) },
                     onPageStarted: { currentWebUrl = $0 },

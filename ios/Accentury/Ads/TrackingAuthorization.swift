@@ -10,9 +10,9 @@ import UIKit
 /// active가 될 때까지 한 번 기다린다.
 ///
 /// 결과는 **저장하지도, `setAdConsent`로 접지도 않는다** (webview-bridge.md §8.5). 시트 상태는
-/// 사용자가 시트에서 고른 값이어야 「맞춤형 광고 설정」이 보여 주는 상태와 맞는다. ATT를 거부하면
-/// SDK가 IDFA를 못 읽어 맞춤형 요청이 사실상 비맞춤이 되는데, 그건 SDK 몫이다 — 우리 저장값은
-/// 여전히 `granted`이고 요청도 맞춤형으로 나간다.
+/// 시트에서 본 값이어야 「맞춤형 광고 설정」이 보여 주는 상태와 맞는다. 대신 요청을 만들 때마다 ``status``를 읽어 ATT가
+/// `authorized`가 아니면 npa로 보낸다 (KAN-344-1, `AdRequests.make`) — 예전에는 거부여도 맞춤형 요청을 내고 SDK가 IDFA 없이
+/// 처리하게 뒀는데, 사전 시트가 [계속] 하나가 되면서 맞춤형 여부를 ATT 답 하나가 정하게 됐다.
 @MainActor
 enum TrackingAuthorization {
 

@@ -2,6 +2,10 @@ package com.accentury.app.web
 
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.analytics.EventParam
+import com.accentury.app.auth.AuthGateState
+import com.accentury.app.auth.AuthUser
+import com.accentury.app.auth.Provider
+import com.accentury.app.auth.accountKindOf
 import com.accentury.app.bridge.GuideF0
 import com.accentury.app.bridge.IntonationRecordingStart
 import com.accentury.app.recording.GuideF0Fixture
@@ -45,6 +49,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = { received = it },
@@ -73,6 +78,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { true },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = { fired++ },
             onStartVoiceItem = {},
@@ -101,6 +107,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { false },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = { fired++ },
             onStartVoiceItem = {},
@@ -132,6 +139,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowedNow },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = { fired++ },
             onStartVoiceItem = {},
@@ -161,6 +169,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -202,6 +211,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowedNow },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -237,6 +247,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { true },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -268,6 +279,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -306,6 +318,7 @@ class AccenturyBridgeTest {
             postToMain = { it() },
             isCurrentUrlAllowed = { true },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -329,6 +342,7 @@ class AccenturyBridgeTest {
         postToMain = { it() },
         isCurrentUrlAllowed = { true },
         isOriginAllowedNow = { originAllowedNow },
+        isUrlAllowed = { true },
         sessionToken = { token },
         onRequestMicPermission = {},
         onStartVoiceItem = {},
@@ -464,6 +478,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowedNow },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = { received = it },
@@ -494,6 +509,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -561,6 +577,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -636,6 +653,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -692,6 +710,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { originAllowedNow },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -773,6 +792,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowedNow },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -828,6 +848,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -864,13 +885,19 @@ class AccenturyBridgeTest {
     }
 
     /** 계정 토큰 두 메서드용 (KAN-255). 이 둘 말고는 아무 것도 하지 않는 브리지다. */
-    private class TokenHarness(originAllowedNow: Boolean = true, urlAllowed: () -> Boolean = { true }) {
+    private class TokenHarness(
+        originAllowedNow: Boolean = true,
+        urlAllowed: () -> Boolean = { true },
+        kind: String = "",
+    ) {
         val queue = FakeMainQueue()
         var refreshRequested = 0
+        var loginRequested = 0
         val bridge = AccenturyBridge(
             postToMain = queue::post,
             isCurrentUrlAllowed = urlAllowed,
             isOriginAllowedNow = { originAllowedNow },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -885,7 +912,42 @@ class AccenturyBridgeTest {
             onHaptic = {},
             accessToken = { "access-1" },
             onRefreshAccessToken = { refreshRequested++ },
+            accountKind = { kind },
+            onRequestLogin = { loginRequested++ },
         )
+    }
+
+    @Test
+    fun `계정 종류는 공급자 값 그대로이고 origin 불허면 빈 문자열이다 - KAN-330`() {
+        assertEquals("guest", TokenHarness(kind = "guest").bridge.getAccountKind())
+        assertEquals("member", TokenHarness(kind = "member").bridge.getAccountKind())
+        assertEquals("", TokenHarness(kind = "").bridge.getAccountKind())
+        assertEquals("", TokenHarness(originAllowedNow = false, kind = "guest").bridge.getAccountKind())
+    }
+
+    @Test
+    fun `게이트 상태가 계정 종류로 접힌다 - 홈이 서는 두 상태만 값이 있다`() {
+        val u = AuthUser(id = "u", provider = Provider.GUEST)
+        assertEquals("guest", accountKindOf(AuthGateState.Guest(u)))
+        assertEquals("member", accountKindOf(AuthGateState.SignedIn(u.copy(provider = Provider.GOOGLE))))
+        assertEquals("", accountKindOf(AuthGateState.SignedOut()))
+        assertEquals("", accountKindOf(AuthGateState.Checking))
+        assertEquals("", accountKindOf(AuthGateState.NeedsProfile(u)))
+    }
+
+    @Test
+    fun `로그인 요청은 실행 시점 origin이 허용일 때만 간다`() {
+        val ok = TokenHarness()
+        ok.bridge.requestLogin()
+        ok.queue.drain()
+        assertEquals(1, ok.loginRequested)
+
+        var allowedNow = true
+        val moved = TokenHarness(urlAllowed = { allowedNow })
+        moved.bridge.requestLogin()
+        allowedNow = false
+        moved.queue.drain()
+        assertEquals(0, moved.loginRequested)
     }
 
     @Test
@@ -932,6 +994,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = urlAllowed,
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -987,6 +1050,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = urlAllowed,
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -1033,6 +1097,7 @@ class AccenturyBridgeTest {
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = { true },
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -1070,13 +1135,18 @@ class AccenturyBridgeTest {
     }
 
     /** onLocationChanged를 한 번 부르고 콜백이 받은 URL들을 돌려준다 (KAN-290). */
-    private fun locationChanged(url: String, allowed: Boolean = true): List<String> {
+    private fun locationChanged(
+        url: String,
+        allowed: Boolean = true,
+        isUrlAllowed: (String) -> Boolean = { true },
+    ): List<String> {
         val queue = FakeMainQueue()
         val urls = mutableListOf<String>()
         val bridge = AccenturyBridge(
             postToMain = queue::post,
             isCurrentUrlAllowed = { allowed },
             isOriginAllowedNow = { false },
+            isUrlAllowed = isUrlAllowed,
             sessionToken = { "" },
             onRequestMicPermission = {},
             onStartVoiceItem = {},
@@ -1107,5 +1177,42 @@ class AccenturyBridgeTest {
     @Test
     fun `allowlist 밖 origin의 화면 전환 알림은 버린다`() {
         assertEquals(emptyList<String>(), locationChanged("https://evil.example.com/", allowed = false))
+    }
+
+    // --- onLocationChanged 인자 allowlist (KAN-324, 보안 리포트 2026-11-04 #10) ---
+
+    @Test
+    fun `allowlist 밖 origin이나 javascript 스킴을 인자로 넘긴 화면 전환 알림은 버린다`() {
+        val reject: (String) -> Boolean = { false }
+        assertEquals(emptyList<String>(), locationChanged("https://evil.example/?screen=home", isUrlAllowed = reject))
+        assertEquals(emptyList<String>(), locationChanged("javascript:alert(1)//", isUrlAllowed = reject))
+    }
+
+    @Test
+    fun `인자 판정을 통과한 화면 전환 알림은 판정한 그 값을 넘긴다`() {
+        val url = "https://web.example.com/?bridge=2&app=1.0&screen=home"
+        val seen = mutableListOf<String>()
+        assertEquals(listOf(url), locationChanged(url, isUrlAllowed = { seen += it; true }))
+        assertEquals(listOf(url), seen)
+    }
+
+    @Test
+    fun `호출한 문서가 allowlist 밖이면 인자 판정과 무관하게 버린다`() {
+        assertEquals(
+            emptyList<String>(),
+            locationChanged("https://web.example.com/?screen=home", allowed = false, isUrlAllowed = { true }),
+        )
+    }
+
+    // Codex 리뷰 P2(2026-11-10): 스텁 대신 실제 판정을 꽂는다. iOS testLocationChangedWithTheRealAllowlistCheckKeepsOnlyAllowedOrigins와 짝.
+    @Test
+    fun `실제 allowlist 판정을 꽂으면 우리 origin만 통과하고 다른 origin과 javascript 스킴은 버린다`() {
+        val real: (String) -> Boolean = { isAllowedWebUrl(it, setOf("https://web.example.com")) }
+        val delivered = listOf(
+            "https://web.example.com/?screen=home",
+            "https://phish.example/?screen=home",
+            "javascript:alert(1)//?screen=home",
+        ).flatMap { locationChanged(it, isUrlAllowed = real) }
+        assertEquals(listOf("https://web.example.com/?screen=home"), delivered)
     }
 }

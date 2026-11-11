@@ -1,7 +1,8 @@
 # 소셜 로그인 게이트 (KAN-224)
 
 앱 첫 화면(웹 인트로) 앞에 계정 관문을 세웠다. 구글·카카오·네이버(iOS는 애플까지)로 로그인하고, 추가 정보
-(이메일·이름·생년월일·성별·출신지역)가 다 차야 테스트로 들어간다. 서버 쪽 계약은 KAN-223(`Accentury_Server`
+(이메일·이름·생년월일·출신지역 필수, 성별 선택 — KAN-330)가 다 차야 테스트로 들어간다. 로그인 없이 번역기만 쓰는
+게스트 경로도 있다(§1 「게스트 둘러보기」). 서버 쪽 계약은 KAN-223(`Accentury_Server`
 `backend/.../auth/`, API 명세서 §3.9~§3.13)이다.
 
 이 문서가 KAN-224의 정본이다. 로고 출처와 브랜드 가이드 대조는 [social-login-logos.md](social-login-logos.md),
@@ -26,6 +27,9 @@ stateDiagram-v2
     SignedIn --> NeedsProfile: 세션 생성 403 AUTH_PROFILE_INCOMPLETE
     SignedIn --> SignedOut: 어느 요청에서든 Refresh 거절(401)
     NeedsProfile --> SignedOut: Refresh 거절(401) / [다른 계정으로 로그인]
+    Checking --> Guest: me() provider = GUEST (KAN-330)
+    SignedOut --> Guest: 둘러보기 동의 → POST /v0/auth/guest
+    Guest --> SignedOut: 설정 [로그인] / 브리지 requestLogin / Refresh 거절(401)
 ```
 
 | 상태 | 화면 | 코드 |
@@ -35,6 +39,7 @@ stateDiagram-v2
 | `SignedOut` | 로그인 (`auth/LoginScreen.kt` · `Auth/LoginScreen.swift`) | |
 | `NeedsProfile` | 추가 정보 (`auth/ProfileScreen.kt` · `Auth/ProfileScreen.swift`) | |
 | `SignedIn` | 기존 테스트 흐름(WebView 인트로) | 안드로이드 `MainActivity`의 `AuthGate`, iOS `AuthGateView` |
+| `Guest` (KAN-330) | 테스트 흐름(WebView 홈). 웹이 번역기·레벨 테스트 말고는 로그인 안내를 그린다 | Android `AuthGateState.Guest`, iOS `AuthGateState.guest` — 「게스트 둘러보기」 |
 
 시작 확인은 저장된 Access로 `me()`를 바로 부르지 않고 **Refresh부터 한다.** Refresh가 살아 있는지가 로그인
 상태의 정본이고, 오래 안 연 앱의 Access(30분)는 어차피 만료돼 있다. 거절(401)은 로그인 화면으로,
@@ -56,6 +61,8 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
 | 버튼 모양 | Papercut 보조 버튼 그대로 + 왼쪽에 각 사 공식 로고 | 2026-09-28 팀장 결정. 가이드 위반 목록은 social-login-logos.md |
 | 버튼 순서 | 구글 → 카카오 → 네이버 (+ iOS 애플) | 2026-09-28 팀장 결정 "구글, 카카오, 네이버, iOS는 apple 추가". `LOGIN_PROVIDERS` |
 | 히어로 배치 | 웹 인트로 히어로(워드마크·두 줄 제목·곡선 밑줄·부제)를 가로 가운데, 버튼 묶음 위 남은 칸의 세로 가운데. 워드마크는 히어로 안에 있어 로그인 화면만 앱바를 끈다(`PaperScreen(appBar = false)`) | 2026-09-28 팀장 결정 (커밋 cdfa46d). KAN-288 디자인 3(`818d6db`)에서 Android만 앱바 워드마크·왼쪽 정렬로 바뀌어 iOS와 갈렸고, 2026-10-29 사용자 결정으로 되돌림(PR #54). 동의 줄 위치는 Android 버튼 위·iOS 버튼 아래로 아직 다르다 |
+| 애플 버튼 (iOS) | 시스템 `ASAuthorizationAppleIDButton(authorizationButtonType: .continue, authorizationButtonStyle: .whiteOutline)`을 `UIViewRepresentable`로 감싼다(`Auth/LoginScreen.swift`). 글자는 시스템 현지화 「Apple로 계속하기」, 높이·모서리는 다른 소셜 버튼(48·`radiusMD`)과 같다 | KAN-330(KAN-344-6), App Store 빌드 15 거절 대응 묶음(4.8). SwiftUI `SignInWithAppleButton`을 쓰지 않는 이유: 그 버튼은 요청·완료를 직접 처리해, nonce·탈퇴 재인증을 쥔 `AppleIdp`(`IdpSdks.swift`)의 공용 `ASAuthorizationController` 흐름을 갈라 놓는다. 버튼은 탭만 받아 기존 애플 로그인으로 보낸다 |
+| 성별 | **선택 항목.** 추가 정보 화면에 남성·여성·「선택 안 함」, 「선택 안 함」·미선택은 `gender: null`(서버에 성별 없이 저장). 완료 판정(`isComplete`)에서 뺐다 | KAN-330, 서버 KAN-328, 애플 5.1.1(v)·5.1.1 — 기능에 필요 없는 개인정보를 필수로 받지 말 것. Android `ProfileInput.gender: String?`, iOS `ProfileInput.gender` 선택 |
 | 설정 없는 IdP | 버튼을 숨긴다 | 눌러야 SDK 오류로 떨어질 버튼을 세울 이유가 없다 (`visibleProviders`). 그래서 릴리스 빗장이 필요하다 (§4) |
 | IdP 화면 취소 | 오류 안내 없이 로그인 화면으로 | 로그인하지 않겠다는 뜻이지 실패가 아니다 (`IdpOutcome.Cancelled`) |
 | 로그아웃 화면 | **KAN-247 설정 화면 — Android(1단계)·iOS(2단계) 구현.** 웹 화면·녹음 화면 오른쪽 위 네이티브 톱니(팀 결정 A안: 웹·브리지 무변경, 시작 게이트·문항 권한 화면이 덮는 동안엔 숨김. 녹음 화면 표시·원 테두리 제거는 팀장 요청 2026-10-03 — 녹음 중 설정을 열면 녹음은 아래에서 계속됨) → 설정 화면(계정: 이름·이메일·로그인 방식) → [로그아웃] → 확인 창 → `logout { IdpLogout.all }` → 로그인 화면. 설정 화면은 TestFlow 위에 덮어 WebView를 살려 둔다(Android `auth/SettingsScreen.kt`, iOS `Auth/SettingsScreen.swift` — `AuthGateView`의 `ZStack`). 추가 정보 화면의 [다른 계정으로 로그인](Text 버튼)도 그대로 | 추가 정보 화면 출구는 만 14세 미만 거절·계정 잘못 고른 사용자가 갇히지 않게 하는 것. 계정 값은 게이트의 `SignedIn.user`라 별도 `/v0/users/me` 호출 없음. 서버 폐기가 실패해도 로컬 토큰은 지운다(`AuthGateController.logout`). 안드로이드는 화면 스코프에서 불러도 시작하면 취소되지 않고(회전 중에도 IdP 정리까지 끝냄 — KAN-247 리뷰 P1), 단계별 상한 10초·5초를 넘기면 그 단계만 버리고 로컬 정리로 간다(리뷰 재검증). iOS도 같은 상한이다(병합 전 리뷰). [회원 탈퇴]는 계정 섹션 맨 아래 — 아래 「회원 탈퇴」 |
@@ -69,7 +76,7 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
 
 애플 5.1.1(v)·Play 계정 삭제 정책이 앱 안 탈퇴를 요구한다. 설정 화면 계정 섹션 맨 아래 [회원 탈퇴] → 안내·확인 창의
 [탈퇴]로 두 번 누른다(팀 결정). 서버는 `POST /v0/users/me/withdrawal`(Bearer, 서버 KAN-241 §3.14)이고, 본문은 애플만
-`appleAuthorizationCode`를 싣는다 — Android는 빈 본문, iOS는 애플 계정만 본문이 있고 나머지는 본문 없이 보낸다(`AuthApi.withdraw`).
+`appleAuthorizationCode`를, 네이버만 `naverRefreshToken`을 싣는다(KAN-330, 아래) — 그 밖의 계정은 본문 없이 보낸다(Android는 OkHttp POST라 빈 본문, `AuthApi.withdraw`).
 
 | 서버 결과 | 판정 | 이유 |
 |---|---|---|
@@ -118,6 +125,45 @@ CheckFailed로, 저장소가 던지면 SignedOut으로 끝나 `Checking`에 남�
 - **확인 창이 시스템 알림(`.alert`)이다.** 누르면 곧바로 닫혀 창 안에 진행 중 라벨·실패 안내를 둘 수 없어서, 설정 화면의
   [회원 탈퇴] 버튼이 진행 중 `탈퇴하는 중`으로 바뀌고 실패 안내(StatusBlock)도 그 아래에 뜬다. 진행 중엔 닫기·로그아웃·탈퇴가
   막힌다. 익명 설정 화면에는 없다.
+
+**네이버 계정의 탈퇴는 네이버 연동도 끊는다 (KAN-330·KAN-344, 서버 KAN-343, 애플 5.1.1(v)).** 본문에 `{"naverRefreshToken":"..."}`를
+싣고, 서버가 그 Refresh 토큰을 교환해 네이버 연동을 해제한다. 값은 네이버 SDK가 자기 저장소에 들고 있는 Refresh 토큰이다(로그인 때
+서버로 보낸 값과 같고 앱이 따로 저장하지 않는다).
+
+| | 읽는 곳 | 조건 |
+|---|---|---|
+| Android | `auth/IdpSdks.kt` `naverRefreshToken()` = `NidOAuth.getRefreshToken()`(초기화 전이면 null) | 게이트가 `SignedIn.user.provider == NAVER`일 때만 공급자를 부르고, 없거나 던지거나 빈 값이면 빼고 보낸다(`AuthGateController.withdraw`) |
+| iOS | `Auth/IdpSdks.swift` `naverSdkRefreshToken()` = `NidOAuth.shared.refreshToken?.tokenString`(가짜 IdP·네이버 설정 없는 빌드면 nil) | Core `naverRefreshTokenForWithdrawal(provider:sdkRefreshToken:)` — NAVER이고 값이 비어 있지 않을 때만 |
+
+- **NAVER 계정만 싣는다.** 다른 제공자의 값은 서버가 무시하지만 보낼 이유가 없다. 애플의 `appleAuthorizationCode`와는 계정이 달라 한 본문에 같이 실리지 않는다
+- **서버 탈퇴가 IdP 정리보다 먼저다.** SDK 로그아웃(`IdpLogout.all`)이 SDK의 토큰을 지우므로 토큰은 그 앞에서 읽어 탈퇴 요청에 싣는다
+- 토큰이 없으면(앱 재설치로 SDK 저장소가 비었을 때 등) 탈퇴는 그대로 하고 서버가 네이버 정리만 건너뛴다 — 애플 코드가 없을 때와 같은 판단
+
+### 게스트 둘러보기 (KAN-330, 서버 KAN-329)
+
+App Store 빌드 15 거절(2026-11-09, 5.1.1(v) — 계정 기반이 아닌 기능에 로그인을 강제하지 말 것) 대응이다. 게스트는 사투리 번역기와
+레벨 테스트를 쓴다(팀 결정, 레벨 테스트는 PR #70 리뷰 뒤 2026-11-10 추가). 단어·억양 학습만 로그인이 필요하다. 브리지 계약은 [webview-bridge.md](webview-bridge.md) §15.
+
+1. 로그인 화면의 「로그인 없이 둘러보기」(글자 버튼, 소셜 버튼 묶음 아래 — iOS는 동의 줄 아래) → 같은 화면 안에서 소셜 버튼 묶음이 동의 단계로 바뀐다
+2. 동의 단계: 개인정보처리방침 동의(소셜 가입과 같은 값·같은 버전) + 「만 14세 이상입니다 (필수)」. **둘 다 체크해야** 시작 버튼이 눌린다.
+   시작 버튼 라벨은 두 플랫폼 모두 「둘러보기 시작」이다. 게스트에게는 생년월일을 받지 않으므로 나이는 이 확인 하나다
+3. `POST /v0/auth/guest`(`{"privacyConsent":true,"privacyPolicyVersion":"…"}`, API 명세서 §3.21) → 응답 토큰 쌍을 **로그인과 같은 저장소**(Android
+   Keystore 암호화 저장소, iOS Keychain)에 같은 저장·세대 규칙으로 저장(Android `saveSession`, iOS `startGuest`) → 게이트 `Guest`
+4. 게스트 판정은 저장하지 않는다. 시작 확인의 `me()`가 `user.provider == "GUEST"`면 게스트다 — 프로필 상태보다 먼저 가른다(게스트는
+   서버가 늘 `INCOMPLETE`로 준다. 추가 정보 화면으로 보내면 프로필 저장이 403이라 갇힌다)
+
+| 상황 | 동작 |
+|---|---|
+| 429 `AUTH_GUEST_LIMIT_EXCEEDED` (같은 IP의 하루 상한, `retryable=false`) | 로그인 화면에 안내. 분당 제한(`RATE_LIMITED`)보다 먼저 가른다. 두 플랫폼 모두 「오늘은 로그인 없이 둘러볼 수 없어요」 + 보조 줄 「로그인해서 이용해 주세요」 |
+| 403 `AUTH_GUEST_NOT_ALLOWED` (게스트 토큰으로 막힌 API) | **로그아웃시키지 않는다.** 토큰·게스트 상태 그대로, 갱신도 부르지 않는다. 요청 실패로 로그인 화면에 가는 것은 Refresh 거절(401)뿐이다 (테스트: Android `AuthGateControllerTest`, iOS `StoreReviewFixTests`) |
+| 레벨 테스트 | Bearer 없는 익명 세션(서버 `AccountTokens.forSession`). 두 플랫폼 모두 음성 저장 동의·출신 지역을 기기 로컬 `AnonymousVoiceConsentStore`에 두고 설치당 한 번 묻는다(익명 빌드와 같다, PR #70 리뷰) |
+| 게스트 설정 | 계정 섹션·로그아웃·회원 탈퇴 대신 [로그인] 하나. 누르면 게스트 로그아웃(서버 로그아웃 최선 노력 + 로컬 비움, IdP 정리 없음) → 로그인 화면. 브리지 `requestLogin`과 같은 경로(Android `AuthGateController.requestLogin`, iOS `leaveGuest`). 회원 상태에서는 아무 일도 하지 않는다 |
+| 버린 게스트 계정 | 서버가 정리한다(서버 `GuestAccountRetention`, 주기는 webview-bridge.md §15 `requestLogin`) |
+
+화면: Android `auth/LoginScreen.kt`(`GuestConsentStep`)·`MainActivity.kt` `AuthGateState.Guest` 갈래, iOS `Auth/LoginScreen.swift`·`Auth/AuthGateView.swift` `GuestScreen`·`Auth/SettingsScreen.swift` `GuestSettingsScreen`.
+게스트 설정의 행은 두 플랫폼 모두 음성 저장 동의 스위치(기기 로컬)·「맞춤형 광고 설정」·「광고 신고」·방침과 [로그인]이다(KAN-330 5단계, 음성 동의는
+PR #70 리뷰). Android는 익명 설정 화면(`AnonymousSettingsScreen`)에 광고 동의 행과 [로그인]을 붙였고, iOS는 `GuestSettingsScreen`이 익명 설정과 같은
+`VoiceConsentSection`을 쓴다.
 
 ## 2. 토큰
 

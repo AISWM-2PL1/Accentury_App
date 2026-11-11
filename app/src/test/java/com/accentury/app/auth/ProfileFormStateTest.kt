@@ -17,13 +17,21 @@ class ProfileFormStateTest {
     )
 
     @Test
-    fun `다섯 칸이 다 차야 완료할 수 있다`() {
+    fun `성별을 뺀 네 칸이 다 차야 완료할 수 있다`() {
         assertTrue(complete().isComplete)
         assertFalse(complete().apply { email = "" }.isComplete)
         assertFalse(complete().apply { name = "" }.isComplete)
         assertFalse(complete().apply { birthDate = null }.isComplete)
-        assertFalse(complete().apply { gender = null }.isComplete)
         assertFalse(complete().apply { region = null }.isComplete)
+    }
+
+    @Test
+    fun `성별을 고르지 않거나 선택 안 함이면 완료되고 gender null로 보낸다 - KAN-330`() {
+        val form = complete().apply { gender = null }
+        assertTrue(form.isComplete)
+        assertEquals(ProfileInput("a@b.co", "이름", "2000-01-02", null, "JEJU"), form.toInput())
+        // 서버 계정에 성별이 없으면(null) 「선택 안 함」(= null)으로 되살아난다
+        assertEquals(null, ProfileFormState.from(AuthUser(id = "u-1", provider = Provider.GOOGLE, gender = null)).gender)
     }
 
     @Test
