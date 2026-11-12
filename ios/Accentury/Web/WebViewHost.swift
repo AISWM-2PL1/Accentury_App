@@ -536,13 +536,13 @@ private struct WebViewRepresentable: UIViewRepresentable {
         }
         webView.stopLoading()
         webView.navigationDelegate = nil
+        NotificationCenter.default.removeObserver(coordinator, name: UIContentSizeCategory.didChangeNotification, object: nil)
         /*
          * `webView.configuration`은 **사본**을 돌려준다 — 거기서 핸들러를 지워도 살아 있는
          * 컨트롤러는 그대로다. 그래서 만들 때 든 인스턴스를 Coordinator가 따로 붙잡고 있다가
          * 여기서 지운다. 등록된 것이 약한 중계자라 이게 없어도 순환은 닫히지 않지만,
          * 죽은 WebView가 메시지를 계속 흘려보내는 구간을 남기지 않는다.
          */
-        NotificationCenter.default.removeObserver(coordinator, name: UIContentSizeCategory.didChangeNotification, object: nil)
         coordinator.userContentController?.removeAllUserScripts()
         coordinator.userContentController?.removeScriptMessageHandler(
             forName: BridgeUserScript.messageHandlerName
