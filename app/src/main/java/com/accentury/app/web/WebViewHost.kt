@@ -29,6 +29,8 @@ import com.accentury.app.ui.components.PaperFailureScreen
 import com.accentury.app.ui.components.PaperWaitingScreen
 import com.accentury.app.ui.components.performHaptic
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 /** 원격 웹 로드의 세 상태. Failed로 가는 길은 명시 오류 콜백과 자체 타임아웃 두 갈래다. */
@@ -142,6 +144,11 @@ fun WebViewHost(
                         settings.allowFileAccess = false
                         settings.allowContentAccess = false
                         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                        // OS 글꼴 배율을 웹 루트 글자(rem 기준)에 반영하되 200%에서 멈춘다 (KAN-332). textZoom은 루트 computed
+                        // font-size 자체를 바꾸고 rem 자식을 이중 확대하지 않아(TextZoomMeasureTest 실측) 주입 스크립트가 필요 없다.
+                        // 웹은 첫 렌더 전 syncLargeText()가 그 computed를 읽어 큰 글자 표식을 단다. 실행 중 배율 변경은 MainActivity에
+                        // configChanges가 없어 Activity째 다시 서고 이 factory가 새 배율로 다시 돈다.
+                        settings.textZoom = webTextZoom(context.resources.configuration.fontScale)
                         // 릴리스 빌드에서 원격 디버깅 차단
                         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
@@ -269,6 +276,12 @@ private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier
         modifier = modifier,
     )
 }
+
+/**
+ * OS 글꼴 배율 → WebView textZoom(%) (KAN-332). 상한 200%(루트 32px, WCAG 1.4.4 기준), 하한은 두지 않고 OS 값을 따른다.
+ * 웹 루트 px = 16 × 이 값 / 100. iOS도 같은 식·상한을 맞춘다.
+ */
+internal fun webTextZoom(fontScale: Float): Int = (min(fontScale, 2f) * 100).roundToInt()
 
 /**
  * 앱 안 이동 (KAN-290). 웹 SPA 라우터([spaNavigateJs])가 처리하면 문서를 다시 읽지 않고, 아니면(구버전 웹 등) loadUrl로 폴백한다.
