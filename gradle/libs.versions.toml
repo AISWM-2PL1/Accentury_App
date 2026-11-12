@@ -3,6 +3,7 @@ agp = "9.3.1"
 coreKtx = "1.19.0"
 coreSplashscreen = "1.2.0"
 browser = "1.10.0"
+webkit = "1.18.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
@@ -29,6 +30,9 @@ androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscree
 # Custom Tabs (KAN-177). 개인정보처리방침을 인트로 위 시트로 연다 - WebView 안에서 열면
 # 인트로가 사라지고 돌아올 길이 없다.
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+# 문서 시작 스크립트 (KAN-332). WebView 루트 글자 px를 첫 렌더 전에 심는 WebViewCompat.addDocumentStartJavaScript가
+# 여기 있다. 1.18.0 = Google Maven maven-metadata의 최신 안정판(2026-11-12 확인, 1.19.0은 alpha).
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

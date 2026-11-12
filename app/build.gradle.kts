@@ -473,6 +473,9 @@ dependencies {
     // 띄우지 않는 이유는 앱을 떠나기 때문이다 - Custom Tabs는 인트로 위에 시트를 덮으므로
     // 닫으면 응시하던 화면이 그대로 남는다.
     implementation(libs.androidx.browser)
+    // OS 글자 배율을 웹 루트 px로 문서 시작에 주입한다 (KAN-332). textZoom은 글자만 키우고 rem 간격·칸은 그대로라
+    // iOS·E2E와 같은 루트 주입 모델을 쓰려면 이 API가 필요하다.
+    implementation(libs.androidx.webkit)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

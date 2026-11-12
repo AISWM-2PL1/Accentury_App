@@ -1,7 +1,7 @@
 import XCTest
 @testable import AccenturyCore
 
-/// 웹 루트 글자 주입 (KAN-332). 안드로이드 `WebTextZoomTest`의 짝이다 — 같은 식·상한 200%.
+/// 웹 루트 글자 주입 (KAN-332). 안드로이드 `WebTextScaleTest`의 짝이다 — 같은 식·상한 200%·같은 스크립트 문자열.
 final class WebTextScaleTests: XCTestCase {
 
     func testScaleBecomesRootPxCappedAt200Percent() {
