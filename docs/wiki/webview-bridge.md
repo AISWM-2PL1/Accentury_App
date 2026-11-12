@@ -938,3 +938,56 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 
 - 홈의 게스트는 테스트 전 카드([레벨 테스트 시작])와 그 아래 학습용 로그인 안내다. 등급 카드·출석은 없고, `getAccountKind`가 `'guest'`면 홈
   조회(`GET /v0/learning/home`)를 부르지 않는다(PR #70 리뷰). 레벨 테스트 흐름(문항·업로드·분석 대기·결과·재응시·공유)의 웹 호출은 전부
   세션 토큰(`st_`)이라 게스트 차단 API가 없다. 결과 화면의 [억양 학습 시작]은 학습 탭의 로그인 안내로 간다. 광고 동의 시트 규칙은 회원과 같다
+
+## 16. OS 글자 크기 → 웹 루트 글자 (KAN-332)
+
+웹 CSS는 크기를 rem으로 쓴다(KAN-313, [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)). 그런데 OS 글자 설정이 WebView 루트 글자
+크기에 닿지 않으면 rem은 16px 그대로라 사용자가 글자를 키워도 화면은 그대로다. 이 절은 네이티브가 OS 배율을 웹 루트 글자로 옮기는
+규칙이다. 브리지 메서드가 아니라 WebView 설정·주입 스크립트라 계약 버전은 2 그대로다(§1).
+
+### 계약
+
+- **웹 루트 px = 16 × min(OS 배율, 2.0).** 상한 200%(32px)는 WCAG 1.4.4 기준이자 KAN-313이 검증한 범위다(팀 결정 2026-11-12).
+  하한은 두지 않는다 — OS가 기본보다 작게 두면 그 값을 그대로 쓴다
+- 웹은 첫 렌더 전과 `resize` 때마다 `syncLargeText()`(`web/src/ui/textScale.ts`, `main.tsx`가 부른다)로 루트 computed font-size를 읽고,
+  16.5px을 넘으면 `html[data-large-text]`를 단다. 글자 크기 변경은 브라우저가 알려 주지 않으므로, 실행 중 배율을 바꾸는 쪽이
+  루트 크기를 바꾼 뒤 `resize`를 보내야 한다
+
+### 네이티브가 지킬 것 (Android 1단계 · iOS 2단계 완료)
+
+#### Android (KAN-332 1단계)
+
+| 항목 | 내용 |
+|---|---|
+| 적용 | `web/WebViewHost.kt` factory에서 `settings.textZoom = webTextZoom(context.resources.configuration.fontScale)`. `webTextZoom(fontScale) = (min(fontScale, 2f) * 100).roundToInt()` |
+| 주입 스크립트 | 없다. `textZoom`이 루트 computed font-size 자체를 바꾸고 rem 자식을 이중 확대하지 않는다(아래 실측) |
+| 실행 중 변경 | `MainActivity`에 `configChanges`가 없어 OS 배율이 바뀌면 Activity가 다시 서고, factory가 새 배율로 다시 돈다 |
+| 테스트 | `WebTextZoomTest`(단위: 1.0→100, 0.85→85, 1.3→130, 2.0→200, 3.0→200) · `TextZoomMeasureTest`(androidTest, 아래 실측을 단언하는 회귀 확인) |
+
+실측(2026-11-12, Pixel_8 에뮬레이터 API 37, WebView 155.0.8059.43):
+
+| textZoom | 루트 computed | `1rem` 자식 | `0.8125rem` 자식 |
+|---|---|---|---|
+| 100 | 16px | 16px | 13px |
+| 200 | 32px | 32px | 26px |
+
+rem 자식이 루트 배율만 따르므로 이중 확대가 없다. WebView 엔진이 바뀌면 이 전제가 깨질 수 있어 `TextZoomMeasureTest`를 남겼다.
+
+#### iOS (KAN-332 2단계)
+
+| 항목 | 내용 |
+|---|---|
+| 배율 | `UIFontMetrics(forTextStyle: .body).scaledValue(for: 16, compatibleWith: traits) / 16`. `traits`는 `UIApplication.shared.preferredContentSizeCategory`로 만든 트레잇이다 — 인자 없는 `scaledValue(for:)`는 호출 맥락의 트레잇을 읽을 수 있어 앱 전체 설정을 명시한다. 기본 크기(.large)에서 1.0 |
+| 주입 | WKWebView는 Dynamic Type을 루트 글자에 반영하지 않아 스크립트로 심는다. `WKUserScript(.atDocumentStart, forMainFrameOnly: true)`(브리지 심과 같은 시점), 소스는 `AccenturyCore` `webRootFontScript(px:)`: `document.documentElement.style.fontSize='<px>px';window.dispatchEvent(new Event('resize'));`. px는 `webRootFontPx(scale:)` = `16 * min(scale, 2)`, 소수 4자리에서 자르고 끝의 0을 지운다 |
+| 실행 중 변경 | `UIContentSizeCategory.didChangeNotification`을 `WebViewCoordinator.contentSizeCategoryDidChange`가 받는다. 유저 스크립트를 하나만 빼는 API가 없어 전부 지우고 **브리지 심과 글자 스크립트를 둘 다 다시 넣는다**(브리지 심이 빠지면 다음 문서의 브리지가 통째로 죽는다). 지금 문서에는 같은 스크립트를 `evaluateJavaScript`로 바로 적용한다 |
+| 해제 | `dismantleUIView`에서 관찰을 푼다 |
+| 파일 | `Web/WebViewHost.swift`(`currentWebRootFontPx`·`rootFontUserScript`·관찰 등록/해제) · Core `Web/WebTextScale.swift` · `WebTextScaleTests` |
+
+### 웹이 지킬 것
+
+- 루트(`html`)에 `!important` font-size를 걸지 않는다. iOS 주입은 인라인 스타일이라 `!important` 규칙에 진다
+- 크기는 rem으로 쓴다([ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313))
+
+### 범위 밖
+
+- 네이티브 화면(SwiftUI·Compose)의 Dynamic Type 추종은 이 티켓에서 다루지 않는다
