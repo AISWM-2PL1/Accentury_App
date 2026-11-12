@@ -2,8 +2,9 @@ import Foundation
 
 /// OS 글자 배율 → 웹 루트 글자 px (KAN-332). 16 × 배율이고 상한 2.0(32px, WCAG 1.4.4 기준), 하한은 두지 않고 OS 값을 따른다.
 ///
-/// 안드로이드는 `webTextZoom`(WebViewHost.kt)이 같은 식·상한을 textZoom(%)으로 든다 — textZoom은 루트 computed font-size를
-/// 직접 바꾸지만 WKWebView는 Dynamic Type을 루트에 반영하지 않아 iOS는 이 값을 스크립트로 주입한다.
+/// 안드로이드도 같은 식·상한·스크립트 문자열을 쓴다(`webRootFontPx`·`webRootFontScript`, WebViewHost.kt) — textZoom은 글자에만
+/// 배율을 곱하고 rem 간격·칸은 그대로라 100에 고정하고 루트 px를 주입한다(PR #72 리뷰). WKWebView는 Dynamic Type을 루트에
+/// 반영하지 않아 iOS도 이 값을 스크립트로 주입한다.
 public func webRootFontPx(scale: Double) -> Double {
     16 * min(scale, 2)
 }

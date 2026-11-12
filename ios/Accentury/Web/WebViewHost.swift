@@ -399,7 +399,8 @@ private struct WebViewRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let controller = WKUserContentController()
         controller.addUserScript(BridgeUserScript.makeUserScript())
-        // OS 글자 배율을 웹 루트 글자에 심는다 (KAN-332) — 안드로이드 `settings.textZoom`의 자리. 문서 시작마다 다시 돈다.
+        // OS 글자 배율을 웹 루트 글자에 심는다 (KAN-332) — 안드로이드 `WebViewCompat.addDocumentStartJavaScript` 주입의 짝.
+        // 문서 시작마다 다시 돈다.
         controller.addUserScript(rootFontUserScript())
         // 약한 중계자만 등록한다 — 진짜 핸들러의 소유권은 Coordinator에 있다
         // (`WeakScriptMessageHandler` 주석: 순환 참조를 끊는 자리).

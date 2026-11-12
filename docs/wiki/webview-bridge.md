@@ -955,23 +955,31 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 
 
 ### 네이티브가 지킬 것 (Android 1단계 · iOS 2단계 완료)
 
-#### Android (KAN-332 1단계)
+#### Android (KAN-332 1단계, PR #72 리뷰로 루트 주입 전환)
 
 | 항목 | 내용 |
 |---|---|
-| 적용 | `web/WebViewHost.kt` factory에서 `settings.textZoom = webTextZoom(context.resources.configuration.fontScale)`. `webTextZoom(fontScale) = (min(fontScale, 2f) * 100).roundToInt()` |
-| 주입 스크립트 | 없다. `textZoom`이 루트 computed font-size 자체를 바꾸고 rem 자식을 이중 확대하지 않는다(아래 실측) |
+| textZoom | `web/WebViewHost.kt` factory에서 `settings.textZoom = 100`으로 고정한다. 기본값도 `fontScale`을 따라서(Chromium `AwSettings`) 그대로 두면 주입과 겹쳐 글자가 이중으로 커진다 |
+| 주입 | iOS와 같은 루트 px 주입(팀 결정 2026-11-12). `webRootFontPx(fontScale) = 16.0 * min(fontScale, 2.0)`, 스크립트는 `webRootFontScript(px)` — iOS `webRootFontScript(px:)`와 **같은 문자열**(`Locale.ROOT`, 소수 4자리에서 자르고 끝의 0을 지운다). `WebViewFeature.DOCUMENT_START_SCRIPT`가 되면 `WebViewCompat.addDocumentStartJavaScript(webView, webDocumentStartScript(script), allowedOrigins)`(androidx.webkit 1.18.0). allowedOriginRules 형식 `SCHEME://HOST[:PORT]`가 `webOrigin()` 값과 같아 그대로 넘긴다 |
+| 문서 시작 DOM | androidx.webkit 문서는 그 시점에 DOM이 없을 수 있다고 적는다. 그래서 `webDocumentStartScript`가 `document.documentElement`가 있으면 바로, 없으면 `html` 요소가 붙는 순간(MutationObserver) 같은 스크립트를 돌린다. WebView 155 실측에서는 문서 시작에 이미 있었다 |
+| 미지원 폴백 | `DOCUMENT_START_SCRIPT`가 없는 WebView는 `onPageFinished`에서 `evaluateJavascript(script)`. 첫 렌더 뒤라 늦지만 `resize`로 큰 글자 표식을 다시 잰다 |
 | 실행 중 변경 | `MainActivity`에 `configChanges`가 없어 OS 배율이 바뀌면 Activity가 다시 서고, factory가 새 배율로 다시 돈다 |
-| 테스트 | `WebTextZoomTest`(단위: 1.0→100, 0.85→85, 1.3→130, 2.0→200, 3.0→200) · `TextZoomMeasureTest`(androidTest, 아래 실측을 단언하는 회귀 확인) |
+| 테스트 | `WebTextScaleTest`(단위: 1.0→16, 0.85→13.6, 1.3→20.8, 2.0→32, 3.0→32, iOS와 같은 스크립트 문자열, 독일 로케일에서도 소수점) · `TextZoomMeasureTest`(androidTest, 아래 실측을 단언). **CI는 androidTest를 돌리지 않는다** — WebView 엔진이 바뀔 때 수동 실행: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.accentury.app.web.TextZoomMeasureTest` |
 
-실측(2026-11-12, Pixel_8 에뮬레이터 API 37, WebView 155.0.8059.43):
+실측(2026-11-12, Pixel_8 에뮬레이터 API 37, WebView 155.0.8059.43). `#w`는 `width:10rem`, `#c`는 `font-size:16px`:
 
-| textZoom | 루트 computed | `1rem` 자식 | `0.8125rem` 자식 |
-|---|---|---|---|
-| 100 | 16px | 16px | 13px |
-| 200 | 32px | 32px | 26px |
+| 조건 | 루트 computed | `1rem` 글자 | `0.8125rem` 글자 | `#w` 폭 | `#c` 글자 |
+|---|---|---|---|---|---|
+| textZoom 100 | 16px | 16px | 13px | 160 | 16px |
+| textZoom 200 | 32px | 32px | 26px | **160** | **32px** |
+| textZoom 100 + 루트 32px 주입 | 32px | 32px | 26px | 320 | 16px |
 
-rem 자식이 루트 배율만 따르므로 이중 확대가 없다. WebView 엔진이 바뀌면 이 전제가 깨질 수 있어 `TextZoomMeasureTest`를 남겼다.
+textZoom은 모든 글자의 computed font-size에 배율을 곱할 뿐 rem 길이(폭·간격·행간·칸)는 16px 기준 그대로 둔다. 글자 크기만 재면
+두 모델이 같은 값을 내서 이전 실측이 이 차이를 가르지 못했다. Chromium 근거는 `font_builder.cc` `GetComputedSizeFromSpecifiedSize`
+(TextZoomFactor를 곱함), `css_to_length_conversion_data.cc` `FontSizes`(rem은 루트 `SpecifiedFontSize` 기준), `aw_settings.cc`
+(`SetTextZoomFactor`). iOS 주입과 KAN-313 E2E(`web/e2e/text-scale.spec.ts`)는 루트 font-size 모델이라, 그대로 두면 Android만
+`line-height: 1rem` 탭 라벨이 겹치고 `calc(…rem - px)` 칸이 좁아진다(PR #72 리뷰 계산). 그래서 textZoom을 100에 고정하고 루트 px를
+주입해 세 경로를 한 모델로 맞췄다. 문서 시작 주입은 파싱 중 인라인 스크립트가 읽는 루트도 32px였다(첫 렌더 전에 닿음).
 
 #### iOS (KAN-332 2단계)
 
@@ -985,7 +993,7 @@ rem 자식이 루트 배율만 따르므로 이중 확대가 없다. WebView 엔
 
 ### 웹이 지킬 것
 
-- 루트(`html`)에 `!important` font-size를 걸지 않는다. iOS 주입은 인라인 스타일이라 `!important` 규칙에 진다
+- 루트(`html`)에 `!important` font-size를 걸지 않는다. 두 플랫폼 주입 모두 인라인 스타일이라 `!important` 규칙에 진다
 - 크기는 rem으로 쓴다([ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313))
 
 ### 범위 밖
