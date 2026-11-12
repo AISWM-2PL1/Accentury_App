@@ -6,6 +6,28 @@ import WebKit
 import os
 #endif
 
+// MARK: - 웹 루트 글자 배율 (KAN-332)
+
+/// 지금 앱의 Dynamic Type 배율로 계산한 웹 루트 px. 배율 = body 스타일로 16을 키운 값 / 16(기본 크기 .large에서 1.0).
+///
+/// 트레잇을 `UIApplication.preferredContentSizeCategory`로 직접 만들어 넘긴다 — 인자 없는 `scaledValue(for:)`는 "현재"
+/// 트레잇을 읽어 호출 맥락(어느 뷰의 갱신 중인가)에 좌우될 수 있다. 앱 전체 설정을 명시하면 그 질문이 없어진다.
+/// https://developer.apple.com/documentation/uikit/uifontmetrics/scaledvalue(for:compatiblewith:)
+/// https://developer.apple.com/documentation/uikit/uiapplication/preferredcontentsizecategory
+@MainActor
+private func currentWebRootFontPx() -> Double {
+    let traits = UITraitCollection(preferredContentSizeCategory: UIApplication.shared.preferredContentSizeCategory)
+    let scale = UIFontMetrics(forTextStyle: .body).scaledValue(for: 16, compatibleWith: traits) / 16
+    return webRootFontPx(scale: Double(scale))
+}
+
+/// 루트 글자 주입 유저 스크립트. 브리지 심(``BridgeUserScript/makeUserScript()``)과 같은 `.atDocumentStart`·메인 프레임 전용 —
+/// 문서 요소가 생긴 직후라 `documentElement`가 있고, 웹 첫 렌더 전 `syncLargeText()`가 이 값을 읽는다.
+@MainActor
+private func rootFontUserScript() -> WKUserScript {
+    WKUserScript(source: webRootFontScript(px: currentWebRootFontPx()), injectionTime: .atDocumentStart, forMainFrameOnly: true)
+}
+
 // MARK: - 순수 판정
 
 /// 내비게이션 한 건을 허용할지 (§7). `WKNavigationActionPolicy`를 그대로 쓰지 않고 한 겹 두는
@@ -377,6 +399,8 @@ private struct WebViewRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let controller = WKUserContentController()
         controller.addUserScript(BridgeUserScript.makeUserScript())
+        // OS 글자 배율을 웹 루트 글자에 심는다 (KAN-332) — 안드로이드 `settings.textZoom`의 자리. 문서 시작마다 다시 돈다.
+        controller.addUserScript(rootFontUserScript())
         // 약한 중계자만 등록한다 — 진짜 핸들러의 소유권은 Coordinator에 있다
         // (`WeakScriptMessageHandler` 주석: 순환 참조를 끊는 자리).
         controller.add(
@@ -430,6 +454,14 @@ private struct WebViewRepresentable: UIViewRepresentable {
 
         context.coordinator.webView = webView
         context.coordinator.userContentController = controller
+        // 실행 중 배율 변경 (KAN-332). 안드로이드는 Activity째 다시 서지만 iOS는 화면이 그대로라 직접 받는다.
+        // 셀렉터 방식 관찰자는 관찰 객체가 해제되면 저절로 풀린다(iOS 9+). `dismantleUIView`에서도 명시적으로 푼다.
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(WebViewCoordinator.contentSizeCategoryDidChange),
+            name: UIContentSizeCategory.didChangeNotification,
+            object: nil
+        )
         /*
          * 등록을 한 틱 미룬다. `updateUIView`가 `model.onNavigationStarted()`를 미루는 것과 같은
          * 이유이고(아래 주석), 같은 이유가 여기에도 있다는 것을 §8 통합 스모크에서 알았다.
@@ -509,6 +541,7 @@ private struct WebViewRepresentable: UIViewRepresentable {
          * 여기서 지운다. 등록된 것이 약한 중계자라 이게 없어도 순환은 닫히지 않지만,
          * 죽은 WebView가 메시지를 계속 흘려보내는 구간을 남기지 않는다.
          */
+        NotificationCenter.default.removeObserver(coordinator, name: UIContentSizeCategory.didChangeNotification, object: nil)
         coordinator.userContentController?.removeAllUserScripts()
         coordinator.userContentController?.removeScriptMessageHandler(
             forName: BridgeUserScript.messageHandlerName
@@ -670,6 +703,18 @@ final class WebViewCoordinator: NSObject, WKNavigationDelegate, UIGestureRecogni
         self.onPageStarted = onPageStarted
         self.onEdgeSwipeBack = onEdgeSwipeBack
         super.init()
+    }
+
+    /// 실행 중 Dynamic Type 변경 (KAN-332). UIKit이 메인 스레드에서 보낸다.
+    ///
+    /// (a) 다음 문서용 유저 스크립트를 새 배율로 바꾼다 — 하나만 빼는 API가 없어 전부 지우고 브리지 심과 글자 스크립트를
+    /// **둘 다** 다시 넣는다(브리지 심이 빠지면 다음 문서의 브리지가 통째로 죽는다). (b) 지금 문서에는 바로 적용한다.
+    @objc func contentSizeCategoryDidChange() {
+        guard let userContentController else { return }
+        userContentController.removeAllUserScripts()
+        userContentController.addUserScript(BridgeUserScript.makeUserScript())
+        userContentController.addUserScript(rootFontUserScript())
+        webView?.evaluateJavaScript(webRootFontScript(px: currentWebRootFontPx()), completionHandler: nil)
     }
 
     /// 세션 토큰을 지금 문서에 민다. **origin이 allowlist 안일 때만** —
