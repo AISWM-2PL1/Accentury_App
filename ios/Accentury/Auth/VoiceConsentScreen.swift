@@ -15,6 +15,9 @@ import SwiftUI
 ///
 /// 설정 화면처럼 ``TestFlowView`` 위에 덮인다(호출자 `SignedInScreen`).
 ///
+/// 모양은 KAN-355 시안 s-03-voice-consent-app(웹판 동의와 같은 부품): 제목 Jua 26, 체크 줄을 종이 상자 + 종이 그림자로 감싸고, 목록은
+/// 둥근 불릿, 본문·목록 글자는 흐린 잉크다. 문구·버튼 구성·표시 시점은 바꾸지 않았다.
+///
 /// 로그인을 끈 빌드(익명 모드, 6단계)는 시작 게이트의 마이크 권한 뒤에서 설치당 한 번 같은 화면을 띄운다
 /// (``TestFlowView`` 오버레이) — 선택은 ``AccenturyCore/AnonymousVoiceConsentStore``에 남고, 문안은 ``details``로 셋째
 /// 줄부터 웹처럼 바꾼다.
@@ -35,46 +38,72 @@ struct VoiceConsentScreen: View {
     @State private var failed = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Papercut.space6) {
-                Text(voiceConsentTitle)
-                    .papercutType(.headline)
-                    .foregroundColor(Papercut.ink)
-                    .accessibilityAddTraits(.isHeader)
-                Text(voiceConsentLead)
-                    .papercutType(.body)
-                    .foregroundColor(Papercut.ink)
-
-                Button { checked.toggle() } label: {
-                    HStack(spacing: Papercut.space3) {
-                        ConsentCheckMark(checked: checked)
-                        Text(voiceConsentCheckboxLabel)
-                            .papercutType(.bodySmall)
-                            .foregroundColor(Papercut.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(minHeight: Papercut.touchTargetMin)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(submitting)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(checked ? .isSelected : [])
-
-                VStack(alignment: .leading, spacing: Papercut.space2) {
-                    ForEach(details, id: \.self) { line in
-                        Text("· \(line)").papercutType(.bodySmall).foregroundColor(Papercut.muted)
-                    }
-                    Text("\(voiceConsentPolicyLead) 개인정보처리방침\(voiceConsentPolicyTail)")
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Papercut.space4) {
+                    Text(voiceConsentTitle)
+                        .papercutType(.headline)
+                        .foregroundColor(Papercut.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(voiceConsentLead)
                         .papercutType(.bodySmall)
                         .foregroundColor(Papercut.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // 체크 줄은 종이 한 장(종이 면·잉크 1·반경 10·종이 그림자, 시안 `.p4-consent-check`)이다.
+                    Button { checked.toggle() } label: {
+                        HStack(alignment: .top, spacing: Papercut.space3) {
+                            ConsentCheckMark(checked: checked)
+                            Text(voiceConsentCheckboxLabel)
+                                .papercutType(.bodySmall)
+                                .foregroundColor(Papercut.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(Papercut.space3)
+                        .frame(minHeight: Papercut.touchTargetMin)
+                        .background(RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous).fill(Papercut.paper))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous)
+                                .strokeBorder(Papercut.ink, lineWidth: Papercut.borderHairline)
+                        )
+                        .contentShape(Rectangle())
+                        .paperShadow(cornerRadius: Papercut.radiusLG)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(submitting)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(checked ? .isSelected : [])
+                    .padding(.top, Papercut.space2)
+
+                    // 목록은 둥근 불릿 (시안 `list-style-type: disc`), 글자는 흐린 잉크.
+                    VStack(alignment: .leading, spacing: Papercut.space1) {
+                        ForEach(details, id: \.self) { line in
+                            HStack(alignment: .firstTextBaseline, spacing: Papercut.space2) {
+                                Text("•").accessibilityHidden(true)
+                                Text(line).fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        Text("\(voiceConsentPolicyLead) 개인정보처리방침\(voiceConsentPolicyTail)")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, Papercut.space1)
+                    }
+                    .papercutType(.caption)
+                    .foregroundColor(Papercut.muted)
+
                     AccenturyButton(text: "개인정보처리방침", variant: .text, action: onOpenPrivacy)
+
+                    if failed { StatusBlock(tone: .error, message: "잠시 후 다시 시도해 주세요") }
                 }
+                .padding(.horizontal, Papercut.space6)
+                .padding(.top, Papercut.space2)
+                .padding(.bottom, Papercut.space4)
+            }
 
-                if failed { StatusBlock(tone: .error, message: "잠시 후 다시 시도해 주세요") }
-
-                AccenturyButton(text: "동의하고 계속", enabled: checked && !submitting, fillsWidth: true) {
+            // 하단 고정 (``ExceptionScreen``의 footer 자리와 같은 좌우 24·아래 32)
+            VStack(spacing: Papercut.space3) {
+                AccenturyButton(text: "동의하고 계속", enabled: checked && !submitting, fillsWidth: true, trailingIcon: "arrow.right") {
                     submitting = true
                     Task {
                         failed = await !onConsent()
@@ -85,9 +114,10 @@ struct VoiceConsentScreen: View {
                 Text(voiceConsentFootnote)
                     .papercutType(.caption)
                     .foregroundColor(Papercut.muted)
+                    .multilineTextAlignment(.center)
             }
             .padding(.horizontal, Papercut.space6)
-            .padding(.top, Papercut.space2)
+            .padding(.top, Papercut.space4)
             .padding(.bottom, Papercut.space8)
         }
         // 아래 WebView를 완전히 가린다 (SettingsScreen과 같다).

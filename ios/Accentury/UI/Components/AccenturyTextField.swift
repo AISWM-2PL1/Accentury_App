@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 입력 칸 (KAN-224 추가 정보 화면). 안드로이드 `ui/components/AccenturyTextField.kt`의 이식본이다 — 1.5 잉크 테두리,
-/// 크림 면, 반경 16, 최소 높이 48. 그림자는 없다: 떠 있는 종이는 주 버튼 하나여야 한다(``AccenturyButton``).
+/// 입력 칸 (KAN-224 추가 정보 화면, 모양은 KAN-355 시안 s-02-profile). 안드로이드 `ui/components/AccenturyTextField.kt`의 이식본이다 —
+/// 1 잉크 테두리, 종이 면, 반경 6, 최소 높이 48. 그림자는 없다: 떠 있는 종이는 주 버튼 하나여야 한다(``AccenturyButton``).
 /// 포커스는 테두리가 2로 굵어지는 것으로만 보인다 — 두께가 "지금 이것"을 뜻하는 유일한 자리라는 정본 §8 규칙이다.
 ///
 /// `onTap`을 주면 글자를 치는 칸이 아니라 누르는 칸이 된다(생년월일 — 달력을 연다). 모양은 같고 버튼으로 읽힌다.
@@ -54,8 +54,8 @@ struct AccenturyTextField: View {
             .padding(.horizontal, Papercut.space4)
             .padding(.vertical, Papercut.space3)
             .frame(minHeight: Papercut.touchTargetMin)
-            .background(shape.fill(Papercut.cream))
-            .overlay(shape.stroke(Papercut.ink, lineWidth: focused ? Papercut.borderStrong : Papercut.borderRegular))
+            .background(shape.fill(Papercut.paper))
+            .overlay(shape.strokeBorder(Papercut.ink, lineWidth: focused ? Papercut.borderStrong : Papercut.borderHairline))
         }
     }
 }
