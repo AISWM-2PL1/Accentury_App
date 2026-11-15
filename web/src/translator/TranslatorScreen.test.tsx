@@ -98,7 +98,7 @@ describe('입력 상태 (ux-ui 「사투리 번역기 화면」 상태 표)', ()
 })
 
 describe('요청과 결과', () => {
-  it('대기 중엔 「바꾸는 중이에요」 + 비활성, 다시 눌러도 요청은 한 번, 입력은 그대로', async () => {
+  it('대기 중엔 「번역 중이에요」 + 비활성, 다시 눌러도 요청은 한 번, 입력은 그대로', async () => {
     const { fetchImpl, resolve } = deferredFetch()
     setup(fetchImpl)
     type('밥 먹었어?')

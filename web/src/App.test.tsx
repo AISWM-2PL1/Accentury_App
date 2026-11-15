@@ -8,6 +8,7 @@ import { VOICE_CONSENT_TITLE, VOICE_CONSENT_VERSION } from './legal/voiceConsent
 import { snapshotKey } from './progress/progressSnapshot'
 import { START_COUNTDOWN_SECONDS } from './progress/TestFlowScreen'
 import { clearWebSession, getWebSessionToken, loadWebSession, saveWebSession } from './session/webSession'
+import { markResumeLearning, takeResumeLearning } from './learning/resumeFlag'
 
 function setSearch(search: string) {
   window.history.replaceState(null, '', `/${search}`)
@@ -202,6 +203,8 @@ afterEach(() => {
   // 응시 상관 키는 실물 sessionStorage에 남는다 — 지우지 않으면 다음 테스트의 이벤트가
   // 앞 테스트의 응시에 묶인다
   clearTestId()
+  // 홈 [이어가기] 표식도 실물 sessionStorage다 (KAN-347 3-6)
+  takeResumeLearning()
   delete (navigator as { mediaDevices?: unknown }).mediaDevices
   // 진행 화면 분기 테스트가 fetch·localStorage를 스텁한다. 실패로 중단돼도 다음 테스트에
   // 새지 않게 여기서 되돌린다
@@ -354,16 +357,25 @@ describe('App — 학습 탭 「사투리 여행」 진입 쿼리 (KAN-347 3-1)'
     expect(screen.queryByRole('img', { name: /^별 \d+개$/ })).toBeNull()
   })
 
-  it('resume=1(홈 [이어가기])이면 지도를 거치지 않고 지금 스탬프로 들어가고, URL에서 resume을 걷는다 (3-6)', async () => {
+  it('이어가기 표식(홈 [이어가기])이 있으면 지도를 거치지 않고 지금 스탬프로 들어가고, 표식은 한 번만 쓴다 (3-6)', async () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation`)
+    stubTravelFetch()
+    markResumeLearning()
+    const { unmount } = render(<App navigate={vi.fn()} />)
+    expect(await screen.findByText('정구지')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: '사투리 여행' })).toBeNull()
+    unmount()
+    // 다시 열면(녹음 ✕·뒤로가기·새로고침) 지도다
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('heading', { level: 1, name: '사투리 여행' })).toBeInTheDocument()
+  })
+
+  it('URL의 resume=1은 읽지 않는다 — 네이티브가 들고 있던 옛 URL로 다시 열려도 지도다 (3-6)', async () => {
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation&resume=1`)
     stubTravelFetch()
     render(<App navigate={vi.fn()} />)
-    expect(await screen.findByText('정구지')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 1, name: '사투리 여행' })).toBeNull()
-    const query = new URLSearchParams(window.location.search)
-    expect(query.get('resume')).toBeNull()
-    expect(query.get('screen')).toBe('intonation')
-    expect(query.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
+    expect(await screen.findByRole('heading', { level: 1, name: '사투리 여행' })).toBeInTheDocument()
+    expect(screen.queryByText('정구지')).toBeNull()
   })
 
   it('로그인 안 됐으면 안내만 — 탭 바는 계정 로그인 상태에서만 선다 (KAN-252, PR #33 리뷰 P1)', async () => {
@@ -450,7 +462,7 @@ describe('App — 홈 테스트 전후·출석 배지 (KAN-287, KAN-347 2단계)
     expect(requestMicPermission).toHaveBeenCalledTimes(1)
   })
 
-  it('테스트 후 - 이어가기 카드가 지도의 지금 스탬프를 보이고, [이어가기]는 학습 탭을 resume으로 연다 (KAN-347 3-6)', async () => {
+  it('테스트 후 - 이어가기 카드가 지도의 지금 스탬프를 보이고, [이어가기]는 표식을 남기고 학습 탭을 연다 — URL에는 싣지 않는다 (KAN-347 3-6)', async () => {
     const travel = stubTravelFetch()
     travel.mockImplementationOnce(async () => ({ ok: true, status: 200, json: async () => AFTER_TEST }))
     const navigate = vi.fn()
@@ -462,7 +474,8 @@ describe('App — 홈 테스트 전후·출석 배지 (KAN-287, KAN-347 2단계)
     fireEvent.click(within(card).getByRole('button', { name: '이어가기' }))
     const next = new URLSearchParams(String(navigate.mock.calls[0][0]).split('?')[1] ?? '')
     expect(next.get('screen')).toBe('intonation')
-    expect(next.get('resume')).toBe('1')
+    expect(next.get('resume')).toBeNull()
+    expect(takeResumeLearning()).toBe(true)
   })
 
   it('배지를 누르면 출석 달력 시트가 열려 이번 달 출석을 조회하고, 닫으면 배지로 초점이 돌아온다', async () => {
@@ -714,7 +727,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     }
   })
 
-  it('?screen=translate면 번역기(KAN-256)와 탭 바(번역기 강조), [바꾸기] 전에는 서버를 부르지 않는다', () => {
+  it('?screen=translate면 번역기(KAN-256)와 탭 바(번역기 강조), [번역하기](원형 ↓ 버튼) 전에는 서버를 부르지 않는다', () => {
     setSearch(`${APP}&screen=translate`)
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)

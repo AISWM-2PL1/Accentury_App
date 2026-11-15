@@ -7,6 +7,7 @@ import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { StampExits } from './travel'
+import { markResumeLearning } from './resumeFlag'
 
 const captured: { stamp?: { id: string }; exits?: StampExits }[] = []
 
@@ -51,7 +52,8 @@ function renderWith(progress: string[][]) {
       ? { ok: false, status: 404, json: async () => ({ code: 'NOT_FOUND', message: '', retryable: false }) }
       : { ok: true, status: 200, json: async () => body }) as Response
   }
-  render(<TravelRoute apiBase="http://api" resume deps={{ fetchImpl, getToken: () => 'acc', refreshToken: async () => false }} />)
+  markResumeLearning()
+  render(<TravelRoute apiBase="http://api" deps={{ fetchImpl, getToken: () => 'acc', refreshToken: async () => false }} />)
 }
 
 const last = () => captured[captured.length - 1]

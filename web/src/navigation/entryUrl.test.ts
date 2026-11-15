@@ -105,11 +105,9 @@ describe('buildTabUrl — 하단 탭 화면 (KAN-252)', () => {
     expect(buildIntroUrl('?screen=home&adConsent=open')).toBe('')
   })
 
-  it('홈 [이어가기]의 resume=1은 학습 탭에만 붙고, 다른 이동은 늘 지운다 (KAN-347 3-6)', () => {
-    expect(paramsOf(buildTabUrl(ENTRY, 'learn', { resume: true })).get('resume')).toBe('1')
+  it('URL에 남은 resume은 어느 탭 이동에서든 지운다 — 이어가기는 URL에 싣지 않는다 (KAN-347 3-6)', () => {
     expect(paramsOf(buildTabUrl(`${ENTRY}&resume=1`, 'learn')).get('resume')).toBeNull()
     expect(paramsOf(buildTabUrl(`${ENTRY}&resume=1`, 'home')).get('resume')).toBeNull()
-    expect(paramsOf(buildTabUrl(ENTRY, 'home', { resume: true })).get('resume')).toBeNull()
     expect(buildIntroUrl('?screen=intonation&resume=1')).toBe('')
   })
 })
@@ -131,13 +129,11 @@ describe('학습 탭 화면 값 (KAN-347 3-1, 확정된 결정 2026-11-16)', () 
   const oldBuildShowsGear = (screen: string | null) => screen === null || screen === 'test'
 
   it.each(['learn', 'home', 'translate'] as const)('%s 탭 URL은 옛 빌드의 뒤로가기·광고 설정 표 안이고 톱니를 세우지 않는다', (tab) => {
-    for (const options of [{}, { resume: true }]) {
-      const screen = paramsOf(buildTabUrl(`${ENTRY}&screen=home`, tab, options)).get('screen')
-      expect(screen === 'home' || OLD_BUILD_BACK_TO_HOME.includes(screen!)).toBe(true)
-      expect(oldBuildShowsGear(screen)).toBe(false)
-      // 옛 빌드의 억양 녹음 ✕(`webTabUrl(..., "intonation")`)가 여는 값도 학습 탭이다
-      expect(isLearnScreen('intonation')).toBe(true)
-    }
+    const screen = paramsOf(buildTabUrl(`${ENTRY}&screen=home`, tab)).get('screen')
+    expect(screen === 'home' || OLD_BUILD_BACK_TO_HOME.includes(screen!)).toBe(true)
+    expect(oldBuildShowsGear(screen)).toBe(false)
+    // 옛 빌드의 억양 녹음 ✕(`webTabUrl(..., "intonation")`)가 여는 값도 학습 탭이다
+    expect(isLearnScreen('intonation')).toBe(true)
   })
 })
 

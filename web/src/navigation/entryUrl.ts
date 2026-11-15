@@ -82,10 +82,10 @@ export const LEARN_URL_SCREEN = 'intonation'
  * 레벨테스트의 `sessionId`·`testVersion`·`voiceSet`은 지운다: 탭 화면은 그 값을 읽지 않고, 남겨 두면 끝난
  * 세션을 물고 다닌다 ([buildResultUrl]과 같은 이유).
  *
- * `resume`(홈 [이어가기], KAN-347 3-6)을 주면 학습 탭이 지도를 거치지 않고 지금 스탬프로 바로 들어간다. 한 번 쓰고 버리는
- * 값이라 다른 탭 이동은 늘 지운다(`adConsent`와 같다).
+ * 홈 [이어가기]의 「지금 스탬프로 바로」는 URL에 싣지 않는다(`learning/resumeFlag`의 sessionStorage 표식). URL에 `resume`이
+ * 붙어 들어와도 웹은 읽지 않고, 다음 탭 이동에서 지운다.
  */
-export function buildTabUrl(search: string, screen: TabScreen, options: { resume?: boolean } = {}): string {
+export function buildTabUrl(search: string, screen: TabScreen): string {
   const params = new URLSearchParams(search)
   params.set('screen', screen === 'learn' ? LEARN_URL_SCREEN : screen)
   params.delete('sessionId')
@@ -94,7 +94,6 @@ export function buildTabUrl(search: string, screen: TabScreen, options: { resume
   // 광고 동의 재열기 플래그 (KAN-315) — 한 번 쓰고 버린다. 탭을 옮겨도 따라가면 홈에 돌아올 때 시트가 또 뜬다
   params.delete('adConsent')
   params.delete('resume')
-  if (options.resume === true && screen === 'learn') params.set('resume', '1')
   return toQuery(params)
 }
 

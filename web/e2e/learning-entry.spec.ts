@@ -619,7 +619,7 @@ test('지금 스탬프 하나 - 지도 [시작]과 홈 [이어가기]가 같은 
   await expect(card.getByRole('heading', { level: 2, name: '단어 학습 1' })).toBeVisible()
   await card.getByRole('button', { name: '이어가기' }).click()
   await expect(page.getByRole('heading', { level: 1, name: '정구지' })).toBeVisible()
-  // 한 번 쓴 resume은 URL에서 걷힌다 — 다시 열면 지도다
+  // 이어가기는 URL이 아니라 sessionStorage 일회성 표식으로 건넨다 — URL에 resume이 없고, 다시 열면 지도다
   expect(new URL(page.url()).searchParams.get('resume')).toBeNull()
   expectAppMarkers(page, 'intonation')
 
