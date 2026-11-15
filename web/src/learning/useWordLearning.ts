@@ -16,10 +16,16 @@
  *
  * 답안 제출만 예외다: 실패해도 W-3에 남아 답과 멱등 키를 유지한다(VocabularyItemScreen 규칙).
  * 로그인·시도 자체가 무너진 code만 error 화면으로 보낸다 — 그 자리에서 다시 내도 같은 실패다.
+ *
+ * ## 성적표의 「코스 별」 (KAN-347 4-4)
+ *
+ * 들어가기 전 코스 별은 사투리 여행 라우트가 넘긴다(`before`). 완료 응답에 이번 시도 `stars`(KAN-359)가 있을 때만 구간 요약을
+ * 한 번 더 받아 끝난 뒤 값과 견준다. 요약 조회 실패는 줄을 숨길 뿐이다 — 성적표를 오류로 막지 않는다.
  */
 
 import { useEffect, useState } from 'react'
 import { haptic } from '../bridge/bridge'
+import { courseStarsChange, fetchLearningLevels, type CourseStarsChange } from './travel'
 import {
   AUTH_GUEST_NOT_ALLOWED,
   CLIENT_NOT_SIGNED_IN,
@@ -40,7 +46,8 @@ export type WordLearningView =
   | { screen: 'cards'; set: WordSet; index: number }
   /** result가 null이면 W-3(답 고르기), 있으면 W-4(정오·해설)다 */
   | { screen: 'quiz'; set: WordSet; attemptId: string; index: number; result: WordAnswerResult | null }
-  | { screen: 'complete'; result: WordAttemptResult }
+  /** course: 성적표 「코스 별」 줄. KAN-359 필드가 없으면 null */
+  | { screen: 'complete'; set: WordSet; result: WordAttemptResult; course: CourseStarsChange | null }
   | { screen: 'error'; error: WordLearningError; retry: () => void; fromList: boolean }
 
 /**
@@ -65,7 +72,13 @@ function toError(error: unknown): WordLearningError {
   return new WordLearningError(error instanceof Error ? error.message : String(error), null, true)
 }
 
-export function useWordLearning(apiBase: string, setId: string, deps: WordApiDeps = {}) {
+/** 들어가기 전 이 스탬프의 코스와 그 코스의 별(`TravelCourse.stars`, KAN-359 전이면 null) */
+export interface WordStampBefore {
+  course: number
+  stars: { collected: number } | null
+}
+
+export function useWordLearning(apiBase: string, setId: string, deps: WordApiDeps = {}, before: WordStampBefore | null = null) {
   const [view, setView] = useState<WordLearningView>({ screen: 'loading' })
 
   const run = (task: () => Promise<WordLearningView>) => {
@@ -99,7 +112,8 @@ export function useWordLearning(apiBase: string, setId: string, deps: WordApiDep
    * W-3 제출. 성공하면 W-4로 멈춘다(다음 문항으로 넘기지 않는다). 실패는 던져서 화면이 문구를
    * 그리게 한다 — 단, 로그인·시도가 무너진 code는 error 화면으로 보낸다(머리 주석).
    */
-  const submit = async (choiceId: string, idempotencyKey: string): Promise<void> => {
+  /** choiceId가 null이면 고르지 않고 5초가 끝난 답안이다 (KAN-360 `timedOut`) */
+  const submit = async (choiceId: string | null, idempotencyKey: string): Promise<void> => {
     if (view.screen !== 'quiz') return
     const { attemptId, index, set } = view
     try {
@@ -135,8 +149,14 @@ export function useWordLearning(apiBase: string, setId: string, deps: WordApiDep
       setView({ ...view, index: view.index + 1, result: null })
       return
     }
-    const attemptId = view.attemptId
-    run(async () => ({ screen: 'complete', result: await completeWordAttempt(apiBase, attemptId, deps) }))
+    const { attemptId, set } = view
+    run(async () => {
+      const result = await completeWordAttempt(apiBase, attemptId, deps)
+      const levels =
+        result.stars !== undefined && before?.stars != null ? await fetchLearningLevels(apiBase, deps).catch(() => null) : null
+      const course = before === null ? null : courseStarsChange(before.course, before.stars, levels)
+      return { screen: 'complete', set, result, course }
+    })
   }
 
   return { view, nextCard, startQuiz, submit, nextItem }
