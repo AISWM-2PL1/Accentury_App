@@ -1,5 +1,6 @@
 /**
- * 단어 학습 W-1~W-5 (KAN-255 6단계) — 앱 WebView 실행을 흉내 내 실 백엔드로 세트 하나를 끝까지 돈다.
+ * 단어 학습 W-2~W-5 (KAN-255 6단계) — 앱 WebView 실행을 흉내 내 실 백엔드로 세트 하나를 끝까지 돈다. 세트 목록(W-1)은
+ * KAN-347 3단계에서 학습 탭 「사투리 여행」 지도로 바뀌었다 — 지도의 [시작]으로 들어가 [지도로]로 돌아온다.
  *
  * 여기서만 확인할 수 있는 것이 둘이다.
  *
@@ -24,7 +25,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { loginWithFakeIdp } from './helpers/accountLogin'
 
-/** 앱이 WebView에 싣는 쿼리와 같은 모양. `screen=words`가 단어 학습 진입이다 (App.tsx) */
+/**
+ * 앱이 WebView에 싣는 쿼리와 같은 모양. 학습 탭의 새 값은 `learn`이지만 옛 값 `screen=words`로 연다 — 옛 앱 빌드·옛 링크가
+ * 이 값으로 들어와도 학습 탭이 열려야 한다 (KAN-347 3-1)
+ */
 const WORDS_URL = '/?bridge=2&app=1.0&screen=words'
 
 interface BridgeMock {
@@ -64,23 +68,24 @@ function refreshCount(page: Page): Promise<number> {
   )
 }
 
-/** W-1이 그려졌는지. 제목과 레벨 묶음(h2 「레벨 N」)이 하나 이상 있어야 한다 */
-async function expectSetList(page: Page): Promise<void> {
-  await expect(page.getByRole('heading', { level: 1, name: '단어 학습' })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 2, name: /^레벨 \d+$/ }).first()).toBeVisible()
+/** 사투리 여행 지도가 그려졌는지. 제목과 지금 코스 카드가 있어야 한다 */
+async function expectMap(page: Page): Promise<void> {
+  await expect(page.getByRole('heading', { level: 1, name: '사투리 여행' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '지금 코스' })).toBeVisible()
 }
 
-test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보이고 W-5 정답률이 그 수와 맞는다', async ({
+test('지도 [시작]부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보이고 W-5 정답률이 그 수와 맞는다, [지도로]에 도장', async ({
   page,
   request,
 }) => {
   await openWords(page, { token: await loginWithFakeIdp(request) })
 
-  // W-1. 첫 세트(seq 최소)가 「추천」이다 (WordSetListScreen의 ponytail 주석)
-  await expectSetList(page)
-  const firstSet = page.locator('.word-set-row').first()
-  await expect(firstSet).toContainText('추천')
-  await firstSet.click()
+  // 지도. 새 계정은 1코스 첫 스탬프(단어 학습 1)부터다 (순차 잠금, 모두 1코스부터)
+  await expectMap(page)
+  const card = page.getByRole('region', { name: '지금 코스' })
+  await expect(card.getByRole('heading', { level: 2, name: '단어 학습 1' })).toBeVisible()
+  await expect(card).toContainText('1번째 스탬프')
+  await card.getByRole('button', { name: '시작', exact: true }).click()
 
   // W-2. 카드 수는 세트마다 달라 [문제 풀기]가 나올 때까지 넘긴다
   const startQuiz = page.getByRole('button', { name: '문제 풀기', exact: true })
@@ -149,15 +154,20 @@ test('W-1부터 W-5까지 한 바퀴 - W-4 정오가 아이콘과 글자로 보�
   expect(wrongShown.sort(byText)).toEqual(wrongSeen.sort(byText))
   console.log(`[e2e] 단어 학습 ${items}문항 중 ${correct}개 정답 (${percent}%)`)
 
-  await page.getByRole('button', { name: '세트 목록으로', exact: true }).click()
-  await expectSetList(page)
+  // [지도로] — 방금 마친 스탬프가 완료로 돌아와 지금 코스 카드에 도장이 한 번 찍히고, 지금 스탬프는 다음(억양 학습 1)이다
+  await page.getByRole('button', { name: '지도로', exact: true }).click()
+  await expectMap(page)
+  await expect(card).toHaveClass(/is-stamped/)
+  await expect(card.locator('.travel-card__stamp')).toBeVisible()
+  await expect(card.getByRole('heading', { level: 2, name: '억양 학습 1' })).toBeVisible()
+  await expect(card).toContainText('1코스 1 / 9')
 })
 
 // 탭 바는 계정 로그인 상태에서만 선다(PR #33 리뷰 P1) — 토큰이 없으면 안내만이다. 로그인 빌드는 토큰이 늘 있고 익명 빌드는
 // 탭 바가 없어 이 화면에 오지 않는다.
 test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내만, 탭 바는 없다 (KAN-252, PR #33 리뷰 P1)', async ({ page }) => {
   await openWords(page, { token: '' })
-  await expect(page.getByText('로그인하면 단어 학습을 할 수 있어요', { exact: true })).toBeVisible()
+  await expect(page.getByText('로그인하면 학습을 이어갈 수 있어요', { exact: true })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '주 메뉴' })).toHaveCount(0)
 })
 
@@ -165,13 +175,13 @@ test('401 - 브리지로 토큰을 갱신한 뒤 같은 요청을 다시 보내 
   const token = await loginWithFakeIdp(request)
   await openWords(page, { token: 'e2e-expired-token', refreshTo: token })
 
-  await expectSetList(page)
+  await expectMap(page)
   // 갱신이 실제로 브리지를 거쳤다. 횟수를 1로 못 박지 않는 이유: 개발 빌드 StrictMode가 진입
   // 조회를 두 번 보내, 둘째 401이 첫 갱신이 끝난 뒤에 닿으면 갱신이 한 번 더 나가는 것도 정상이다
   expect(await refreshCount(page)).toBeGreaterThanOrEqual(1)
 })
 
-test('목록 조회 실패 - [다시 시도]로 다시 불러 목록이 뜬다', async ({ page, request }) => {
+test('목록 조회 실패 - 「오류 코드 500」과 [다시 시도], 다시 불러 지도가 뜬다 (KAN-347 3-7)', async ({ page, request }) => {
   /*
    * [다시 시도]를 누르기 전까지는 전부 500이다. 「첫 요청만」으로 하면 개발 빌드 StrictMode가 보내는
    * 둘째 진입 조회가 성공해 오류 화면을 덮어, 버튼이 뜨지 않거나 스쳐 지나간다.
@@ -185,27 +195,32 @@ test('목록 조회 실패 - [다시 시도]로 다시 불러 목록이 뜬다',
 
   const retry = page.getByRole('button', { name: '다시 시도', exact: true })
   await expect(retry).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '목록을 불러오지 못했어요' })).toBeVisible()
+  await expect(page.getByText('오류 코드 500', { exact: true })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '주 메뉴' })).toBeVisible()
   failing = false
   await retry.click()
-  await expectSetList(page)
+  await expectMap(page)
 })
 
-test('W-2 오른쪽 위 ✕ - 누르면 W-1 목록으로 돌아가고 탭 바가 다시 선다 (KAN-252, 2026-10-13 사용자 결정)', async ({
+test('W-2 오른쪽 위 ✕ - 누르면 사투리 여행 지도로 돌아가고 탭 바가 다시 선다 (KAN-252, KAN-347 4-1)', async ({
   page,
   request,
 }) => {
   await openWords(page, { token: await loginWithFakeIdp(request) })
-  await expectSetList(page)
+  await expectMap(page)
   const tabBar = page.getByRole('navigation', { name: '주 메뉴' })
   await expect(tabBar).toBeVisible()
 
-  await page.locator('.word-set-row').first().click()
+  await page.getByRole('button', { name: '시작', exact: true }).click()
   await expect(page.getByRole('progressbar')).toBeVisible()
   // 학습 중엔 탭 바가 숨고 ✕가 유일한 출구다
   await expect(tabBar).toBeHidden()
   await page.getByRole('button', { name: '닫기', exact: true }).click()
 
-  await expectSetList(page)
+  await expectMap(page)
+  // 끝내지 않고 나왔으니 도장은 없다
+  await expect(page.getByRole('region', { name: '지금 코스' })).not.toHaveClass(/is-stamped/)
   await expect(tabBar).toBeVisible()
   await expect(page.getByRole('button', { name: '닫기', exact: true })).toBeHidden()
 })

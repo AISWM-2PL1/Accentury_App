@@ -16,7 +16,7 @@ export interface StarsProps {
 }
 
 /** 다섯 꼭짓점 별. viewBox 24 */
-const STAR_PATH = 'M12 2.8 L14.75 8.75 L21.2 9.45 L16.4 13.85 L17.7 20.2 L12 17 L6.3 20.2 L7.6 13.85 L2.8 9.45 L9.25 8.75 Z'
+export const STAR_PATH = 'M12 2.8 L14.75 8.75 L21.2 9.45 L16.4 13.85 L17.7 20.2 L12 17 L6.3 20.2 L7.6 13.85 L2.8 9.45 L9.25 8.75 Z'
 
 export function Stars({ count, total = 3, size = 20 }: StarsProps) {
   const filled = Math.min(Math.max(Math.round(count), 0), total)

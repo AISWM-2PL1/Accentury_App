@@ -8,10 +8,9 @@ import { track } from './analytics/track'
 import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
-import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
 import { AttendanceBadge, AttendanceSheet } from './learning/AttendanceCalendar'
 import { fetchLearningHome, type LearningHome } from './learning/homeApi'
-import { WordLearningRoute } from './learning/WordLearningScreens'
+import { ContinueCard, TravelRoute } from './learning/TravelScreens'
 import { GuestLoginPrompt } from './learning/GuestLoginPrompt'
 import { AUTH_GUEST_NOT_ALLOWED, WordLearningError } from './learning/wordApi'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
@@ -27,7 +26,7 @@ import {
   requestMicPermission,
   waitForAccessToken,
 } from './bridge/bridge'
-import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, entryPath, type TabScreen } from './navigation/entryUrl'
+import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, entryPath, isLearnScreen, type TabScreen } from './navigation/entryUrl'
 import { assignHref } from './navigation/spaNavigate'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
@@ -215,6 +214,7 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
       <HomeScreen
         apiBase={API_BASE}
         onStartTest={() => requestMicPermission() || goToIntro(navigate)}
+        onResumeLearning={() => goToTab('learn', navigate, { resume: true })}
         tabBar={tabBar('home')}
         adConsentRequested={params.get('adConsent') === 'open'}
         // navigate(replace)는 AppRoot를 재마운트해 네이티브 저장 전에 getAdConsent를 다시 읽고 홈도 다시 조회한다.
@@ -237,20 +237,24 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
   }
 
   /*
-   * `?screen=words` — 단어 학습(KAN-255). 진입 쿼리는 이것 하나이고 W-1~W-5는 문서를 다시 로드하지
-   * 않고 라우트 안의 상태로 넘긴다 (세트·시도 id가 메모리에 있어야 하고, 학습은 이탈 허용이라 URL
-   * 복원이 필요 없다 — `learning/useWordLearning` 머리 주석). 탭 바는 W-1 목록 단계에서만 선다.
+   * `?screen=learn` — 학습 탭 「사투리 여행」 (KAN-347 3단계). 옛 값 `screen=intonation`·`screen=words`도 같은 탭이다(확정된 결정
+   * 2026-11-16) — 옛 앱 빌드의 억양 녹음 ✕·뒤로가기·옛 링크가 그 값으로 연다. 웹이 내보내는 값은 `LEARN_URL_SCREEN`(옛 값)이다
+   * (`navigation/entryUrl` 주석). 지도·코스 지도·스탬프(단어 세트·억양 코스) 사이는 문서를 다시 로드하지 않고 라우트 안의 상태로
+   * 넘긴다. 탭 바는 지도·코스 지도·로딩·게스트·오류에 서고 스탬프 안에는 서지 않는다(KAN-147).
+   * `resume=1`(홈 [이어가기])이면 지금 스탬프로 바로 들어가고, 한 번 쓴 뒤 URL에서 걷는다 — 광고 동의 플래그와 같은 방법이다.
    */
-  if (params.get('screen') === 'words') {
-    return <WordLearningRoute apiBase={API_BASE} tabBar={tabBar('words')} />
-  }
-
-  /*
-   * `?screen=intonation` — 억양 학습(KAN-253). 단어 학습과 같은 이유로 A-1·A-2는 라우트 안의 상태로
-   * 넘긴다 (`learning/useIntonationLearning` 머리 주석). 탭 바도 같은 규칙으로 A-1 목록 단계에서만 선다.
-   */
-  if (params.get('screen') === 'intonation') {
-    return <IntonationLearningRoute apiBase={API_BASE} tabBar={tabBar('intonation')} />
+  if (isLearnScreen(params.get('screen'))) {
+    return (
+      <TravelRoute
+        apiBase={API_BASE}
+        tabBar={tabBar('learn')}
+        resume={params.get('resume') === '1'}
+        onResumeConsumed={() => {
+          window.history.replaceState(null, '', entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, 'learn'))
+          notifyLocationChanged(window.location.href)
+        }}
+      />
+    )
   }
 
   return <IntroRoute standalone={standalone} navigate={navigate} voiceCheckCapture={voiceCheckCapture} />
@@ -783,10 +787,8 @@ function goToIntro(navigate: Navigate): void {
   navigate(entryPath(window.location.pathname, window.location.search) + buildIntroUrl(window.location.search))
 }
 
-/**
- * 결과 화면 [학습 시작]의 목적지 (KAN-347 2-7). 3단계가 새 학습 탭(`learn`)으로 바꾸는 자리는 이 상수 하나다.
- */
-const LEARNING_ENTRY_TAB: TabScreen = 'intonation'
+/** 결과 화면 [학습 시작]의 목적지 (KAN-347 2-7) — 학습 탭 「사투리 여행」 지도 (3단계) */
+const LEARNING_ENTRY_TAB: TabScreen = 'learn'
 
 /**
  * 탭 화면 전환 (KAN-252). SPA로 옮기고(구버전 앱은 문서 재로드, KAN-290), 남기고 지우는 규칙은 [buildTabUrl]이
@@ -794,8 +796,8 @@ const LEARNING_ENTRY_TAB: TabScreen = 'intonation'
  *
  * 히스토리는 쌓는다(`replace` 아님). 앱 안의 뒤로가기는 네이티브가 자기 규칙으로 다룬다 ([goToResult] 주석).
  */
-function goToTab(tab: TabScreen, navigate: Navigate): void {
-  navigate(entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, tab))
+function goToTab(tab: TabScreen, navigate: Navigate, options?: { resume?: boolean }): void {
+  navigate(entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, tab, options))
 }
 
 /**
@@ -814,12 +816,15 @@ function goToTab(tab: TabScreen, navigate: Navigate): void {
 function HomeScreen({
   apiBase,
   onStartTest,
+  onResumeLearning,
   tabBar,
   adConsentRequested = false,
   onAdConsentReopenDone,
 }: {
   apiBase: string
   onStartTest: () => void
+  /** 이어가기 카드 [이어가기] — 학습 탭을 열어 지금 스탬프로 바로 (KAN-347 3-6) */
+  onResumeLearning: () => void
   /** 하단 탭 바 (KAN-252). 동의 시트가 떠 있는 동안 함께 `inert`로 막으려고 홈이 그린다 */
   tabBar?: ReactNode
   /** URL에 `adConsent=open`이 있다 — 네이티브 설정 「맞춤형 광고 설정」이 시트를 다시 열라고 보냈다 (KAN-315) */
@@ -913,7 +918,8 @@ function HomeScreen({
                 다시 테스트하기
               </Button>
             </section>
-            {/* 「이어가기」 카드 자리 — 사투리 여행 진행 데이터가 필요해 3단계(3-6)가 여기 붙인다 */}
+            {/* 「이어가기」 카드 (KAN-347 3-6, 시안 s-02) — 지도 [시작]과 같은 진행 모델로 같은 스탬프에 간다 */}
+            <ContinueCard apiBase={apiBase} onResume={onResumeLearning} />
           </div>
         )}
       </main>

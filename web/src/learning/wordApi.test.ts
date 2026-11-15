@@ -284,6 +284,7 @@ describe('오류 해석', () => {
 
     expect(error.code).toBe('LEARNING_SET_NOT_FOUND')
     expect(error.retryable).toBe(false)
+    expect(error.status).toBe(404) // 목록 오류의 「오류 코드 N」 (KAN-347 3-7)
   })
 
   it('네트워크 거부는 retryable true', async () => {
@@ -295,6 +296,7 @@ describe('오류 해석', () => {
 
     expect(error.code).toBeNull()
     expect(error.retryable).toBe(true)
+    expect(error.status).toBeNull() // 응답이 없었다 — 오류 코드 줄을 그리지 않는다
   })
 
   it('봉투가 없으면 상태 코드로 판정한다 (503 재시도 가능, 403 불가)', async () => {
@@ -305,6 +307,7 @@ describe('오류 해석', () => {
 
     expect(retryable.code).toBeNull()
     expect(retryable.retryable).toBe(true)
+    expect(retryable.status).toBe(503)
     expect(fatal.retryable).toBe(false)
   })
 

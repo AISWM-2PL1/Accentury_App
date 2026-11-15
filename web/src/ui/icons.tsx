@@ -147,9 +147,28 @@ export function UserIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM4 21v-2a8 6 0 0 1 16 0v2" />
 }
 
-/** 자물쇠 — 게스트 안내 (s-20b-learning-guest) */
-export function LockIcon({ size }: { size?: number }) {
-  return <LineIcon size={size} d="M6 10h12v11H6ZM8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+/**
+ * 자물쇠 — 게스트 안내 (s-20b-learning-guest), 잠긴 코스 칩 (s-11). 몸통과 고리를 따로 그린다 — 코스가 열릴 때 고리만
+ * 들려 돌아간다(움직임 타일 5, `.lock__shackle`). 모양은 한 획으로 그리던 때와 같다
+ */
+export function LockIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      className="lock"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path className="lock__body" d="M6 10h12v11H6ZM12 14v3" />
+      <path className="lock__shackle" d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  )
 }
 
 /** 끊긴 구름 — 목록 오류 (s-21) */

@@ -1,5 +1,5 @@
 /**
- * 단어 학습 화면 W-1~W-5와 라우트 (KAN-255 3단계). 상태와 전환은 [useWordLearning]이 갖고,
+ * 단어 학습 화면 W-2~W-5와 라우트 (KAN-255 3단계). W-1 세트 목록은 사투리 여행 지도로 대체됐다 (KAN-347 3단계). 상태와 전환은 [useWordLearning]이 갖고,
  * 여기 화면들은 받은 값을 그리고 버튼을 콜백에 잇기만 한다 — 화면별로 따로 렌더해 시험할 수 있다.
  *
  * 화면 구성은 IxD 초안(ux-ui.md §8.2 KAN-236)과 code wiki 「단어 학습 화면 (KAN-255)」 절을 따른다.
@@ -9,7 +9,8 @@ import { useState, type ReactNode } from 'react'
 import { Button, ChoiceList, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
 import { CheckIcon, ClockIcon, CloudOffIcon, CrossIcon, RefreshIcon, UserIcon } from '../ui/icons'
 import { useChoiceIdempotencyKey } from '../net/useChoiceIdempotencyKey'
-import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordAnswerResult, type WordApiDeps, type WordAttemptResult, type WordItem, type WordSet, type WordSetSummary } from './wordApi'
+import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordAnswerResult, type WordApiDeps, type WordAttemptResult, type WordItem, type WordSet } from './wordApi'
+import type { StampExits } from './travel'
 import { GuestLoginPrompt } from './GuestLoginPrompt'
 import { errorExit, useWordLearning, type WordLearningView } from './useWordLearning'
 
@@ -17,19 +18,24 @@ import { errorExit, useWordLearning, type WordLearningView } from './useWordLear
 
 export interface WordLearningRouteProps {
   apiBase: string
+  /** 스탬프 하나 = 단어 세트 하나. 사투리 여행 지도(`TravelScreens`)가 고른다 (KAN-347 3단계) */
+  setId: string
   /**
-   * 하단 탭 바 (KAN-252). App이 앱 안에서만 넘긴다. 목록 단계(목록·빈 목록·로그인 안내)에서만 그린다 —
-   * 카드·퀴즈·완료처럼 진행 중인 화면에는 탭 바를 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가
-   * 유일한 출구다 (예전 [학습 종류로] 자리). 카드·퀴즈의 출구는 오른쪽 위 ✕(세트 목록으로)다 — 학습은 이탈
-   * 허용이라 끝까지 가야만 나갈 수 있으면 안 된다 (2026-10-13 사용자 결정, 억양 녹음 ✕와 같은 뜻)
+   * 나가는 길 (KAN-347 3-8). 카드·퀴즈의 ✕, 오류의 [지도로], 완료의 [지도로]가 `toMap`을 부른다 — 학습은 이탈 허용이라
+   * 끝까지 가야만 나갈 수 있으면 안 된다 (2026-10-13 사용자 결정, 억양 녹음 ✕와 같은 뜻). `toNextStamp`은 4단계 성적표가 쓴다
+   */
+  exits: StampExits
+  /**
+   * 하단 탭 바 (KAN-252). App이 앱 안에서만 넘긴다. 로그인 안내(오류 출구 'leave')에서만 그린다 — 카드·퀴즈·완료처럼
+   * 진행 중인 화면에는 탭 바를 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가 유일한 출구다
    */
   tabBar?: ReactNode
   /** 테스트 주입용 (fetch·토큰 대체) */
   deps?: WordApiDeps
 }
 
-export function WordLearningRoute({ apiBase, tabBar, deps }: WordLearningRouteProps) {
-  const learning = useWordLearning(apiBase, deps)
+export function WordLearningRoute({ apiBase, setId, exits, tabBar, deps }: WordLearningRouteProps) {
+  const learning = useWordLearning(apiBase, setId, deps)
   const { view } = learning
 
   switch (view.screen) {
@@ -43,26 +49,19 @@ export function WordLearningRoute({ apiBase, tabBar, deps }: WordLearningRoutePr
     case 'error':
       return (
         <>
-          <WordErrorScreen view={view} onBackToList={learning.backToList} />
+          <WordErrorScreen view={view} onToMap={exits.toMap} />
           {errorExit(view) === 'leave' && tabBar}
-        </>
-      )
-    case 'list':
-      return (
-        <>
-          <WordSetListScreen sets={view.sets} onOpen={learning.openSet} />
-          {tabBar}
         </>
       )
     case 'cards':
       return (
         <>
           <WordCardScreen set={view.set} index={view.index} onNext={learning.nextCard} onStartQuiz={learning.startQuiz} />
-          <CloseButton onClick={learning.backToList} />
+          <CloseButton onClick={exits.toMap} />
         </>
       )
     case 'quiz':
-      // 제출 중에 눌러도 그냥 목록으로 간다 — 늦게 온 응답은 훅의 attemptId 가드가 버린다 (useWordLearning `submit`)
+      // 제출 중에 눌러도 그냥 지도로 간다 — 이 라우트가 내려가 늦게 온 응답은 버려진다
       return (
         <>
           <WordQuizScreen
@@ -75,11 +74,11 @@ export function WordLearningRoute({ apiBase, tabBar, deps }: WordLearningRoutePr
             submit={learning.submit}
             onNext={learning.nextItem}
           />
-          <CloseButton onClick={learning.backToList} />
+          <CloseButton onClick={exits.toMap} />
         </>
       )
     case 'complete':
-      return <WordSetCompleteScreen result={view.result} onBackToList={learning.backToList} />
+      return <WordSetCompleteScreen result={view.result} onToMap={exits.toMap} />
   }
 }
 
@@ -89,10 +88,10 @@ const SIGN_IN_MESSAGE = '로그인하면 단어 학습을 할 수 있어요'
 
 function WordErrorScreen({
   view,
-  onBackToList,
+  onToMap,
 }: {
   view: Extract<WordLearningView, { screen: 'error' }>
-  onBackToList: () => void
+  onToMap: () => void
 }) {
   const exit = errorExit(view)
   const message = view.error.code === CLIENT_NOT_SIGNED_IN ? SIGN_IN_MESSAGE : view.error.message
@@ -104,7 +103,7 @@ function WordErrorScreen({
         다시 시도
       </Button>
     ) : (
-      <Button onClick={onBackToList}>세트 목록으로</Button>
+      <Button onClick={onToMap}>지도로</Button>
     )
   return (
     <main className="screen">
@@ -120,71 +119,6 @@ function WordErrorScreen({
           action={action}
         />
       )}
-    </main>
-  )
-}
-
-// ── W-1 세트 목록 ────────────────────────────────────────────────────────
-
-export function WordSetListScreen({
-  sets,
-  onOpen,
-}: {
-  sets: WordSetSummary[]
-  onOpen: (setId: string) => void
-}) {
-  if (sets.length === 0) {
-    // 출구는 라우트가 세우는 탭 바다 (KAN-252, 예전 [학습 종류로] 자리)
-    return (
-      <main className="screen">
-        <StatusBlock tone="waiting" message="아직 준비 중인 세트예요" />
-      </main>
-    )
-  }
-
-  // 서버가 seq 오름차순으로 주므로 레벨 묶음도 처음 나온 순서를 따른다 (Map은 삽입 순서를 지킨다)
-  const byLevel = new Map<number, WordSetSummary[]>()
-  for (const set of sets) byLevel.set(set.level, [...(byLevel.get(set.level) ?? []), set])
-  // ponytail: 서버에 추천 필드가 아직 없어 첫 세트(seq 최소)를 추천으로 둔다 — KAN-268 추천 필드가 오면 교체
-  const recommendedId = sets[0].setId
-
-  return (
-    <main className="item-screen">
-      <h1 className="type-title tab-title">단어 학습</h1>
-      {[...byLevel].map(([level, levelSets]) => (
-        <section key={level} className="word-level" aria-labelledby={`word-level-${level}`}>
-          <h2 id={`word-level-${level}`} className="type-label word-level__title">
-            레벨 {level}
-          </h2>
-          {levelSets.map((set) => {
-            const recommended = set.setId === recommendedId
-            return (
-              // 행은 button이다 — 키보드 포커스와 스크린 리더의 "버튼" 안내를 브라우저가 준다
-              <button
-                key={set.setId}
-                type="button"
-                className={`word-set-row${recommended ? ' word-set-row--recommended' : ''}`}
-                onClick={() => onOpen(set.setId)}
-              >
-                {/* 디자인 3 (KAN-288, 시안 `.course`): 번호 · 제목+메타 · ↗. 번호와 화살표는 눈으로만 읽는다 */}
-                <span className="word-set-row__number" aria-hidden="true">
-                  {String(set.seq).padStart(2, '0')}
-                </span>
-                <span className="word-set-row__body">
-                  <span className="word-set-row__title">{set.title}</span>
-                  <span className="type-caption word-set-row__meta">
-                    {recommended && <span className="word-set-row__badge">추천</span>}
-                    카드 {set.cardCount}장
-                  </span>
-                </span>
-                <span className="word-set-row__arrow" aria-hidden="true">
-                  ↗
-                </span>
-              </button>
-            )
-          })}
-        </section>
-      ))}
     </main>
   )
 }
@@ -325,7 +259,7 @@ export function WordQuizScreen({
 
 // ── W-5 세트 완료 ────────────────────────────────────────────────────────
 
-export function WordSetCompleteScreen({ result, onBackToList }: { result: WordAttemptResult; onBackToList: () => void }) {
+export function WordSetCompleteScreen({ result, onToMap }: { result: WordAttemptResult; onToMap: () => void }) {
   return (
     <main className="item-screen">
       <h1 className="type-title">세트 완료</h1>
@@ -352,8 +286,9 @@ export function WordSetCompleteScreen({ result, onBackToList }: { result: WordAt
         </section>
       )}
       <div className="item-screen__footer">
-        <Button onClick={onBackToList} style={{ width: '100%' }}>
-          세트 목록으로
+        {/* 성적표 개편([다음 스탬프]·글자 버튼 「지도로」)은 4단계 몫이다 — 3단계는 목적지만 지도로 바꿨다 (3-8) */}
+        <Button onClick={onToMap} style={{ width: '100%' }}>
+          지도로
         </Button>
       </div>
     </main>

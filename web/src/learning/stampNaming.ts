@@ -26,6 +26,14 @@ export interface Stamp {
   n: number
 }
 
+/** 예상 시간 — 앱 상수다(3-2). 서버는 시간을 주지 않는다 */
+export const STAMP_MINUTES: Record<StampKind, string> = { word: '약 1분', intonation: '약 3분' }
+
+/** 단위 표기 「3문항 · 약 1분」「대사 3개 · 약 3분」. 「n장」은 쓰지 않는다 */
+export function stampUnit(kind: StampKind): string {
+  return `${kind === 'word' ? '3문항' : '대사 3개'} · ${STAMP_MINUTES[kind]}`
+}
+
 /** 「단어 학습 n」「억양 학습 n」. n을 모르면(지금 발행본에 없는 옛 세트) 번호 없이 종류만 */
 export function stampName(kind: StampKind, n?: number): string {
   const base = kind === 'word' ? '단어 학습' : '억양 학습'

@@ -137,7 +137,8 @@ async function stubServer(page: Page): Promise<void> {
         json: {
           contentVersion: 'e2e',
           sets: [
-            { setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 1, itemCount: 1 },
+            // s1을 끝내 둔다 — 순차 잠금(KAN-347 3-4)이라 그래야 지도의 지금 스탬프가 억양 학습 1(k1)이다
+            { setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 1, itemCount: 1, completed: true },
             { setId: 's2', seq: 2, level: 1, category: '생활', title: '집 안에서 쓰는 물건 이름', cardCount: 6, itemCount: 6 },
           ],
         },
@@ -212,20 +213,20 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.goto('/?bridge=2&app=1.0&screen=result&sessionId=s_e2e')
     await expect(page.getByRole('button', { name: '친구에게 공유하기' })).toBeVisible()
   },
-  '억양 코스 목록': async (page) => {
+  '사투리 여행 지도': async (page) => {
     await asApp(page)
-    await page.goto('/?bridge=2&app=1.0&screen=intonation')
-    await expect(page.getByRole('button', { name: /인사와 안부/ })).toBeVisible()
+    await page.goto('/?bridge=2&app=1.0&screen=learn')
+    await expect(page.getByRole('region', { name: '지금 코스' })).toBeVisible()
+  },
+  '코스 지도': async (page) => {
+    await SCREENS['사투리 여행 지도'](page)
+    await page.getByRole('button', { name: /^1코스 · / }).click()
+    await expect(page.getByRole('list').getByRole('button').first()).toBeVisible()
   },
   '억양 카드': async (page) => {
-    await SCREENS['억양 코스 목록'](page)
-    await page.getByRole('button', { name: /인사와 안부/ }).click()
+    await SCREENS['사투리 여행 지도'](page)
+    await page.getByRole('button', { name: '시작', exact: true }).click()
     await expect(page.getByText('밥 뭇나?', { exact: false }).first()).toBeVisible()
-  },
-  '단어 세트': async (page) => {
-    await asApp(page)
-    await page.goto('/?bridge=2&app=1.0&screen=words')
-    await expect(page.getByRole('button', { name: /먹을 것/ })).toBeVisible()
   },
   번역기: async (page) => {
     await asApp(page)

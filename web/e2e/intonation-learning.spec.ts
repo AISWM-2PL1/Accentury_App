@@ -1,7 +1,9 @@
 /**
- * 억양 학습 A-1·A-2 (KAN-253 4·5단계) — 앱 WebView 실행을 흉내 내 실 백엔드의 시드 코스로 돈다.
+ * 억양 학습 A-2 이후 (KAN-253 4·5단계) — 앱 WebView 실행을 흉내 내 실 백엔드의 시드 코스로 돈다. 코스 목록(A-1)은 KAN-347
+ * 3단계에서 학습 탭 「사투리 여행」 지도로 바뀌었다 — 순차 잠금이라 새 계정의 지금 스탬프는 단어 학습 1이므로, 단어 세트 1을
+ * API로 끝내 둔 뒤([completeFirstWordSet]) 지도 [시작]으로 억양 학습 1에 들어간다.
  * 5단계부터 카드에 들어서면(코스 열기, [다음 카드]) 웹이 녹음 화면을 자동으로 한 번 부르고, A-2는
- * 녹음 화면을 뒤로가기로 닫았을 때 보이는 일시정지 화면이다([다시 말해 보기]·[코스 목록으로]).
+ * 녹음 화면을 뒤로가기로 닫았을 때 보이는 일시정지 화면이다([다시 말해 보기]·[지도로]).
  *
  * 여기서만 확인할 수 있는 것이 둘이다.
  *
@@ -16,7 +18,7 @@
  * 3. **실채점 (KAN-254 4·5단계).** 네이티브 업로드를 Playwright `request`로 흉내 낸다 — 브리지에 심은 것과 같은
  *    계정 토큰으로 `POST /v0/learning/intonation-cards/{cardId}/recordings`에 가짜 마이크 WAV를 올리고([uploadRecording]),
  *    202의 진짜 attemptId를 회신에 싣는다. 그 뒤 채점 조회는 가로채지 않는다 — 카드를 끝까지 연속으로 올린 뒤 결과 목록의
- *    평균·행 점수, 행을 연 A-5 점수·코멘트·직전 대비를 서버 폴링 응답과 대조하고, A-1에 「완료」(KAN-268)가 서는지 본다.
+ *    평균·행 점수, 행을 연 A-5 점수·코멘트·직전 대비를 서버 폴링 응답과 대조하고, [지도로]에 도장·코스 지도에 「완료」(KAN-268)가 서는지 본다.
  *    가짜 AI 엔진은 해시 점수만 주고 segments를 안 줘 pitchFeedback이 늘 빈 배열이다. 실패 출구는 엔진이 오독·분석 실패를
  *    못 내므로 채점 조회를 가로채 만든다.
  *
@@ -35,7 +37,7 @@ import { feedbackComment, formatDelta } from '../src/learning/intonationFeedback
 import type { IntonationAttempt } from '../src/learning/intonationApi'
 import { loginWithFakeIdp } from './helpers/accountLogin'
 
-/** 앱이 WebView에 싣는 쿼리와 같은 모양. `screen=intonation`이 억양 학습 진입이다 (App.tsx) */
+/** 앱이 WebView에 싣는 쿼리와 같은 모양. 옛 값 `screen=intonation`도 학습 탭이다 (KAN-347 3-1) */
 const INTONATION_URL = '/?bridge=2&app=1.0&screen=intonation'
 
 const LIST_PATH = '/v0/learning/intonation-courses'
@@ -152,10 +154,40 @@ async function stubAttempts(page: Page, statuses: ('PROCESSING' | 'COMPLETED')[]
   )
 }
 
-/** A-1이 그려졌는지. 제목과 레벨 묶음(h2 「레벨 N」)이 하나 이상 있어야 한다 */
-async function expectCourseList(page: Page): Promise<void> {
-  await expect(page.getByRole('heading', { level: 1, name: '억양 학습' })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 2, name: /^레벨 \d+$/ }).first()).toBeVisible()
+/** 사투리 여행 지도가 그려졌는지 */
+async function expectMap(page: Page): Promise<void> {
+  await expect(page.getByRole('heading', { level: 1, name: '사투리 여행' })).toBeVisible()
+}
+
+/**
+ * 단어 세트 1(1코스 첫 스탬프)을 API로 끝낸다 — 순차 잠금(KAN-347 3-4)이라 그래야 지금 스탬프가 억양 학습 1이다.
+ * 답은 늘 첫 보기다(정오는 이 스펙의 관심 밖)
+ */
+async function completeFirstWordSet(request: APIRequestContext, token: string): Promise<void> {
+  const headers = { Authorization: `Bearer ${token}` }
+  const sets = (await (await request.get('/v0/learning/word-sets', { headers })).json()) as { sets: { setId: string; seq: number }[] }
+  const first = [...sets.sets].sort((a, b) => a.seq - b.seq)[0]
+  const detail = (await (await request.get(`/v0/learning/word-sets/${first.setId}`, { headers })).json()) as {
+    items: { itemId: string; choices: { choiceId: string }[] }[]
+  }
+  const attempt = await request.post(`/v0/learning/word-sets/${first.setId}/attempts`, { headers })
+  expect(attempt.status()).toBe(201)
+  const { attemptId } = (await attempt.json()) as { attemptId: string }
+  for (const item of detail.items) {
+    const answer = await request.post(`/v0/learning/word-attempts/${attemptId}/items/${item.itemId}/answer`, {
+      headers: { ...headers, 'Idempotency-Key': randomUUID() },
+      data: { choiceId: item.choices[0].choiceId },
+    })
+    expect(answer.ok(), `답안 실패 ${answer.status()} ${await answer.text()}`).toBe(true)
+  }
+  expect((await request.post(`/v0/learning/word-attempts/${attemptId}/complete`, { headers })).ok()).toBe(true)
+}
+
+/** 지도의 지금 코스 카드 [시작] — 억양 학습 1로 들어간다 */
+async function startCurrentStamp(page: Page): Promise<void> {
+  const card = page.getByRole('region', { name: '지금 코스' })
+  await expect(card.getByRole('heading', { level: 2, name: '억양 학습 1' })).toBeVisible()
+  await card.getByRole('button', { name: '시작', exact: true }).click()
 }
 
 /** A-2의 n/N — 진행 도트의 aria 값 (ProgressIndicator) */
@@ -167,12 +199,20 @@ async function expectCardProgress(page: Page, current: number, total: number): P
 
 const speak = (page: Page) => page.getByRole('button', { name: '다시 말해 보기', exact: true })
 
-/** 첫 코스를 열어 A-2 1/N에 선다 — 자동 호출 1회까지 확인 */
+/** 지도 [시작]으로 억양 학습 1을 열어 A-2 1/N에 선다 — 자동 호출 1회까지 확인 */
 async function openFirstCourse(page: Page): Promise<void> {
-  await expectCourseList(page)
-  await page.locator('.word-set-row').first().click()
+  await expectMap(page)
+  await startCurrentStamp(page)
   await expect(speak(page)).toBeEnabled()
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
+}
+
+/** 새 계정 + 단어 세트 1 완료 → 학습 탭 */
+async function openAsLearner(page: Page, request: APIRequestContext, mock: Partial<BridgeMock> = {}): Promise<string> {
+  const token = await loginWithFakeIdp(request)
+  await completeFirstWordSet(request, token)
+  await openIntonation(page, { token, ...mock })
+  return token
 }
 
 /**
@@ -231,25 +271,20 @@ async function expectIntonationCurveRunning(page: Page): Promise<void> {
   }
 }
 
-test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에서 다시 자동 호출 - 브리지 payload가 서버 상세의 카드와 같다', async ({
+test('지도 [시작] → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에서 다시 자동 호출 - 브리지 payload가 서버 상세의 카드와 같다', async ({
   page,
   request,
 }) => {
-  const token = await loginWithFakeIdp(request)
   await stubAttempts(page, ['PROCESSING', 'COMPLETED'])
-  await openIntonation(page, { token })
+  const token = await openAsLearner(page, request)
+  await expectMap(page)
 
-  // A-1. 추천 강조는 많아야 하나 (서버 §3.20)
-  await expectCourseList(page)
-  const rows = page.locator('.word-set-row')
-  expect(await rows.count()).toBeGreaterThan(0)
-  expect(await page.locator('.word-set-row--recommended').count()).toBeLessThanOrEqual(1)
-
-  // 첫 코스의 id는 서버 목록에서 — 화면 첫 행이 seq 최소 코스다
+  // 억양 학습 1 = 1코스(level 1)의 seq 최소 억양 코스 (스탬프 이름 규칙, KAN-347 3-2)
   const list = await request.get(LIST_PATH, { headers: { Authorization: `Bearer ${token}` } })
   expect(list.ok()).toBe(true)
-  const firstCourse = ((await list.json()) as { courses: { courseId: string; title: string }[] }).courses[0]
-  await expect(rows.first()).toContainText(firstCourse.title)
+  const firstCourse = ((await list.json()) as { courses: { courseId: string; seq: number; level: number }[] }).courses
+    .filter((c) => c.level === 1)
+    .sort((a, b) => a.seq - b.seq)[0]
   const detailRes = await request.get(`${LIST_PATH}/${firstCourse.courseId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -260,8 +295,8 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
   const cards = [...detail.cards].sort((a, b) => a.seq - b.seq)
   const card = cards[0]
 
-  // 코스 열기 = 녹음 화면 자동 호출 1회 (5단계)
-  await rows.first().click()
+  // 스탬프 열기 = 녹음 화면 자동 호출 1회 (5단계)
+  await startCurrentStamp(page)
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
   expect((await intonationCalls(page))[0]).toEqual({
     cardId: card.cardId,
@@ -281,7 +316,7 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
   await expect(curve).toBeVisible()
   await expect(curve.locator('path').first()).toBeAttached()
   await expect(speak(page)).toBeEnabled()
-  await expect(page.getByRole('button', { name: '코스 목록으로', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '지도로', exact: true })).toBeVisible()
 
   // 회신 → 대기·피드백 없이 바로 다음 카드의 녹음 자동 호출 (5단계). 채점은 뒤에서 돈다
   await replyRecorded(page, card.cardId)
@@ -297,7 +332,7 @@ test('A-1 → 카드 진입 자동 녹음 호출 → 회신 → 다음 카드에
 })
 
 test('회신 없음(녹음 화면에서 뒤로가기) - 일시정지 A-2가 그대로이고 [다시 말해 보기]로 다시 연다', async ({ page, request }) => {
-  await openIntonation(page, { token: await loginWithFakeIdp(request) })
+  await openAsLearner(page, request)
   await openFirstCourse(page)
 
   await page.waitForTimeout(500)
@@ -309,26 +344,26 @@ test('회신 없음(녹음 화면에서 뒤로가기) - 일시정지 A-2가 그�
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
 })
 
-test('A-2 오른쪽 위 ✕ - 누르면 A-1 코스 목록으로 돌아가고 탭 바가 다시 선다 (KAN-252, 2026-10-13 사용자 결정)', async ({
+test('A-2 오른쪽 위 ✕ - 누르면 사투리 여행 지도로 돌아가고 탭 바가 다시 선다 (KAN-252, KAN-347 5-1)', async ({
   page,
   request,
 }) => {
-  await openIntonation(page, { token: await loginWithFakeIdp(request) })
+  await openAsLearner(page, request)
   const tabBar = page.getByRole('navigation', { name: '주 메뉴' })
-  await expectCourseList(page)
+  await expectMap(page)
   await expect(tabBar).toBeVisible()
   await openFirstCourse(page)
   await expect(tabBar).toBeHidden()
 
   await page.getByRole('button', { name: '닫기', exact: true }).click()
-  await expectCourseList(page)
+  await expectMap(page)
   await expect(tabBar).toBeVisible()
   await expect(page.getByRole('button', { name: '닫기', exact: true })).toBeHidden()
 })
 
 test('다른 카드의 늦은 회신은 무시하고 지금 카드의 회신만 받는다', async ({ page, request }) => {
   await stubAttempts(page, ['PROCESSING'])
-  await openIntonation(page, { token: await loginWithFakeIdp(request) })
+  await openAsLearner(page, request)
   await openFirstCourse(page)
   const { cardId } = (await intonationCalls(page))[0]
 
@@ -342,7 +377,7 @@ test('다른 카드의 늦은 회신은 무시하고 지금 카드의 회신만 
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(2)
 })
 
-test('목록 조회 실패 - 출구는 [다시 시도] 하나, 누르면 목록이 뜬다', async ({ page, request }) => {
+test('목록 조회 실패 - 「오류 코드 500」과 화면 안 출구 [다시 시도] 하나, 탭 바가 서고 누르면 지도가 뜬다 (KAN-347 3-7)', async ({ page, request }) => {
   // [다시 시도] 전까지 전부 500 — 「첫 요청만」이면 StrictMode의 둘째 진입 조회가 오류 화면을 덮는다
   let failing = true
   await page.route(
@@ -353,25 +388,15 @@ test('목록 조회 실패 - 출구는 [다시 시도] 하나, 누르면 목록�
 
   const retry = page.getByRole('button', { name: '다시 시도', exact: true })
   await expect(retry).toBeVisible()
-  await expect(page.getByRole('button')).toHaveCount(1)
+  await expect(page.getByRole('main').getByRole('button')).toHaveCount(1)
+  await expect(page.getByText('오류 코드 500', { exact: true })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '주 메뉴' })).toBeVisible()
   failing = false
   await retry.click()
-  await expectCourseList(page)
+  await expectMap(page)
 })
 
-test('빈 목록 - 「아직 준비 중인 코스예요」와 탭 바, 화면 버튼은 없다 (KAN-252)', async ({ page, request }) => {
-  await page.route(
-    (url) => url.pathname === LIST_PATH,
-    (route) => route.fulfill({ json: { contentVersion: 'in-e2e', courses: [] } }),
-  )
-  await openIntonation(page, { token: await loginWithFakeIdp(request) })
-
-  await expect(page.getByText('아직 준비 중인 코스예요', { exact: true })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('button')).toHaveCount(0)
-  await expect(page.getByRole('navigation', { name: '주 메뉴' })).toBeVisible()
-})
-
-test('카드 로드 실패 - 500은 [다시 시도]로 다시 불러 A-2, 404는 [코스 목록으로]', async ({ page, request }) => {
+test('카드 로드 실패 - 500은 [다시 시도]로 다시 불러 A-2, 404는 [지도로]', async ({ page, request }) => {
   let reply: 'fail500' | 'notFound' | 'pass' = 'fail500'
   await page.route(
     (url) => url.pathname.startsWith(`${LIST_PATH}/`),
@@ -385,12 +410,11 @@ test('카드 로드 실패 - 500은 [다시 시도]로 다시 불러 A-2, 404는
             })
           : route.continue(),
   )
-  await openIntonation(page, { token: await loginWithFakeIdp(request) })
-  await expectCourseList(page)
-  const firstRow = page.locator('.word-set-row').first()
+  await openAsLearner(page, request)
+  await expectMap(page)
 
   // 500 → 재시도 가능 → [다시 시도] 하나
-  await firstRow.click()
+  await startCurrentStamp(page)
   const retry = page.getByRole('button', { name: '다시 시도', exact: true })
   await expect(retry).toBeVisible()
   await expect(page.getByRole('button')).toHaveCount(1)
@@ -400,30 +424,30 @@ test('카드 로드 실패 - 500은 [다시 시도]로 다시 불러 A-2, 404는
   // 실패한 로드는 녹음을 부르지 않고, 성공한 재시도에서 1회
   await expect.poll(async () => (await intonationCalls(page)).length).toBe(1)
 
-  // 404 → 재시도 불가 → [코스 목록으로] 하나, 누르면 목록
+  // 404 → 재시도 불가 → [지도로] 하나, 누르면 지도
   await page.reload()
-  await expectCourseList(page)
+  await expectMap(page)
   reply = 'notFound'
-  await firstRow.click()
-  const backToList = page.getByRole('button', { name: '코스 목록으로', exact: true })
-  await expect(backToList).toBeVisible()
+  await startCurrentStamp(page)
+  const backToMap = page.getByRole('button', { name: '지도로', exact: true })
+  await expect(backToMap).toBeVisible()
   await expect(page.getByRole('button')).toHaveCount(1)
-  await backToList.click()
-  await expectCourseList(page)
+  await backToMap.click()
+  await expectMap(page)
 })
 
 // 탭 바는 계정 로그인 상태에서만 선다(PR #33 리뷰 P1) — 토큰이 없으면 안내만이다. 로그인 빌드는 토큰이 늘 있고 익명 빌드는
 // 탭 바가 없어 이 화면에 오지 않는다.
 test('로그인 안 됨 - 토큰이 빈 문자열이면 로그인 안내만, 탭 바는 없다 (KAN-252, PR #33 리뷰 P1)', async ({ page }) => {
   await openIntonation(page, { token: '' })
-  await expect(page.getByText('로그인하면 억양 학습을 할 수 있어요', { exact: true })).toBeVisible()
+  await expect(page.getByText('로그인하면 학습을 이어갈 수 있어요', { exact: true })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '주 메뉴' })).toHaveCount(0)
 })
 
-test('401 - 브리지로 토큰을 갱신한 뒤 같은 요청을 다시 보내 목록이 뜬다', async ({ page, request }) => {
+test('401 - 브리지로 토큰을 갱신한 뒤 같은 요청을 다시 보내 지도가 뜬다', async ({ page, request }) => {
   const token = await loginWithFakeIdp(request)
   await openIntonation(page, { token: 'e2e-expired-token', refreshTo: token })
-  await expectCourseList(page)
+  await expectMap(page)
 })
 
 /** A-5에 선 점수·코멘트가 서버 응답과 같은지. 서버 응답을 돌려준다 */
@@ -457,22 +481,19 @@ async function expectSummary(page: Page, title: string, scores: number[]): Promi
   await expect(resultRows(page).locator('.word-set-row__meta')).toHaveText(scores.map((s) => `${s}점`))
 }
 
-test('실채점 - 카드를 연속으로 올리면 결과 목록의 평균·행 점수가 서버와 같고, 행 A-5의 [다시 시도] 2회차에 직전 대비가 행에 반영, A-1에 「완료」', async ({
+test('실채점 - 카드를 연속으로 올리면 결과 목록의 평균·행 점수가 서버와 같고, 행 A-5의 [다시 시도] 2회차에 직전 대비가 행에 반영, [지도로]에 도장·코스 지도에 「완료」', async ({
   page,
   request,
 }) => {
-  test.setTimeout(240_000) // 카드 7장 + 재시도 1회, 업로드마다 분석 (로컬 AI 스텁 지연 8초)
-  const token = await loginWithFakeIdp(request)
-  await openIntonation(page, { token })
-  await expectCourseList(page)
+  test.setTimeout(240_000) // 카드 3장 + 재시도 1회, 업로드마다 분석 (로컬 AI 스텁 지연 8초)
+  const token = await openAsLearner(page, request)
+  await expectMap(page)
 
-  // 카드가 가장 적은 코스 (시드 V10에선 레벨 5의 7장)
+  // 억양 학습 1 = 1코스의 seq 최소 억양 코스
   const list = await request.get(LIST_PATH, { headers: { Authorization: `Bearer ${token}` } })
-  const { courses } = (await list.json()) as { courses: { courseId: string; title: string; cardCount: number }[] }
-  const course = courses.reduce((a, b) => (b.cardCount < a.cardCount ? b : a))
-  const row = page.locator('.word-set-row').filter({ has: page.getByText(course.title, { exact: true }) })
-  await expect(row).toContainText(`0/${course.cardCount}장`)
-  await row.click()
+  const { courses } = (await list.json()) as { courses: { courseId: string; title: string; cardCount: number; level: number; seq: number }[] }
+  const course = courses.filter((c) => c.level === 1).sort((a, b) => a.seq - b.seq)[0]
+  await startCurrentStamp(page)
 
   // 회신마다 결과를 보이지 않고 바로 다음 카드 녹음을 부른다 (5단계)
   const attemptIds: string[] = []
@@ -521,10 +542,16 @@ test('실채점 - 카드를 연속으로 올리면 결과 목록의 평균·행 
   await page.getByRole('button', { name: '결과 목록으로', exact: true }).click()
   await expectSummary(page, course.title, [second.score!, ...scores.slice(1)])
 
-  // [코스 목록으로] → A-1. 완료 저장 호출은 없고 서버가 시도 기록으로 계산한다 (KAN-268)
-  await page.getByRole('button', { name: '코스 목록으로', exact: true }).click()
-  await expectCourseList(page)
-  await expect(row.locator('.word-set-row__meta')).toHaveText(/완료$/)
+  // [지도로] → 지도. 완료 저장 호출은 없고 서버가 시도 기록으로 계산한다 (KAN-268) — 방금 마친 스탬프에 도장이 찍히고
+  // 지금 스탬프는 다음(단어 학습 2)이다. 코스 지도에서 억양 학습 1 카드가 「완료」다
+  await page.getByRole('button', { name: '지도로', exact: true }).click()
+  await expectMap(page)
+  const card = page.getByRole('region', { name: '지금 코스' })
+  await expect(card).toHaveClass(/is-stamped/)
+  await expect(card.getByRole('heading', { level: 2, name: '단어 학습 2' })).toBeVisible()
+  await page.getByRole('button', { name: '1코스 · 진행 중' }).click()
+  await expect(page.getByRole('list').getByRole('button').nth(1)).toContainText('억양 학습 1')
+  await expect(page.getByRole('list').getByRole('button').nth(1)).toContainText('완료')
 })
 
 /*
@@ -552,7 +579,7 @@ test('실패 출구 - 오독·조용함·분석 실패 행은 「다시 녹음 �
       })
     },
   )
-  await openIntonation(page, { token: await loginWithFakeIdp(request) })
+  await openAsLearner(page, request)
   await openFirstCourse(page)
   const total = (await intonationCalls(page))[0].totalItems
   for (let n = 0; n < total; n++) {
@@ -569,7 +596,7 @@ test('실패 출구 - 오독·조용함·분석 실패 행은 「다시 녹음 �
     await expect(page.getByText(message, { exact: true })).toBeVisible()
     // 오독·조용함만 무엇을 다시 말할지 대사를 다시 보인다
     await expect(page.getByText(cards[i].prompt, { exact: true })).toHaveCount(showsLine ? 1 : 0)
-    // [다시 녹음]·[결과 목록으로] + 라우트의 ✕(코스 목록으로, KAN-252)
+    // [다시 녹음]·[결과 목록으로] + 라우트의 ✕(지도로, KAN-252)
     await expect(page.getByRole('button')).toHaveCount(3)
     if (i < exits.length - 1) {
       await page.getByRole('button', { name: '결과 목록으로', exact: true }).click()
