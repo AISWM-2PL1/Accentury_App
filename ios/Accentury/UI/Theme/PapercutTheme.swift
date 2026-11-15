@@ -76,7 +76,6 @@ enum Papercut {
     static let controlHeightLarge: CGFloat = 48
     /// 대사 카드 최소 높이. 문항 길이가 달라도 카드가 들썩이지 않게 고정한다.
     static let promptCardMinHeight: CGFloat = 152
-    static let promptCardPadding: CGFloat = 22
     /// 곡선 레인 하나의 높이.
     static let curveLaneHeight: CGFloat = 120
     /// 원형 녹음 버튼 지름.

@@ -65,12 +65,11 @@ struct PermissionGateView: View {
             case .rationale:
                 GateScreen(
                     headline: "발음 분석에 마이크가 필요해요",
-                    // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
-                    supporting: "따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요",
-                    // 「계속」이다 (KAN-330, App Store 빌드 15 거절 5.1.1(iv)). 시스템 권한 창 앞의 화면은 설명만 하고, 허용을 우리
+                    // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 웹 PrivacyNotice 정본 문장과 같은 말이다 (KAN-355에서 통일).
+                    supporting: "따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요",
+                    // 「계속 →」이다 (KAN-330, App Store 빌드 15 거절 5.1.1(iv)). 시스템 권한 창 앞의 화면은 설명만 하고, 허용을 우리
                     // 버튼이 말하면 안 된다 — 사용자가 이 화면에서 이미 허용한 것처럼 읽힌다. 허용·거부는 다음에 뜨는 시스템 창이 묻는다.
-                    buttonLabel: "계속",
-                    action: .request
+                    button: GateButton(label: "계속", trailingIcon: "arrow.right", action: .request)
                 )
 
             case .denied:
@@ -80,16 +79,14 @@ struct PermissionGateView: View {
                     headline: "마이크를 허용해야 시작할 수 있어요",
                     // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
                     supporting: "발음을 들어야 분석할 수 있어요 · 음성은 따로 동의한 경우에만 보관돼요",
-                    buttonLabel: "다시 허용하기",
-                    action: .request
+                    button: GateButton(label: "다시 허용하기", action: .request)
                 )
 
             case .permanentlyDenied:
                 GateScreen(
                     headline: "설정에서 마이크를 허용해 주세요",
                     supporting: "권한 창을 더 띄울 수 없어요 · 설정에서 허용하면 이어서 시작할 수 있어요",
-                    buttonLabel: "설정 열기",
-                    action: .openSettings
+                    button: GateButton(label: "설정 열기", leadingIcon: "gearshape", action: .openSettings)
                 )
             }
         }
@@ -119,71 +116,51 @@ struct PermissionGateView: View {
         case openSettings
     }
 
+    /// 하단 고정 주 버튼 한 개. 시안: 「계속 →」, 영구 거부 [⚙ 설정 열기].
+    private struct GateButton {
+        let label: String
+        var leadingIcon: String?
+        var trailingIcon: String?
+        let action: GateAction
+    }
+
+    /// 예외 화면 서식의 변형 (KAN-355, 시안 s-04): 아이콘 원 112·마이크 56·제목 Jua 30·설명 15 흐린 잉크, 그 아래 쓰임 목록 박스,
+    /// 주 버튼은 하단 고정이다. 상단 바는 워드마크만 — 이 화면을 권한 없이 닫는 길은 없다.
     @ViewBuilder
-    private func GateScreen(
-        headline: String,
-        supporting: String,
-        buttonLabel: String,
-        action: GateAction
-    ) -> some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-
-            VStack(spacing: Papercut.space6) {
-                // 마이크 선화. 아래 녹음 버튼 안의 아이콘과 같은 그림이라 "이 앱이 쓰는 것"과
-                // "지금 허락을 구하는 것"이 같다는 게 그림으로 읽힌다.
-                heroIcon
-
-                VStack(spacing: Papercut.space2) {
-                    // 안드로이드 `MainActivity.GateScreen`과 같은 슬롯 짝이다 —
-                    // 제목이 headline(Jua 26), 아래 한 줄이 bodySmall(시스템 15)이다.
-                    Text(headline)
-                        .papercutType(.headline)
-                        .foregroundColor(Papercut.ink)
-                        .multilineTextAlignment(.center)
-                    Text(supporting)
-                        .papercutType(.bodySmall)
-                        .foregroundColor(Papercut.muted)
-                        .multilineTextAlignment(.center)
+    private func GateScreen(headline: String, supporting: String, button: GateButton) -> some View {
+        ExceptionScreen(systemImage: "mic", title: headline, message: supporting, announces: false) {
+            assuranceCard
+        } footer: {
+            // 요청이 도는 동안은 잠근다. 모델도 재진입을 막지만(`requestPermission`), 연타에 반응이 없으면
+            // 사용자는 눌리지 않았다고 읽으므로 비활성 면으로 바꿔 「눌렸고 기다리는 중」을 보인다.
+            AccenturyButton(
+                text: button.label,
+                enabled: !model.isRequesting,
+                fillsWidth: true,
+                leadingIcon: button.leadingIcon,
+                trailingIcon: button.trailingIcon
+            ) {
+                switch button.action {
+                case .request: Task { await model.requestPermission() }
+                case .openSettings: MicPermission.openSettings()
                 }
-
-                assuranceCard
             }
-
-            Spacer(minLength: 0)
-
-            primaryButton(buttonLabel, action: action)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(Papercut.space6)
         // 워드마크 앱바 (KAN-288 디자인 3). 허용된 뒤의 빈 칸(`.granted`)에는 얹지 않는다 — 곧 걷히는 자리다.
         .paperAppBar()
     }
 
-    private var heroIcon: some View {
-        ZStack {
-            Circle()
-                .fill(Papercut.cream)
-                .overlay(Circle().stroke(Papercut.ink, lineWidth: 2))
-            Image(systemName: "mic")
-                .font(.system(size: 44, weight: .light))
-                .foregroundColor(Papercut.ink)
-        }
-        .frame(width: Papercut.heroIconSize, height: Papercut.heroIconSize)
-        .accessibilityHidden(true)
-    }
-
-    /// 마이크를 왜 달라는지 세 줄로 답하는 카드. 권한 요청 앞에서 사용자가 실제로 궁금해하는
-    /// 것은 "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다.
+    /// 마이크를 왜 달라는지 세 줄로 답하는 목록 박스 (시안 `.card.p1-benefits`: paper 면·잉크 1·모서리 10·그늘, 줄 사이 8).
+    /// 권한 요청 앞에서 사용자가 실제로 궁금해하는 것은 "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다.
     private var assuranceCard: some View {
-        VStack(alignment: .leading, spacing: Papercut.space3) {
+        let shape = RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous)
+        return VStack(alignment: .leading, spacing: Papercut.space2) {
             ForEach(Self.assurances, id: \.self) { line in
                 HStack(spacing: Papercut.space3) {
-                    // 줄머리는 잉크 점 하나다 (KAN-161 4단계). 이모지는 잉크 한 색 화면에서
-                    // 색을 가진 유일한 물건이라 세 줄이 그림 밖으로 튄다.
+                    // 줄머리는 잉크 점 하나다 (KAN-161 4단계). 이모지는 잉크 한 색 화면에서 색을 가진 유일한 물건이라 세 줄이 그림 밖으로 튄다.
                     Circle()
                         .fill(Papercut.ink)
-                        .frame(width: 6, height: 6)
+                        .frame(width: 5, height: 5)
                     Text(line)
                         .papercutType(.bodySmall)
                         .foregroundColor(Papercut.ink)
@@ -191,49 +168,11 @@ struct PermissionGateView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Papercut.space4)
-        .background(
-            RoundedRectangle(cornerRadius: Papercut.radiusXL)
-                .fill(Papercut.cream)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Papercut.radiusXL)
-                        .stroke(Papercut.ink, lineWidth: 1)
-                )
-        )
-    }
-
-    private func primaryButton(_ label: String, action: GateAction) -> some View {
-        // 요청이 도는 동안은 잠근다. 모델도 재진입을 막지만(`requestPermission`), 연타에
-        // 아무 반응이 없으면 사용자는 눌리지 않았다고 읽으므로 잠금과 진행 표시를 같이 낸다.
-        let busy = model.isRequesting
-
-        return Button {
-            switch action {
-            case .request: Task { await model.requestPermission() }
-            case .openSettings: MicPermission.openSettings()
-            }
-        } label: {
-            // 공통 버튼(``AccenturyButton``)의 주 변형과 같은 면·라벨이다 (KAN-355: 벽돌 면·Jua 17·48, 비활성은 종이 그림자 면).
-            // 이 화면만 버튼을 손으로 세운 이유는 진행 표시를 라벨 옆에 끼워야 해서인데, 색은 같은 값을 읽는다.
-            let look = ButtonVariant.primary.appearance(enabled: !busy)
-            HStack(spacing: Papercut.space2) {
-                if busy {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(look.label)
-                }
-                Text(label)
-                    .papercutType(.button)
-                    .foregroundColor(look.label)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: Papercut.controlHeightLarge)
-            .background(RoundedRectangle(cornerRadius: Papercut.radiusMD).fill(look.face))
-            .overlay(RoundedRectangle(cornerRadius: Papercut.radiusMD).strokeBorder(look.border, lineWidth: look.borderWidth))
-            .paperShadow(cornerRadius: Papercut.radiusMD, visible: look.castsShadow)
-        }
-        .buttonStyle(.plain)
-        .disabled(busy)
+        .padding(.vertical, 14)
+        .padding(.horizontal, Papercut.space4)
+        .background(shape.fill(Papercut.paper))
+        .overlay(shape.strokeBorder(Papercut.ink, lineWidth: Papercut.borderHairline))
+        .paperShadow(cornerRadius: Papercut.radiusLG)
     }
 
     private static let assurances = [

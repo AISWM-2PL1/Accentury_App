@@ -1,23 +1,22 @@
+import AccenturyCore
 import SwiftUI
 
-/// 원형 녹음 버튼 (KAN-148, 형태는 KAN-161 2단계). 안드로이드 `ui/components/RecordButton.kt`의
-/// 이식본이다. 시안이 이 화면에만 주는 모양이다 — 다른 버튼은 모두 알약꼴인데 녹음만
-/// 원형이라, 화면에서 눌러야 할 것이 무엇인지 모양만으로 읽힌다.
+/// 원형 녹음 버튼 (KAN-148, 형태는 KAN-355 시안 `.p2-record-button`). 안드로이드 `ui/components/RecordButton.kt`의
+/// 이식본이다. 다른 버튼은 모두 모서리 6의 사각인데 녹음만 원형이라, 화면에서 눌러야 할 것이 무엇인지 모양만으로 읽힌다.
 ///
-/// 오려 낸 크림 동그라미에 잉크 테두리 2를 두르고 그늘을 깐다. 누르면 다른 버튼과 같은 거리만큼
-/// 내려가 그늘을 덮는다.
+/// 지름 80의 paper 동그라미에 잉크 테두리 1을 두르고 그늘을 깐다. 누르면 다른 버튼과 같은 거리만큼 내려가 그늘을 덮는다.
 ///
 /// 색으로는 상태를 말하지 않는다 (정본 §7). 녹음 중이라는 것은 **안쪽 도형**이 말한다 —
-/// 대기는 마이크 선화, 녹음 중은 잉크 정사각형(정지의 관용 기호)이다. 여기에 둘레의 파문과
+/// 대기는 마이크 선화, 녹음 중은 잉크 정사각형(정지의 관용 기호)이다. 여기에 둘레의 소리 원과
 /// 접근성 라벨이 겹쳐 세 신호가 같은 것을 알린다.
 ///
-/// 파문은 모션 축소에서 멈춘다 — 끝없이 반복하는 애니메이션은 전정 장애가 있는 사용자에게
-/// 실제로 불편을 준다 (WCAG 2.3.3). 대신 도형과 라벨은 그대로라 상태 정보는 잃지 않는다.
-/// 안드로이드는 `ANIMATOR_DURATION_SCALE`을 읽고 iOS는 `accessibilityReduceMotion`을 읽는다.
+/// 소리 원은 움직임 줄이기에서 그리지 않는다 (WCAG 2.3.3). 도형과 라벨은 그대로라 상태 정보는 잃지 않는다.
 struct RecordButton: View {
 
     let accessibilityLabel: String
     var recording: Bool = false
+    /// 녹음 중 청크 rms(원 스케일). 소리 원의 크기가 이 값을 따른다 (``AccenturyCore/soundRingLevel(rms:)``).
+    var rms: Double = 0
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -45,27 +44,29 @@ struct RecordButton: View {
                 }
             }
         }
-        .buttonStyle(RecordButtonStyle(recording: recording, animatesRipple: recording && !reduceMotion))
+        .buttonStyle(RecordButtonStyle(
+            ringScale: recording && !reduceMotion ? soundRingScale(level: soundRingLevel(rms: rms)) : nil
+        ))
         .accessibilityLabel(accessibilityLabel)
     }
 }
 
-/// 녹음 버튼의 면·테두리·눌림·파문.
+/// 녹음 버튼의 면·테두리·눌림·소리 원.
 private struct RecordButtonStyle: ButtonStyle {
 
-    let recording: Bool
-    let animatesRipple: Bool
+    /// 소리 원의 배율. nil이면 원을 그리지 않는다(대기·움직임 줄이기).
+    let ringScale: Double?
 
     func makeBody(configuration: Configuration) -> some View {
         let sink: CGFloat = configuration.isPressed ? 1 : 0
 
         return configuration.label
             .frame(width: Papercut.recordButtonSize, height: Papercut.recordButtonSize)
-            .background(Circle().fill(Papercut.cream))
-            .overlay(Circle().stroke(Papercut.ink, lineWidth: Papercut.borderStrong))
-            // 파문은 본체 뒤에 둔다 — 앞에 두면 커지는 테두리가 아이콘 위를 지나간다.
+            .background(Circle().fill(Papercut.paper))
+            .overlay(Circle().stroke(Papercut.ink, lineWidth: Papercut.borderHairline))
+            // 소리 원은 본체 뒤에 둔다 — 앞에 두면 커지는 선이 아이콘 위를 지나간다.
             // 그늘(paperCircleShadow)보다 먼저 붙어야 본체와 같은 지름의 원으로 잡힌다.
-            .background { if animatesRipple { RecordingRipple() } }
+            .background { if let ringScale { SoundRing(scale: ringScale) } }
             .contentShape(Circle())
             .offset(x: sink * Papercut.paperShadowX, y: sink * Papercut.paperShadowY)
             .paperCircleShadow()
@@ -73,24 +74,20 @@ private struct RecordButtonStyle: ButtonStyle {
     }
 }
 
-/// 녹음 중 둘레로 퍼지는 파문. 잉크 테두리 하나가 커지면서 옅어지고 처음부터 다시 시작한다 —
-/// 면이 아니라 선인 이유는 반투명한 면이 크림 위에서 회색 얼룩으로 보이기 때문이다.
-/// 종이 오리기 그림에는 비쳐 보이는 면이 없다 (정본 §7).
-private struct RecordingRipple: View {
+/// 녹음 중 버튼 둘레의 소리 원 (KAN-355, 움직임 타일 2). 선 2의 종이 그림자 색 원 하나가 버튼 테두리에서 시작해
+/// 소리 크기를 따라 최대 1.35배까지 커지고, 값이 바뀔 때마다 150ms로 따라간다. 시간으로 도는 파문이 아니라
+/// 사용자의 목소리가 움직이는 원이라, 말을 멈추면 버튼 테두리로 돌아온다.
+///
+/// 크기를 `scaleEffect`가 아니라 지름으로 바꾼다 — 확대하면 선 굵기도 같이 1.35배가 된다.
+private struct SoundRing: View {
 
-    @State private var progress: CGFloat = 0
+    let scale: Double
 
     var body: some View {
         Circle()
             .stroke(Papercut.paperShadow, lineWidth: Papercut.borderStrong)
-            .frame(width: Papercut.recordButtonSize, height: Papercut.recordButtonSize)
-            .scaleEffect(1 + progress * 0.6)
-            .opacity(1 - progress)
-            .onAppear {
-                withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
-                    progress = 1
-                }
-            }
+            .frame(width: Papercut.recordButtonSize * scale, height: Papercut.recordButtonSize * scale)
+            .animation(.linear(duration: Papercut.Motion.fast), value: scale)
             .accessibilityHidden(true)
     }
 }

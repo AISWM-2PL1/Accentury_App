@@ -36,4 +36,11 @@ final class ProgressDotStateTests: XCTestCase {
             XCTAssertEqual(.done, progressDotState(position: position, current: 8))
         }
     }
+
+    /// 스크린 리더 문장 (KAN-355, 시안 `aria-label`). 레벨 테스트는 7문항 전체 번호, 억양 학습은 대사 수로 한 번만 읽는다.
+    func testAccessibilityLabelReadsLabelAndPositionOnce() {
+        XCTAssertEqual("억양 · 7문항 중 1번째", progressAccessibilityLabel(label: "억양", current: 1, total: 7, unit: .items))
+        XCTAssertEqual("억양 · 7문항 중 4번째", progressAccessibilityLabel(label: "억양", current: 4, total: 7, unit: .items))
+        XCTAssertEqual("억양 · 대사 3개 중 1번째", progressAccessibilityLabel(label: "억양", current: 1, total: 3, unit: .lines))
+    }
 }
