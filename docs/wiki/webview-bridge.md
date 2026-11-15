@@ -43,7 +43,7 @@
 | `getContractVersion(): number` | KAN-97 | 앱이 보유한 계약 버전. 동기 반환 | 스큐 협상 이전 앱으로 본다 |
 | `getSessionToken(): string` | KAN-13 | 어휘 답안 제출의 `Authorization` 헤더에 실을 토큰. 동기 반환. origin이 allowlist 밖이면 빈 문자열 | 빈 값은 `null`로 정규화 → 제출 불가 |
 | `requestMicPermission()` | KAN-98 | 네이티브 마이크 권한 게이트를 연다 | 웹이 직접 `getUserMedia` |
-| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0, emotion?}`. `emotion`(KAN-283)은 정의 VOICE 문항의 말투 감정 문자열(예: "부탁하는")을 가공 없이 — 정의에 없으면 키가 없다, 빈 문자열은 그대로 온다. 「~ 느낌으로 말해주세요!」 문구와 빈 값 처리는 네이티브 몫. 하위호환 추가라 계약 버전 그대로 | 웹 녹음기(`WebVoiceRecorder`) |
+| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0, emotion?}`. `emotion`(KAN-283)은 정의 VOICE 문항의 말투 감정 문자열(예: "부탁하는")을 가공 없이 — 정의에 없으면 키가 없다, 빈 문자열은 그대로 온다. 「~ 느낌으로 말해주세요!」 문구(Android는 KAN-354부터 「~ 느낌으로 말해 주세요」, 대사 아래 칩)와 빈 값 처리는 네이티브 몫. 하위호환 추가라 계약 버전 그대로 | 웹 녹음기(`WebVoiceRecorder`) |
 | `startRetest()` | KAN-34 | 이전 세션·결과를 버리고 새 세션으로 인트로 리로드. **인자 없음** — 폐기할 토큰은 네이티브가 들고 있다 | 쿼리를 걷어내고 인트로로 (`goToIntro`) |
 | `startRetestAfterFailure()` | KAN-248 | 실패 출구의 재응시. `startRetest`와 같되 **보상형 광고만 건너뛴다**. 인자도 회신 규칙 차이도 없다 (§8.6) | `startRetest()` — 구버전 앱에서는 광고가 떠도 감수. 그것도 없으면 `goToIntro` |
 | `shareResult(payloadJson)` | KAN-30 | 카카오 피드 템플릿으로 공유. payload = `{imageUrl, text, webTestUrl}` — 점수·세션 id·등급 코드 없음 | `navigator.share` → 링크 복사 |
@@ -658,6 +658,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
   `TOO_QUIET`·`TOO_SHORT`·`CLIPPED`(Android `recording/RecordingScreen.kt`의 `QualityStatus`, iOS `Recording/RecordingScreen.swift`),
   `maxDurationMs` 10초 자동 컷, 2단 레인(위 가이드 `guideF0`, 아래 내 억양). 진행 표기는 5단계부터 레벨테스트와 같은 진행바·`n / N`
   컴포넌트로 그린다 — 접근성 라벨은 「카드 진행률」, 종류 note 없음(웹 A-2와 같음, 레벨테스트는 「문항 진행률」·「음성」 그대로).
+  Android는 KAN-354부터 두 쓰임 모두 라벨 「억양」·`n / N`이고 스크린 리더는 「억양 · 대사 3개 중 1번째」(레벨테스트 「억양 · 7문항 중 1번째」) 한 문장이다.
 - **세션 ID·문항 인덱스와 섞지 않는다.** 억양 학습은 레벨테스트 세션이 없다. 레벨테스트 진행 상태(세션 토큰,
   문항 인덱스, 보관 음성 복구 §10, 재응시 잠금)를 읽거나 갱신하지 않고, `onItemResult`도 보내지 않는다. 카드 식별은 `cardId` 하나다.
 - **확인 단계에 [내 녹음 듣기] Secondary 버튼**을 둔다 — 학습 화면에만(레벨테스트 녹음 화면에는 없음, 2026-10-12 착수 결정).
@@ -678,7 +679,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 |---|---|
 | 파일 | `web/AccenturyBridge.kt`(`startIntonationRecording`) · `web/WebViewHost.kt`(전달) · `bridge/IntonationRecordingStart.kt`(파서) · `bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/IntonationUploadClient.kt` · `learning/IntonationRecordingViewModel.kt`(열림·업로드·키 규칙) · `learning/IntonationRecordingOverlay.kt`(A-3) · `recording/PcmPlayer.kt`([내 녹음 듣기]) · `MainActivity.kt` TestFlow(결선) |
 | origin·파싱 | `startVoiceItem`과 같은 순서 — postToMain 뒤 `isCurrentUrlAllowed`, 파싱 실패는 `CrashReports.recordBridgeParseFailure("startIntonationRecording")`. 빈 `cardId`·빈 `prompt`·`maxDurationMs ≤ 0`·`itemNumber`/`totalItems` 누락·범위 밖은 버린다. `guideF0`만 불량이면 곡선만 버린다(`decodeTolerantOfGuide`, `startVoiceItem`과 공유) |
-| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `RecordingPurpose`를 받는다 — `LevelTest(itemNumber, totalItems)`는 이전과 같은 모양, `IntonationLearning(standard, itemNumber, totalItems)`는 진행바·`n / N`(라벨 「카드 진행률」, note 없음 — 5단계), 대사 카드 아래 「표준어 · …」 한 줄(null이면 생략), 확인 단계에 [내 녹음 듣기]. 확인 뒤의 일은 호출자의 `onNext`가 정한다. 녹음 뷰모델은 레벨테스트와 다른 인스턴스(`viewModel(key = "intonation")`) |
+| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `RecordingPurpose`를 받는다 — `LevelTest(itemNumber, totalItems)`는 이전과 같은 모양, `IntonationLearning(standard, itemNumber, totalItems)`는 진행바·`n / N`(라벨 「억양」 — KAN-354, 이전 「카드 진행률」), 대사 카드 위 「표준어 · …」 한 줄(null이면 생략)과 대사 아래 「사투리로 따라 말해 보세요」 칩(KAN-354), 확인 단계에 [내 녹음 듣기](검토 줄 아래 글자 버튼). 확인 뒤의 일은 호출자의 `onNext`가 정한다. 녹음 뷰모델은 레벨테스트와 다른 인스턴스(`viewModel(key = "intonation")`) |
 | 업로드 | `AuthClients.authedClient`에 60초 callTimeout만 얹어 쓴다 — 계정 Bearer와 401 → 갱신 1회 → 같은 요청 재시도 1회가 그 클라이언트(`AccessTokenInterceptor`·`TokenAuthenticator`)에 이미 있다. multipart는 레벨테스트와 같은 `upload/UploadClient.kt`의 `recordingMultipart` |
 | 멱등 키 | 제출 1건마다 `li_<UUID>`, [재시도]는 같은 키. `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키 — 서버 `IntonationScoringService.upload`가 분석 큐 전달 실패 시 그 키의 시도를 `RETRYABLE_FAILED`로 커밋하고 503을 주며, 같은 키 재전송에는 그 실패 시도를 202로 돌려준다(2026-10-12 origin/Dev 확인). 회로 차단(`accepts()` false)의 503은 시도를 만들지 않아 어느 키든 같다 |
 | 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요」(Refresh 거절이면 TokenRefresher가 이미 로그인 화면으로 돌린다) |

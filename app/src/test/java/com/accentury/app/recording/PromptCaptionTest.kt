@@ -27,8 +27,8 @@ class PromptCaptionTest {
 
     @Test
     fun `감정 칩 - emotion이 있으면 앞뒤 공백을 걷고 문구를 붙인다 (KAN-283)`() {
-        assertEquals("부탁하는 느낌으로 말해주세요!", emotionCue("부탁하는"))
-        assertEquals("다급한 느낌으로 말해주세요!", emotionCue("  다급한 "))
+        assertEquals("부탁하는 느낌으로 말해 주세요", emotionCue("부탁하는"))
+        assertEquals("다급한 느낌으로 말해 주세요", emotionCue("  다급한 "))
     }
 
     @Test

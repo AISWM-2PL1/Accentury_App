@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -27,7 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -53,6 +58,8 @@ import com.accentury.app.ui.theme.isReducedMotionEnabled
  *
  * 덮개는 `#cfc5aa` 불투명도 0.6이다 — 뒤 화면이 비쳐야 "어디서 뜬 창인지"가 보인다. 덮개와 종이는
  * [Motion.FAST] 150ms에 함께 나타나고, 움직임 줄이기면 처음부터 다 보인다.
+ *
+ * 본문 Text의 기본 스타일은 이 창이 준다(13/1.8 흐린 잉크) — 호출자는 문구만 넘기고, 다른 모양이 필요할 때만 스타일을 준다.
  *
  * @param confirmLeading 확인 버튼 라벨 앞 그림 (시안 [로그아웃] 문 화살표·[탈퇴] 휴지통)
  */
@@ -101,7 +108,8 @@ fun ConfirmDialog(
             ) {
                 PaperTitle(title, style = ScreenTitle.Form)
                 Spacer(Modifier.height(Spacing.x4))
-                body()
+                // 본문 기본 글자는 시안 `.quit-dialog p` 13/1.8 흐린 잉크다 — 그만두기·로그아웃·탈퇴 창이 같은 값을 받는다 (KAN-354)
+                ProvideTextStyle(BODY_STYLE.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)) { body() }
                 Spacer(Modifier.height(Spacing.x6))
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.x3)) {
                     AccenturyButton(
@@ -130,6 +138,9 @@ private val DIALOG_WIDTH = 320.dp
 
 /** 시안 `.sheet` padding 20 — 간격 토큰(16·24) 사이 값이라 여기에만 적는다 */
 private val DIALOG_PADDING = 20.dp
+
+/** 시안 `.quit-dialog p` 본문 글꼴 13/1.8 */
+private val BODY_STYLE = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 23.4.sp)
 
 /** 시안 덮개 `#cfc5aa` opacity .6 */
 private const val SCRIM_ALPHA = 0.6f

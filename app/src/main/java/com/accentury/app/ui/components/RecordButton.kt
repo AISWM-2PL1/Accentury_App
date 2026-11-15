@@ -1,10 +1,6 @@
 package com.accentury.app.ui.components
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,10 +19,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -35,26 +30,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import com.accentury.app.R
 import com.accentury.app.ui.theme.Dimens
-import com.accentury.app.ui.theme.LightPoint
+import com.accentury.app.ui.theme.LightPaper
 import com.accentury.app.ui.theme.Motion
 import com.accentury.app.ui.theme.accenturyColors
 import com.accentury.app.ui.theme.isReducedMotionEnabled
 import com.accentury.app.ui.theme.motionDuration
 
 /**
- * 원형 녹음 버튼 (KAN-148, 형태는 KAN-161 2단계). 시안이 이 화면에만 주는 모양이다 —
- * 다른 버튼은 모두 알약꼴인데 녹음만 원형이라, 화면에서 눌러야 할 것이 무엇인지 모양만으로
- * 읽힌다.
+ * 원형 녹음 버튼 (KAN-148, 형태는 KAN-354 시안 s-06·s-17 `.p2-record-button`과 움직임 타일 2). 다른 버튼은 모두 각진 알약인데
+ * 녹음만 원형이라, 화면에서 눌러야 할 것이 무엇인지 모양만으로 읽힌다.
  *
- * 벽돌 동그라미에 크림 테두리와 벽돌 바깥선을 두르고 [paperCircleShadow]가 그늘을 깐다 (KAN-288 디자인 3).
- * 누르면 다른 버튼과 같은 거리만큼 내려가 그늘을 덮는다.
+ * paper 동그라미에 잉크 1dp 테두리, 안의 그림은 잉크다. 대기 중에는 [paperCircleShadow]가 그늘을 깔고, 누르면 다른 버튼과
+ * 같은 거리만큼 내려가 그늘을 덮는다. 녹음 중에는 그늘이 없다 — 이미 눌린 상태라는 뜻이다(시안 `.is-recording`).
  *
  * 색으로는 상태를 말하지 않는다 (정본 §7). 녹음 중이라는 것은 **안쪽 도형**이 말한다 —
- * 대기는 마이크 선화, 녹음 중은 크림 정사각형(정지의 관용 기호)이다. 여기에 둘레의
- * 파문과 접근성 라벨이 겹쳐 세 신호가 같은 것을 알린다.
+ * 대기는 마이크 선화, 녹음 중은 잉크 정사각형(정지의 관용 기호)이다. 여기에 둘레의 소리 원과 접근성 라벨이 겹친다.
  *
- * 파문은 모션 축소에서 멈춘다 — 끝없이 반복하는 애니메이션은 전정 장애가 있는 사용자에게
- * 실제로 불편을 준다 (WCAG 2.3.3). 대신 도형과 라벨은 그대로라 상태 정보는 잃지 않는다.
+ * 소리 원(타일 2)은 녹음 중에만 버튼 둘레에 그리는 그림자색 2dp 원 하나다. [level](0~1)에 따라 버튼 테두리에서 1.35배까지
+ * 커지고, 값이 바뀔 때마다 [Motion.FAST] 150ms로 따라간다. 소리가 없으면 버튼 테두리에 붙어 버튼에 가려진다.
+ * 시간 반복 파문(1400ms마다 1.6배)을 바꿨다 — 말하는 크기에 반응해야 "듣고 있다"가 전해진다.
+ * 움직임 줄이기면 원을 그리지 않는다. 도형과 라벨은 그대로라 상태 정보는 잃지 않는다.
  */
 @Composable
 fun RecordButton(
@@ -62,12 +57,14 @@ fun RecordButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     recording: Boolean = false,
+    /** 소리 크기 0~1 — 녹음 중 소리 원의 크기. 녹음 화면이 rms를 맞춰 넘긴다(`soundRingLevel`) */
+    level: Float = 0f,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val reduceMotion = isReducedMotionEnabled()
-    val brick = LightPoint
-    val cream = MaterialTheme.colorScheme.background
+    val ink = MaterialTheme.colorScheme.onBackground
+    val shadow = MaterialTheme.accenturyColors.primaryDim
     val view = LocalView.current
 
     val sink by animateFloatAsState(
@@ -77,6 +74,11 @@ fun RecordButton(
             easing = Motion.easeOut,
         ),
         label = "recordSink",
+    )
+    val ringScale by animateFloatAsState(
+        targetValue = 1f + level.coerceIn(0f, 1f) * SOUND_RING_GROWTH,
+        animationSpec = tween(durationMillis = Motion.FAST, easing = Motion.easeOut),
+        label = "soundRing",
     )
 
     Box(
@@ -92,24 +94,28 @@ fun RecordButton(
         contentAlignment = Alignment.TopStart,
     ) {
         if (recording && !reduceMotion) {
+            // 원의 바깥선이 버튼 지름 × ringScale에 닿는다 — 1.35배를 넘지 않는다
             Box(
-                modifier = Modifier.size(Dimens.recordButtonSize),
-                contentAlignment = Alignment.Center,
-            ) {
-                RecordingRipple(color = brick)
-            }
+                modifier = Modifier
+                    .size(Dimens.recordButtonSize)
+                    .drawBehind {
+                        val stroke = SOUND_RING_STROKE.toPx()
+                        drawCircle(
+                            color = shadow,
+                            radius = size.minDimension / 2f * ringScale - stroke / 2f,
+                            style = Stroke(width = stroke),
+                        )
+                    },
+            )
         }
         Box(
             modifier = Modifier
-                .paperCircleShadow(MaterialTheme.accenturyColors.primaryDim)
+                .paperCircleShadow(shadow, visible = !recording)
                 .size(Dimens.recordButtonSize)
                 .offset(x = sink * Dimens.paperShadowX, y = sink * Dimens.paperShadowY)
                 .clip(CircleShape)
-                // 디자인 3 `.record-btn`: 벽돌 면, 크림 6dp 테두리, 그 바깥 벽돌 1dp 선. 두 번째 border가 첫 번째의
-                // 바깥 1dp를 덮어 그린다.
-                .background(brick)
-                .border(RING_WIDTH + OUTLINE_WIDTH, cream, CircleShape)
-                .border(OUTLINE_WIDTH, brick, CircleShape)
+                .background(LightPaper)
+                .border(OUTLINE_WIDTH, ink, CircleShape)
                 .clickable(
                     interactionSource = interaction,
                     indication = null,
@@ -130,13 +136,13 @@ fun RecordButton(
                     modifier = Modifier
                         .size(STOP_ICON_SIZE)
                         .clip(RoundedCornerShape(STOP_ICON_RADIUS))
-                        .background(cream),
+                        .background(ink),
                 )
             } else {
                 Icon(
-                    painter = painterResource(R.drawable.outline_mic_24),
+                    painter = painterResource(R.drawable.ic_mic_24),
                     contentDescription = null,
-                    tint = cream,
+                    tint = ink,
                     modifier = Modifier.size(RECORD_ICON_SIZE),
                 )
             }
@@ -144,41 +150,15 @@ fun RecordButton(
     }
 }
 
-/**
- * 녹음 중 둘레로 퍼지는 파문. 잉크 테두리 하나가 커지면서 옅어지고 처음부터 다시 시작한다 —
- * 면이 아니라 선인 이유는 반투명한 면이 크림 위에서 회색 얼룩으로 보이기 때문이다.
- * 종이 오리기 그림에는 비쳐 보이는 면이 없다 (정본 §7).
- */
-@Composable
-private fun RecordingRipple(color: Color) {
-    val transition = rememberInfiniteTransition(label = "ripple")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = RIPPLE_MS, easing = Motion.easeOut),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "rippleProgress",
-    )
-
-    Box(
-        modifier = Modifier
-            .size(Dimens.recordButtonSize)
-            .scale(1f + progress * RIPPLE_GROWTH)
-            .alpha(1f - progress)
-            .border(RIPPLE_BORDER, color, CircleShape),
-    )
-}
-
-private val RING_WIDTH = 6.dp
 private val OUTLINE_WIDTH = 1.dp
+
+/** 시안 선화 20 × 1.7 */
 private val RECORD_ICON_SIZE = 34.dp
 
-/** 정지 사각형. 시안 값(28dp·모서리 6dp) 그대로다 */
-private val STOP_ICON_SIZE = 28.dp
-private val STOP_ICON_RADIUS = 6.dp
+/** 정지 사각형. 시안 선화(12 격자 사각형 × 1.7)에 선 굵기를 더한 값 */
+private val STOP_ICON_SIZE = 22.dp
+private val STOP_ICON_RADIUS = 2.dp
 
-private val RIPPLE_BORDER = 2.dp
-private const val RIPPLE_MS = 1_400
-private const val RIPPLE_GROWTH = 0.6f
+/** 소리 원 (움직임 타일 2): 선 굵기 2, 최대 1.35배 */
+private val SOUND_RING_STROKE = 2.dp
+private const val SOUND_RING_GROWTH = 0.35f
