@@ -242,7 +242,7 @@ struct TestFlowView: View {
                      * ``AccenturyCore/webBackTarget(currentUrl:startRequested:)``에 있다. 목적지가 없으면(홈·테스트 진행·결과)
                      * 아무 일도 없다 — KAN-191·KAN-147의 응시 이탈 방지 규칙을 건드리지 않는다. 웹 탭 이동과 같은 결과가 되게
                      * 웹 라우터로 옮기고, 구버전 웹이면 문서를 옮긴다 (KAN-290). 억양 녹음 화면·호출자의 덮개(설정)가 떠 있으면 인식기 자체를 끈다(`edgeSwipeEnabled`).
-                     * 학습 카드 단계도 screen이 intonation·words라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다(안드로이드와 같다).
+                     * 학습 카드 단계도 screen이 learn(옛 intonation·words)이라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다(안드로이드와 같다).
                      */
                     onEdgeSwipeBack: {
                         guard let target = webBackTarget(currentUrl: currentWebUrl, startRequested: model.startRequested),
@@ -512,14 +512,14 @@ struct TestFlowView: View {
     @ViewBuilder
     private var overlay: some View {
         // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
-        // 스와이프 닫기 = 회신 없이 A-2로 (§12). ✕는 같은 close 다음 억양 탭 문서를 다시 열어 코스 목록(A-1)으로 간다 —
-        // A-1은 그 문서의 첫 상태라서다(2026-10-13 사용자 결정, 안드로이드와 같다). 권한 화면에서의 닫기도 같다.
+        // 스와이프 닫기 = 회신 없이 A-2로 (§12). ✕는 같은 close 다음 학습 탭 문서(`learn`)를 다시 열어 사투리 여행 지도로 간다 —
+        // 지도가 그 문서의 첫 상태라서다(2026-10-13 사용자 결정, KAN-355에서 억양 탭 → 학습 탭, 안드로이드와 같다). 권한 화면에서의 닫기도 같다.
         if let start = intonation.start {
             IntonationCloseChrome(
                 onClose: { intonation.close() },
                 onCloseButton: {
                     intonation.close()
-                    guard let target = webTabUrl(currentUrl: currentWebUrl, screen: "intonation"),
+                    guard let target = webTabUrl(currentUrl: currentWebUrl, screen: learnScreen),
                           let url = URL(string: target)
                     else { return }
                     webView?.navigateInApp(to: url)
