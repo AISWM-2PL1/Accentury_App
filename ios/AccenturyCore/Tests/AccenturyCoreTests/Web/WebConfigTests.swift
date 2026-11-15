@@ -330,8 +330,8 @@ final class WebConfigTests: XCTestCase {
         )
     }
 
-    /// 홈 [이어가기]의 `resume=1`은 탭 이동에 따라가지 않는다 — ✕(학습 탭)·뒤로가기(홈)·광고 동의 어디에도 없고 `c`·`bridge`는 남는다
-    /// (웹 KAN-347 3단계 `buildTabUrl`과 같은 규칙, KAN-355).
+    /// 옛 링크·수동 입력으로 남은 `resume=1`은 탭 이동에 따라가지 않는다(웹 `buildTabUrl`과 같은 목록) — ✕(학습 탭)·뒤로가기(홈)·광고 동의 어디에도 없고 `c`·`bridge`는 남는다
+    /// (KAN-355).
     func testTabMovesDropResume() {
         let current = "https://web.example.com/?bridge=1&c=abc&screen=intonation&resume=1"
         let targets = [

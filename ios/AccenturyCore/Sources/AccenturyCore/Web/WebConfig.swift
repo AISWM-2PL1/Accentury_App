@@ -94,9 +94,9 @@ private let backToHomeScreens: Set<Substring> = [Substring(learnScreen), "intona
 /// 홈 문서로 옮길 때 지우는 레벨테스트 값. 웹 `buildTabUrl`이 지우는 것과 같다.
 private let testQueryKeys: Set<Substring> = ["sessionId", "testVersion", "voiceSet"]
 
-/// 홈 [이어가기]가 붙이는 웹 쿼리 키 (KAN-355). 웹 KAN-347 3단계가 [이어가기]를 `screen=intonation&resume=1`로 옮기고 웹
-/// `buildTabUrl`이 탭 이동 때 이 키를 지운다 — 같은 규칙으로 지우지 않으면 ✕·뒤로가기·광고 동의 URL에 `resume=1`이 따라가
-/// 웹이 지도 대신 이어 하던 자리로 다시 들어간다.
+/// 탭 이동 때 지우는 `resume` 키 (KAN-355). 웹 `buildTabUrl`이 탭 이동 때 지우는 키와 같은 목록을 유지하려는 것이다.
+/// 웹은 홈 [이어가기]를 URL이 아니라 sessionStorage 표식으로 넘기므로(KAN-347, `learning/resumeFlag`) 지금 이 키가 실리는
+/// 경로는 없다 — 옛 링크나 수동 입력으로 남은 값이 ✕·뒤로가기·광고 동의 URL에 따라가지 않게 하는 방어다.
 private let resumeQueryKey: Substring = "resume"
 
 /// 뒤로가기의 목적지 (KAN-252, 로그인 빌드). 홈 문서 URL이면 그리로 옮기고, nil이면 아무것도 하지 않는다.
@@ -133,7 +133,7 @@ public func startsAtHome(tabBarEntry: Bool, introRequested: Bool, appLinkEntered
 }
 
 /// 현재 문서를 탭 `screen` 문서로 옮긴 URL (KAN-252). 안드로이드 `webTabUrl`의 이식본이다. 웹 탭 이동(`buildTabUrl`)과 같은
-/// 쿼리 규칙이다 — `screen`만 바꾸고 레벨테스트 값·`adConsent`·`resume`(KAN-347 3단계 `buildTabUrl`과 같은 규칙)을 지우며
+/// 쿼리 규칙이다 — `screen`만 바꾸고 레벨테스트 값·`adConsent`·`resume`(웹 `buildTabUrl`과 같은 목록, 지금은 실리는 경로가 없는 방어)을 지우며
 /// 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다.
 /// ``webBackTarget(currentUrl:startRequested:)``(홈)과 억양 녹음 ✕(학습 탭 ``learnScreen``, 2026-10-13 사용자 결정·KAN-355)가 같이 쓴다.
 /// 문서를 아직 모르면(nil) nil — 호출자는 옮기지 않는다.
