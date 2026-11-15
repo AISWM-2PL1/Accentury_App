@@ -16,18 +16,24 @@
  */
 
 export const REGIONS = [
-  { code: 'SEOUL', label: '서울' },
-  { code: 'GYEONGGI', label: '경기' },
-  { code: 'GANGWON', label: '강원' },
-  { code: 'CHUNGBUK', label: '충북' },
-  { code: 'CHUNGNAM', label: '충남' },
-  { code: 'JEONBUK', label: '전북' },
-  { code: 'JEONNAM', label: '전남' },
-  { code: 'GYEONGBUK', label: '경북' },
-  { code: 'GYEONGNAM', label: '경남' },
+  { code: 'SEOUL', label: '서울', metro: null },
+  { code: 'GYEONGGI', label: '경기', metro: '인천' },
+  { code: 'GANGWON', label: '강원', metro: null },
+  { code: 'CHUNGBUK', label: '충북', metro: null },
+  { code: 'CHUNGNAM', label: '충남', metro: '대전' },
+  { code: 'JEONBUK', label: '전북', metro: null },
+  { code: 'JEONNAM', label: '전남', metro: '광주' },
+  { code: 'GYEONGBUK', label: '경북', metro: '대구' },
+  { code: 'GYEONGNAM', label: '경남', metro: '부산·울산' },
   // 지라 표는 '제주도'였다 - 2026-09-11 다른 지역과 표기를 통일해 '제주'로 (팀장 결정).
-  { code: 'JEJU', label: '제주' },
+  { code: 'JEJU', label: '제주', metro: null },
 ] as const
+
+/*
+ * `metro`는 그 지역 묶음에 든 광역시다 (KAN-347 7단계, 시안 칩 `data-metro-label`). 지도 아래 설명 한 줄(「경남 · 부산·울산 포함」)과
+ * 칩의 스크린 리더 이름(「경남, 부산·울산 포함」)이 이 값을 쓴다. 세종은 지도 묶음에서 충남에 들지만 화면에 적지 않는다(시안).
+ * 네이티브(KAN-354 `RegionMap.kt`·KAN-355)가 같은 문구를 옮길 때 이 표가 정본이다.
+ */
 
 /** 서버가 받아 주는 코드 열 개. `UNKNOWN`은 서버 저장 전용이라 여기 없다 */
 export type RegionCode = (typeof REGIONS)[number]['code']

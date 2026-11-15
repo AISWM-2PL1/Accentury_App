@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CaptureError } from '../audio/capture'
 import { createFakeCapture, sineChunk, type FakeCapture } from '../audio/testing/fakeCapture'
 import { VOICE_CHECK_MAX_DURATION_MS, VoiceCheckScreen } from './VoiceCheckScreen'
 
@@ -51,9 +52,12 @@ describe('VoiceCheckScreen — 듣는 중', () => {
     renderScreen()
     await settle()
 
-    expect(screen.getByText('목소리를 확인할게요')).toBeInTheDocument()
-    expect(screen.getByText('안녕하세요')).toBeInTheDocument()
-    expect(screen.getByText("'안녕하세요'라고 말해 주세요")).toBeInTheDocument()
+    // 옛 제목 「목소리를 확인할게요」는 걷었고 카드의 「안녕하세요」(Jua 30)가 화면 제목이다 (KAN-347 7단계)
+    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '안녕하세요' })).toHaveClass('type-title')
+    expect(screen.getByText('목소리 점검')).toBeInTheDocument()
+    expect(screen.getByText('편하게 말해 주세요')).toBeInTheDocument()
+    expect(screen.getByText("듣는 중 · '안녕하세요'라고 말해 주세요")).toBeInTheDocument()
     // 듣는 중에 누를 것을 주면 말하기를 멈추고 그걸 누른다
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
@@ -79,10 +83,16 @@ describe('VoiceCheckScreen — 준비', () => {
   it('충분히 말하면 중심이 잠기고 [다음]이 열린다', async () => {
     const { capture, onDone } = renderScreen()
     await settle()
+    // 말하기 전에는 빈 칸이다
+    expect(screen.getByLabelText('내 억양 곡선').querySelector('path')).toBeNull()
 
     await speak(capture)
 
     expect(screen.getByText('좋아요, 목소리가 잘 들려요')).toBeInTheDocument()
+    // 「내 억양」 칸은 실제 신호로 그린다 — 말한 음높이가 곡선(path)으로 남는다 (시안의 가짜 곡선이 아니다)
+    expect(screen.getByLabelText('내 억양 곡선').querySelector('path')).not.toBeNull()
+    // 입력 레벨 막대는 유지한다 (확정된 결정 2026-11-16)
+    expect(screen.getByRole('img', { name: '입력 레벨' })).toBeInTheDocument()
     // 판정이 끝나면 마이크를 놓는다 — 더 들어 봐야 결과가 달라지지 않는다
     expect(capture.stop).toHaveBeenCalled()
 
@@ -154,10 +164,45 @@ describe('VoiceCheckScreen — 시간 초과', () => {
     await settle()
 
     // 앞 시도의 프레임·볼륨 기록은 버려졌으므로 다시 처음부터다
-    expect(screen.getByText("'안녕하세요'라고 말해 주세요")).toBeInTheDocument()
+    expect(screen.getByText("듣는 중 · '안녕하세요'라고 말해 주세요")).toBeInTheDocument()
 
     await speak(capture)
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
     expect(onDone).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('VoiceCheckScreen — 마이크 실패 (KAN-347 7단계)', () => {
+  it('마이크를 열 수 없으면 「마이크를 사용할 수 없어요」와 [다시 시도]를 보인다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const onDone = vi.fn<(centerHz: number) => void>()
+    render(
+      <VoiceCheckScreen
+        onDone={onDone}
+        capture={async () => {
+          throw new CaptureError('permission')
+        }}
+      />,
+    )
+    await settle()
+
+    expect(screen.getByRole('alert')).toHaveTextContent('마이크를 사용할 수 없어요')
+    // 왜 열리지 않았는지는 캡처 계층의 사유가 한 줄로 붙는다
+    expect(screen.getByRole('alert')).toHaveTextContent('마이크 권한이 필요해요')
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다음' })).not.toBeInTheDocument()
+    warn.mockRestore()
+  })
+
+  it('세션 생성 실패 문구는 버튼 위 한 줄이다', async () => {
+    const capture = createFakeCapture()
+    render(<VoiceCheckScreen onDone={vi.fn()} capture={capture.factory} startFailure="지금은 시작할 수 없어요" />)
+    await settle()
+    await speak(capture)
+
+    const failure = screen.getByRole('alert')
+    const next = screen.getByRole('button', { name: '다음' })
+    // 문서 순서상 버튼 앞이다
+    expect(failure.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

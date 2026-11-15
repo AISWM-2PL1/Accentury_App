@@ -23,7 +23,8 @@
  */
 
 import { expect, test, type Page } from '@playwright/test'
-import { passAdConsentIfShown } from './helpers/testFlow'
+import { VOICE_CONSENT_TITLE } from '../src/legal/voiceConsent'
+import { passAdConsentIfShown, REGION_TITLE } from './helpers/testFlow'
 
 /**
  * Pixel 7 폭 412(기준)와 좁은 폰 360. 넘침은 좁은 폭에서 먼저 난다. 100·150·200%에 더해 중간 배율 재현점(KAN-327)을 둔다 —
@@ -250,11 +251,31 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.getByRole('button', { name: '녹음', exact: true }).click()
     await expect(page.getByRole('button', { name: '정지', exact: true })).toBeVisible({ timeout: 10_000 })
   },
+  /*
+   * 브라우저 단독 시작 흐름 (KAN-347 7단계). 가짜 마이크가 권한을 자동 승인하므로 백엔드 없이 동의·지역·점검까지 간다
+   * (세션 생성은 점검의 [다음] 뒤라 여기서 부르지 않는다).
+   */
+  '음성 동의': async (page) => {
+    await SCREENS['인트로'](page)
+    await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeVisible()
+  },
+  '출신 지역': async (page) => {
+    await SCREENS['음성 동의'](page)
+    await page.getByRole('button', { name: '다음', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeVisible()
+    await page.getByRole('radio', { name: '경남' }).check({ force: true })
+  },
+  '목소리 점검': async (page) => {
+    await SCREENS['출신 지역'](page)
+    await page.getByRole('button', { name: '다음', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '안녕하세요' })).toBeVisible()
+  },
   '마이크 차단': async (page) => {
     await denyMic(page)
     await page.goto('/test')
     await passAdConsentIfShown(page)
-    await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
+    await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
     await expect(page.getByRole('button', { name: '앱으로 테스트하기' })).toBeVisible()
   },
 }

@@ -26,7 +26,8 @@ export interface MicBlockedScreenProps {
 const COPY: Record<MicBlockedScreenProps['reason'], { title: string; body: string }> = {
   denied: {
     title: '마이크 권한이 필요해요',
-    body: '억양 테스트는 목소리로 진행돼요. 브라우저 설정에서 마이크를 허용한 뒤 다시 시작해 주세요.',
+    // 문구는 KAN-347 7단계(시안 s-22). 「휴대폰 설정에서」는 2026-11-05 문구 검토 값이다
+    body: '레벨 테스트는 목소리로 진행돼요. 휴대폰 설정에서 마이크를 허용한 뒤 다시 시작해 주세요.',
   },
   unsupported: {
     title: '이 브라우저에서는 녹음을 지원하지 않아요',
@@ -48,7 +49,7 @@ export function MicBlockedScreen({ reason, platform, onRetry }: MicBlockedScreen
       {/*
         예외 화면 서식 (KAN-347 1단계, 시안 s-22): 아이콘 원 112 · 원 윗선 y=200 · 제목 Jua 30 · 설명 15 흐린 잉크.
         `.status-block`은 달지 않는다 — iOS 스모크 구동기가 그 이름으로 대기·오류 블록을 가른다(nativeSmokeSelectors).
-        하단 버튼은 아래 `.screen__footer`라 전체 너비 그대로다(확정된 결정 2026-11-16). 문구 변경은 7단계 몫이다.
+        하단 버튼은 아래 `.screen__footer`라 전체 너비 그대로다(확정된 결정 2026-11-16). 문구는 7단계에서 바꿨다.
 
         아이콘은 잉크 선화다 (KAN-161 3단계) — 이모지는 시스템이 자기 색으로 그려 잉크 한 색 화면에 유일한 색조로 남았다.
       */}

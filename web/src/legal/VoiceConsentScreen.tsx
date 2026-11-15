@@ -20,12 +20,14 @@
  * 지역 화면과 같은 근거다 — 네트워크를 쓰지 않는 화면을 세션 생성 앞에 모아 두면, 어디서
  * 멈추든 서버에 아무도 응시하지 않을 세션이 남지 않는다.
  *
- * 문안은 전부 `voiceConsent.ts`에 있다 (개인정보 담당 검토 뒤 그 파일만 고친다).
+ * 문안은 전부 `voiceConsent.ts`에 있다 (개인정보 담당 검토 뒤 그 파일만 고친다). 서식은 KAN-347 7단계 시안
+ * s-03-voice-consent-web(제목 26, 종이 체크 카드, 12 흐린 항목 목록, [다음 →])이고 `VoiceConsentScreen.css`에 있다.
  */
 
 import { useState } from 'react'
 import { haptic } from '../bridge/bridge'
 import { Button } from '../ui'
+import { ArrowRightIcon } from '../ui/icons'
 import { PrivacyPolicyLink } from './PrivacyPolicyLink'
 import {
   VOICE_CONSENT_CHECKBOX_LABEL,
@@ -36,6 +38,7 @@ import {
   VOICE_CONSENT_POLICY_TAIL,
   VOICE_CONSENT_TITLE,
 } from './voiceConsent'
+import './VoiceConsentScreen.css'
 
 export interface VoiceConsentScreenProps {
   /** 체크 여부를 호출자에게 넘긴다 — true면 세션 생성 본문에 `voiceConsentVersion`이 실린다 */
@@ -46,17 +49,12 @@ export function VoiceConsentScreen({ onDone }: VoiceConsentScreenProps) {
   const [checked, setChecked] = useState(false)
 
   return (
-    <main className="item-screen" aria-labelledby="voice-consent-title">
+    <main className="item-screen voice-consent" aria-labelledby="voice-consent-title">
       <div>
         <h1 id="voice-consent-title" className="type-headline">
           {VOICE_CONSENT_TITLE}
         </h1>
-        <p
-          className="type-body-sm"
-          style={{ color: 'var(--color-muted-foreground)', marginTop: 'var(--space-2)' }}
-        >
-          {VOICE_CONSENT_LEAD}
-        </p>
+        <p className="type-label voice-consent__lead">{VOICE_CONSENT_LEAD}</p>
       </div>
 
       <div className="item-screen__body">
@@ -75,7 +73,7 @@ export function VoiceConsentScreen({ onDone }: VoiceConsentScreenProps) {
               setChecked(event.target.checked)
             }}
           />
-          <span className="type-body-sm">{VOICE_CONSENT_CHECKBOX_LABEL}</span>
+          <span>{VOICE_CONSENT_CHECKBOX_LABEL}</span>
         </label>
 
         <ul className="type-caption voice-consent__details">
@@ -93,13 +91,9 @@ export function VoiceConsentScreen({ onDone }: VoiceConsentScreenProps) {
         {/* 체크와 무관하게 늘 눌린다 — 체크하지 않은 [다음]이 곧 거부다 (헤더 참고) */}
         <Button onClick={() => onDone(checked)} style={{ width: '100%' }}>
           다음
+          <ArrowRightIcon />
         </Button>
-        <p
-          className="type-caption"
-          style={{ color: 'var(--color-muted-foreground)', textAlign: 'center', marginTop: 'var(--space-4)' }}
-        >
-          {VOICE_CONSENT_FOOTNOTE}
-        </p>
+        <p className="type-caption voice-consent__footnote">{VOICE_CONSENT_FOOTNOTE}</p>
       </div>
     </main>
   )

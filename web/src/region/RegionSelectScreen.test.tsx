@@ -4,14 +4,10 @@ import { REQUIRED_BRIDGE_VERSION } from '../bridge/bridge'
 import type { RegionCode } from './regions'
 import { RegionSelectScreen } from './RegionSelectScreen'
 
-/**
- * 화면 나열 순서 (KAN-202, 2026-09-11 팀장 결정). 2열 그리드의 행 우선 순서라 계약 표
- * `REGIONS`와 다르다 — 왼쪽 열이 서해안 축, 오른쪽 열이 동해안 축이다. 여기 그대로 적는 것은
- * 이 순서가 곧 기획 결정이라서다: 코드가 바뀌면 이 테스트가 그 결정을 되묻게 한다.
- */
-const DISPLAY_LABELS = ['서울', '강원', '경기', '충북', '전북', '충남', '전남', '경북', '제주', '경남']
+/** 칩 이름표 순서 = 계약 표 `REGIONS` 순서 (시안 s-13 칩 순서). DOM 순서가 곧 방향키·Tab 순서다 */
+const CHIP_LABELS = ['서울', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주']
 
-const TITLE = '출신 지역이 어디신가요?'
+const TITLE = '어느 지역 말씨가 몸에 배어 있나요?'
 
 afterEach(() => {
   delete window.AccenturyBridge
@@ -19,35 +15,71 @@ afterEach(() => {
 
 function renderScreen() {
   const onDone = vi.fn<(region: RegionCode) => void>()
-  render(<RegionSelectScreen onDone={onDone} />)
-  return { onDone }
+  const view = render(<RegionSelectScreen onDone={onDone} />)
+  return { onDone, ...view }
 }
 
-describe('RegionSelectScreen — 선택지', () => {
-  it('지역 열 개가 화면 순서(2열 행 우선)로 나열되고 처음에는 아무것도 골라져 있지 않다', () => {
+describe('RegionSelectScreen — 제목과 지도 (KAN-347 7단계)', () => {
+  it('제목은 「어느 지역 말씨가 몸에 배어 있나요?」(26 .type-headline)이고 부제가 기준을 밝힌다', () => {
     renderScreen()
 
+    const title = screen.getByRole('heading', { level: 1, name: TITLE })
+    expect(title).toHaveClass('type-headline')
+    expect(screen.getByText('본인이 쓴다고 생각하는 억양의 지역을 골라 주세요')).toBeInTheDocument()
+    expect(screen.getByText('이 정보는 억양 분석 모델을 다듬는 데만 써요')).toBeInTheDocument()
+  })
+
+  it('지도 위 칩 10개가 하나의 라디오 그룹이고 그룹 이름은 제목이다. 처음에는 아무것도 골라져 있지 않다', () => {
+    renderScreen()
+
+    const group = screen.getByRole('radiogroup', { name: TITLE })
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(10)
-    expect(radios.map((radio) => (radio as HTMLInputElement).labels?.[0]?.textContent)).toEqual(
-      DISPLAY_LABELS,
-    )
-    // 기본 선택이 있으면 그냥 [다음]을 누른 사람의 녹음이 엉뚱한 지역으로 쌓인다
+    radios.forEach((radio) => expect(group).toContainElement(radio))
+    expect(radios.map((radio) => (radio as HTMLInputElement).labels?.[0]?.textContent)).toEqual(CHIP_LABELS)
+    // 같은 name의 네이티브 라디오 — 방향키 이동과 「고른 칩만 Tab 순서」를 브라우저가 준다 (E2E smoke가 실제 키로 확인)
+    expect(new Set(radios.map((radio) => (radio as HTMLInputElement).name))).toEqual(new Set(['region']))
     expect(radios.filter((radio) => (radio as HTMLInputElement).checked)).toHaveLength(0)
   })
 
-  it('제목이 곧 라디오 그룹의 이름이다 — 스크린 리더가 그룹 진입에서 질문을 읽는다', () => {
+  it('광역시 포함 표기가 칩의 스크린 리더 이름에 들어간다', () => {
     renderScreen()
 
-    expect(screen.getByRole('radiogroup', { name: TITLE })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '경남, 부산·울산 포함' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '경기, 인천 포함' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '충남, 대전 포함' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '전남, 광주 포함' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '경북, 대구 포함' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '서울' })).toBeInTheDocument()
   })
 
-  it('출신 지역을 묻고 결과에 영향이 없음을 밝힌다 (AC: 출신 지역)', () => {
+  it('지도에 「행정구역 경계: 통계청 SGIS(2013)」가 보인다', () => {
     renderScreen()
 
-    expect(screen.getByRole('heading', { level: 1, name: /출신 지역/ })).toBeInTheDocument()
-    expect(screen.getByText(/억양의 지역을 골라/)).toBeInTheDocument()
-    expect(screen.getByText(/결과에는 영향이 없어요/)).toBeInTheDocument()
+    expect(screen.getByText('행정구역 경계: 통계청 SGIS(2013)')).toBeInTheDocument()
+  })
+
+  it('칩을 고르면 그 지역 면이 칠해지고(경남은 부산·울산까지) 아래에 지역 설명 한 줄이 뜬다', () => {
+    const { container } = renderScreen()
+
+    expect(screen.getByRole('status')).toHaveTextContent('지도에서 지역을 눌러 주세요')
+    fireEvent.click(screen.getByRole('radio', { name: '경남, 부산·울산 포함' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('경남 · 부산·울산 포함')
+    const painted = [...container.querySelectorAll('.region-map__geography path.is-selected')]
+    expect(painted).toHaveLength(3)
+    painted.forEach((path) => expect(path).toHaveAttribute('data-region', 'GYEONGNAM'))
+
+    fireEvent.click(screen.getByRole('radio', { name: '제주' }))
+    expect(screen.getByRole('status')).toHaveTextContent('제주')
+    expect(container.querySelectorAll('.region-map__geography path.is-selected')).toHaveLength(1)
+  })
+
+  it('지도 면을 눌러도 그 지역 칩이 골라진다', () => {
+    const { container } = renderScreen()
+
+    fireEvent.click(container.querySelector('.region-map__geography path[data-region="GANGWON"]')!)
+    expect(screen.getByRole('radio', { name: '강원' })).toBeChecked()
   })
 })
 
@@ -67,7 +99,6 @@ describe('RegionSelectScreen — [다음]', () => {
     fireEvent.click(screen.getByRole('radio', { name: '제주' }))
     const next = screen.getByRole('button', { name: '다음' })
     expect(next).toBeEnabled()
-    // 고른 것은 라디오 상태로도 남는다 — 화살표 키 이동의 출발점이다
     expect(screen.getByRole('radio', { name: '제주' })).toBeChecked()
 
     fireEvent.click(next)
@@ -79,9 +110,9 @@ describe('RegionSelectScreen — [다음]', () => {
     const { onDone } = renderScreen()
 
     fireEvent.click(screen.getByRole('radio', { name: '서울' }))
-    fireEvent.click(screen.getByRole('radio', { name: '경남' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^경남/ }))
     expect(screen.getByRole('radio', { name: '서울' })).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: '경남' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^경남/ })).toBeChecked()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
     expect(onDone).toHaveBeenCalledTimes(1)

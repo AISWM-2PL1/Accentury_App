@@ -40,7 +40,7 @@ function permissionStub(...results: MicPermission[]) {
  * 테스트가 있는데, DOM의 `.click()`은 act 밖이라 리액트가 그 갱신을 미룬다.
  */
 function clickStart() {
-  fireEvent.click(screen.getByRole('button', { name: '내 억양 테스트하기' }))
+  fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
 }
 
 /** 진입 쿼리를 갈아 끼운다 (`App.test.tsx`와 같은 방법). 실행 환경 판정이 이 값을 본다 */
@@ -88,7 +88,7 @@ describe('IntroScreen — 마이크 게이트 (KAN-56)', () => {
     expect(screen.getByRole('button', { name: '마이크 확인 중…' })).toBeDisabled()
 
     await waitFor(() => expect(onWebStart).toHaveBeenCalledTimes(1))
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeEnabled()
   })
 
   it('권한이 거부되면 안내 화면으로 갈아치우고 스토어 링크를 준다', async () => {
@@ -101,8 +101,12 @@ describe('IntroScreen — 마이크 게이트 (KAN-56)', () => {
     clickStart()
 
     expect(await screen.findByText('마이크 권한이 필요해요')).toBeInTheDocument()
+    // 설명은 「레벨 테스트는 목소리로 진행돼요.」로 시작한다 (KAN-347 7단계, 시안 s-22)
+    expect(
+      screen.getByText('레벨 테스트는 목소리로 진행돼요. 휴대폰 설정에서 마이크를 허용한 뒤 다시 시작해 주세요.'),
+    ).toBeInTheDocument()
     // 권한 없이는 테스트를 시작할 수 없다 (§5.6) — 인트로가 남아 있으면 안 된다
-    expect(screen.queryByRole('button', { name: '내 억양 테스트하기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '레벨 테스트 시작' })).not.toBeInTheDocument()
     expect(onWebStart).not.toHaveBeenCalled()
 
     const storeLink = screen.getByRole('link', { name: '앱으로 테스트하기' })
@@ -168,7 +172,7 @@ describe('IntroScreen — 마이크 게이트 (KAN-56)', () => {
     await waitFor(() => expect(onWebStart).toHaveBeenCalledTimes(1))
     expect(requestWebPermission).toHaveBeenCalledTimes(2)
     // 통과했으므로 안내 화면이 걷힌다
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
   })
 })
 
@@ -178,10 +182,23 @@ describe('IntroScreen — 인트로 히어로', () => {
 
     // 화면 이름을 말하는 것이 히어로뿐이라 장식으로 두면 인트로가 접근 가능한 이름을 잃는다
     expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
-    expect(screen.getByText('내 목소리로 확인하는 사투리 억양')).toBeInTheDocument()
-    expect(screen.getByText('사투리 좀 치는지, 지금 확인해봐요.')).toBeInTheDocument()
+    expect(screen.getByText('내 목소리로 확인하는 경남 사투리 억양')).toBeInTheDocument()
+    expect(screen.getByText('사투리 좀 치는지, 지금 확인해 봐요.')).toBeInTheDocument()
     // 제목 자리를 넘겨받은 것이지 하나 더 생긴 것이 아니다 — h1은 여전히 하나다
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+})
+
+describe('IntroScreen — 랜딩 서식 (KAN-347 7단계, 시안 s-05)', () => {
+  it('카드가 「7문항 ¦ 약 3분」과 「억양 3 · 단어 4」를 보이고 [레벨 테스트 시작]에 마이크 아이콘이 붙는다', () => {
+    render(<IntroScreen requestWebPermission={permissionStub('granted')} />)
+
+    expect(screen.getByText('7문항')).toBeInTheDocument()
+    expect(screen.getByText('약 3분')).toBeInTheDocument()
+    expect(screen.getByText('억양 3 · 단어 4')).toBeInTheDocument()
+    const start = screen.getByRole('button', { name: '레벨 테스트 시작' })
+    // 아이콘은 장식이라 이름에 끼지 않는다
+    expect(start.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
   })
 })
 
@@ -238,7 +255,7 @@ describe('IntroScreen — 맞춤형 광고 동의 (KAN-196)', () => {
 
     expect(dialog()).toBeInTheDocument()
     // 인트로는 그 아래 그대로 있다 — 시트가 화면을 갈아치우는 것이 아니다
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 

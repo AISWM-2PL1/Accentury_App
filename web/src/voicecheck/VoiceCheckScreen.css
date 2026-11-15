@@ -1,0 +1,70 @@
+/* 목소리 점검 (KAN-347 7단계, 시안 s-05-voicecheck-web-listening·-ready·-failed). 마이크 원은 `progress/WebVoiceRecorder.css` */
+
+.voice-check {
+  gap: var(--space-6);
+}
+
+/* 카드: 종이 · 잉크 1px · 모서리 10 · 그림자 4/5 (시안 .p2-page .prompt-card) */
+.voice-check .prompt-card {
+  gap: 0.625rem;
+  padding: 1.125rem 1.25rem;
+  border-color: var(--color-primary);
+  background: var(--color-paper);
+}
+
+.voice-check__eyebrow {
+  color: var(--color-muted-foreground);
+}
+
+/* 꼬리표: 잉크 알약에 크림 글자 12 (시안 .p2-record .prompt-card__badge) */
+.voice-check .prompt-card__badge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* 「안녕하세요」 Jua 30 — .type-title */
+
+/* 「내 억양」 칸 224 (시안 .p2-lane 112 + 112), 종이 · 잉크 1px · 모서리 10 */
+.voice-check__lanes {
+  --curve-lane-height: 14rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+
+.voice-check__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.voice-check__result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.voice-check__status {
+  margin: 0;
+  font-size: var(--text-body);
+}
+
+.voice-check__status--muted {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-label);
+  word-break: keep-all;
+}
+
+.voice-check__failure {
+  margin: 0;
+  color: var(--color-destructive-on-surface);
+  word-break: keep-all;
+}

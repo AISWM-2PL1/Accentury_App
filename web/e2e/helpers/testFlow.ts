@@ -45,6 +45,9 @@ const VOICE_CHECK_TIMEOUT_MS = 25_000
  */
 const E2E_REGION = { label: '경남', code: 'GYEONGNAM' } as const
 
+/** 출신 지역 화면 제목 (KAN-347 7단계). 지역 화면을 직접 보는 스펙(smoke·text-scale)도 같은 값을 쓴다 */
+export const REGION_TITLE = '어느 지역 말씨가 몸에 배어 있나요?'
+
 /**
  * 맞춤형 광고 동의 시트가 떠 있으면 「일반 광고만 보기」로 지나간다 (KAN-197 2단계).
  *
@@ -53,7 +56,7 @@ const E2E_REGION = { label: '경남', code: 'GYEONGNAM' } as const
  * `resolveAdConsentSource`) — 그런 판에서 이 헬퍼가 아무 일도 하지 않고 지나가는 것이 정상이다.
  *
  * ID가 있는 빌드의 첫 방문에는 인트로 위에 이 시트가 덮인다. 막이 화면 전체를 가리므로
- * (`.ad-consent-sheet`가 `position: fixed; inset: 0`) 지나치지 않으면 [내 억양 테스트하기]가
+ * (`.ad-consent-sheet`가 `position: fixed; inset: 0`) 지나치지 않으면 [레벨 테스트 시작]이
  * 다른 요소에 가려진 상태로 남고, Playwright의 actionability 검사가 클릭을 기다리다 시간
  * 초과로 죽는다 — vitest의 `fireEvent`는 hit-testing이 없어 막을 뚫고 닿지만 실브라우저는 아니다.
  *
@@ -137,7 +140,7 @@ export async function startTest(page: Page, options: { voiceConsent?: boolean } 
    * [시작하기]가 곧 마이크 권한 요청이다. `--use-fake-ui-for-media-stream`이 대화상자를
    * 자동 승인하므로 여기서 멈추지 않고, 승인되면 App이 음성 저장 동의 화면으로 갈아 끼운다.
    */
-  await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
+  await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
 
   await expect(page.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeVisible()
   if (voiceConsent) {
@@ -148,16 +151,15 @@ export async function startTest(page: Page, options: { voiceConsent?: boolean } 
   await page.getByRole('button', { name: '다음', exact: true }).click()
 
   /*
-   * 동의 다음은 늘 지역 화면이다. 라디오는 어휘 문항과 같은 `.choice__radio`라 1px + clip-path로
-   * 눈에서만 지워져 있다 (`answerVocabularyItem`의 주석). 같은 이유로 `force`. [다음]은 고르기 전에는
-   * disabled라 고른 뒤에만 눌린다.
+   * 동의 다음은 늘 지역 화면이다(KAN-347 7단계부터 지도 위 칩). 칩 라디오는 어휘 문항의 `.choice__radio`처럼 1px + clip-path로
+   * 눈에서만 지워져 있다 (`answerVocabularyItem`의 주석). 같은 이유로 `force`. 칩 이름은 「경남, 부산·울산 포함」이라 부분 일치로
+   * 잡는다. [다음]은 고르기 전에는 disabled라 고른 뒤에만 눌린다.
    */
-  await expect(
-    page.getByRole('heading', { level: 1, name: '출신 지역이 어디신가요?' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeVisible()
   await page.getByRole('radio', { name: E2E_REGION.label }).check({ force: true })
   await page.getByRole('button', { name: '다음', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '목소리를 확인할게요' })).toBeVisible()
+  // 목소리 점검은 제목 없이 카드의 「안녕하세요」가 h1이다 (KAN-347 7단계)
+  await expect(page.getByRole('heading', { level: 1, name: '안녕하세요' })).toBeVisible()
 
   /*
    * [다음]은 판정기가 `ready`일 때만 그려진다 — 이 버튼이 보인다는 것은 가짜 마이크의

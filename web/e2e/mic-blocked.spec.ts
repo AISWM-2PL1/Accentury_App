@@ -70,12 +70,12 @@ test('마이크 거부 - 권한 안내 화면으로 갈리고 세션은 만들�
    * (PR #109 리뷰 (2026-09-13)).
    */
   await passAdConsentIfShown(page)
-  await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
+  await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
 
   // 인트로가 통째로 갈렸다. 문구는 `MicBlockedScreen`의 COPY.denied다.
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('마이크 권한이 필요해요')
   await expect(
-    page.getByText('브라우저 설정에서 마이크를 허용한 뒤 다시 시작해 주세요', { exact: false }),
+    page.getByText('레벨 테스트는 목소리로 진행돼요. 휴대폰 설정에서 마이크를 허용한 뒤 다시 시작해 주세요', { exact: false }),
   ).toBeVisible()
 
   /*
@@ -100,7 +100,7 @@ test('마이크 거부 - 권한 안내 화면으로 갈리고 세션은 만들�
    * [시작하기]는 사라졌다. 권한 없이 진행할 수 없는데 버튼이 남아 있으면 사용자는 될 때까지
    * 누르게 된다 — 화면을 갈아치우는 이유가 그것이다.
    */
-  await expect(page.getByRole('button', { name: '내 억양 테스트하기', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '레벨 테스트 시작', exact: true })).toHaveCount(0)
 
   /*
    * 다시 눌러도 마찬가지다. 스텁이 계속 거절하므로 같은 안내로 돌아와야 하고, 그 사이에도
@@ -132,7 +132,7 @@ test('마이크 점유 - 거부와 다른 안내로 갈린다', async ({ page })
    * (PR #109 리뷰 (2026-09-13)).
    */
   await passAdConsentIfShown(page)
-  await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
+  await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('마이크를 사용할 수 없어요')
   await expect(
