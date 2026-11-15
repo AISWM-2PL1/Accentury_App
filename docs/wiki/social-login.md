@@ -157,7 +157,7 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) — 계정 기반이 아닌 기�
 | 429 `AUTH_GUEST_LIMIT_EXCEEDED` (같은 IP의 하루 상한, `retryable=false`) | 로그인 화면에 안내. 분당 제한(`RATE_LIMITED`)보다 먼저 가른다. 두 플랫폼 모두 「오늘은 로그인 없이 둘러볼 수 없어요」 + 보조 줄 「로그인해서 이용해 주세요」 |
 | 403 `AUTH_GUEST_NOT_ALLOWED` (게스트 토큰으로 막힌 API) | **로그아웃시키지 않는다.** 토큰·게스트 상태 그대로, 갱신도 부르지 않는다. 요청 실패로 로그인 화면에 가는 것은 Refresh 거절(401)뿐이다 (테스트: Android `AuthGateControllerTest`, iOS `StoreReviewFixTests`) |
 | 레벨 테스트 | Bearer 없는 익명 세션(서버 `AccountTokens.forSession`). 두 플랫폼 모두 음성 저장 동의·출신 지역을 기기 로컬 `AnonymousVoiceConsentStore`에 두고 설치당 한 번 묻는다(익명 빌드와 같다, PR #70 리뷰) |
-| 게스트 설정 | 계정 섹션·로그아웃·회원 탈퇴 대신 [로그인] 하나. 누르면 게스트 로그아웃(서버 로그아웃 최선 노력 + 로컬 비움, IdP 정리 없음) → 로그인 화면. 브리지 `requestLogin`과 같은 경로(Android `AuthGateController.requestLogin`, iOS `leaveGuest`). 회원 상태에서는 아무 일도 하지 않는다 |
+| 게스트 설정 | 계정 섹션·로그아웃·회원 탈퇴 대신 [로그인] 하나. 그 위에 안내 「로그인하면 억양 학습과 단어 학습 기록을 남길 수 있어요」(Android는 KAN-354 5단계부터). 누르면 게스트 로그아웃(서버 로그아웃 최선 노력 + 로컬 비움, IdP 정리 없음) → 로그인 화면. 브리지 `requestLogin`과 같은 경로(Android `AuthGateController.requestLogin`, iOS `leaveGuest`). 회원 상태에서는 아무 일도 하지 않는다 |
 | 버린 게스트 계정 | 서버가 정리한다(서버 `GuestAccountRetention`, 주기는 webview-bridge.md §15 `requestLogin`) |
 
 화면: Android `auth/LoginScreen.kt`(`GuestConsentStep`)·`MainActivity.kt` `AuthGateState.Guest` 갈래, iOS `Auth/LoginScreen.swift`·`Auth/AuthGateView.swift` `GuestScreen`·`Auth/SettingsScreen.swift` `GuestSettingsScreen`.
