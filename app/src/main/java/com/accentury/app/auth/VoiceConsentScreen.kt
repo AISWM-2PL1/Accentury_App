@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
@@ -77,8 +78,8 @@ fun VoiceConsentScreen(
     var failed by rememberSaveable { mutableStateOf(false) }
 
     // 시안 11 배치 (KAN-288): 본문은 스크롤, 두 버튼과 안내 한 줄은 바닥 고정. 체크는 기본 해제이고 체크 전 주 버튼은
-    // 비활성 모양(그림자색 면)이다. [건너뛰기]는 시안 HIG 수정대로 보조 버튼 모양으로 올렸다 — 텍스트 링크면 "동의
-    // 안 함"이 주 버튼과 같은 자리의 선택지로 읽히지 않는다. 문구는 현재 앱 문구를 유지한다.
+    // 비활성 모양(그림자색 면)이다. [건너뛰기]는 KAN-354 시안 s-03-voice-consent-app대로 글자 버튼이다(KAN-288의 보조 버튼
+    // 모양을 대체, 리뷰 P2-2). 문구는 현재 앱 문구를 유지한다.
     // 모양은 KAN-354 시안 s-03-voice-consent-app: 본문·목록은 흐린 잉크, 체크 줄은 paper 상자 + 종이 그림자, 목록은 둥근 불릿.
     PaperScreen(
         modifier = modifier,
@@ -104,7 +105,7 @@ fun VoiceConsentScreen(
                 text = "건너뛰기",
                 onClick = onSkip,
                 modifier = Modifier.fillMaxWidth(),
-                variant = ButtonVariant.Secondary,
+                variant = ButtonVariant.Text,
             )
             Text(
                 VOICE_CONSENT_FOOTNOTE,
@@ -166,7 +167,14 @@ fun VoiceConsentScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                AccenturyButton(text = "개인정보처리방침", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
+                // 글자의 왼쪽 선을 본문에 맞춘다(시안 `.p4-policy-link` padding-left 0) — TextButton 안쪽 여백 12만큼 왼쪽으로 옮기고
+                // 누르는 칸 48은 그대로 둔다(리뷰 P2-2).
+                AccenturyButton(
+                    text = "개인정보처리방침",
+                    onClick = onOpenPrivacy,
+                    modifier = Modifier.offset(x = (-12).dp),
+                    variant = ButtonVariant.Text,
+                )
             }
 
             if (failed) StatusBlock(tone = StatusTone.Error, message = "잠시 후 다시 시도해 주세요")

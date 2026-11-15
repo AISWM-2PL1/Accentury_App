@@ -1241,7 +1241,7 @@ private fun TestFlow(
             when {
                 // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
                 // 시스템 뒤로가기 = 회신 없이 A-2로 (§12). 권한 화면에서의 뒤로가기도 같다.
-                intonationStart != null && intonation != null -> {
+                intonationStart != null -> {
                     BackHandler(onBack = intonation::close)
                     // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close 다음 학습 탭 문서를 다시 열어
                     // 사투리 여행 지도(학습 탭의 첫 화면)로 간다 (KAN-354 5단계 — 억양 탭이 학습 탭 `learn`으로 합쳐졌다).
