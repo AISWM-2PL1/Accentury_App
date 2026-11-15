@@ -2527,6 +2527,7 @@ body:has(.tab-bar) main {
 .attendance-panel__close {
   display: grid;
   place-items: center;
+  flex: none; /* 패널(flex 세로·스크롤)이 내용보다 낮으면 아이콘 높이(20)까지 줄어든다 */
   align-self: flex-end;
   width: var(--touch-target-min);
   height: var(--touch-target-min);
@@ -2576,7 +2577,7 @@ body:has(.tab-bar) main {
 .attendance-panel__nav button {
   display: grid;
   place-items: center;
-  width: 44px;
+  width: var(--touch-target-min);
   height: var(--touch-target-min);
   padding: 0;
   border: 0;
@@ -2605,10 +2606,13 @@ body:has(.tab-bar) main {
 }
 
 /*
- * 달력 (확정된 결정 2026-11-16 「달력 칸」): 칸은 33px로 그리고 누르는 영역(버튼)은 48px다. 7열 × 48 = 336이 390 폭 패널
- * 안(342)에 들어간다. 더 좁은 화면에서는 열이 48보다 줄어든다.
+ * 달력 (확정된 결정 2026-11-16 「달력 칸」): 칸은 33px로 그리고 누르는 영역(버튼)은 48px다. 7열 × 48 = 336이 들어가도록
+ * 패널 안 폭이 7 × 터치 하한보다 좁으면 달력만 좌우 여백 쪽으로 넓힌다(위아래 선도 같이 길어진다). 넓히는 폭은 화면 여백(24)
+ * 까지라 화면 폭 360(안 312 + 여백 48)부터 48을 지킨다. 360 미만에서는 넘치지 않게 열이 48보다 줄어든다(320 폭이면 약 45.7).
+ * margin의 %는 부모(패널 안) 폭 기준이다.
  */
 .attendance-calendar {
+  margin-inline: max(calc(-1 * var(--screen-padding-x)), min(0px, (100% - 7 * var(--touch-target-min)) / 2));
   padding: var(--space-3) 0;
   border-top: 1px solid var(--color-primary-dim);
   border-bottom: 1px solid var(--color-primary-dim);

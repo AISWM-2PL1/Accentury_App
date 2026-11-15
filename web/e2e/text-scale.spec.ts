@@ -214,6 +214,31 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.goto('/?bridge=2&app=1.0&screen=result&sessionId=s_e2e')
     await expect(page.getByRole('button', { name: '친구에게 공유하기' })).toBeVisible()
   },
+  // 열린 출석 달력 시트 — 날짜 칸·월 이동 버튼이 큰 글자·좁은 폭에서도 48 이상인지 (KAN-347 2단계, 리뷰 P1)
+  '출석 달력': async (page) => {
+    await page.route(
+      (u) => u.pathname === '/v0/learning/attendance',
+      (r) => {
+        const q = new URL(r.request().url()).searchParams
+        const [year, month] = [Number(q.get('year')), Number(q.get('month'))]
+        const iso = (d: number) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        return r.fulfill({
+          json: {
+            year, month,
+            days: [{ date: iso(1), items: [{ kind: 'SET', key: 'a1', id: 's1', title: '', done: 3, total: 3 }] }],
+            monthCount: 1, lastMonthCount: 9,
+            streak: { currentDays: 3, attendedToday: true, lastAttendedDate: iso(2) },
+            today: iso(2),
+          },
+        })
+      },
+    )
+    await SCREENS['홈'](page)
+    await page.getByRole('button', { name: /출석 달력 열기$/ }).click()
+    await expect(page.getByRole('dialog', { name: '출석 달력' }).getByRole('button', { name: /월 1일, 출석$/ })).toBeVisible()
+    // 시트가 다 올라온 뒤 잰다 (300ms)
+    await page.waitForTimeout(400)
+  },
   '사투리 여행 지도': async (page) => {
     await asApp(page)
     await page.goto('/?bridge=2&app=1.0&screen=learn')

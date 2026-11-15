@@ -25,7 +25,7 @@
 
 import { useEffect, useState } from 'react'
 import { haptic } from '../bridge/bridge'
-import { courseStarsChange, fetchLearningLevels, type CourseStarsChange } from './travel'
+import { courseStarsChange, fetchLearningLevelsOrNull, type CourseStarsChange } from './travel'
 import {
   AUTH_GUEST_NOT_ALLOWED,
   CLIENT_NOT_SIGNED_IN,
@@ -153,7 +153,7 @@ export function useWordLearning(apiBase: string, setId: string, deps: WordApiDep
     run(async () => {
       const result = await completeWordAttempt(apiBase, attemptId, deps)
       const levels =
-        result.stars !== undefined && before?.stars != null ? await fetchLearningLevels(apiBase, deps).catch(() => null) : null
+        result.stars !== undefined && before?.stars != null ? await fetchLearningLevelsOrNull(apiBase, deps) : null
       const course = before === null ? null : courseStarsChange(before.course, before.stars, levels)
       return { screen: 'complete', set, result, course }
     })

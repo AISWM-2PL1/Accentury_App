@@ -49,6 +49,22 @@ export async function fetchLearningLevels(apiBase: string, deps: WordApiDeps = {
   return body
 }
 
+/**
+ * 구간 요약의 제한 시간. 요약은 선택 정보라(없으면 「KAN-359 없음」 화면) 응답 없이 걸린 요청이 지도·성적표를 붙잡으면 안 된다.
+ * 작은 집계 한 건이라 정상 응답은 1초 안이다. 3초는 「화면이 멈췄다」로 느끼기 전에 별 없는 화면으로 넘어가는 선이다.
+ */
+export const LEVELS_TIMEOUT_MS = 3000
+
+/** 구간 요약 — 실패·제한 시간 초과면 null. 요청은 끊지 않는다(`request`가 AbortSignal을 받지 않음): 늦은 응답은 버린다 */
+export function fetchLearningLevelsOrNull(apiBase: string, deps: WordApiDeps = {}): Promise<LearningLevels | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), LEVELS_TIMEOUT_MS)
+    fetchLearningLevels(apiBase, deps)
+      .then(resolve, () => resolve(null))
+      .finally(() => clearTimeout(timer))
+  })
+}
+
 function isLearningLevels(v: unknown): v is LearningLevels {
   return (
     hasFields(v, { totalStars: 'number' }) &&
@@ -160,12 +176,12 @@ export function buildTravel(
   }
 }
 
-/** 목록 두 개와 구간 요약을 같이 받는다. 요약 실패는 「KAN-359 없음」이다(머리 주석). 목록 실패는 그대로 던진다 */
+/** 목록 두 개와 구간 요약을 같이 받는다. 요약 실패·제한 시간 초과는 「KAN-359 없음」이다(머리 주석). 목록 실패는 그대로 던진다 */
 export async function loadTravel(apiBase: string, deps: WordApiDeps = {}): Promise<Travel> {
   const [words, intonations, levels] = await Promise.all([
     fetchWordSets(apiBase, deps),
     fetchIntonationCourses(apiBase, deps),
-    fetchLearningLevels(apiBase, deps).catch(() => null),
+    fetchLearningLevelsOrNull(apiBase, deps),
   ])
   return buildTravel(words.sets, intonations.courses, levels)
 }

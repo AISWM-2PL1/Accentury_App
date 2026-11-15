@@ -317,6 +317,11 @@ test('KAN-347 출석 배지·달력 - 홈 앱 바에만 서고, 칸은 33px·누
   expect(Math.round(drawn.height)).toBe(33)
   expect(hit.width).toBeGreaterThanOrEqual(48)
   expect(hit.height).toBeGreaterThanOrEqual(48)
+  for (const name of ['이전 달', '다음 달']) {
+    const nav = (await sheet.getByRole('button', { name }).boundingBox())!
+    expect(nav.width, name).toBeGreaterThanOrEqual(48)
+    expect(nav.height, name).toBeGreaterThanOrEqual(48)
+  }
 
   await day1.click()
   await expect(sheet.getByText('1코스 단어 학습 1')).toBeVisible()
@@ -538,6 +543,49 @@ async function finishWordSet4(page: Page): Promise<void> {
   await page.getByRole('button', { name: '지도로', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: '사투리 여행' })).toBeVisible()
 }
+
+test.describe('폭 360', () => {
+  test.use({ viewport: { width: 360, height: 740 } })
+
+  test('KAN-347 출석 달력 - 좁은 화면에서도 날짜 칸·월 이동 버튼의 누르는 영역이 48 이상이고 칸 그림은 33px다', async ({ page }) => {
+    await stubServer(page)
+    await stubHome(page, {
+      levelTestTaken: false, levelTest: null, recommendedCourseId: null, recommendedSetId: null,
+      streak: { currentDays: 2, attendedToday: true, lastAttendedDate: '2026-11-12' },
+    })
+    await page.route(
+      (url) => url.pathname === '/v0/learning/attendance',
+      (route) => {
+        const q = new URL(route.request().url()).searchParams
+        return route.fulfill({ json: attendanceReply(Number(q.get('year')), Number(q.get('month')), [{ day: 1, items: [] }], 1, 0) })
+      },
+    )
+    await asApp(page)
+    await page.goto('/?bridge=2&app=1.0&screen=home')
+    await page.getByRole('button', { name: '연속 출석 2일, 출석 달력 열기' }).click()
+    const sheet = page.getByRole('dialog', { name: '출석 달력' })
+    await expect(sheet.getByRole('button', { name: /월 1일, 출석$/ })).toBeVisible()
+    await page.waitForTimeout(400)
+
+    const days = sheet.locator('button.attendance-cell')
+    expect(await days.count()).toBeGreaterThanOrEqual(28)
+    for (const box of await days.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))) {
+      expect(box.width).toBeGreaterThanOrEqual(48)
+      expect(box.height).toBeGreaterThanOrEqual(48)
+      // 화면 밖으로 나가지 않는다
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(360)
+    }
+    const drawn = (await days.first().locator('.attendance-cell__day').boundingBox())!
+    expect(Math.round(drawn.width)).toBe(33)
+    for (const name of ['이전 달', '다음 달']) {
+      const nav = (await sheet.getByRole('button', { name }).boundingBox())!
+      expect(nav.width, name).toBeGreaterThanOrEqual(48)
+      expect(nav.height, name).toBeGreaterThanOrEqual(48)
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
+  })
+})
 
 const COURSE1 = ['w1', 'k1', 'w2', 'k2', 'w3', 'k3', 'k4', 'k5']
 

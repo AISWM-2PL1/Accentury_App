@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { IntonationCourseSummary } from './intonationApi'
-import { buildTravel, celebrationFor, courseStarsChange, loadTravel, type LearningLevels } from './travel'
+import { LEVELS_TIMEOUT_MS, buildTravel, celebrationFor, courseStarsChange, loadTravel, type LearningLevels } from './travel'
 import type { WordSetSummary } from './wordApi'
 
 /** 코스 1·2 × (단어 4 + 억양 5). done에 든 id는 completed, 별 필드는 withStars일 때만 */
@@ -144,6 +144,35 @@ describe('loadTravel', () => {
     expect(travel.stars).toEqual({ total: 2, goal: 42 })
     expect(travel.courses[0].stamps[0]).toMatchObject({ stars: 2, score: 67 })
     expect(travel.courses[1].unlocked).toBe(false)
+  })
+
+  it('구간 요약이 응답 없이 걸려도 제한 시간(3초) 뒤 별 없는 지도로 선다', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchImpl = fetchWith(ok({}))
+      const hang: FetchLike = (url, init) =>
+        new URL(String(url)).pathname === '/v0/learning/levels' ? new Promise(() => {}) : fetchImpl(url, init)
+      let travel: Awaited<ReturnType<typeof loadTravel>> | undefined
+      void loadTravel('http://api', deps(hang)).then((t) => (travel = t))
+      await vi.advanceTimersByTimeAsync(LEVELS_TIMEOUT_MS - 1)
+      expect(travel).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(travel?.stars).toBeNull()
+      expect(travel?.courses[0].stamps[0]).toMatchObject({ completed: true, stars: null })
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('구간 요약이 제때 오면 제한 시간 타이머를 남기지 않는다', async () => {
+    vi.useFakeTimers()
+    try {
+      await loadTravel('http://api', deps(fetchWith(ok(levels(2, false, 1)))))
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('구간 요약 모양이 계약과 다르면 없는 것으로 친다', async () => {

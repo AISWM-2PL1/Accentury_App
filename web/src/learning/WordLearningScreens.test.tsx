@@ -9,7 +9,7 @@ import type { FetchLike } from '../progress/fetchTestDefinition'
 import { useWordLearning, type WordLearningView } from './useWordLearning'
 import { WordLearningRoute, WordQuizScreen, WordReportScreen, quotePrompt } from './WordLearningScreens'
 import type { WordApiDeps } from './wordApi'
-import type { CourseStarsChange } from './travel'
+import { LEVELS_TIMEOUT_MS, type CourseStarsChange } from './travel'
 import { WORD_TIME_LIMIT_MS, pauseCountdown, remainingMs, resumeCountdown, wordTimeLimitMs } from './wordTimer'
 
 /** 코스 1의 「단어 학습 2」 */
@@ -51,7 +51,7 @@ const RESULT = {
   completedAt: '2026-10-08T00:05:00Z',
 }
 
-type Reply = { status: number; body: unknown } | 'network'
+type Reply = { status: number; body: unknown } | 'network' | 'hang'
 const ok = (body: unknown, status = 200): Reply => ({ status, body })
 const fail = (status: number, code: string, message: string, retryable: boolean): Reply => ({
   status,
@@ -72,6 +72,7 @@ function fakeServer(routes: Record<string, Reply | Reply[]>) {
     const entry = routes[key]
     const reply = Array.isArray(entry) ? (entry.length > 1 ? entry.shift()! : entry[0]) : entry
     if (reply === 'network') throw new TypeError('Failed to fetch')
+    if (reply === 'hang') return new Promise<Response>(() => {})
     return { ok: reply.status < 300, status: reply.status, json: async () => reply.body } as Response
   }
   return { fetchImpl, calls }
@@ -745,7 +746,8 @@ describe('성적표 「코스 별」 — 라우트가 구간 요약을 다시 �
     ],
   })
 
-  async function finishSet() {
+  /** 마지막 문항 제출까지 — [결과 보기]를 돌려준다 */
+  async function answerAll() {
     fireEvent.click(await screen.findByRole('button', { name: '다음 카드' }))
     fireEvent.click(screen.getByRole('button', { name: '문제 풀기' }))
     fireEvent.click(await screen.findByRole('radio', { name: '정구지' }))
@@ -753,9 +755,15 @@ describe('성적표 「코스 별」 — 라우트가 구간 요약을 다시 �
     fireEvent.click(await screen.findByRole('button', { name: '다음 문항' }))
     fireEvent.click(await screen.findByRole('radio', { name: '머꼬' }))
     fireEvent.click(screen.getByRole('button', { name: '제출' }))
-    fireEvent.click(await screen.findByRole('button', { name: '결과 보기' }))
+    return screen.findByRole('button', { name: '결과 보기' })
+  }
+
+  async function finishSet() {
+    fireEvent.click(await answerAll())
     await screen.findByRole('heading', { level: 1, name: '단어 학습 2 결과' })
   }
+
+  afterEach(() => vi.useRealTimers())
 
   it('들어가기 전 별(prop)과 완료 뒤 다시 받은 collectedStars로 「★ 5 → 7 / 21」을 그린다', async () => {
     const { calls } = renderRoute(
@@ -798,6 +806,24 @@ describe('성적표 「코스 별」 — 라우트가 구간 요약을 다시 �
     expect(screen.queryByRole('img', { name: /별 3개 중/ })).toBeNull()
     expect(screen.queryByText('이번 스탬프')).toBeNull()
     expect(calls.some((c) => c.path.endsWith('/levels'))).toBe(false)
+  })
+
+  it('요약 조회가 응답 없이 걸려도 제한 시간(3초) 뒤 성적표가 선다 — 별은 그리고 코스 별 줄만 숨긴다', async () => {
+    renderRoute(
+      { ...happyRoutes(), '/complete': ok({ ...RESULT, stars: 2 }), '/v0/learning/levels': 'hang' },
+      'acc',
+      { courseStars: { collected: 5, required: 21 } },
+    )
+    const showResult = await answerAll()
+    vi.useFakeTimers()
+    fireEvent.click(showResult)
+    const report = () => screen.queryByRole('heading', { level: 1, name: '단어 학습 2 결과' })
+    await act(() => vi.advanceTimersByTimeAsync(LEVELS_TIMEOUT_MS - 1))
+    expect(report()).toBeNull()
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(report()).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '별 3개 중 2개' })).toBeInTheDocument()
+    expect(screen.queryByText('이번 스탬프')).toBeNull()
   })
 
   it('요약 조회가 실패해도(404) 성적표는 선다 — 별은 그리고 코스 별 줄만 숨긴다', async () => {
