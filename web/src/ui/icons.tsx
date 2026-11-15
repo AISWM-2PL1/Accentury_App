@@ -161,3 +161,89 @@ export function CloudOffIcon({ size }: { size?: number }) {
 export function RefreshIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M20 8a8 8 0 0 0-14-3L3 8m0-5v5h5M4 16a8 8 0 0 0 14 3l3-3m0 5v-5h-5" />
 }
+
+/*
+ * 2~7단계 화면이 쓸 선 아이콘 (KAN-347 1단계 보강). 모양은 시안 `screens/*.html`의 SVG 그대로이고 규격은 위 5종과 같다
+ * (viewBox 24, 획 1.5, aria-hidden). 위쪽의 `CheckIcon`·`CrossIcon`·`ShareIcon`·`SwapIcon`·`MicIcon`은 옛 그림(viewBox 20·48,
+ * 굵은 획)이라 지금 쓰는 자리를 위해 남기고, 새 화면은 아래 `*LineIcon`을 쓴다.
+ */
+
+/** → 다음 카드·다음 스탬프·이어가기·시작 (시안 `arrow`) */
+export function ArrowRightIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M4 12h16m-6-6 6 6-6 6" />
+}
+
+/** ← 지도로·결과 목록으로 (s-16, s-08-intonation-detail) */
+export function ArrowLeftIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M20 12H4m6-6-6 6 6 6" />
+}
+
+/** ↓ 번역하기 원형 버튼 (s-03) */
+export function ArrowDownIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M12 3v18m-6-6 6 6 6-6" />
+}
+
+/** ⇄ 번역 방향 전환 원형 버튼 (s-03·s-04) */
+export function SwapLineIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M3 8h18m-4-4 4 4-4 4M21 16H3m4-4-4 4 4 4" />
+}
+
+/** ✓ 제출·완료·정답 꼬리표 (시안 `check`) */
+export function CheckLineIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="m5 12 4 4L19 6" />
+}
+
+/** ✕ 닫기·오답 꼬리표 (시안 `cross`). 앱바 닫기 ✕는 `CloseButton`의 Material 그림이 따로 있다 */
+export function CloseLineIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M6 6l12 12M18 6 6 18" />
+}
+
+/** 마이크 — 버튼 안 20 (레벨 테스트 시작·다시 말해 보기). 예외 화면 56은 위 `MicIcon` */
+export function MicLineIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM6 11v1a6 6 0 0 0 12 0v-1M12 18v4m-4 0h8" />
+}
+
+/** 달력 — 홈 출석 배지 (s-01·s-02) */
+export function CalendarIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M4 5h16v16H4ZM4 9h16M8 3v4m8-4v4M8 13h2m4 0h2m-8 4h2" />
+}
+
+/** 보내기 — 동의하고 보내기·후기 보내기 (s-10-translator-consent-sheet) */
+export function SendIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="m3 11 18-8-8 18-2-8-8-2ZM11 13 21 3" />
+}
+
+/** 복사 — 번역 결과 (s-04) */
+export function CopyIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M8 8h12v13H8ZM16 8V3H3v13h5" />
+}
+
+/** 공유 — 번역 결과 (s-04) */
+export function ShareLineIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M12 16V3m-4 4 4-4 4 4M5 12v9h14v-9" />
+}
+
+/** 주의 — 입력 오류 한 줄 (s-09-error-input) */
+export function WarningIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M12 3 2 21h20L12 3Z M12 9v5 M12 17v.1" />
+}
+
+/** 정지 — 녹음 중 (s-06-recording) */
+export function StopIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M6 6h12v12H6Z" />
+}
+
+/** › — 다시 연습할 대사 카드·목록 행 (시안 `chevron-right`) */
+export function ChevronRightIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="m9 6 6 6-6 6" />
+}
+
+/** ‹ — 출석 달력 이전 달 (시안 `chevron-left`) */
+export function ChevronLeftIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="m15 6-6 6 6 6" />
+}
+
+/** 재녹음 — 녹음 다시 듣기의 [재녹음] (s-06-recording-review `retry`). 다른 [다시 시도]는 `RefreshIcon` */
+export function RetryIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M4 9a8 8 0 1 1 0 6M4 4v5h5" />
+}
