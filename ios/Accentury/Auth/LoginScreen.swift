@@ -320,11 +320,15 @@ struct AuthFailureBlock<Action: View>: View {
     @ViewBuilder var action: () -> Action
 
     var body: some View {
-        StatusBlock(tone: .error, message: message, detail: detail, action: action)
+        StatusBlock(tone: .error, message: failure.message(verb: verb), detail: failure.detail, action: action)
     }
+}
 
-    private var message: String {
-        switch failure.reason {
+/// ``AuthFailureBlock``과 예외 화면(``AuthCheckScreen``, KAN-355)이 같이 쓰는 문구.
+extension AuthFailure {
+
+    func message(verb: String) -> String {
+        switch reason {
         case .retry, .retryLater: return "\(verb)하지 못했어요"
         case .rateLimited: return "잠시 뒤에 \(verb)할 수 있어요"
         case .underAge: return "만 14세 이상만 가입할 수 있어요"
@@ -333,12 +337,12 @@ struct AuthFailureBlock<Action: View>: View {
         }
     }
 
-    private var detail: String? {
-        switch failure.reason {
+    var detail: String? {
+        switch reason {
         case .retry: return "네트워크를 확인하고 다시 시도해 주세요"
         case .retryLater: return "잠시 뒤에 다시 시도해 주세요"
         case .rateLimited:
-            return failure.retryAfterSeconds.map { "접속이 몰리고 있어요 · \($0)초 뒤에 다시 눌러 주세요" }
+            return retryAfterSeconds.map { "접속이 몰리고 있어요 · \($0)초 뒤에 다시 눌러 주세요" }
                 ?? "접속이 몰리고 있어요 · 잠시 뒤에 다시 눌러 주세요"
         case .underAge: return nil
         case .unsupported: return "앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요"
@@ -383,24 +387,23 @@ struct AuthCheckScreen: View {
         }
     }
 
-    /// 확인 실패·[다시 시도] 뒤 대기 — 워드마크 앱바 아래에 선다 (KAN-288 디자인 3, 안드로이드 `AuthCheckScreen`)
+    /// 확인 실패·[다시 시도] 뒤 대기 — 워드마크 앱바 아래에 선다 (KAN-288 디자인 3, 안드로이드 `AuthCheckScreen`).
+    /// 실패는 예외 화면 서식(``ExceptionScreen``, KAN-355)이다.
     private var checkContent: some View {
         ZStack {
             Papercut.cream.ignoresSafeArea()
             if let failure {
-                AuthFailureBlock(failure: failure, verb: "연결") {
+                ExceptionScreen(systemImage: symbol(failure.reason), title: failure.message(verb: "연결"), message: failure.detail) {
                     // 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15, 안드로이드 `AuthCheckScreen`) — [업데이트하기]가
                     // App Store를 열고 지금까지의 [다시 시도]는 [나중에]로 남는다. 상품 페이지가 없는 빌드는 예전 그대로다.
                     if failure.reason == .unsupported, let storeURL = AppConfig.appStoreURL {
-                        VStack(spacing: Papercut.space2) {
-                            AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
-                            AccenturyButton(text: "나중에", variant: .text, action: onRetry)
-                        }
+                        AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
+                        AccenturyButton(text: "나중에", variant: .text, action: onRetry)
                     } else {
-                        AccenturyButton(text: "다시 시도", variant: .secondary, action: onRetry)
+                        // 시안 s-15 서식대로 주 버튼이다 (KAN-355, 예전에는 보조 버튼).
+                        AccenturyButton(text: "다시 시도", leadingIcon: "arrow.clockwise", action: onRetry)
                     }
                 }
-                .padding(Papercut.space4)
             } else {
                 VStack(spacing: Papercut.space3) {
                     StatusBlock(tone: .waiting, message: "로그인 정보를 확인하고 있어요")
@@ -408,6 +411,17 @@ struct AuthCheckScreen: View {
                 }
                 .padding(Papercut.space4)
             }
+        }
+    }
+
+    /// 아이콘 원의 선화 (KAN-355). 시작 확인에서 나오는 이유는 연결·서버·몰림·업데이트이고, 나머지 둘은 같은 계열에서 골랐다.
+    private func symbol(_ reason: AuthFailureReason) -> String {
+        switch reason {
+        case .retry: return "wifi.slash"
+        case .retryLater: return "exclamationmark.circle"
+        case .rateLimited: return "hourglass"
+        case .unsupported: return "arrow.down.app"
+        case .underAge, .guestLimitExceeded: return "person.crop.circle.badge.exclamationmark"
         }
     }
 }

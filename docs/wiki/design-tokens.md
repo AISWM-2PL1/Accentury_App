@@ -138,7 +138,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 
 두 벌을 쓴다.
 
-- **Jua** — 제목·대사·등급. 번들 필수(어느 기기에도 없는 디스플레이 폰트). `app/src/main/res/font/jua_regular.ttf`(2.0MB), `web/public/fonts/Jua-Regular.woff2`(360KB), `ios/Accentury/Resources/Fonts/Jua-Regular.ttf`(2.0MB, KAN-178 — `UIAppFonts`로 등록하고 `Font.custom`에 PostScript 이름 `Jua-Regular`를 준다). 라이선스 `LICENSES/Jua-OFL.txt`(SIL OFL 1.1) 하나를 세 런타임이 공유한다.
+- **Jua** — 제목·대사·등급·버튼 라벨(KAN-355, 2026-11-12 결정: 주·보조 17, 글자 버튼 16). 번들 필수(어느 기기에도 없는 디스플레이 폰트). `app/src/main/res/font/jua_regular.ttf`(2.0MB), `web/public/fonts/Jua-Regular.woff2`(360KB), `ios/Accentury/Resources/Fonts/Jua-Regular.ttf`(2.0MB, KAN-178 — `UIAppFonts`로 등록하고 `Font.custom`에 PostScript 이름 `Jua-Regular`를 준다). 라이선스 `LICENSES/Jua-OFL.txt`(SIL OFL 1.1) 하나를 세 런타임이 공유한다.
 - **본문 — 시스템 기본 산세리프.** Android 시스템 폰트가 이미 Noto Sans CJK KR이고 WebView의 `sans-serif`도 같은 폰트로 해석되므로, 네이티브와 웹이 저절로 같은 글꼴로 수렴한다. 9.9MB짜리 Noto Sans KR 가변폰트를 번들해도 타깃 기기에서 보이는 글자는 같아서 넣지 않는다. iOS도 같은 규칙을 그쪽 글꼴로 지킨다 — 네이티브 `.system`과 WKWebView의 `sans-serif`가 둘 다 Apple SD Gothic Neo로 풀린다.
 
 | 토큰 | 크기 | 웹 | 굵기 | 폰트 | 용도 |
@@ -366,8 +366,8 @@ F0 곡선·컨트롤 경계는 텍스트가 아니라 WCAG 2.1 **1.4.11 비텍�
 두르고 오프셋 그림자로 띄운다. 그라디언트가 아니라 단색이라 start·end는 같은 값이다.
 
 **`#cfc5aa`(`muted`)는 상태를 나르지 않는다.** 크림 위 1.46:1이다. 진척도의 남은 구간,
-비활성 면처럼 "아직 없는 것·지금 못 누르는 것"을 그리는 자리에만 쓴다. 비활성은 이 색과
-`opacity-disabled`가 함께 알리고, 진척은 채워진 잉크 쪽이 알린다. 이 값으로 무언가를
+비활성 면처럼 "아직 없는 것·지금 못 누르는 것"을 그리는 자리에만 쓴다. 비활성은 이 색의 면과
+흐린 잉크 글자가 함께 알리고(KAN-355, 이전에는 `opacity-disabled`), 진척은 채워진 잉크 쪽이 알린다. 이 값으로 무언가를
 "표시"하면 그 표시는 보이지 않는다.
 
 ### 포인트 컬러 — 테라코타 `#a8503a` (2026-09-09)
@@ -511,6 +511,8 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 | 곡선 레인 | `ui/components/CurveLane.kt` | `web/src/recording/CurveLane.tsx` |
 | 녹음 버튼 | `ui/components/RecordButton.kt` | — (웹은 `.btn`으로 녹음한다) |
 | 히어로 아이콘 | `ui/components/HeroIcon.kt` | `.hero-icon` |
+| 확인 대화상자 | iOS `UI/Components/ConfirmDialog.swift` (KAN-355) | — (KAN-347) |
+| 예외 화면 서식 | iOS `UI/Components/ExceptionScreen.swift` (KAN-355) — 아이콘 원 112·선화 56, 원 윗선 y=200, 제목 Jua 30, 설명 15 흐린 잉크 | `.p3-status` (시안) |
 | 오프셋 그림자 | `ui/components/PaperShadow.kt` | `--shadow-*` 토큰 (§5) |
 
 ### 컷아웃 카드
@@ -531,7 +533,7 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 
 ### 버튼
 
-무게 세 가지(`Primary`·`Secondary`·`Text`).
+무게 네 가지(`Primary`·`Secondary`·`Destructive`·`Text`, Destructive는 KAN-355).
 
 > **KAN-347 1단계 (웹 반영, 네이티브는 KAN-354·KAN-355):** 라벨이 Primary·Secondary Jua 17, Text Jua 16(굵기 400)으로
 > 바뀌었다(§3 「버튼 라벨」). 아래 표의 라벨 열은 그 전 값이다. 큰 글자에서 넘치면 줄을 바꾼다.
@@ -560,7 +562,8 @@ Secondary다 — 맞춤형 광고 시트 [맞춤형 광고 받기]·[일반 광�
 그리지 않는다. 글자만 있는 버튼은 눌러도 움직이지 않는다 — 종이가 아니라 글씨라 내려갈
 바닥이 없다.
 
-비활성은 `opacity-disabled` 0.6뿐이다. 색으로 상태를 만들지 않는다.
+비활성은 면이 있는 버튼이면 종이 그림자 면 + 흐린 잉크 글자·테두리, 글자 버튼이면 `opacity-disabled` 0.6이다 (KAN-355, 그 전에는
+모든 버튼이 0.6뿐이었다). 동작 줄이기면 눌림 이동이 없다.
 
 로그인 IdP 버튼은 이 버튼 위계 밖이다(2026-11-11 결정, KAN-354). Android는 `auth/LoginScreen.kt` `IdpButton`이 각 사
 가이드의 면·글자·문구로 따로 그린다(높이 48·반경 12·테두리 없음·시스템 글꼴 15, 로고 왼쪽 고정). 출처·규칙은

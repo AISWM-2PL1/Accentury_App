@@ -213,34 +213,27 @@ struct PermissionGateView: View {
             case .openSettings: MicPermission.openSettings()
             }
         } label: {
+            // 공통 버튼(``AccenturyButton``)의 주 변형과 같은 면·라벨이다 (KAN-355: 벽돌 면·Jua 17·48, 비활성은 종이 그림자 면).
+            // 이 화면만 버튼을 손으로 세운 이유는 진행 표시를 라벨 옆에 끼워야 해서인데, 색은 같은 값을 읽는다.
+            let look = ButtonVariant.primary.appearance(enabled: !busy)
             HStack(spacing: Papercut.space2) {
                 if busy {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(Papercut.cream)
+                        .tint(look.label)
                 }
-                // 공통 버튼(``AccenturyButton``)의 주 변형과 같은 라벨이다 — Jua 20에
-                // 자간 0.4. 이 화면만 버튼을 손으로 세운 이유는 진행 표시를 라벨 옆에
-                // 끼워야 해서인데, 글자만은 같은 값을 읽는다.
                 Text(label)
-                    .papercutType(.title, tracking: Papercut.primaryLabelTracking)
-                    .foregroundColor(Papercut.cream)
+                    .papercutType(.button)
+                    .foregroundColor(look.label)
             }
             .frame(maxWidth: .infinity)
             .frame(height: Papercut.controlHeightLarge)
-            .background(
-                RoundedRectangle(cornerRadius: Papercut.radiusMD).fill(Papercut.ink)
-            )
-            .opacity(busy ? Papercut.opacityDisabled : 1)
+            .background(RoundedRectangle(cornerRadius: Papercut.radiusMD).fill(look.face))
+            .overlay(RoundedRectangle(cornerRadius: Papercut.radiusMD).strokeBorder(look.border, lineWidth: look.borderWidth))
+            .paperShadow(cornerRadius: Papercut.radiusMD, visible: look.castsShadow)
         }
         .buttonStyle(.plain)
         .disabled(busy)
-        // 오프셋 종이 그림자 (3×4). 잉크 한 색 팔레트라 입체는 흐림이 아니라 어긋난 종이다.
-        .background(
-            RoundedRectangle(cornerRadius: Papercut.radiusMD)
-                .fill(Papercut.paperShadow)
-                .offset(x: 3, y: 4)
-        )
     }
 
     private static let assurances = [

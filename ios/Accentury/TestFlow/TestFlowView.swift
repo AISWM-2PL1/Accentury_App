@@ -147,6 +147,8 @@ struct TestFlowView: View {
     /// WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 ``WebViewHost``의
     /// `onPageStarted`(문서 전환)와 브리지 `onLocationChanged`(SPA 이동, KAN-290)로 갱신된다. ``TestFlowModel/webUrl``(앱이 건 진입 URL)과 다르다 — 탭 이동은 웹이 스스로 한다.
     @State private var currentWebUrl: String?
+    /// WebView 로드 실패 화면이 서 있다 (KAN-355). 그 화면이 자기 톱니를 세우므로 아래 ``gearVisible``이 톱니를 숨긴다.
+    @State private var webLoadFailed = false
 
     /// 지금 화면에 서 있는 오버레이 페이즈. 페이즈가 바뀔 때 녹음을 되감을지 정하는 데 쓴다
     /// (안드로이드 `DisposableEffect(phase) { onDispose { ... } }`의 자리).
@@ -229,6 +231,7 @@ struct TestFlowView: View {
                         intonation.open(start)
                     },
                     onOpenSettings: onOpenSettings,
+                    onLoadFailedChange: { webLoadFailed = $0 },
                     accountKind: accountKind,
                     onRequestLogin: onRequestLogin,
                     // 대기 화면의 [다시 보내기] (KAN-288, §14) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 결과 전달이 싣는다
@@ -644,6 +647,7 @@ struct TestFlowView: View {
     /// 톱니를 세울 화면인가 (KAN-252). 로그인 빌드는 문서 판정(``AccenturyCore/showsSettingsGear(_:)``)에 더해 녹음 오버레이
     /// (레벨 테스트 VOICE 녹음·제출, 억양 학습) 위에서 숨긴다. 익명 빌드는 예전 그대로다. ``nativeCovering``은 따로 본다.
     private var gearVisible: Bool {
+        if webLoadFailed { return false }
         guard tabBarEntry else { return true }
         return showsSettingsGear(currentWebUrl) && overlayStart == nil && intonation.start == nil
     }

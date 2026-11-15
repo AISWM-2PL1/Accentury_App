@@ -239,6 +239,8 @@ struct WebViewHost: View {
 
     /// 탭 바의 [설정] (KAN-252). 메인 스레드로 온다.
     var onOpenSettings: () -> Void = {}
+    /// 로드 실패 화면이 섰다·걷혔다 (KAN-355). 실패 화면이 자기 톱니를 세우므로 상위는 그동안 자기 톱니를 숨긴다.
+    var onLoadFailedChange: (Bool) -> Void = { _ in }
 
     /// 브리지 `getAccountKind`가 웹에 건넬 값 — `guest`·`member`·`""` (KAN-330, ``AccenturyCore/AuthGateState/accountKind``).
     /// 광고 동의와 같은 이유로 값이다: 문서 변수라 미는 쪽이 변화를 봐야 하고, 게이트 상태가 바뀌면 이 뷰가 다시 그려져 다시 민다.
@@ -276,7 +278,7 @@ struct WebViewHost: View {
             if model.state == .failed {
                 // 안드로이드가 Failed에서 곧바로 return해 WebView를 컴포지션에서 빼는 자리다 —
                 // 실패한 WebView의 내부 상태(오류 페이지)가 화면 뒤에 남지 않는다.
-                LoadFailureScreen(onRetry: model.retry)
+                LoadFailureScreen(onRetry: model.retry, onOpenSettings: onOpenSettings)
             } else {
                 WebViewRepresentable(
                     url: url,
@@ -328,6 +330,7 @@ struct WebViewHost: View {
             guard !Task.isCancelled else { return }
             model.onTimeout()
         }
+        .onChange(of: model.state == .failed) { onLoadFailedChange($0) }
     }
 
     /// 타임아웃을 다시 걸어야 하는 조건 두 가지를 한 값으로 묶는다 (안드로이드의 키 두 개와 같다).
@@ -1107,42 +1110,26 @@ private struct LoadingScreen: View {
 
 /// 네이티브 오류 화면 (§6) — 비난 없는 카피 + [다시 시도]. 문구는 안드로이드 정본 그대로다.
 ///
-/// 세 줄의 타이포는 안드로이드가 이 화면에 쓰는 것과 같은 슬롯으로 맞췄다 (KAN-178).
-/// 그쪽은 `StatusBlock` + `AccenturyButton` 조합이라 문구가 `body`(16) · `caption`(13)이고
-/// 라벨만 Jua 20이다 — 22·18 같은 토큰 밖 크기를 쓰던 자리라 글꼴을 얹으면서 함께 맞췄다.
-/// **이 화면에서 가장 큰 글자는 눌러야 할 것**이 되는데, 지금 할 수 있는 일이 하나뿐인
-/// 화면에서는 그게 맞는 위계다.
+/// 예외 화면 서식(``ExceptionScreen``, KAN-355 시안 s-15-webview-failed)이다. 앱바 오른쪽에 설정 톱니를 세운다 — 웹이 뜨지 않아
+/// 탭 바도 없는 자리라 설정으로 갈 길이 톱니뿐이다. ``TestFlowView``가 웹 화면 위에 세우는 톱니는 이 화면 동안 숨는다
+/// (``WebViewHost/onLoadFailedChange``) — 둘이 겹치면 스크린 리더가 「설정」을 두 번 읽는다.
 private struct LoadFailureScreen: View {
 
     let onRetry: () -> Void
+    let onOpenSettings: () -> Void
 
     var body: some View {
-        ZStack {
-            Papercut.cream.ignoresSafeArea()
-            VStack(spacing: Papercut.space3) {
-                Text("연결이 불안정해요")
-                    .papercutType(.body)
-                    .foregroundColor(Papercut.ink)
-                Text("네트워크를 확인하고 다시 시도해 주세요")
-                    .papercutType(.caption)
-                    .foregroundColor(Papercut.muted)
-                    .multilineTextAlignment(.center)
-
-                Button(action: onRetry) {
-                    Text("다시 시도")
-                        .papercutType(.title, tracking: Papercut.primaryLabelTracking)
-                        .foregroundColor(Papercut.cream)
-                        .padding(.horizontal, Papercut.space6)
-                        .frame(height: Papercut.controlHeightLarge)
-                        .background(RoundedRectangle(cornerRadius: Papercut.radiusMD).fill(Papercut.ink))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, Papercut.space3)
-            }
-            .padding(Papercut.space6)
+        ExceptionScreen(systemImage: "wifi.slash", title: "연결이 불안정해요", message: "네트워크를 확인하고 다시 시도해 주세요") {
+            AccenturyButton(text: "다시 시도", leadingIcon: "arrow.clockwise", action: onRetry)
         }
         // 워드마크 앱바 (KAN-288 디자인 3, 안드로이드 `PaperFailureScreen`)
         .paperAppBar()
+        // 앱바 줄(위 8 + 48) 오른쪽 끝, 앱바 오른쪽 여백 12 안이다.
+        .overlay(alignment: .topTrailing) {
+            SettingsGearButton(action: onOpenSettings)
+                .padding(.top, Papercut.space2)
+                .padding(.trailing, Papercut.space3)
+        }
     }
 }
 
