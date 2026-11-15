@@ -4,7 +4,6 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -24,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +54,7 @@ import com.accentury.app.R
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.PaperFailureScreen
+import com.accentury.app.ui.components.PaperCheck
 import com.accentury.app.ui.components.PaperScreen
 import com.accentury.app.ui.components.PaperSpinner
 import com.accentury.app.ui.components.PaperWaitingScreen
@@ -62,7 +62,6 @@ import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.LightPoint
-import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.web.openStoreListing
 import kotlinx.coroutines.launch
@@ -239,23 +238,6 @@ private fun ConsentRow(
 }
 
 /**
- * 시안 `.p1-check input` (KAN-354): 22 상자·잉크 1 테두리·모서리 4·크림 면. 체크되면 안쪽 4를 띄운 벽돌 사각형이 찬다
- * (`box-shadow: inset 0 0 0 4px` 위 `background: point`) — 체크 표시는 없다. 상태는 줄의 toggleable이 읽어 준다.
- */
-@Composable
-private fun PaperCheck(checked: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(22.dp)
-            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(Radius.sm))
-            .background(MaterialTheme.colorScheme.background, RoundedCornerShape(Radius.sm))
-            .padding(1.dp + Spacing.x1),
-    ) {
-        if (checked) Box(Modifier.fillMaxSize().background(LightPoint))
-    }
-}
-
-/**
  * 「로그인 없이 둘러보기」 동의 단계 (KAN-330). 소셜 버튼 자리를 갈아 끼운다 — 방침 동의는 소셜 가입과 같은 값([LoginScreenState.consented])
  * 이라 한쪽에서 체크하면 다른 쪽도 체크돼 있다. [돌아가기]는 소셜 버튼으로 되돌린다.
  */
@@ -277,6 +259,8 @@ private fun GuestConsentStep(state: LoginScreenState, onOpenPrivacy: () -> Unit,
             onClick = onStart,
             modifier = Modifier.fillMaxWidth(),
             enabled = state.guestEnabled,
+            // 시안 s-01b-login-guest의 → (KAN-354 3단계 — 2단계는 드로어블이 없어 미뤘다)
+            trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
         )
         AccenturyButton(
             text = "돌아가기",

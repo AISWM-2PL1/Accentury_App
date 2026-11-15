@@ -75,7 +75,6 @@ import com.accentury.app.audio.QualityStatus
 import com.accentury.app.audio.RecordingEngine
 import com.accentury.app.audio.WavWriter
 import com.accentury.app.audio.defaultPcmSource
-import com.accentury.app.auth.AnonymousRegionScreen
 import com.accentury.app.auth.AnonymousSettingsScreen
 import com.accentury.app.auth.AnonymousVoiceConsentStore
 import com.accentury.app.auth.AuthCheckScreen
@@ -86,7 +85,10 @@ import com.accentury.app.auth.IdpLogout
 import com.accentury.app.auth.LoginScreen
 import com.accentury.app.auth.PRIVACY_POLICY_URL
 import com.accentury.app.auth.PRIVACY_POLICY_VERSION
+import com.accentury.app.auth.ProfileFormState
 import com.accentury.app.auth.ProfileScreen
+import com.accentury.app.auth.Region
+import com.accentury.app.auth.RegionSelectScreen
 import com.accentury.app.auth.SettingsGearButton
 import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
@@ -311,13 +313,44 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             modifier = modifier,
         )
 
-        is AuthGateState.NeedsProfile -> ProfileScreen(
-            user = state.user,
-            error = state.error,
-            onSubmit = gate::submitProfile,
-            onSwitchAccount = { gate.logout { IdpLogout.all(context) } },
-            modifier = modifier,
-        )
+        is AuthGateState.NeedsProfile -> {
+            /*
+             * 추가 정보 두 화면 (KAN-354 3단계): 프로필 [다음] → 출신 지역 [다음]에서 두 화면 값을 모아 한 번 저장한다
+             * (`PUT /v0/users/me/profile`은 지역이 필수). 입력을 여기 두어 지역 화면에서 뒤로 가도 프로필 칸이 남는다.
+             * 계정이 바뀌면(다른 계정으로 다시 로그인) 앞 계정의 입력을 물려받지 않는다.
+             */
+            val form = rememberSaveable(state.user.id, saver = ProfileFormState.saver()) { ProfileFormState.from(state.user) }
+            var pickingRegion by rememberSaveable(state.user.id) { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+            if (pickingRegion) {
+                BackHandler(enabled = !form.submitting) { pickingRegion = false }
+                RegionSelectScreen(
+                    selected = form.region,
+                    onSelect = { form.region = it },
+                    onNext = {
+                        // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다 (VoiceConsentScreen과 같은 이유).
+                        form.submitting = true
+                        scope.launch {
+                            try {
+                                gate.submitProfile(form.toInput())
+                            } finally {
+                                form.submitting = false
+                            }
+                        }
+                    },
+                    busy = form.submitting,
+                    error = state.error,
+                    modifier = modifier,
+                )
+            } else {
+                ProfileScreen(
+                    form = form,
+                    onNext = { pickingRegion = true },
+                    onSwitchAccount = { gate.logout { IdpLogout.all(context) } },
+                    modifier = modifier,
+                )
+            }
+        }
 
         is AuthGateState.SignedIn -> {
             /*
@@ -1236,14 +1269,18 @@ private fun TestFlow(
 
                 // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던
                 // 재응시를 이어 간다. 이번에는 지역이 있어 [proceedRetest]가 곧장 세션 요청으로 간다.
-                retestRegionPending && anonymousConsent != null ->
-                    AnonymousRegionScreen(
-                        onDone = { code ->
-                            anonymousConsent.saveRegion(code)
+                retestRegionPending && anonymousConsent != null -> {
+                    var region by rememberSaveable { mutableStateOf<Region?>(null) }
+                    RegionSelectScreen(
+                        selected = region,
+                        onSelect = { region = it },
+                        onNext = {
+                            region?.let { anonymousConsent.saveRegion(it.name) }
                             retestRegionPending = false
                             proceedRetest()
                         },
                     )
+                }
 
                 // 시작 게이트 1칸 — 마이크 권한 (KAN-98). 통과 표시를 따로 두는 이유는 뒤에 세션
                 // 생성이 이어지기 때문이다: 세션을 기다리는 동안 권한 화면으로 되돌아가면 안 된다.
@@ -1263,8 +1300,14 @@ private fun TestFlow(
                 // (KAN-274). 고르면 store에 region이 생겨 조건이 풀린다.
                 anonymousConsent != null && startRequested && session == null && micPassed &&
                     anonymousConsent.asked() &&
-                    needsAnonymousRegion(anonymousConsent.region()) ->
-                    AnonymousRegionScreen(onDone = anonymousConsent::saveRegion)
+                    needsAnonymousRegion(anonymousConsent.region()) -> {
+                    var region by rememberSaveable { mutableStateOf<Region?>(null) }
+                    RegionSelectScreen(
+                        selected = region,
+                        onSelect = { region = it },
+                        onNext = { region?.let { anonymousConsent.saveRegion(it.name) } },
+                    )
+                }
 
                 // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
                 // 마이크가 막 열린 자리라 여기서 확인하고, 잰 값은 이후 모든 문항의 곡선 축이 된다.
