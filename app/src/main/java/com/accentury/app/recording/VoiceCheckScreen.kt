@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -206,6 +207,8 @@ private fun InputLevelBar(level: Double) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            // 오른쪽 끝을 곡선 카드([CurveLaneGroup])·대사 카드 본체에 맞춘다 — 둘 다 그림자 폭만큼 안으로 들어가 있다
+            .padding(end = Dimens.paperShadowX)
             .height(Dimens.progressBarHeight)
             .clip(shape)
             .background(MaterialTheme.accenturyColors.primaryDim)

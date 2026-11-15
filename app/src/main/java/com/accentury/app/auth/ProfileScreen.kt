@@ -3,9 +3,7 @@ package com.accentury.app.auth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
@@ -64,8 +62,39 @@ fun ProfileScreen(
     var pickingDate by rememberSaveable { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
 
-    // 시안 s-02-profile (KAN-354): 워드마크 앱바 아래 왼쪽 정렬 본문, 바닥에 [다음 →]
-    PaperScreen(modifier = modifier) {
+    // 시안 s-02-profile (KAN-354): 워드마크 앱바 아래 왼쪽 정렬 본문, 바닥에 [다음 →]. 두 버튼은 바닥 고정(PaperFooter) —
+    // 하단 주 버튼은 모든 네이티브 화면에서 같은 자리다(리뷰, 지역 화면과 y가 43dp 어긋났다). 키보드가 떠도 footer는
+    // 따라 올라오지 않는다(Scaffold가 시스템 바만 빼고 IME 여백은 주지 않는다) — 입력 칸은 위쪽이라 가려지지 않는다.
+    PaperScreen(
+        modifier = modifier,
+        footer = {
+            AccenturyButton(
+                text = "다음",
+                onClick = onNext,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = form.isComplete && !leaving,
+                trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
+            )
+
+            // 시안에는 없지만 유지한다(티켓 결정) — 프로필을 끝내지 못한 사람이 로그인 화면으로 돌아갈 길이다.
+            AccenturyButton(
+                text = "다른 계정으로 로그인",
+                onClick = {
+                    scope.launch {
+                        leaving = true
+                        try {
+                            onSwitchAccount()
+                        } finally {
+                            leaving = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                variant = ButtonVariant.Text,
+                enabled = !leaving,
+            )
+        },
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.x6)) {
             PaperTitle("몇 가지만 알려 주세요")
 
@@ -108,38 +137,6 @@ fun ProfileScreen(
                     )
                 }
             }
-        }
-
-        Spacer(Modifier.weight(1f))
-        Column(
-            modifier = Modifier.padding(top = Spacing.x6),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x3),
-        ) {
-            AccenturyButton(
-                text = "다음",
-                onClick = onNext,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = form.isComplete && !leaving,
-                trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
-            )
-
-            // 시안에는 없지만 유지한다(티켓 결정) — 프로필을 끝내지 못한 사람이 로그인 화면으로 돌아갈 길이다.
-            AccenturyButton(
-                text = "다른 계정으로 로그인",
-                onClick = {
-                    scope.launch {
-                        leaving = true
-                        try {
-                            onSwitchAccount()
-                        } finally {
-                            leaving = false
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                variant = ButtonVariant.Text,
-                enabled = !leaving,
-            )
         }
     }
 
