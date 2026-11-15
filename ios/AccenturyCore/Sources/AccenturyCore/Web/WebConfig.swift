@@ -83,8 +83,13 @@ public func buildWebUrl(
 /// 홈 탭의 `screen` 값 (KAN-252). 웹 `TabScreen`의 'home'과 같다.
 private let homeScreen = "home"
 
+/// 학습 탭의 `screen` 값 (KAN-355, 2026-11-16 결정). 웹 탭 바가 4칸(학습·홈·사투리 번역기·설정)이 되며 「억양 학습」·「단어 학습」이
+/// 「학습」으로 합쳐졌다(KAN-347 3단계). 첫 화면이 사투리 여행 지도라 억양 녹음 ✕의 목적지이기도 하다(`TestFlowView`).
+public let learnScreen = "learn"
+
 /// 뒤로가기가 홈으로 돌리는 탭 화면 (KAN-252). 홈 자신은 빠진다 — 홈에서의 뒤로는 아무 일도 없다.
-private let backToHomeScreens: Set<Substring> = ["intonation", "words", "translate"]
+/// 옛 값 `intonation`·`words`는 남긴다 — 웹이 옛 값도 받으므로(KAN-347) 옛 링크·복원 문서로 그 화면에 있을 수 있다 (KAN-355).
+private let backToHomeScreens: Set<Substring> = [Substring(learnScreen), "intonation", "words", "translate"]
 
 /// 홈 문서로 옮길 때 지우는 레벨테스트 값. 웹 `buildTabUrl`이 지우는 것과 같다.
 private let testQueryKeys: Set<Substring> = ["sessionId", "testVersion", "voiceSet"]
@@ -95,7 +100,7 @@ private let testQueryKeys: Set<Substring> = ["sessionId", "testVersion", "voiceS
 /// iOS에는 시스템 뒤로 버튼이 없어 화면 왼쪽 가장자리 스와이프가 이 판정을 부른다(`TestFlowView`). 안드로이드에서 null이
 /// "가로채지 않아 앱이 닫힌다"인 자리가 여기서는 "스와이프를 무시한다"다.
 ///
-/// 홈으로 돌리는 것은 **탭 화면**(억양·단어·번역기)과 **시작을 누르기 전의 인트로**뿐이다. 홈 자신·테스트 진행·결과는
+/// 홈으로 돌리는 것은 **탭 화면**(학습·번역기, 옛 억양·단어)과 **시작을 누르기 전의 인트로**뿐이다. 홈 자신·테스트 진행·결과는
 /// 그대로 둔다 — 테스트 중 뒤로가기로 응시가 끊기지 않게 한 KAN-191·KAN-147 규칙을 건드리지 않는다.
 /// 인트로는 `screen`이 없는 문서인데, `startRequested`가 서면 시작 게이트(권한·점검·세션)가 진행 중이라 마찬가지로 둔다.
 ///
@@ -124,7 +129,7 @@ public func startsAtHome(tabBarEntry: Bool, introRequested: Bool, appLinkEntered
 
 /// 현재 문서를 탭 `screen` 문서로 옮긴 URL (KAN-252). 안드로이드 `webTabUrl`의 이식본이다. 웹 탭 이동(`buildTabUrl`)과 같은
 /// 쿼리 규칙이다 — `screen`만 바꾸고 레벨테스트 값을 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다.
-/// ``webBackTarget(currentUrl:startRequested:)``(홈)과 억양 녹음 ✕(억양 탭, 2026-10-13 사용자 결정)가 같이 쓴다.
+/// ``webBackTarget(currentUrl:startRequested:)``(홈)과 억양 녹음 ✕(학습 탭 ``learnScreen``, 2026-10-13 사용자 결정·KAN-355)가 같이 쓴다.
 /// 문서를 아직 모르면(nil) nil — 호출자는 옮기지 않는다.
 public func webTabUrl(currentUrl: String?, screen: String) -> String? {
     guard let currentUrl else { return nil }
@@ -144,7 +149,7 @@ private let adConsentQueryKey: Substring = "adConsent"
 /// `adConsent=open`을 붙인 URL이다 — 웹이 이 플래그를 보고 광고 동의 시트를 현재 값으로 연다. 안드로이드
 /// `webAdConsentUrl`과 같은 표다.
 ///
-/// **허용 화면에서만** URL을 준다(PR #60 리뷰) — 홈, 탭 화면(억양·단어·번역기), 시작을 누르기 전의 인트로. 테스트 진행·
+/// **허용 화면에서만** URL을 준다(PR #60 리뷰) — 홈, 탭 화면(학습·번역기, 옛 억양·단어), 시작을 누르기 전의 인트로. 테스트 진행·
 /// 결과·시작 게이트 중인 인트로는 nil이다. 테스트 중 홈으로 옮기면 KAN-288 「테스트를 그만둘까요?」 확인과 녹음·업로드
 /// 정리를 건너뛰기 때문이다 — ``webBackTarget(currentUrl:startRequested:)``이 홈으로 안 보내는 KAN-147·KAN-191 규칙과
 /// 같은 표에 홈만 더했다. 문서를 아직 모르면(nil) nil — 호출자는 옮기지 않고, 설정 행은 비활성이다.
@@ -169,7 +174,7 @@ public func spaNavigateJs(url: String) -> String {
 
 /// 로그인 빌드에서 WebView 위 설정 톱니를 세울 문서인가 (KAN-252, 2026-10-13 사용자 결정). 안드로이드 `showsSettingsGear`의
 /// 이식본이다. 레벨 테스트 웹 화면 — 인트로(`screen` 없음)와 진행(`screen=test`) — 만 true다. 이 화면들엔 탭 바가 없어
-/// 설정으로 갈 길이 톱니뿐이다. 탭 화면(home·intonation·words·translate)과 결과(`screen=result`)는 탭 바의 [설정]이 있어 false다.
+/// 설정으로 갈 길이 톱니뿐이다. 탭 화면(home·learn·translate, 옛 intonation·words)과 결과(`screen=result`)는 탭 바의 [설정]이 있어 false다.
 /// 문서를 아직 모르면(nil) false — 로그인 빌드의 첫 문서는 홈이라 톱니가 없는 쪽이 맞다.
 /// 녹음 오버레이·시작 게이트처럼 네이티브가 WebView를 덮는 경우는 URL로 알 수 없어 호출자(`TestFlowView`)가 따로 거른다.
 public func showsSettingsGear(_ currentUrl: String?) -> Bool {

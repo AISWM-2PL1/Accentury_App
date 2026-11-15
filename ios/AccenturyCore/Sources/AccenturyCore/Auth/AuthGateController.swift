@@ -132,12 +132,10 @@ public func withdrawAccount(
     return await withdraw(nil)
 }
 
-/// 애플 재인증 시트를 띄우기 전 지연 (KAN-251). 설정 화면(앱 타깃 `SettingsScreen`)은 확인 창(`.alert`)의 표시 값이 false가
-/// 된 뒤에 탈퇴를 시작하지만, 그 값이 바뀌는 시점과 닫힘 애니메이션이 끝나는 시점은
-/// 같지 않다 — 애플 문서는 "All actions in an alert dismiss the alert after the action runs"까지만 말하고 애니메이션 완료
-/// 신호는 주지 않는다. `ASAuthorizationController.performRequests()`가 다른 화면이 닫히는 중일 때 어떻게 되는지도 문서에서
-/// 확인하지 못했다. 그래서 시스템 알림 닫힘 애니메이션(약 0.25~0.3초, 실측 아님)보다 조금 긴 값을 둔다.
-/// https://developer.apple.com/documentation/swiftui/view/alert(_:ispresented:actions:message:)-8dvt8
+/// 애플 재인증 시트를 띄우기 전 지연 (KAN-251). 설정 화면(앱 타깃 `SettingsScreen`)은 확인 창의 표시 값이 false가 된 뒤에
+/// 탈퇴를 시작하지만, 그 값이 바뀌는 시점과 닫힘 애니메이션이 끝나는 시점은 같지 않다. `ASAuthorizationController.performRequests()`가
+/// 다른 화면이 닫히는 중일 때 어떻게 되는지는 문서에서 확인하지 못했다. 처음엔 시스템 알림(`.alert`) 닫힘(약 0.25~0.3초, 실측 아님)보다
+/// 조금 긴 값으로 잡았고, KAN-355에서 창이 직접 그린 공용 대화상자(닫힘 페이드 150ms)로 바뀐 뒤에도 그보다 길어 그대로 둔다.
 /// https://developer.apple.com/documentation/authenticationservices/asauthorizationcontroller/performrequests()
 public let appleReauthDelay: Duration = .milliseconds(350)
 

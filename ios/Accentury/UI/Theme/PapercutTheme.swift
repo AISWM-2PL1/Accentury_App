@@ -95,6 +95,10 @@ enum Papercut {
     static let dialogParagraphSpacing: CGFloat = 10
     /// 확인 대화상자 덮개 불투명도 (KAN-355). 덮개 색은 ``paperShadow`` 단색이다.
     static let dialogScrimOpacity: Double = 0.6
+    /// 설정 목록 (KAN-355, 시안 s-11-settings): 머리 높이 56, 행 높이 56(터치 영역 48 이상), 행 안 선화·라벨 간격 10.
+    static let settingsHeaderHeight: CGFloat = 56
+    static let settingsRowHeight: CGFloat = 56
+    static let settingsRowSpacing: CGFloat = 10
     /// 막대 두께. 입력 레벨 바가 쓴다.
     static let progressBarHeight: CGFloat = 8
     /// 진행 도트 하나의 두께. 막대와 같은 값이지만 뜻이 다르다 — 저쪽은 그릇, 이쪽은 칸 하나다.
