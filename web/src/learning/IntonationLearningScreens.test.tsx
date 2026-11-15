@@ -20,6 +20,7 @@ import type { Stamp } from './stampNaming'
 import type { CardResult } from './useIntonationLearning'
 import type { IntonationCourse, PitchFeedbackItem } from './intonationApi'
 import type { WordApiDeps } from './wordApi'
+import { LEVELS_TIMEOUT_MS } from './travel'
 
 /** 2코스가 아닌 1코스의 「억양 학습 2」 — 제목·문맥 줄의 n이 courseId와 무관하게 stamp에서 온다 */
 const STAMP: Stamp = { kind: 'intonation', id: 'k1', course: 1, n: 2 }
@@ -496,6 +497,20 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(screen.getByRole('img', { name: '별 3개 중 1개' })).toBeInTheDocument() // 76 < 80 → ★1 (앱 상수였다면 ★3)
     expect(screen.getByRole('region', { name: '코스 별 5개에서 7개로, 다음 코스까지 필요한 별 21개' })).toBeInTheDocument()
     expect(screen.getByText('다음 코스까지 별 14개')).toBeInTheDocument()
+  })
+
+  it('구간 요약이 응답 없이 걸려도 제한 시간(3초) 뒤 성적표가 「코스 별」 줄 없이 선다 — 별은 앱 상수', async () => {
+    const hang = (path: string) => (path.endsWith('/levels') ? new Promise<Response>(() => {}) : undefined)
+    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72) }, vi.fn(), 2, hang, {
+      courseStars: { collected: 5, required: 21 },
+      reply: ok({}),
+    })
+    await advance(LEVELS_TIMEOUT_MS - 1)
+    expect(screen.queryByRole('heading', { name: SUMMARY })).toBeNull()
+    await advance(1)
+    expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '별 3개 중 3개' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /코스 별/ })).toBeNull()
   })
 
   it('들어가기 전 코스 별은 있는데 구간 요약 조회가 실패하면 「코스 별」 줄만 숨기고 별은 앱 상수', async () => {

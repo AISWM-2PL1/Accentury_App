@@ -32,7 +32,7 @@ import {
   type PitchFeedbackItem,
 } from './intonationApi'
 import { attemptOutcome } from './intonationFeedback'
-import { fetchLearningLevels, type LearningLevels } from './travel'
+import { fetchLearningLevelsOrNull, type LearningLevels } from './travel'
 
 /** 녹음 최대 길이 — 레벨테스트 음성 문항과 같은 10초 컷 (KAN-253 브리지 계약) */
 const MAX_DURATION_MS = 10_000
@@ -87,7 +87,7 @@ export function useIntonationLearning(
   const [results, setResults] = useState<Record<string, CardResult>>({})
   /** 끝난 뒤 구간 요약 (KAN-359). 없거나 실패면 null — 「코스 별」 줄을 숨기고 별 경계는 앱 상수 */
   const [levels, setLevels] = useState<LearningLevels | null>(null)
-  const loadLevels = () => fetchLearningLevels(apiBase, deps).catch(() => null)
+  const loadLevels = () => fetchLearningLevelsOrNull(apiBase, deps)
   /** cardId → 그 카드 폴링 취소. 같은 카드를 다시 올리면 앞 시도 폴링을 끊는다 */
   const polls = useRef(new Map<string, () => void>())
 
