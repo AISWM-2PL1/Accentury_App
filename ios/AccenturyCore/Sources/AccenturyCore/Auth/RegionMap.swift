@@ -202,10 +202,14 @@ public func parseSVGPath(_ d: String) throws -> [[MapPoint]] {
             command = ch
         } else if ch == " " || ch == "," || ch == "\n" || ch == "\t" {
             try endNumber()
-        } else if ch == "-", !token.isEmpty, token.last != "e", token.last != "E" {
-            // `10-5`처럼 붙은 음수는 새 숫자다
+        } else if ch == "-" || ch == "+", !token.isEmpty, token.last != "e", token.last != "E" {
+            // `10-5`·`1+2`처럼 붙은 부호는 새 숫자의 시작이다 (지수 `1e-1`의 부호는 그 숫자 안이다)
             try endNumber()
-            token = "-"
+            token = String(ch)
+        } else if ch == ".", token.contains(where: { $0 == "." || $0 == "e" || $0 == "E" }) {
+            // SVG 문법: `.5.6`은 0.5와 0.6이다 — 소수점이 이미 있거나 지수부에 들어선 숫자에서 새 소수점은 새 숫자다
+            try endNumber()
+            token = "."
         } else {
             token.append(ch)
         }

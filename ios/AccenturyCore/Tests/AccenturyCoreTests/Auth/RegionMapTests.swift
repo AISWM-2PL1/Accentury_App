@@ -20,6 +20,15 @@ final class RegionMapTests: XCTestCase {
         XCTAssertEqual([[MapPoint(1, -2), MapPoint(3.5, -4), MapPoint(-1, 0)]], try parseSVGPath("M1-2L3.5,-4-1,0Z"))
     }
 
+    /// SVG 문법대로 구분자 없이 붙은 숫자를 부호·두 번째 소수점에서 끊는다. 지수의 부호는 그 숫자 안이다.
+    func test구분자_없이_붙은_숫자를_부호와_소수점에서_끊는다() throws {
+        XCTAssertEqual([[MapPoint(0.5, 0.6), MapPoint(1, 1)]], try parseSVGPath("M.5.6L1 1Z"))
+        XCTAssertEqual([[MapPoint(1, 2), MapPoint(3, 4)]], try parseSVGPath("M1+2L3 4Z"))
+        XCTAssertEqual([[MapPoint(1, -2), MapPoint(3, 4)]], try parseSVGPath("M1-2L3 4Z"))
+        XCTAssertEqual([[MapPoint(0.1, 20), MapPoint(1.5, -0.25)]], try parseSVGPath("M1e-1 2E1L1.5-.25Z"))
+        XCTAssertEqual([[MapPoint(150, 0.5), MapPoint(1, 1)]], try parseSVGPath("M1.5e2.5L1 1Z"))
+    }
+
     func test곡선_명령은_조용히_넘기지_않고_오류다() {
         for command in ["C", "c", "Q", "A", "S", "T"] {
             XCTAssertThrowsError(try parseSVGPath("M0 0\(command)1 1 2 2 3 3Z")) { error in
