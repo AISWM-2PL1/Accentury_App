@@ -202,6 +202,8 @@ E2E_BASE_URL=https://<staging 도메인> npm run test:e2e   # 도메인은 Accen
 - 예외: 크롤러용 정적 페이지(`public/*.html`, `public/guide/`)·`robots.txt`·`sitemap.xml`은 no-cache로
   따로 올라간다 (KAN-275). 페이지는 `public/about.html`을 복사해 만들고 `.html` 확장자로 sitemap에
   올린다. 계약은 `src/staticPages.test.ts`, 목록은 `docs/wiki/ads-web-adsense.md` §11.1.
+- 주소: 배포된 사이트에서 쿼리 없는 `/`는 사투리 이야기 목차(`public/guide/index.html`)이고 테스트 화면은
+  `/test`다. 서버 레포의 CloudFront Function이 가른다. 로컬 개발 서버에서는 `/`가 테스트 화면이다.
 - 업로드 순서: 해시 자산을 먼저, `index.html`을 마지막에. 중간에 실패하면 이전 `index.html`이
   이전 자산을 그대로 가리킨다. 이전 자산은 지우지 않는다 (`sync --delete` 없음).
 - 환경을 새로 지은 뒤 첫 배포나 웹 변경 없는 재배포는 Actions의 "Web Deploy"를

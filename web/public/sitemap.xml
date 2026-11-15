@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- KAN-275: public/의 .html은 전부 여기 올린다 (prod 절대 주소, .html 확장자). 빠지면 staticPages.test.ts가 깨진다 -->
+  <!-- KAN-346: 루트가 사투리 이야기 목록(guide/index.html)이다. 그 파일의 옛 주소는 루트로 301이라 올리지 않는다. /test는 테스트 화면(SPA)이다 -->
   <url>
     <loc>https://accentury.app/</loc>
+  </url>
+  <url>
+    <loc>https://accentury.app/test</loc>
   </url>
   <url>
     <loc>https://accentury.app/privacy.html</loc>
@@ -15,9 +19,6 @@
   </url>
   <url>
     <loc>https://accentury.app/account-deletion.html</loc>
-  </url>
-  <url>
-    <loc>https://accentury.app/guide/index.html</loc>
   </url>
   <url>
     <loc>https://accentury.app/guide/how-the-test-works.html</loc>

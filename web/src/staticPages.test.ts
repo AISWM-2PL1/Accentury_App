@@ -14,6 +14,7 @@ import { stripSourceComments } from './build/stripSourceComments'
  * - **확장자 함정**: CloudFront SPA 재작성 Function(KAN-126)은 마지막 경로 조각에 점이 없으면
  *   `/index.html`로 돌린다. sitemap에 `/about`이라고 적으면 크롤러는 그 주소에서 빈 껍데기를
  *   받는다 — 글이 버킷에 있어도 영영 안 읽힌다. 그래서 `/` 말고는 확장자가 있어야 한다.
+ *   단 하나의 예외가 테스트 화면의 주소 `/test`다 (KAN-346). SPA를 받는 것이 맞는 주소다.
  * - **캐시 함정**: `web-deploy.yml`은 dist/를 1년 immutable로 올린다. 이 파일들은 거기서 빠져
  *   no-cache로 따로 가는데, 그 규칙이 `*.html`·robots.txt·sitemap.xml 이름에 걸려 있다.
  * - **링크 함정**: sitemap이 가리키는 글이 public/에 없으면 404를 심사에 내미는 꼴이다.
@@ -25,9 +26,17 @@ const PUBLIC_DIR = join(process.cwd(), 'public')
 /** 배포 산출물이 환경을 모르므로 prod 주소를 박는다 — og:url과 같은 원칙이다 */
 const ORIGIN = 'https://accentury.app'
 
+/*
+ * 루트와 테스트 화면의 주소 (KAN-346). CloudFront Function(서버 레포 infra/modules/edge/spa-rewrite.js)이
+ * 쿼리 없는 `/`에 사투리 이야기 목록(guide/index.html)을 내주고, 그 파일의 옛 주소는 `/`로 301을 보낸다.
+ * 테스트 화면(SPA)은 확장자 없는 `/test`로 연다. 그래서 글과 sitemap은 목록을 `/`로, 테스트를 `/test`로 가리킨다.
+ */
+const HOME_FILE = 'guide/index.html'
+const TEST_PATH = '/test'
+
 /* privacy.html은 서버 레포 infra/privacy/가 같은 버킷 루트에 따로 올린다(KAN-133). 이 레포에
-   파일이 없는 것이 정상이라 존재 검사에서 뺀다. */
-const PUBLISHED_ELSEWHERE = new Set(['/', '/privacy.html'])
+   파일이 없는 것이 정상이라 존재 검사에서 뺀다. `/`는 HOME_FILE이고 `/test`는 SPA라 public/에 같은 이름의 파일이 없다. */
+const PUBLISHED_ELSEWHERE = new Set(['/', TEST_PATH, '/privacy.html'])
 
 const sitemap = new DOMParser().parseFromString(readFileSync(join(PUBLIC_DIR, 'sitemap.xml'), 'utf8'), 'application/xml')
 const locs = [...sitemap.getElementsByTagName('loc')].map((loc) => loc.textContent?.trim() ?? '')
@@ -55,12 +64,12 @@ describe('크롤러용 정적 파일', () => {
     expect(locs.length).toBeGreaterThan(0)
   })
 
-  it('sitemap 주소가 prod 절대 주소이고 / 말고는 확장자가 있다', () => {
+  it('sitemap 주소가 prod 절대 주소이고 /와 /test 말고는 확장자가 있다', () => {
     for (const loc of locs) {
       // 정규식을 쓰지 않는다 — 오리진의 `.`이 아무 글자나 먹는다 (webAppMeta.test.ts와 같다)
       expect(loc.startsWith(`${ORIGIN}/`), `${loc} 가 ${ORIGIN}으로 시작하지 않는다`).toBe(true)
       const path = loc.slice(ORIGIN.length)
-      if (path === '/') continue
+      if (path === '/' || path === TEST_PATH) continue
       const last = path.split('/').pop() ?? ''
       expect(last.includes('.'), `${loc} 는 확장자가 없어 SPA 재작성 Function이 index.html로 돌린다`).toBe(true)
     }
@@ -88,7 +97,8 @@ const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html
 const indexDoc = parse(readFileSync(join(process.cwd(), 'index.html'), 'utf8'))
 
 /** 페이지 사이를 잇는 링크 — 소개·사투리 이야기(3단계)·방침·문의 */
-const SITE_LINKS = ['/about.html', '/guide/index.html', '/privacy.html', '/contact.html']
+/* 사투리 이야기의 주소는 루트다 (KAN-346) */
+const SITE_LINKS = ['/about.html', '/', '/privacy.html', '/contact.html']
 
 describe('첫 화면의 정적 footer (KAN-275 2단계)', () => {
   it('index.html body에 소개·사투리 이야기·방침·문의 링크가 있다', () => {
@@ -173,19 +183,34 @@ describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', (
 
     it(`${name}의 하단 nav가 사이트 링크를 모두 싣는다`, () => {
       const hrefs = [...doc.querySelectorAll('nav a[href]')].map((a) => a.getAttribute('href'))
-      for (const link of ['/', ...SITE_LINKS]) expect(hrefs, `${name} nav에 ${link}가 없다`).toContain(link)
+      for (const link of [TEST_PATH, ...SITE_LINKS]) expect(hrefs, `${name} nav에 ${link}가 없다`).toContain(link)
     })
 
-    it(`${name}의 내부 링크가 / 또는 .html이다`, () => {
+    it(`${name}의 내부 링크가 /, /test 또는 .html이다`, () => {
       const internal = [...doc.querySelectorAll('a[href]')]
         .map((a) => a.getAttribute('href') ?? '')
         .filter((href) => href.startsWith('/'))
       expect(internal.length).toBeGreaterThan(0)
       for (const href of internal) {
-        expect(href === '/' || href.endsWith('.html'), `${href} 는 SPA 재작성에 걸려 빈 껍데기로 간다`).toBe(true)
+        expect(
+          href === '/' || href === TEST_PATH || href.endsWith('.html'),
+          `${href} 는 SPA 재작성에 걸려 빈 껍데기로 간다`,
+        ).toBe(true)
       }
     })
+
+    it(`${name}이 목록의 옛 주소를 가리키지 않는다`, () => {
+      // /guide/index.html은 루트로 301이다 (KAN-346). 글이 옛 주소를 가리키면 누를 때마다 한 번 더 돈다
+      const hrefs = [...doc.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))
+      expect(hrefs).not.toContain(`/${HOME_FILE}`)
+    })
   }
+
+  it('목록의 테스트 진입 버튼이 /test로 간다', () => {
+    /* 루트가 목록이 된 뒤로 `/`를 가리키면 제자리로 돈다 (KAN-346). 버튼이 테스트로 가는 유일한 큰 길이다 */
+    const doc = parse(readFileSync(join(PUBLIC_DIR, HOME_FILE), 'utf8'))
+    expect(doc.querySelector('a.landing-cta')?.getAttribute('href')).toBe(TEST_PATH)
+  })
 
   it('contact.html에 문의 메일 링크가 있다', () => {
     const doc = parse(readFileSync(join(PUBLIC_DIR, 'contact.html'), 'utf8'))
@@ -210,9 +235,16 @@ describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', (
   it('public/의 .html이 전부 sitemap에 있다', () => {
     // "sitemap이 가리키는 글이 public/에 있다"의 역방향 — 글을 올리고 sitemap을 잊으면 크롤러가 늦게 찾는다
     for (const file of htmlFiles(PUBLIC_DIR)) {
-      const loc = `${ORIGIN}/${relative(PUBLIC_DIR, file).split(sep).join('/')}`
+      const rel = relative(PUBLIC_DIR, file).split(sep).join('/')
+      // 목록은 루트 주소로 나간다 (KAN-346). 파일 경로 그대로의 주소는 301이라 sitemap에 올리지 않는다
+      const loc = rel === HOME_FILE ? `${ORIGIN}/` : `${ORIGIN}/${rel}`
       expect(locs, `${loc} 가 sitemap.xml에 없다`).toContain(loc)
     }
+    expect(locs, '301로 넘어가는 목록의 옛 주소가 sitemap에 있다').not.toContain(`${ORIGIN}/${HOME_FILE}`)
+  })
+
+  it('sitemap에 테스트 화면 주소가 있다', () => {
+    expect(locs).toContain(`${ORIGIN}${TEST_PATH}`)
   })
 
   it('PAGES가 public/의 .html을 전부 갖는다', () => {

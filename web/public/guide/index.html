@@ -9,6 +9,8 @@
       content="Accentury 사투리 억양 테스트를 만들며 직접 정하고 측정한 내용을 모은 글 목록입니다. 테스트 진행 방식, 점수와 등급, 피치 곡선, 녹음 환경, 음성 데이터 처리를 다룹니다."
     />
     <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
+    <!-- KAN-346: 이 문서가 사이트의 루트다. CloudFront Function이 쿼리 없는 /에 이 파일을 내주고, 파일 경로 그대로의 주소는 /로 301을 보낸다 -->
+    <link rel="canonical" href="https://accentury.app/" />
     <!-- KAN-291: JS가 돌 때만 등장 애니메이션 시작 상태(.js .reveal 등)를 건다. JS가 꺼지면 본문이 처음부터 보인다 -->
     <script>document.documentElement.classList.add("js")</script>
     <!-- KAN-291: 글꼴은 아래 style의 url()로만 불려 정적 검사(고아 파일)가 못 본다. preload로 첫 페인트도 당긴다 -->
@@ -396,7 +398,7 @@ nav a:hover { box-shadow: 4px 5px 0 var(--paper); }
           <h1 id="hero-title"><span class="hero-line">사투리</span><span class="hero-emphasis hero-line">좀 치나?<svg viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden="true"><path d="M 4 3.5 Q 100 13.5 196 3.5" stroke="#a8503a" stroke-width="7" stroke-linecap="round" fill="none"/></svg></span></h1>
           <p class="hero-subtitle">내 목소리로 확인하는 사투리 억양</p>
           <ul class="hero-stats" aria-label="테스트"><li>7문항</li><li>~3분</li></ul>
-          <a class="landing-cta" href="/">내 억양 테스트하기 →</a>
+          <a class="landing-cta" href="/test">내 억양 테스트하기 →</a>
         </div>
         <div class="hero-demo" aria-hidden="true"><div class="app-pitch"><div class="app-lane"><label>가이드</label><svg viewBox="0 0 340 100"><path class="app-guide" d="M0 28 C4 3 7 28 12 39 S23 58 29 70 C35 85 29 36 38 29 S47 17 52 23 C62 16 67 36 72 38 S81 65 88 75 S101 99 106 90 C112 85 106 58 114 58 C119 14 128 48 134 51 S144 87 148 77 C153 69 145 39 157 33 S166 51 170 60 S176 76 182 74 C190 94 190 47 201 36 C207 22 209 56 218 52 L224 59 L227 29 C231 48 237 45 243 54 S252 71 258 68 C268 64 261 21 272 24 L277 20 L283 23 L287 17 L291 23 L295 19 C308 27 300 76 312 74 C319 84 315 40 323 53 S333 92 336 91 L340 88"/></svg></div><div class="app-lane"><label>내 억양</label><svg class="app-live" viewBox="0 0 340 100"><defs><pattern id="hero-real-dots" width="4.5" height="4.5" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".85" fill="var(--brick)"/></pattern></defs><g><path fill="url(#hero-real-dots)" d="M12 61 C20 64 22 60 28 49 S37 14 42 18 C50 13 51 40 59 49 S69 61 77 60 L89 59 C95 60 101 96 105 83 C109 58 113 53 122 50 S133 21 143 29 S152 47 160 36 S167 21 171 18 L171 100 H12Z"/><path class="app-curve" d="M12 61 C20 64 22 60 28 49 S37 14 42 18 C50 13 51 40 59 49 S69 61 77 60 L89 59 C95 60 101 96 105 83 C109 58 113 53 122 50 S133 21 143 29 S152 47 160 36 S167 21 171 18"/></g></svg></div></div></div>
       </section>
@@ -454,9 +456,9 @@ nav a:hover { box-shadow: 4px 5px 0 var(--paper); }
     </main>
     <footer class="landing-footer">
       <nav aria-label="사이트">
-      <a href="/">홈</a>
+      <a href="/test">억양 테스트</a>
       <a href="/about.html">소개</a>
-      <a href="/guide/index.html" aria-current="page">사투리 이야기</a>
+      <a href="/" aria-current="page">사투리 이야기</a>
       <a href="/privacy.html">개인정보처리방침</a>
       <a href="/contact.html">문의</a>
     </nav>
