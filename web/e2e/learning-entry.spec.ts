@@ -216,11 +216,12 @@ test('앱 홈 - 탭 바 4칸(학습 · 홈 · 사투리 번역기 · 설정)으�
     .poll(() => page.evaluate(() => (window as unknown as { AccenturyBridge: { micCalls: number } }).AccenturyBridge.micCalls))
     .toBe(1)
   expectAppMarkers(page, 'home')
-  await expect(page.getByRole('button', { name: '내 억양 테스트하기', exact: true })).toHaveCount(0)
+  // 인트로 CTA도 「레벨 테스트 시작」이라(KAN-347 7단계) 이름 대신 인트로의 버튼 자리(.intro-cta)로 가른다
+  await expect(page.locator('.intro-cta')).toHaveCount(0)
 
   // 인트로(재응시·앱 링크 진입)에는 탭 바가 없다
   await page.goto('/?bridge=2&app=1.0')
-  await expect(page.getByRole('button', { name: '내 억양 테스트하기', exact: true })).toBeVisible()
+  await expect(page.locator('.intro-cta')).toBeVisible()
   await expect(tabBar(page)).toHaveCount(0)
 })
 

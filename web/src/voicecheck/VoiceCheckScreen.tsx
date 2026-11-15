@@ -30,7 +30,10 @@ import { PitchTracker } from '../audio/pitchTracker'
 import { FULL_SCALE, QUIET_RMS_THRESHOLD } from '../audio/quality'
 import { CurveLane } from '../recording/CurveLane'
 import { userCurveDisplayPoints } from '../recording/userCurve'
-import { Button, StatusBlock } from '../ui'
+import { Button } from '../ui'
+import { ArrowRightIcon, MicLineIcon, RefreshIcon } from '../ui/icons'
+import '../progress/WebVoiceRecorder.css'
+import './VoiceCheckScreen.css'
 import {
   VoiceCheckController,
   voiceCheckRms,
@@ -169,35 +172,30 @@ export function VoiceCheckScreen({ onDone, startFailure = null, capture, now }: 
    */
   const centerHz = state.phase === 'listening' || state.phase === 'ready' ? state.centerHz : null
 
-  return (
-    <main className="item-screen">
-      <div>
-        <h1 className="type-title">목소리를 확인할게요</h1>
-        <p
-          className="type-body-sm"
-          style={{ color: 'var(--color-muted-foreground)', marginTop: 'var(--space-2)' }}
-        >
-          아래 말을 편하게 해 주세요
-        </p>
-      </div>
+  const failed = state.phase === 'timedOut' || state.phase === 'failed'
 
+  /*
+   * 서식은 KAN-347 7단계 시안 s-05-voicecheck-web-listening·-ready·-failed다. 제목 「목소리를 확인할게요」는 시안에 없어 걷었고,
+   * 카드의 「안녕하세요」가 화면 제목(h1)을 맡는다. 앱 바는 브랜드만이다 — 레벨 테스트 흐름이라 톱니·×가 없다 (KAN-147).
+   */
+  return (
+    <main className="item-screen voice-check">
       {/* 문항 화면과 같은 카드다 — 여기서 말한 방식 그대로 문항에서도 말하면 된다는 뜻이 된다 */}
-      <div className="prompt-card">
-        {/* 이모지(🎤)를 뗐다 (KAN-161 3단계) — 문항 카드의 유형 배지와 같은 규칙이다.
-            이모지는 시스템이 자기 색으로 그려 잉크 한 색 화면에 유일한 색조로 남는다 */}
-        <span className="type-caption prompt-card__badge">목소리 점검</span>
-        <p className="type-headline">안녕하세요</p>
-      </div>
+      <section className="prompt-card">
+        <p className="type-caption voice-check__eyebrow">목소리 점검</p>
+        {/* 이모지(🎤)를 뗐다 (KAN-161 3단계) — 이모지는 시스템이 자기 색으로 그려 잉크 한 색 화면에 유일한 색조로 남는다 */}
+        <p className="prompt-card__badge">편하게 말해 주세요</p>
+        <h1 className="type-title">안녕하세요</h1>
+      </section>
 
       <div className="item-screen__body">
         {/*
           레인은 하나다. 점검에는 따라 할 가이드가 없으므로(자기 목소리만 재는 자리)
           빈 가이드 레인을 함께 세우면 사용자는 없는 곡선을 찾게 된다.
           중심이 잠기기 전에는 빈 레인이 정상이다 — 임시 축으로 그려 두면 축이 잠기는 순간
-          곡선 전체가 한 번 점프한다 (`userCurve.ts`).
+          곡선 전체가 한 번 점프한다 (`userCurve.ts`). 곡선은 실제 신호다 — 시안의 가짜 곡선(타일 9)은 옮기지 않는다.
         */}
-        {/* 레인 하나여도 상자는 문항 화면과 같다 — 테두리·모서리는 상자가 갖는다 */}
-        <div className="curve-card">
+        <div className="curve-card voice-check__lanes">
           <CurveLane
             label="내 억양"
             ariaLabel="내 억양 곡선"
@@ -205,40 +203,53 @@ export function VoiceCheckScreen({ onDone, startFailure = null, capture, now }: 
             variant="user"
           />
         </div>
+        {/* 입력 레벨 막대는 시안에 없지만 유지한다 (확정된 결정 2026-11-16, KAN-354·KAN-355와 같음) */}
         <InputLevelBar level={state.phase === 'listening' ? state.level : 0} />
-        <StatusBlock
-          /*
-           * 실패에만 error를 준다 — 그래야 스크린 리더가 스스로 읽는다(StatusBlock 주석).
-           * 듣는 중 문구는 조각마다 바뀌므로 읽어 주면 소음이 된다.
-           */
-          tone={state.phase === 'timedOut' || state.phase === 'failed' ? 'error' : 'waiting'}
-          message={statusMessage(state)}
-          /*
-           * 시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 — "잡히지 않았어요"만으로는
-           * 다음에 무엇을 다르게 해야 하는지 알 수 없다.
-           */
-          detail={state.phase === 'timedOut' ? hintMessage(state.hint) : undefined}
-        />
       </div>
 
-      <div className="item-screen__footer">
-        {/* 세션 생성이 막힌 자리. 이미 떠 있는 화면에 나중에 나타나므로 스스로 읽혀야 한다 */}
+      <div className="item-screen__footer voice-check__foot">
+        {state.phase === 'listening' ? (
+          <>
+            {/* 듣는 중의 마이크 원은 누르는 것이 아니다 — 지금 할 일은 말하는 것 하나뿐이라 버튼으로 두지 않는다 */}
+            <div className="record-button record-button--active" aria-hidden="true">
+              <MicLineIcon size={34} />
+            </div>
+            {/* 조각마다 바뀌는 자리라 읽어 주면 소음이 된다 — role 없이 둔다 */}
+            <p className="voice-check__status voice-check__status--muted">듣는 중 · {hintMessage(state.hint)}</p>
+          </>
+        ) : (
+          /*
+           * 실패에만 role="alert"을 준다 — 이미 떠 있던 화면에 나중에 나타나는 실패라 스크린 리더가 스스로 읽어야 알아챈다
+           * (StatusBlock의 오류 톤과 같은 규칙).
+           */
+          <div className="voice-check__result" {...(failed ? { role: 'alert' as const } : {})}>
+            <p className="voice-check__status">{statusMessage(state)}</p>
+            {/*
+              시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 — "잡히지 않았어요"만으로는 다음에 무엇을 다르게 해야 하는지
+              알 수 없다. 마이크 실패는 캡처 계층이 지은 사유를 덧붙인다(같은 말이면 생략).
+            */}
+            {state.phase === 'timedOut' && <p className="voice-check__status--muted">{hintMessage(state.hint)}</p>}
+            {state.phase === 'failed' && state.reason !== MIC_UNAVAILABLE && (
+              <p className="voice-check__status--muted">{state.reason}</p>
+            )}
+          </div>
+        )}
+        <p className="voice-check__status--muted">이 소리는 저장하거나 보내지 않아요</p>
+        {/* 세션 생성이 막힌 자리 — 버튼 위 한 줄. 이미 떠 있는 화면에 나중에 나타나므로 스스로 읽혀야 한다 */}
         {startFailure !== null && (
-          <p
-            className="type-label"
-            role="alert"
-            style={{ color: 'var(--color-destructive-on-surface)' }}
-          >
+          <p className="type-label voice-check__failure" role="alert">
             {startFailure}
           </p>
         )}
         {state.phase === 'ready' && (
           <Button onClick={() => onDone(state.centerHz)} style={{ width: '100%' }}>
             다음
+            <ArrowRightIcon />
           </Button>
         )}
-        {(state.phase === 'timedOut' || state.phase === 'failed') && (
+        {failed && (
           <Button onClick={restart} style={{ width: '100%' }}>
+            <RefreshIcon />
             다시 시도
           </Button>
         )}
@@ -246,12 +257,6 @@ export function VoiceCheckScreen({ onDone, startFailure = null, capture, now }: 
           듣는 중에는 버튼이 없다 — 지금 사용자가 할 일은 말하는 것 하나뿐이라,
           누를 것을 주면 말하기를 멈추고 그걸 누른다.
         */}
-        <p
-          className="type-caption"
-          style={{ color: 'var(--color-muted-foreground)', textAlign: 'center', marginTop: 'var(--space-4)' }}
-        >
-          이 소리는 저장하거나 보내지 않아요
-        </p>
       </div>
     </main>
   )
@@ -300,9 +305,12 @@ function statusMessage(state: VoiceCheckState): string {
     case 'timedOut':
       return '목소리가 잡히지 않았어요'
     case 'failed':
-      return state.reason
+      return MIC_UNAVAILABLE
   }
 }
+
+/** 마이크 실패 제목 (티켓 7-4 실패 상태). 왜 열리지 않았는지는 캡처 계층의 사유가 아래 한 줄로 붙는다 */
+const MIC_UNAVAILABLE = '마이크를 사용할 수 없어요'
 
 function hintMessage(hint: VoiceCheckHint): string {
   switch (hint) {

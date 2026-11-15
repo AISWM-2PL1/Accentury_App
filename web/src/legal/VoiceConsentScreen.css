@@ -1,0 +1,38 @@
+/* 음성 저장 동의 (KAN-347 7단계, 시안 s-03-voice-consent-web). 제목은 .type-headline 26 그대로 */
+
+.voice-consent {
+  gap: var(--space-6);
+}
+
+/* 제목 26 — 「(선택)」이 낱말 가운데서 갈리지 않게 (시안 .p1-consent-main h1) */
+.voice-consent h1 {
+  word-break: keep-all;
+}
+
+/* 설명 14 흐린 잉크 (시안 .p1-consent-intro) */
+.voice-consent__lead {
+  margin-top: var(--space-4);
+  color: var(--color-muted-foreground);
+  font-weight: var(--weight-normal);
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* 보관 항목·기간 목록 12 (시안 .p1-consent-details) */
+.voice-consent .voice-consent__details {
+  font-size: 0.75rem;
+  font-weight: var(--weight-normal);
+  line-height: 1.6;
+}
+
+.voice-consent .voice-consent__details li + li {
+  margin-top: 3px;
+}
+
+.voice-consent__footnote {
+  margin-top: var(--space-4);
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  text-align: center;
+  word-break: keep-all;
+}

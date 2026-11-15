@@ -24,7 +24,7 @@ import {
   VOCABULARY_ITEM_COUNT,
   VOICE_ITEM_COUNT,
 } from '../src/intro/introText'
-import { passAdConsentIfShown, startTest } from './helpers/testFlow'
+import { passAdConsentIfShown, REGION_TITLE, startTest } from './helpers/testFlow'
 
 test('웹 단독 진입 - 인트로에서 가짜 마이크로 목소리 점검을 통과해 문항 화면까지 간다', async ({
   page,
@@ -58,9 +58,69 @@ test('웹 단독 진입 - 인트로에서 가짜 마이크로 목소리 점검�
   await expect(
     page.getByText(`${VOICE_ITEM_COUNT + VOCABULARY_ITEM_COUNT}문항`),
   ).toBeVisible()
-  await expect(page.getByText(`~${ESTIMATED_MINUTES}분`)).toBeVisible()
+  await expect(page.getByText(`약 ${ESTIMATED_MINUTES}분`)).toBeVisible()
 
   const startedAt = Date.now()
   await startTest(page)
   console.log(`시작 게이트 통과까지 ${Date.now() - startedAt}ms`)
+})
+
+/*
+ * 출신 지역 지도 (KAN-347 7단계). 칩은 같은 name의 네이티브 라디오라 방향키 이동·「고른 칩만 Tab 순서」를 브라우저가 준다 —
+ * jsdom은 키보드로 라디오를 옮기지 않아 실브라우저에서 본다. 큰 글자에서는 지도를 걷고 같은 칩을 2열 목록으로 편다.
+ * 세션 생성 전 화면이라 백엔드를 타지 않는다.
+ */
+test('출신 지역 지도 - 방향키로 칩을 옮기고, 고른 지역이 벽돌로 칠해지며, 큰 글자에서는 2열 목록이다', async ({ page }) => {
+  await page.goto('/test')
+  await passAdConsentIfShown(page)
+  await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
+  await page.getByRole('button', { name: '다음', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeVisible()
+  await expect(page.getByText('행정구역 경계: 통계청 SGIS(2013)')).toBeVisible()
+  await expect(page.locator('.region-map__geography path[data-region]')).toHaveCount(18)
+
+  // 고르기 전: Tab은 그룹의 첫 칩 하나로 들어간다
+  const group = page.getByRole('radiogroup', { name: REGION_TITLE })
+  await group.getByRole('radio', { name: '서울' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('radio', { name: '경기, 인천 포함' })).toBeChecked()
+  await expect(page.getByRole('radio', { name: '경기, 인천 포함' })).toBeFocused()
+  await expect(page.getByRole('status').filter({ hasText: '경기 · 인천 포함' })).toBeVisible()
+
+  // 경남까지 옮기면 경남 묶음 면(경상남도·울산·부산) 셋이 칠해진다
+  for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('radio', { name: '경남, 부산·울산 포함' })).toBeChecked()
+  await expect(page.locator('.region-map__geography path.is-selected')).toHaveCount(3)
+  // 벽돌(--color-point #a8503a). 색 전환 150ms가 끝나기를 기다린다
+  await expect
+    .poll(() => page.locator('.region-map__geography path.is-selected').first().evaluate((el) => getComputedStyle(el).fill))
+    .toBe('rgb(168, 80, 58)')
+  await expect(page.getByText('경남 · 부산·울산 포함')).toBeVisible()
+
+  // 고른 칩만 Tab 순서에 든다: [다음]에서 Shift+Tab 한 번이면 고른 칩이다
+  await page.getByRole('button', { name: '다음', exact: true }).focus()
+  await page.keyboard.press('Shift+Tab')
+  await expect(page.getByRole('radio', { name: '경남, 부산·울산 포함' })).toBeFocused()
+
+  // 큰 글자: 지도가 걷히고 칩이 2열로 서며 서로 겹치지 않는다
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '150%'
+    window.dispatchEvent(new Event('resize'))
+  })
+  await expect(page.locator('.region-map__geography')).toBeHidden()
+  const boxes = await page.locator('.region-chip').evaluateAll((els) =>
+    els.map((el) => {
+      const r = el.getBoundingClientRect()
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }
+    }),
+  )
+  expect(new Set(boxes.map((b) => Math.round(b.left))).size).toBe(2)
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]
+      const b = boxes[j]
+      const overlap = a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5
+      expect(overlap, `칩 ${i}·${j} 겹침`).toBe(false)
+    }
+  }
 })

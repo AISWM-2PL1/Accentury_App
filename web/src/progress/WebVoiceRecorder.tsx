@@ -41,8 +41,12 @@ import {
   userCurveWindowMs,
 } from '../recording/userCurve'
 import { Button, StatusBlock } from '../ui'
+import { ArrowRightIcon, MicLineIcon, RefreshIcon, RetryIcon, StopIcon } from '../ui/icons'
+import { voiceCheckRms } from '../voicecheck/voiceCheckController'
+import { FULL_SCALE, QUIET_RMS_THRESHOLD } from '../audio/quality'
 import { isSessionExitCode } from './sessionExit'
 import type { VoiceItem } from './testDefinition'
+import './WebVoiceRecorder.css'
 
 export interface WebVoiceRecorderProps {
   item: VoiceItem
@@ -123,6 +127,16 @@ function formatElapsed(ms: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
+/**
+ * 소리 원의 크기 0..1. 로그 눈금이다 — 사람이 느끼는 크기가 로그라서(목소리 점검 레벨 막대와 같은 판단). 통과선
+ * ([QUIET_RMS_THRESHOLD], 이보다 작으면 「목소리가 잘 들리지 않아요」)을 0으로, 전체 스케일을 1로 둔다.
+ */
+function soundLevel(rms: number): number {
+  const floor = Math.log10(QUIET_RMS_THRESHOLD)
+  if (rms <= QUIET_RMS_THRESHOLD) return 0
+  return Math.min(1, (Math.log10(rms) - floor) / (Math.log10(FULL_SCALE) - floor))
+}
+
 const QUALITY_MESSAGE: Record<Exclude<QualityStatus, 'NORMAL'>, string> = {
   TOO_SHORT: '녹음이 너무 짧아요. 1초 이상 읽어 주세요',
   TOO_QUIET: '목소리가 잘 들리지 않아요. 조금 더 크게 읽어 주세요',
@@ -159,8 +173,14 @@ export function WebVoiceRecorder({
    */
   const [, bumpCurve] = useState(0)
   const lastCurveUpdateRef = useRef(0)
+  /*
+   * 녹음 중 소리 원 (KAN-347 7단계 움직임 타일 2). 조각마다 입력 크기를 CSS 변수 하나로 원에 바로 건다 — 조각마다 리렌더하면
+   * 곡선 갱신을 33ms로 묶은 의미가 없다. reduced-motion이면 CSS가 원 크기를 고정한다(`WebVoiceRecorder.css`).
+   */
+  const ringRef = useRef<HTMLSpanElement | null>(null)
 
   const handleSamples = useCallback((chunk: Float32Array, sampleRate: number) => {
+    ringRef.current?.style.setProperty('--record-level', String(soundLevel(voiceCheckRms(chunk))))
     const tracker = (trackerRef.current ??= new PitchTracker(sampleRate))
     if (tracker.push(chunk).length === 0) return
     framesRef.current = tracker.frames
@@ -333,6 +353,7 @@ export function WebVoiceRecorder({
           message={state.message}
           action={
             <Button onClick={() => retake('FAILED')} style={{ width: '100%' }}>
+              <RefreshIcon />
               다시 시도
             </Button>
           }
@@ -353,13 +374,16 @@ export function WebVoiceRecorder({
       )
     }
 
+    /*
+     * 대기 · 녹음 중 (KAN-347 7단계, 시안 s-06-recording-idle·-recording). 가운데 원 버튼 하나와 그 아래 한 줄이다.
+     * 버튼 이름은 「녹음」「정지」 그대로다 — 앱 녹음 화면·E2E·문항 흐름 테스트가 같은 이름으로 짚는다.
+     */
     if (state.phase === 'recording') {
-      const ratio = Math.min(1, state.elapsedMs / item.maxDurationMs)
       const limitSec = Math.round(item.maxDurationMs / 1000)
       const remainingMs = Math.max(0, item.maxDurationMs - state.elapsedMs)
       const warning = remainingMs <= WARN_REMAINING_MS
       return (
-        <>
+        <div className="record-foot">
           {/*
             경과 시간은 벽시계가 아니라 담긴 샘플 수에서 온다 (RecordingBuffer.durationMs) —
             사용자가 보는 숫자와 서버가 파일에서 재는 길이가 같아야 한다.
@@ -377,42 +401,43 @@ export function WebVoiceRecorder({
               {Math.ceil(remainingMs / 1000)}초 남음
             </p>
           ) : (
-            <p className="type-timer record-elapsed">
+            <p className="record-elapsed">
               {formatElapsed(state.elapsedMs)}{' '}
               {/* 상한만 흐린 잉크다 — 앞의 두 자리가 초마다 바뀌는 값이고 뒤는 고정이라,
                   같은 무게로 적으면 어느 쪽이 지금인지 한 번에 안 갈린다 (아트보드 ②) */}
               <span className="record-elapsed__limit">/ {limitSec}초</span>
             </p>
           )}
-          <div className="record-meter" aria-hidden="true">
-            <div className="record-meter__fill" style={{ width: `${ratio * 100}%` }} />
-          </div>
-          {/* 자동 종료를 미리 알린다 — 갑자기 멈추면 사용자는 자기가 뭘 잘못 눌렀다고 생각한다 */}
-          <p className="type-caption record-hint">{limitSec}초가 되면 자동으로 멈춰요</p>
-          <Button onClick={() => void stop()} style={{ width: '100%' }}>
-            정지
-          </Button>
-        </>
+          <span className="record-button__wrap">
+            {/* 소리 원 — 입력 크기에 따라 커지고 작아진다 (타일 2) */}
+            <span ref={ringRef} className="record-button__ring" aria-hidden="true" />
+            <button type="button" className="record-button record-button--active" aria-label="정지" onClick={() => void stop()}>
+              <StopIcon size={34} />
+            </button>
+          </span>
+          <p className="record-hint">녹음 중 · 탭해서 멈추기</p>
+        </div>
       )
     }
 
-    if (state.phase === 'starting') {
-      // 권한 프롬프트·컨텍스트 생성 구간. 비활성 버튼을 남기는 이유는 자리를 지키기 위해서다 —
-      // 버튼이 사라졌다 나타나면 그 사이에 아래 내용이 위로 올라왔다 내려간다.
-      return (
-        <Button disabled style={{ width: '100%' }}>
-          준비 중…
-        </Button>
-      )
-    }
-
+    /*
+     * 대기와 준비 중. 준비 중(권한 프롬프트·컨텍스트 생성)에도 같은 원을 비활성으로 남긴다 — 버튼이 사라졌다 나타나면 그 사이에
+     * 위 내용이 위로 올라왔다 내려간다.
+     */
+    const starting = state.phase === 'starting'
     return (
-      <>
-        <p className="type-caption record-hint">버튼을 누르고 문장을 읽어 주세요</p>
-        <Button onClick={beginRecording} style={{ width: '100%' }}>
-          녹음
-        </Button>
-      </>
+      <div className="record-foot">
+        <button
+          type="button"
+          className="record-button"
+          aria-label={starting ? '준비 중…' : '녹음'}
+          disabled={starting}
+          onClick={beginRecording}
+        >
+          <MicLineIcon size={34} />
+        </button>
+        <p className="record-hint">{starting ? '준비 중…' : '버튼을 눌러 녹음'}</p>
+      </div>
     )
   }
 
@@ -423,7 +448,7 @@ export function WebVoiceRecorder({
         따라 읽으면 된다"를 먼저 보여 주고, 녹음 중에 아래 레인이 자라며, Review에서 발화 전체가
         남는다. 단계마다 넣었다 뺐다 하면 그때마다 아래 조작부가 120px씩 오르내린다.
       */}
-      <div className="item-screen__body">{curveCard}</div>
+      <div className="item-screen__body web-recorder__curves">{curveCard}</div>
       <div className="item-screen__footer">{controls()}</div>
     </>
   )
@@ -515,11 +540,17 @@ function ReviewPanel({
         action={
           <div className="record-actions">
             {/* 재시도는 **같은 녹음을 같은 키로** 다시 보낸다 (§5.2) — 중복 접수가 생기지 않는다 */}
-            {uploadState.retryable && <Button onClick={onSend}>다시 시도</Button>}
+            {uploadState.retryable && (
+              <Button onClick={onSend}>
+                <RefreshIcon />
+                다시 시도
+              </Button>
+            )}
             <Button
               variant={uploadState.retryable ? 'text' : 'primary'}
               onClick={() => onRetake('FAILED')}
             >
+              <RetryIcon />
               재녹음
             </Button>
           </div>
@@ -540,6 +571,7 @@ function ReviewPanel({
         message={QUALITY_MESSAGE[recording.status]}
         action={
           <Button onClick={() => onRetake('QUALITY')} style={{ width: '100%' }}>
+            <RetryIcon />
             재녹음
           </Button>
         }
@@ -548,15 +580,23 @@ function ReviewPanel({
   }
 
   return (
-    <>
-      {/* 재생이 없으므로 "들어보세요"라고 말하지 않는다 (§5.7) */}
-      <p className="type-caption record-hint">녹음이 끝났어요. 다시 녹음하거나 다음으로 넘어가세요</p>
+    /*
+     * 다시 듣기 (KAN-347 7단계, 시안 s-06-recording-review). 품질 게이트를 통과한 녹음만 여기 온다 — 그래서 「녹음 상태가 좋아요」다.
+     * 재생이 없으므로 "들어보세요"라고 말하지 않는다 (§5.7).
+     */
+    <div className="record-foot record-foot--review">
+      <p className="record-foot__title">녹음 상태가 좋아요</p>
+      <p className="record-hint">녹음 길이 {(recording.durationMs / 1000).toFixed(1)}초</p>
       <div className="record-actions">
-        <Button variant="text" onClick={() => onRetake('USER')}>
+        <Button variant="secondary" onClick={() => onRetake('USER')}>
+          <RetryIcon />
           재녹음
         </Button>
-        <Button onClick={onSend}>다음</Button>
+        <Button onClick={onSend}>
+          다음
+          <ArrowRightIcon />
+        </Button>
       </div>
-    </>
+    </div>
   )
 }

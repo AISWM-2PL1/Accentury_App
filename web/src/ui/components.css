@@ -1019,15 +1019,31 @@
   justify-content: flex-start;
   align-items: flex-start;
   word-break: keep-all;
+  /* KAN-347 7단계 시안 s-03-voice-consent-web: 종이 카드 · 잉크 1px · 모서리 10 · 그림자 4/5 · 본문 14 */
+  gap: var(--space-3);
+  padding: 0.875rem;
+  box-shadow: var(--shadow-card);
+  font-family: var(--font-body);
+  font-size: var(--text-label);
+  line-height: var(--leading-normal);
 }
 
+/* 상자 22 — 잉크 테두리, 체크하면 벽돌로 찬다(안쪽 4px 크림 여백). 표식을 숨기지 않으므로 포커스 링은 상자가 받는다 */
 .choice--check input {
   flex-shrink: 0;
-  /* 시안 `.check-label input` 24px (KAN-288) */
-  width: 1.5rem;
-  height: 1.5rem;
-  margin: 0;
-  accent-color: var(--color-primary);
+  appearance: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  margin: 2px 0 0;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  cursor: pointer;
+}
+
+.choice--check input:checked {
+  background: var(--color-point);
+  box-shadow: inset 0 0 0 4px var(--color-background);
 }
 
 /* 보관 항목·기간 목록. 흐린 잉크는 `.privacy-notice`와 같은 위계 판단이다 */
@@ -1649,19 +1665,24 @@ a.btn {
  * 간격을 각자 margin으로 잡는다 — footer를 flex로 바꾸면 이미 그 자리를 쓰는 어휘 문항의
  * 오류 문구·버튼 간격이 같이 움직인다.
  */
+/* 원 버튼 아래 한 줄 「버튼을 눌러 녹음」 (KAN-347 7단계 시안 s-06). 자리는 `progress/WebVoiceRecorder.css`의 .record-foot */
 .record-hint {
-  margin: 0 0 var(--space-3);
+  margin: 0;
   color: var(--color-muted-foreground);
+  font-size: var(--text-label);
   text-align: center;
+  word-break: keep-all;
 }
 
 /*
- * 경과 시간 `00:04 / 10초` (KAN-161 4단계). 타이포는 `.type-timer`(Jua 16)가 주고 여기는
- * 자리만 잡는다 — 시스템 폰트 14였는데, 초마다 바뀌는 숫자가 본문 글꼴로 적히면 "지금 몇 초"가
- * 문단의 한 낱말처럼 읽혔다. 앱 녹음 화면의 타이머와 같은 슬롯이다 (정본 §3 `timer`).
+ * 경과 시간 `00:04 / 10초` (KAN-161 4단계). 시스템 폰트 14였는데, 초마다 바뀌는 숫자가 본문 글꼴로 적히면 "지금 몇 초"가
+ * 문단의 한 낱말처럼 읽혔다. KAN-347 7단계 시안 s-06-recording(.p2-timer)의 Jua 20이다.
  */
 .record-elapsed {
-  margin: 0 0 var(--space-3);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  line-height: 1.2;
   text-align: center;
 }
 
@@ -1686,7 +1707,7 @@ a.btn {
   justify-content: center;
   width: fit-content;
   min-height: 2rem;
-  margin: 0 auto var(--space-3);
+  margin: 0 auto;
   padding: 0 0.875rem;
   border-radius: var(--radius-full);
   background: var(--color-primary);
@@ -1694,30 +1715,9 @@ a.btn {
   letter-spacing: 0.04em;
 }
 
-/* 남은 시간 게이지. 진행바(.progress-indicator)와 달리 <progress>가 아닌 이유는 이 값이
- * 보조 정보라서다 — 같은 숫자를 바로 위 문구가 이미 글자로 읽어 주므로, 스크린 리더에는
- * 중복이 된다(aria-hidden). 그래서 의미론 없는 <div> 두 겹으로 충분하다. */
-.record-meter {
-  height: var(--progress-bar-height);
-  margin-bottom: var(--space-4);
-  /* 점수 막대와 같은 그릇이다 (KAN-161 3단계) — `muted` 면은 크림 위에서 보이지 않아
-     남은 시간이 얼마인지 읽을 수 없었다 */
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-full);
-  background: var(--color-card);
-  overflow: hidden;
-}
-
-.record-meter__fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  background: var(--color-primary);
-  transition: width var(--duration-base) var(--ease-out);
-}
-
 /*
  * [재녹음] / [다음]을 나란히 둔다. 주동작이 오른쪽인 것은 시안의 규칙이고, 둘이 같은 폭을
- * 갖는 이유는 무게가 이미 변형(text vs primary)으로 구분되기 때문이다 — 폭까지 다르면
+ * 갖는 이유는 무게가 이미 변형(secondary vs primary)으로 구분되기 때문이다 — 폭까지 다르면
  * 보조 동작이 눌리지 않을 만큼 작아진다.
  */
 .record-actions {
@@ -1796,9 +1796,8 @@ a.btn {
 /* ── 목소리 점검 (KAN-31 4단계) ── */
 
 /*
- * 입력 레벨 바. 녹음 패널의 남은 시간 게이지(.record-meter)와 같은 규격이지만 눈금 하나가
- * 더 있어 따로 둔다 — 저쪽에 눈금을 옵션으로 얹으면 두 화면이 한 클래스를 나눠 쓰면서
- * 서로의 변경에 걸린다.
+ * 입력 레벨 바. 점수 막대와 같은 그릇에 통과선 눈금 하나를 더한다. 목소리 점검 시안(KAN-347 7단계)에는 없지만
+ * 유지한다(확정된 결정 2026-11-16). 녹음 패널의 남은 시간 게이지(.record-meter)는 7단계에서 걷었다.
  *
  * overflow를 숨기지 않는 이유는 눈금이다: 채움만 잘라 내면 되는데 감추면 통과선 표시까지
  * 함께 잘린다. 대신 채움 쪽에서 모서리를 맞춘다.
@@ -1859,10 +1858,12 @@ a.btn {
    * 없는 토큰이 남으므로, 여기서만 쓰는 값으로 적고 이 주석을 근거로 남긴다. 두 번째 쓰임이
    * 생기면 그때 토큰으로 올린다.
    *
+   * 크기는 12px다(KAN-347 7단계 시안 s-05, 예전 11px).
+   *
    * `.type-caption`의 행간(1.5)은 이 크기에 과해서 함께 조인다. 세 줄로 접히는 문구라
    * 줄 간격이 벌어지면 하단 덩어리가 고지보다 커져 위계가 뒤집힌다.
    */
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.4;
   /*
    * 위 고지와의 사이는 하단 자리의 `gap`(12px)에 이만큼 더한다. 둘 다 잔글씨라 같은 간격으로

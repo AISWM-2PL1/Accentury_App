@@ -164,7 +164,7 @@ async function passVoiceConsent(consented = false) {
   await act(async () => {})
 }
 
-const REGION_TITLE = '출신 지역이 어디신가요?'
+const REGION_TITLE = '어느 지역 말씨가 몸에 배어 있나요?'
 
 /**
  * 출신 지역 선택 화면을 지난다 (KAN-202). 동의 다음 칸이고 빌드 스위치가 없어(KAN-274) 웹 단독
@@ -175,7 +175,8 @@ const REGION_TITLE = '출신 지역이 어디신가요?'
  */
 async function passRegionSelect(label = '경남') {
   expect(screen.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('radio', { name: label }))
+  // 칩 이름은 「경남, 부산·울산 포함」처럼 광역시까지 읽는다 (KAN-347 7단계)
+  fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${label}`) }))
   fireEvent.click(screen.getByRole('button', { name: '다음' }))
   await act(async () => {})
   await act(async () => {})
@@ -228,10 +229,10 @@ describe('App — 스큐 판정 분기', () => {
     expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
     // KAN-148에서 한 문장이던 표기가 숫자 칸으로 갈렸다 - 확인하는 값은 그대로다
     expect(screen.getByText('7문항')).toBeInTheDocument()
-    expect(screen.getByText('~3분')).toBeInTheDocument()
-    // 이모지를 뺀 한 줄로 합쳤다 (KAN-161 3단계, 아트보드 `Main.dc.html`)
-    expect(screen.getByText('음성 3 + 단어 4')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByText('약 3분')).toBeInTheDocument()
+    // 이모지를 뺀 한 줄로 합쳤다 (KAN-161 3단계). 표기는 KAN-347 7단계 시안 s-05
+    expect(screen.getByText('억양 3 · 단어 4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
   })
 
   /*
@@ -244,14 +245,14 @@ describe('App — 스큐 판정 분기', () => {
     stubBridge()
     render(<App />)
     expect(screen.getByText('앱 업데이트가 필요해요')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '내 억양 테스트하기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '레벨 테스트 시작' })).not.toBeInTheDocument()
   })
 
   it('브리지 객체도 쿼리도 없으면(웹 단독 실행) 인트로가 뜬다 (KAN-31)', () => {
     // 공유 링크를 앱 없이 그대로 연 사람이 이 경로다
     setSearch('?c=kko_share')
     render(<App />)
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(screen.queryByText('앱 업데이트가 필요해요')).not.toBeInTheDocument()
   })
 })
@@ -306,7 +307,7 @@ describe('App — 문항 진행 화면 진입 쿼리 (KAN-100: 네이티브가 �
   it('screen 파라미터가 없으면 기존대로 인트로다', () => {
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0`)
     render(<App />)
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
   })
 })
 
@@ -808,7 +809,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
   it('인트로(앱 안)에는 탭 바가 없다 — 테스트 진입 쪽 화면이다', () => {
     setSearch(APP)
     render(<App navigate={vi.fn()} />)
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(tabBar()).toBeNull()
   })
 })
@@ -867,7 +868,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
   /** 인트로 [시작하기] — 웹 마이크 게이트가 비동기라 microtask를 비운다 */
   async function tapStart() {
-    fireEvent.click(screen.getByRole('button', { name: '내 억양 테스트하기' }))
+    fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
     await act(async () => {})
     await act(async () => {})
   }
@@ -889,18 +890,18 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
     await tapStart()
 
     expect(screen.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeInTheDocument()
-    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
     expect(fetchStub).not.toHaveBeenCalled()
 
     await passVoiceConsent()
 
     expect(screen.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeInTheDocument()
-    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
     expect(fetchStub).not.toHaveBeenCalled()
 
     await passRegionSelect()
 
-    expect(screen.getByText('목소리를 확인할게요')).toBeInTheDocument()
+    expect(screen.getByText('목소리 점검')).toBeInTheDocument()
     expect(fetchStub).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
     // 점검은 같은 문서 안의 화면이다 — 리로드하면 방금 받은 마이크 권한을 다시 물어야 한다
@@ -935,7 +936,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
     await tapStart()
 
     // 네이티브 권한 게이트가 받았으므로 웹은 여기서 손을 뗀다 — 화면 전체를 앱이 갈아치운다
-    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
     // 동의도 웹 화면이 묻지 않는다 — 앱은 네이티브가 받는다 (KAN-270 2·3단계)
     expect(screen.queryByText(VOICE_CONSENT_TITLE)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
@@ -1321,19 +1322,19 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
       // 지역이 점검 앞이다 — 네트워크를 안 쓰는 화면을 세션 앞에 모아 고아 세션을 안 만든다
       expect(screen.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeInTheDocument()
-      expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+      expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
       expect(fetchStub).not.toHaveBeenCalled()
       // 기본 선택도 건너뛰기도 없다 — 고르기 전에는 [다음]이 잠긴다
       expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
 
-      fireEvent.click(screen.getByRole('radio', { name: '경남' }))
+      fireEvent.click(screen.getByRole('radio', { name: /^경남/ }))
       fireEvent.click(screen.getByRole('button', { name: '다음' }))
       // 점검 화면은 마운트 즉시 듣기 시작한다(비동기) — `tapStart`와 같은 이유로 microtask를 비운다
       await act(async () => {})
       await act(async () => {})
 
       // 지역을 넘기면 원래 흐름(점검)이 이어진다. 아직 세션은 없다
-      expect(screen.getByText('목소리를 확인할게요')).toBeInTheDocument()
+      expect(screen.getByText('목소리 점검')).toBeInTheDocument()
       expect(screen.queryByRole('heading', { level: 1, name: REGION_TITLE })).not.toBeInTheDocument()
       expect(fetchStub).not.toHaveBeenCalled()
 
@@ -1422,7 +1423,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
       // 인트로의 onWebStart가 비어 있어 micGranted가 오르지 않는다 — 점검이 없는 것과 같은 이유
       expect(screen.queryByText(REGION_TITLE)).not.toBeInTheDocument()
-      expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+      expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
       expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
     })
   })
@@ -1905,7 +1906,7 @@ describe('IntroScreen — [시작하기] 결선', () => {
       getContractVersion: () => 1,
     }
     render(<App />)
-    screen.getByRole('button', { name: '내 억양 테스트하기' }).click()
+    screen.getByRole('button', { name: '레벨 테스트 시작' }).click()
     expect(fn).toHaveBeenCalledTimes(1)
   })
 })
@@ -2219,7 +2220,7 @@ describe('App — 유입 퍼널 계측 (KAN-31 3단계)', () => {
     const capture = createFakeCapture()
 
     render(<App navigate={vi.fn()} voiceCheckCapture={capture.factory} />)
-    fireEvent.click(screen.getByRole('button', { name: '내 억양 테스트하기' }))
+    fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
     // 웹 마이크 게이트가 비동기다
     await act(async () => {})
     await act(async () => {})
@@ -2357,7 +2358,7 @@ describe('App — 유입 퍼널 계측 (KAN-31 3단계)', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     // 세는 사건은 하나이고 경로만 갈린다. 둘 다로 가면 퍼널의 분모가 실제보다 커진다
     expect(native).toEqual([{ event: 'referral_opened', campaign: 'kko_share' }])
     expect(queue).toEqual([])
@@ -2375,7 +2376,7 @@ describe('App — 유입 퍼널 계측 (KAN-31 3단계)', () => {
      * 대역을 굳이 심어 두고 확인하는 것은 [track]의 판정이 그 사실에 기대지 않는다는 점이다 —
      * 구버전 앱의 이벤트를 웹 스트림으로 흘려보내면 앱 사용자가 웹 트래픽으로 세어진다.
      */
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(queue).toEqual([])
   })
 })
@@ -2440,7 +2441,7 @@ describe('App — 인트로 진입의 진행 기록 훑기 (KAN-198)', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect([...stored.keys()]).toEqual([])
   })
 
