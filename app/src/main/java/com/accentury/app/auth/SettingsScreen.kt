@@ -327,6 +327,8 @@ fun AnonymousSettingsScreen(
     SettingsFrame(onClose = onClose, modifier = modifier) {
         if (onLogin != null) {
             GroupLabel("계정", first = true)
+            // iOS `GuestSettingsScreen`과 같은 문장·순서(안내 → [로그인]). 글자는 음성 저장 동의 안내와 같은 12/18 흐린 잉크다 (KAN-354 AC).
+            Text("로그인하면 억양 학습과 단어 학습 기록을 남길 수 있어요", style = SMALL_TEXT, color = MaterialTheme.colorScheme.onSurfaceVariant)
             AccountActions {
                 AccenturyButton(text = "로그인", onClick = onLogin, modifier = Modifier.fillMaxWidth())
             }
