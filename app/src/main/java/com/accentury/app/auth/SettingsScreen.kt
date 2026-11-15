@@ -55,7 +55,7 @@ import com.accentury.app.ui.theme.accenturyColors
 import kotlinx.coroutines.launch
 
 /**
- * 설정 화면의 로그인 방식 표기 (KAN-247). 로그인 버튼의 라벨(LoginScreen `providerLabel`, "Google로 계속" 꼴)과
+ * 설정 화면의 로그인 방식 표기 (KAN-247). 로그인 버튼의 라벨(LoginScreen `providerLabel`, 「카카오 로그인」 꼴)과
  * 따로 두는 이유: 저쪽은 각 사 버튼 가이드의 표기를 따르고, 여기는 사용자가 읽는 한국어 문장 속 값이다.
  */
 internal fun providerName(provider: Provider): String = when (provider) {
