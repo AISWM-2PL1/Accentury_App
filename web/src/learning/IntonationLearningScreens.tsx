@@ -1,5 +1,6 @@
 /**
- * 억양 학습 화면 A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)·A-5(피드백, 3단계)·결과 목록(A-6 자리, 5단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
+ * 억양 스탬프 화면 (KAN-253·KAN-254 → KAN-347 5단계): A-2(대사 카드)·A-4(분석 대기·실패 출구)·카드 피드백(s-19)·결과 상세(s-08-intonation-detail)·
+ * 성적표(s-07-A)와 라우트. 상태는 [useIntonationLearning]이
  * 갖고 여기 화면들은 그리고 버튼을 잇기만 한다 — `WordLearningScreens.tsx`와 같은 나눔이다.
  *
  * 화면 규칙은 code wiki ux-ui.md 「억양 학습 화면 (KAN-253)」·「억양 학습 피드백 (KAN-254)」 절, 녹음 계약은 webview-bridge.md §12.
@@ -9,28 +10,52 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { canStartIntonationRecording } from '../bridge/bridge'
 import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
-import { Button, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
-import { CheckSmallIcon, ClockIcon, CloudOffIcon, RefreshIcon, UserIcon } from '../ui/icons'
+import { Button, CloseButton, ProgressIndicator, ScoreDonut, StatusBlock } from '../ui'
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CheckSmallIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  CloudOffIcon,
+  MicLineIcon,
+  RefreshIcon,
+  UserIcon,
+} from '../ui/icons'
 import { IntonationCurveLoop } from '../ui/IntonationCurveLoop'
-import { TextHero } from '../ui/TextHero'
 import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
 import type { IntonationCourse, PitchFeedbackItem } from './intonationApi'
-import type { StampExits } from './travel'
+import { courseStarsChange, type CourseStarsChange, type StampExits } from './travel'
+import { stampName, type Stamp } from './stampNaming'
+import { StampDoneBadge, StampReward } from './StampReward'
 import { GuestLoginPrompt } from './GuestLoginPrompt'
 import { errorExit } from './useWordLearning'
 import { recordCard, useIntonationLearning, type CardResult, type IntonationLearningView } from './useIntonationLearning'
 import { SLOW_NOTICE_MS, WAITING_STAGES, waitingStage } from './intonationWaiting'
-import { feedbackComment, formatDelta, scoreDelta, syllableMarks, type SyllableMark } from './intonationFeedback'
+import {
+  deltaDescription,
+  feedbackAdvice,
+  feedbackComment,
+  formatDelta,
+  practiceIndex,
+  reportScore,
+  starsForScore,
+  syllableMarks,
+  type SyllableMark,
+} from './intonationFeedback'
 
 // ── 라우트 ──────────────────────────────────────────────────────────────
 
 export interface IntonationLearningRouteProps {
   apiBase: string
-  /** 스탬프 하나 = 억양 코스 하나. 사투리 여행 지도(`TravelScreens`)가 고른다 (KAN-347 3단계) */
-  courseId: string
+  /** 스탬프 하나 = 억양 코스 하나(`stamp.id`). 사투리 여행 지도(`TravelScreens`)가 고른다. 「억양 학습 n」의 n에 쓴다 */
+  stamp: Stamp
+  /** 들어가기 전 이 코스의 별 (`TravelCourse.stars`). KAN-359 전이면 null — 성적표 「코스 별」 줄을 숨긴다 */
+  courseStars: { collected: number; required: number } | null
   /**
-   * 나가는 길 (KAN-347 3-8). 코스 안 화면의 공통 출구는 오른쪽 위 ✕(지도로)다 — 네이티브 녹음 화면 ✕와 같은 뜻이고
-   * (2026-10-13 사용자 결정), 화면 안 [지도로]·[결과 목록으로]는 그대로 둔다. `toNextStamp`은 5단계 성적표가 쓴다
+   * 나가는 길 (KAN-347 3-8). 코스 안 화면의 공통 출구는 오른쪽 위 ✕(지도로)다. 네이티브 녹음 오버레이의 ×도 지도로 간다(5-1) —
+   * 네이티브가 학습 탭 문서(`screen=intonation`, 새 빌드는 `learn`)로 이동해 지도가 다시 서고, 웹에 따로 알리는 브리지는 없다.
+   * 성적표는 [다음 스탬프](`toNextStamp`)·「지도로」(`toMap`)를 쓴다
    */
   exits: StampExits
   /**
@@ -42,8 +67,8 @@ export interface IntonationLearningRouteProps {
   deps?: WordApiDeps
 }
 
-export function IntonationLearningRoute({ apiBase, courseId, exits, tabBar, deps }: IntonationLearningRouteProps) {
-  const learning = useIntonationLearning(apiBase, courseId, deps)
+export function IntonationLearningRoute({ apiBase, stamp, courseStars, exits, tabBar, deps }: IntonationLearningRouteProps) {
+  const learning = useIntonationLearning(apiBase, stamp.id, deps, { course: stamp.course, stars: courseStars })
   const { view } = learning
   // 지도로 나가면 이 라우트가 내려가며 폴링·deadline 타이머를 전부 끊는다(훅의 언마운트 정리) — 늦은 채점 응답은 버려진다
   const close = <CloseButton onClick={exits.toMap} />
@@ -85,16 +110,18 @@ export function IntonationLearningRoute({ apiBase, courseId, exits, tabBar, deps
         </>
       )
     case 'summary':
+      // ✕ 자리에는 「스탬프 완료」가 선다 — 출구는 화면 안 [다음 스탬프]·「지도로」 (s-07-A)
       return (
-        <>
-          <IntonationSummaryScreen
-            course={view.course}
-            results={learning.results}
-            onOpen={learning.openDetail}
-            onToMap={exits.toMap}
-          />
-          {close}
-        </>
+        <IntonationReportScreen
+          course={view.course}
+          n={stamp.n}
+          results={learning.results}
+          courseStars={courseStarsChange(stamp.course, courseStars, learning.levels)}
+          starThresholds={learning.levels?.starThresholds ?? null}
+          onOpen={learning.openDetail}
+          onNextStamp={exits.toNextStamp}
+          onToMap={exits.toMap}
+        />
       )
     case 'detail': {
       const result = learning.results[view.course.cards[view.index]?.cardId ?? '']
@@ -108,16 +135,19 @@ export function IntonationLearningRoute({ apiBase, courseId, exits, tabBar, deps
         )
       }
       if (result.outcome === 'completed') {
+        // 결과 상세(s-08)는 위 「← 결과 목록으로」가 출구라 ✕가 없다. 다시 녹음한 뒤의 카드 피드백(s-19)은 ✕가 선다
         return (
           <>
             <IntonationFeedbackScreen
               course={view.course}
+              n={stamp.n}
               index={view.index}
               result={result}
+              afterRecording={view.afterRecording}
               onBackToSummary={learning.backToSummary}
               onRetry={learning.rerecord}
             />
-            {close}
+            {view.afterRecording && close}
           </>
         )
       }
@@ -356,11 +386,11 @@ export function IntonationRetryScreen({
   )
 }
 
-// ── A-5 피드백 (KAN-254 3단계) ─────────────────────────────────────────────
-// 위→아래 점수 → 대사 강조 → 가이드 곡선 → 어절 코멘트 → 직전 대비. 점수가 3초 안에 읽혀야 해서 맨 위다(NFR-US-01).
+// ── 카드 피드백 (s-19)·결과 상세 (s-08-intonation-detail) ─────────────────────
+// 카드 한 장(「억양 학습 n · m번째 대사」·표준어·음절 표시 사투리·점수 원 + 증감) → 곡선 카드 → 번호 코멘트 → 주 버튼 [다시 말해 보기].
 // 곡선 위엔 음절을 찍지 않는다 — 가이드 프레임과 음절의 시간 대응을 서버가 주지 않는다(2026-10-12 결정)
 
-/** 대사에서 강조할 글자를 감싼다. 색 없이도 읽히게 밑줄·↑↓·코멘트 번호를 같이 단다(NFR-US-03) */
+/** 대사에서 강조할 글자를 감싼다. 색 없이도 읽히게 밑줄 모양(올리기 실선·낮추기 점선)·↑↓·코멘트 번호를 같이 단다(NFR-US-03) */
 function MarkedLine({ text, marks }: { text: string; marks: SyllableMark[] }) {
   const nodes: ReactNode[] = []
   let from = 0
@@ -376,7 +406,7 @@ function MarkedLine({ text, marks }: { text: string; marks: SyllableMark[] }) {
         className={`intonation-mark intonation-mark--${m.mark}`}
         aria-label={`${syllable}, ${m.mark === 'raise' ? '더 높이기' : '낮추기'}, ${m.commentNo}번`}
       >
-        {syllable}
+        <span className="intonation-mark__syllable">{syllable}</span>
         <span aria-hidden="true" className="intonation-mark__sign">
           {m.mark === 'raise' ? '↑' : '↓'}
           <sup>{m.commentNo}</sup>
@@ -389,16 +419,27 @@ function MarkedLine({ text, marks }: { text: string; marks: SyllableMark[] }) {
   return <>{nodes}</>
 }
 
+/** 증감 「▲9」「▼3」, 첫 시도면 「첫 기록」 — 보이는 글자다. 스크린 리더 문장은 부르는 쪽이 [deltaDescription]으로 단다 */
+function deltaText(score: number, previousScore: number | null): string {
+  return previousScore === null ? '첫 기록' : formatDelta(score - previousScore)
+}
+
 export function IntonationFeedbackScreen({
   course,
+  n,
   index,
   result,
+  afterRecording,
   onBackToSummary,
   onRetry,
 }: {
   course: IntonationCourse
+  /** 「억양 학습 n」의 n */
+  n: number
   index: number
   result: { score: number; feedback: PitchFeedbackItem[]; previousScore: number | null }
+  /** 다시 녹음한 뒤의 카드 피드백(s-19)이면 true — 「결과 목록으로」가 아래 글자 버튼. false면 결과 상세(s-08) — 위 「← 결과 목록으로」 */
+  afterRecording: boolean
   onBackToSummary: () => void
   onRetry: () => void
 }) {
@@ -410,21 +451,35 @@ export function IntonationFeedbackScreen({
   )
   if (card === undefined) return null // 훅이 있는 카드로만 'detail'을 세운다
 
-  const delta = scoreDelta(score, previousScore)
-
   return (
-    <main className="item-screen">
-      <div className="intonation-score">
-        <p className="type-caption intonation-score__caption">억양 점수</p>
-        <p className="text-hero">{score}점</p>
-      </div>
+    <main className="item-screen intonation-feedback">
+      {!afterRecording && (
+        <Button variant="text" className="intonation-feedback__back" onClick={onBackToSummary}>
+          <ArrowLeftIcon />
+          결과 목록으로
+        </Button>
+      )}
 
-      <div className="prompt-card">
-        {card.standard !== null && <p className="type-caption prompt-card__badge">{card.standard}</p>}
-        <p className="type-title">
-          <MarkedLine text={card.dialect} marks={syllableMarks(card.dialect, feedback)} />
+      <section className="intonation-result-card" aria-label="대사와 억양 학습 결과">
+        <p className="intonation-result-card__context">
+          {stampName('intonation', n)} · {index + 1}번째 대사
         </p>
-      </div>
+        {card.standard !== null && <p className="intonation-result-card__standard">{card.standard}</p>}
+        <h1 className="intonation-result-card__dialect">
+          <MarkedLine text={card.dialect} marks={syllableMarks(card.dialect, feedback)} />
+        </h1>
+        <div
+          className="intonation-result-card__score"
+          role="group"
+          aria-label={`억양 점수 ${score}점, ${deltaDescription(score, previousScore)}`}
+        >
+          <ScoreDonut score={score} size={88} />
+          <div aria-hidden="true">
+            <p className="intonation-result-card__delta">{deltaText(score, previousScore)}</p>
+            {previousScore !== null && <p className="intonation-result-card__previous">지난번 {previousScore}점</p>}
+          </div>
+        </div>
+      </section>
 
       {guidePoints.length > 0 && (
         <div className="curve-card">
@@ -433,44 +488,35 @@ export function IntonationFeedbackScreen({
       )}
 
       {feedback.length > 0 ? (
-        // 번호는 pitchFeedback 순서 — 대사 위 위첨자 번호와 같다
-        <ol className="intonation-comments">
+        // 번호는 pitchFeedback 순서 — 대사 위 위첨자 번호와 같다. 원 번호는 CSS 카운터라 글자에는 섞이지 않는다
+        <ol className="intonation-comments" aria-label="어절별 교정 코멘트">
           {feedback.map((item, i) => (
-            <li key={i} className="type-body">
-              {feedbackComment(item)}
-            </li>
+            <li key={i}>{feedbackComment(item)}</li>
           ))}
         </ol>
       ) : (
         <p className="type-body">높낮이 순서가 경남 화자와 같아요</p>
       )}
 
-      {delta !== null && (
-        <p className="type-body intonation-delta">
-          <span aria-hidden="true">지난번보다 {formatDelta(delta)}점</span>
-          <span className="sr-only">
-            지난번 {previousScore}점에서 {score}점
-          </span>
-        </p>
-      )}
-
-      {/* 점수와 무관하게 Primary는 결과 목록 복귀다 — 재도전은 보조로만 권한다 (5단계). 색은 2026-10-12 사용자 지정
-          (목록 복귀 배경색, 다시 시도 벽돌)이고 디자인 3에서도 유지한다 (KAN-288, 2026-10-18 결정) — learning.css */}
-      <div className="item-screen__footer intonation-footer">
-        <Button className="intonation-footer__back" onClick={onBackToSummary} style={{ width: '100%' }}>
-          결과 목록으로
+      {/* 주 버튼은 [다시 말해 보기], 「결과 목록으로」는 글자 버튼 — 2026-11-05 사용자 결정(디자인 검토 19건 중 「다시 말해 보기를
+          주 버튼으로」)이 2026-10-12 결정(목록 복귀가 Primary)을 뒤집었다 (KAN-347 5-3) */}
+      <div className="item-screen__footer intonation-feedback__footer">
+        <Button onClick={onRetry} style={{ width: '100%' }}>
+          <MicLineIcon />
+          다시 말해 보기
         </Button>
-        <Button className="intonation-footer__retry" onClick={onRetry} style={{ width: '100%' }}>
-          다시 시도
-        </Button>
+        {afterRecording && (
+          <Button variant="text" onClick={onBackToSummary} style={{ width: '100%' }}>
+            결과 목록으로
+          </Button>
+        )}
       </div>
     </main>
   )
 }
 
-// ── 결과 목록 (A-6 자리, KAN-254 5단계) ─────────────────────────────────────
-// 완료 저장 호출은 없다. [지도로]가 진행을 다시 받으면 서버(KAN-268)가 completed를 계산해 준다(KAN-347 3단계).
-// 행은 종이 행(.word-set-row, 옛 목록 행의 서식)이다
+// ── 성적표 (s-07-A, KAN-347 5-4) ──────────────────────────────────────────
+// 완료 저장 호출은 없다. 「지도로」·[다음 스탬프]가 진행을 다시 받으면 서버(KAN-268)가 completed를 계산해 준다(KAN-347 3단계).
 
 const ROW_STATUS: Record<Exclude<CardResult['outcome'], 'completed'>, string> = {
   processing: '분석 중',
@@ -480,48 +526,107 @@ const ROW_STATUS: Record<Exclude<CardResult['outcome'], 'completed'>, string> = 
   timeout: '확인 필요',
 }
 
-export function IntonationSummaryScreen({
+/**
+ * 억양 성적표. 점수 = 이번에 녹음한 대사 전부의 채점 점수 평균 반올림, 「이번 스탬프」 별 = 그 점수 + `starThresholds`(없으면 30·70).
+ * 점수가 없는 대사가 하나라도 있으면 점수 원·별·「코스 별」 줄과 「스탬프 완료」를 그리지 않는다 — 그 대사들은 목록 행으로 보인다.
+ * 「다시 연습할 대사」는 최저점 대사 한 장(동점이면 앞), 그 대사에 코멘트가 없으면 생략한다.
+ */
+export function IntonationReportScreen({
   course,
+  n,
   results,
+  courseStars,
+  starThresholds,
   onOpen,
+  onNextStamp,
   onToMap,
 }: {
   course: IntonationCourse
+  /** 「억양 학습 n」의 n */
+  n: number
   results: Record<string, CardResult>
+  /** 코스 별 전후 (KAN-359). null이면 「코스 별」 줄을 숨긴다 */
+  courseStars: CourseStarsChange | null
+  /** 구간 요약 `starThresholds`. null이면 앱 상수 */
+  starThresholds: readonly number[] | null
   onOpen: (index: number) => void
+  onNextStamp: () => void
   onToMap: () => void
 }) {
-  const scores = course.cards.flatMap((c) => {
+  const scores = course.cards.map((c) => {
     const r = results[c.cardId]
-    return r?.outcome === 'completed' ? [r.score] : []
+    return r?.outcome === 'completed' ? r.score : null
   })
+  const score = reportScore(scores)
+  const pick = practiceIndex(scores)
+  const pickCard = pick === null ? undefined : course.cards[pick]
+  const pickResult = pickCard === undefined ? undefined : results[pickCard.cardId]
+  const practice = pickResult?.outcome === 'completed' && pickResult.feedback.length > 0 ? pickResult : null
+
   return (
-    <main className="item-screen">
-      <TextHero heading>{course.title} 코스를 마쳤어요</TextHero>
-      {scores.length > 0 && (
-        <p className="type-body word-complete__count">평균 {Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)}점</p>
-      )}
-      <div className="intonation-results">
-        {course.cards.map((card, i) => {
-          const r = results[card.cardId]
-          if (r === undefined) return null // 회신 없이 끝난 카드는 없다 — 카드는 회신으로만 넘어간다
-          return (
-            <button key={card.cardId} type="button" className="word-set-row intonation-result-tile" onClick={() => onOpen(i)}>
-              {/* 대사는 상세에서 보인다 — 목록은 번호만 (2026-10-12 사용자 결정) */}
-              <span className="type-body intonation-result__label">{i + 1}번 문항</span>
-              <span className={`type-caption word-set-row__meta${r.outcome === 'completed' ? ' intonation-result__score' : ''}`}>
-                {r.outcome === 'completed' ? `${r.score}점` : ROW_STATUS[r.outcome]}
+    <>
+      <main className="item-screen intonation-report">
+        <h1 className="type-title">{stampName('intonation', n)} 결과</h1>
+        {score !== null && (
+          <StampReward score={score} stars={starsForScore(score, starThresholds)} course={courseStars} />
+        )}
+        {/* 분석이 끝나지 않은 대사(분석 중·다시 녹음 필요·확인 필요)는 지금처럼 목록 행 — 누르면 그 대사 상세 */}
+        {course.cards.some((c) => results[c.cardId] !== undefined && results[c.cardId].outcome !== 'completed') && (
+          <div className="intonation-results">
+            {course.cards.map((card, i) => {
+              const r = results[card.cardId]
+              if (r === undefined || r.outcome === 'completed') return null
+              return (
+                <button key={card.cardId} type="button" className="word-set-row intonation-result-tile" onClick={() => onOpen(i)}>
+                  <span className="type-body intonation-result__label">{i + 1}번째 대사</span>
+                  <span className="type-caption word-set-row__meta">{ROW_STATUS[r.outcome]}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {practice !== null && pickCard !== undefined && pick !== null && (
+          <section className="intonation-practice" aria-labelledby="intonation-practice-title">
+            <h2 id="intonation-practice-title" className="type-title-sm">
+              다시 연습할 대사
+            </h2>
+            <button type="button" className="intonation-practice__card" onClick={() => onOpen(pick)}>
+              <span className="intonation-practice__main">
+                <span className="intonation-practice__copy">
+                  <span className="intonation-practice__dialect">
+                    <MarkedLine text={pickCard.dialect} marks={syllableMarks(pickCard.dialect, practice.feedback)} />
+                  </span>
+                  <span className="intonation-practice__meta">
+                    {pickCard.standard !== null && <span>{pickCard.standard}</span>}
+                    <span className="intonation-practice__delta" aria-hidden="true">
+                      {deltaText(practice.score, practice.previousScore)}
+                    </span>
+                    <span className="sr-only">{deltaDescription(practice.score, practice.previousScore)}</span>
+                  </span>
+                </span>
+                <ScoreDonut score={practice.score} size={48} />
+                <ChevronRightIcon />
+              </span>
+              <span className="intonation-practice__tip">
+                <span className="intonation-practice__no" aria-hidden="true">
+                  ①
+                </span>
+                {feedbackAdvice(practice.feedback[0])}
               </span>
             </button>
-          )
-        })}
-      </div>
-      <div className="item-screen__footer">
-        {/* 성적표 개편([다음 스탬프]·글자 버튼 「지도로」)은 5단계 몫이다 — 3단계는 목적지만 지도로 바꿨다 (3-8) */}
-        <Button className="intonation-footer__retry" onClick={onToMap} style={{ width: '100%' }}>
-          지도로
-        </Button>
-      </div>
-    </main>
+          </section>
+        )}
+        <div className="item-screen__footer intonation-report__footer">
+          <Button onClick={onNextStamp} style={{ width: '100%' }}>
+            다음 스탬프
+            <ArrowRightIcon />
+          </Button>
+          <Button variant="text" onClick={onToMap} style={{ width: '100%' }}>
+            지도로
+          </Button>
+        </div>
+      </main>
+      {score !== null && <StampDoneBadge />}
+    </>
   )
 }
