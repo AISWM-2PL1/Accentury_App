@@ -30,6 +30,7 @@
  */
 
 import { useRef, useState, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { PrivacyPolicyLink } from '../legal/PrivacyPolicyLink'
 import { CLIENT_NOT_SIGNED_IN, WordLearningError, type WordApiDeps } from '../learning/wordApi'
 import { shareResult } from '../share/shareResult'
@@ -159,7 +160,15 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
     if (input !== null) run(input)
   }
 
-  const closeDialog = () => setStatus({ kind: 'idle' })
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  /*
+   * [닫기]·Escape — 초점을 입력칸으로 돌린다(열 때 초점이 대화상자로 옮겨 가 닫으면 갈 곳이 없어진다). 배경 `inert`가 풀린
+   * 뒤라야 초점이 들어가므로 상태를 먼저 그려(flushSync) 놓고 옮긴다. [다시 시도]는 재전송 흐름이라 여기를 거치지 않는다
+   */
+  const closeDialog = () => {
+    flushSync(() => setStatus({ kind: 'idle' }))
+    inputRef.current?.focus({ preventScroll: true })
+  }
 
   // 시트·대화상자가 떠 있는 동안 배경은 키보드 초점도 못 받는다. aria-modal·배경 막은 포인터만 막는다(위 onChange 주석)
   const sheetOpen = consentPending !== null
@@ -207,6 +216,7 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
             </label>
             {/* 접근성 이름이 보이는 라벨(「표준어」「경남 사투리」)을 품는다 — WCAG 2.5.3 */}
             <textarea
+              ref={inputRef}
               id="translator-input"
               className="translator-card__input"
               aria-label={`${inputLanguage} 문장`}

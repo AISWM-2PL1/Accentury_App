@@ -424,7 +424,9 @@ export function WordReportScreen({
                           내 답 <s>{wrong.chosenText}</s>
                         </span>
                       )}
-                      <span aria-hidden="true">→</span>
+                      <span aria-hidden="true" className="word-report__arrow">
+                        <ArrowRightIcon size={16} />
+                      </span>
                       <span className="sr-only">정답</span>
                       <span className="word-report__correct">{wrong.correctText}</span>
                     </p>

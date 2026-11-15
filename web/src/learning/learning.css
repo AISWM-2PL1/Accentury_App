@@ -233,6 +233,10 @@
   font-size: 1.1875rem;
 }
 
+.stamp-reward__count svg {
+  vertical-align: -0.125em;
+}
+
 .stamp-reward__brick {
   color: var(--color-point);
 }
@@ -405,6 +409,11 @@ summary.word-report__row-top:focus-visible {
   font-size: var(--text-label);
 }
 
+.word-report__arrow {
+  display: flex;
+  align-self: center;
+}
+
 .word-report__correct {
   font-family: var(--font-display);
   font-size: 1.25rem;
@@ -424,8 +433,6 @@ summary.word-report__row-top:focus-visible {
   flex-direction: column;
   gap: var(--space-2);
 }
-
-── */
 
 .intonation-note {
   width: 100%;
@@ -524,6 +531,10 @@ summary.word-report__row-top:focus-visible {
   font-family: var(--font-body);
   font-size: 18px;
   line-height: 1;
+}
+
+.intonation-mark__sign svg {
+  vertical-align: -0.125em;
 }
 
 .intonation-mark__sign sup {
@@ -838,16 +849,26 @@ summary.word-report__row-top:focus-visible {
 }
 
 /*
- * 코스 열림 (타일 5 지도 부분): 도장·여권 페이지(600ms)가 끝난 뒤 자물쇠 고리가 들려 돌아가고(300ms) 칩이 열린 종이가 된다.
+ * 코스 열림 (타일 5 지도 부분): 자물쇠 고리가 들려 돌아가고(300ms) 칩이 열린 종이가 된다. 여권 페이지가 같이 서면(완주와 열림이
+ * 같이 일어나면) 그 페이지가 끝난 뒤에 연다 — 결정 표 「여권 페이지 → 자물쇠」. 끝나는 때는 페이지 등장(600ms)과 마지막(9번째)
+ * 도장의 끝(8 × 75 지연 + 75 = 675ms) 중 늦은 쪽이다. 여권 페이지가 없으면 지연 없이 연다.
  * 시간은 토큰만 쓴다 — 동작 줄이기에서는 토큰이 0.01ms라 끝 상태로 바로 선다(tokens.css)
  */
+.travel {
+  --unlock-delay: 0ms;
+}
+
+.travel:has(.travel-passport) {
+  --unlock-delay: max(var(--duration-reveal), calc(9 * var(--duration-press)));
+}
+
 .travel-chip.is-unlocking {
-  animation: travel-chip-open var(--duration-base) var(--ease-out) calc(var(--duration-reveal) + var(--duration-base)) both;
+  animation: travel-chip-open var(--duration-base) var(--ease-out) calc(var(--unlock-delay) + var(--duration-base)) both;
 }
 
 .travel-chip.is-unlocking .lock__shackle {
   transform-origin: 16px 10px;
-  animation: travel-shackle-open var(--duration-base) var(--ease-out) var(--duration-reveal) both;
+  animation: travel-shackle-open var(--duration-base) var(--ease-out) var(--unlock-delay) both;
 }
 
 @keyframes travel-shackle-open {

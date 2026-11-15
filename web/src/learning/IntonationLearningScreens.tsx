@@ -12,8 +12,10 @@ import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
 import { Button, CloseButton, ProgressIndicator, ScoreDonut, StatusBlock } from '../ui'
 import {
+  ArrowDownIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  ArrowUpIcon,
   CheckSmallIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -408,7 +410,7 @@ function MarkedLine({ text, marks }: { text: string; marks: SyllableMark[] }) {
       >
         <span className="intonation-mark__syllable">{syllable}</span>
         <span aria-hidden="true" className="intonation-mark__sign">
-          {m.mark === 'raise' ? '↑' : '↓'}
+          {m.mark === 'raise' ? <ArrowUpIcon size={16} /> : <ArrowDownIcon size={16} />}
           <sup>{m.commentNo}</sup>
         </span>
       </span>,

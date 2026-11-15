@@ -340,6 +340,7 @@ test('KAN-347 출석 배지·달력 - 홈 앱 바에만 서고, 칸은 33px·누
 
   await sheet.getByRole('button', { name: '출석 달력 닫기' }).click()
   await expect(sheet).toHaveCount(0)
+  await expect(badge).toBeFocused() // 닫으면 초점이 배지로 돌아온다
 
   // 다른 탭(학습·번역기) 앱 바에는 배지가 없다
   await tab(page, '사투리 번역기').click()
@@ -610,8 +611,16 @@ test('코스 완주 + 별 21개 - 지도로 돌아오면 여권 페이지(도장
   expect(delays.slice(0, 3)).toEqual(['0s', '0.075s', '0.15s'])
   const chip = page.getByRole('img', { name: '2코스, 열림, 별 0개, 필요 별 21개' })
   await expect(chip).toHaveClass(/is-unlocking/)
-  // 자물쇠 고리는 여권 페이지(600ms) 뒤에 들린다 — 지연이 --duration-reveal이다
-  expect(await chip.locator('.lock__shackle').evaluate((el) => getComputedStyle(el).animationDelay)).toBe('0.6s')
+  // 자물쇠 고리는 여권 페이지가 끝난 뒤에 들린다 — 페이지 등장(600ms)과 마지막 도장의 끝(지연 + 길이) 중 늦은 쪽 이후
+  const seconds = (v: string) => parseFloat(v)
+  const lastStamp = await passport
+    .locator('.travel-passport__stamps > svg')
+    .last()
+    .evaluate((svg) => [getComputedStyle(svg).animationDelay, getComputedStyle(svg).animationDuration])
+  const passportIn = await passport.evaluate((el) => getComputedStyle(el).animationDuration)
+  const shackleDelay = seconds(await chip.locator('.lock__shackle').evaluate((el) => getComputedStyle(el).animationDelay))
+  expect(shackleDelay).toBeGreaterThanOrEqual(seconds(lastStamp[0]) + seconds(lastStamp[1]))
+  expect(shackleDelay).toBeGreaterThanOrEqual(seconds(passportIn))
   await expect.poll(() => chip.locator('.lock__shackle').evaluate((el) => getComputedStyle(el).transform)).not.toBe('none')
   // 지금 스탬프는 열린 2코스의 첫 스탬프다
   await expect(page.getByRole('region', { name: '지금 코스' })).toContainText('2코스 0 / 9')

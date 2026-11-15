@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { useAdConsent } from './ads/adConsent'
 import { AdConsentSheet } from './ads/AdConsentSheet'
 import { AD_CONSENT_CHANGE_HINT_APP } from './ads/adConsentText'
@@ -869,8 +870,9 @@ function HomeScreen({
 
   const [calendarOpen, setCalendarOpen] = useState(false)
   const badgeRef = useRef<HTMLButtonElement>(null)
+  // 배경 `inert`가 풀린 뒤라야 배지에 초점이 들어간다 — 상태를 먼저 그려(flushSync) 놓고 옮긴다(번역기 대화상자와 같다)
   const closeCalendar = () => {
-    setCalendarOpen(false)
+    flushSync(() => setCalendarOpen(false))
     badgeRef.current?.focus({ preventScroll: true })
   }
 

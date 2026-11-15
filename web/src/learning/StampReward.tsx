@@ -9,6 +9,8 @@
  */
 
 import { ScoreDonut, Stars } from '../ui'
+import { ArrowRightIcon } from '../ui/icons'
+import { STAR_PATH } from '../ui/Stars'
 import type { CourseStarsChange } from './travel'
 
 export interface StampRewardProps {
@@ -46,7 +48,10 @@ function CourseStarsLine({ course }: { course: CourseStarsChange }) {
       <div className="stamp-reward__course-head">
         <span className="type-caption stamp-reward__muted">코스 별</span>
         <span className="stamp-reward__count" aria-hidden="true">
-          <span className="stamp-reward__brick">★</span> <span className="stamp-reward__muted">{before}</span> →{' '}
+          <svg className="stars__star stars__star--filled" width={16} height={16} viewBox="0 0 24 24" aria-hidden="true">
+            <path d={STAR_PATH} strokeLinejoin="round" />
+          </svg>{' '}
+          <span className="stamp-reward__muted">{before}</span> <ArrowRightIcon size={16} />{' '}
           <span className="stamp-reward__brick">{after}</span> / {required}
         </span>
       </div>
