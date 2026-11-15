@@ -46,10 +46,23 @@ public func visibleProviders(configured: Set<Provider>, fakeIdp: Bool) -> [Provi
     loginProviders.filter { fakeIdp || configured.contains($0) }
 }
 
+/// 로그인 버튼 문구 (KAN-355 2단계, 2026-11-11 결정 「각 사 가이드 준수」). 구글은 2026-11-16 결정 문구, 카카오·네이버는
+/// 각 사 가이드의 표준 문구다. 애플은 시스템 버튼(`ASAuthorizationAppleIDButton` `.continue`)이 현지화해 그리는 글자라
+/// 화면이 이 값을 쓰지 않는다 — 넷의 문구를 한자리에서 테스트로 묶으려고 같이 둔다.
+public func loginButtonLabel(_ provider: Provider) -> String {
+    switch provider {
+    case .GOOGLE: return "Google 계정으로 계속하기"
+    case .KAKAO: return "카카오 로그인"
+    case .NAVER: return "네이버 로그인"
+    case .APPLE: return "Apple로 계속하기"
+    // 게스트는 IdP 버튼이 아니라 글자 버튼 「로그인 없이 둘러보기」다 (KAN-330).
+    case .GUEST: return "로그인 없이 둘러보기"
+    }
+}
+
 /// 설정 화면의 로그인 방식 표기 (KAN-247, 안드로이드 `auth/SettingsScreen.kt`의 `providerName`과 같은 값).
-/// 로그인 버튼의 라벨(앱 타깃 `LoginScreen`의 `providerLabel`, "Google로 계속하기" 꼴)과 따로 두는 이유: 저쪽은 각 사
-/// 버튼 가이드의 표기를 따르고, 여기는 사용자가 읽는 한국어 문장 속 값이다. Core에 두는 것은 `swift test`로 넷을 다
-/// 확인하려고다 (``Gender/label``과 같은 자리).
+/// 로그인 버튼의 문구(``loginButtonLabel(_:)``)와 따로 두는 이유: 저쪽은 각 사 버튼 가이드의 표기를 따르고, 여기는
+/// 사용자가 읽는 한국어 문장 속 값이다. Core에 두는 것은 `swift test`로 넷을 다 확인하려고다 (``Gender/label``과 같은 자리).
 public func providerName(_ provider: Provider) -> String {
     switch provider {
     case .GOOGLE: return "구글"

@@ -47,26 +47,37 @@
 - `LoginScreen.kt` `IdpButton` — 공용 `AccenturyButton`을 쓰지 않는 전용 컴포저블. 색은 같은 파일의 `idpColors`(브랜드 고정값이라 테마 토큰이 아니다), 문구는 `providerLabel`(`LoginScreenStateTest`가 고정).
 - `LoginScreen.kt` `IdpLogo` — `contentDescription = null`(버튼 글자가 이미 제공자를 말한다). 비활성은 `clickable(enabled = false)`라 눌리지 않고 스크린 리더가 「사용 중지됨」을 읽는다.
 
-## iOS (KAN-224 3단계)
+## iOS (KAN-224 3단계, 버튼 모양은 KAN-355 2단계)
 
-버튼은 안드로이드와 같은 Papercut 보조 버튼이고(`ios/Accentury/UI/Components/AccenturyButton.swift`의 `leading`), 순서는
-구글 → 카카오 → 네이버 → **애플**이다(팀장 결정 "구글, 카카오, 네이버, iOS는 apple 추가"). 넷 다 같은 크기다.
+2026-11-16 기준 iOS 버튼은 2026-09-28 팀장 결정(「Papercut 보조 버튼 유지」)이 아니라 이를 대체한 2026-11-11 사용자 결정(KAN-311, 「각 사 가이드 준수」)을 따른다.
+
+순서는 구글 → 카카오 → 네이버 → **애플**이다(팀장 결정 "구글, 카카오, 네이버, iOS는 apple 추가"). 넷 다 폭 전체·높이 48·모서리 12·테두리
+없음·그림자 없음이고 같은 크기다. 구글·카카오·네이버는 `ios/Accentury/Auth/LoginScreen.swift`의 `IdpButton`(시스템 글꼴 15 Medium,
+로고 왼쪽 16(구글 12)·문구 가운데)이 그리고, 색·크기는 같은 파일 `IdpBrand` 한곳에 있다. 문구는 Core `loginButtonLabel`(테스트로 고정).
+
+| 버튼 | 면 | 글자 | 문구 |
+|---|---|---|---|
+| 구글 | Neutral `#F2F2F2` | `#1F1F1F` | Google 계정으로 계속하기 (2026-11-16 결정) |
+| 카카오 | `#FEE500` | `#000000` 85% | 카카오 로그인 |
+| 네이버 | `#03C75A` | `#FFFFFF` | 네이버 로그인 |
+| 애플 | 시스템 `ASAuthorizationAppleIDButton` `.black` | 시스템 | `.continue`(시스템 현지화 「Apple로 계속하기」) |
+
+눌림은 면 위 검정 8% 덮개(75ms, 동작 줄이기면 즉시), 비활성(방침 동의 전)은 버튼 전체 불투명도 0.6이다 — 공용 버튼의 비활성 모양(종이 그림자 면)은
+각 사 면색을 지워서 쓰지 않는다. 애플 시스템 버튼도 같은 0.6이다.
 
 | 에셋 (`ios/Accentury/Assets.xcassets`) | 원본 |
 |---|---|
-| `IdpGoogle.imageset` PNG 20/40/60px (@1x/2x/3x, 20pt로 그림) | 안드로이드 `ic_idp_google.png`(= `google_G_only.svg`를 Chromium으로 160px 렌더링한 것)를 `sips`로 축소 |
-| `IdpKakao.imageset` SVG, Preserve Vector Data | `ic_idp_kakao.xml`과 같은 path·색·`translate(-13 -14)` — `kakao_login_light.svg`의 말풍선 그대로 |
-| `IdpNaver.imageset` SVG, Preserve Vector Data | `ic_idp_naver.xml`과 같은 10점 다각형·`#03A94D`, `translate(13.561 10.706) scale(1 -1)` |
-| 애플 | SF Symbol `apple.logo` (파일 없음) |
+| `IdpGoogle.imageset` PNG 20/40/60px (@1x/2x/3x, 20pt로 그림) | 안드로이드 `ic_idp_google.png`(= `google_G_only.svg`를 Chromium으로 160px 렌더링한 것)를 `sips`로 축소. 가이드 Neutral 면 위 공식 G 그대로 |
+| `IdpKakao.imageset` SVG, Preserve Vector Data (18×17pt로 그림) | `kakao_login_light.svg`의 말풍선 path·`translate(-13 -14)` 그대로, 색만 가이드 표의 심볼 `#000000`(배포 SVG `#191919`에서 바꿈, KAN-355). 시안 `p1/img/idp-kakao.svg`와 바이트 일치 |
+| `IdpNaverWhite.imageset` SVG, Preserve Vector Data (16pt) | `.ai`에서 옮긴 같은 10점 다각형·`translate(13.561 10.706) scale(1 -1)`, 색만 흰색 `#FFFFFF`(녹색 면 위 흰 N, KAN-355). 시안 `p1/img/idp-naver-white.svg`와 바이트 일치. 옛 초록 N `IdpNaver.imageset`은 사용처가 없어져 지웠다 |
+| 애플 | 파일 없음 — 시스템 버튼이 로고까지 그린다 |
 
 ### Sign in with Apple — HIG 대조
 
 App Review Guidelines 4.8은 다른 소셜 로그인을 주는 앱에 애플 로그인을 **같은 무게로** 요구한다 — 같은 크기·같은 모양의
-버튼이라 충족한다. HIG 「Sign in with Apple › Buttons」는 시스템 버튼(`ASAuthorizationAppleIDButton`) 대신 **직접 만든
-버튼**을 허용하되 조건을 건다 (https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple).
+버튼이라 충족한다. KAN-344-6부터 직접 그린 버튼이 아니라 시스템 버튼(`ASAuthorizationAppleIDButton`)을 쓴다
+(https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple).
 
-| | 지킨 것 | 어긴 것 (팀 결정으로 유지) |
+| | 지킨 것 | 어긴 것 |
 |---|---|---|
-| 애플 | 문구는 허용된 셋 중 "Continue with Apple"의 현지화("Apple로 계속하기"), 로고와 글자가 같은 색(잉크 `#1c1a17` ≈ 검정), 다른 버튼과 같은 반경·크기, 로고는 애플이 앱에 주는 글리프(SF Symbol `apple.logo`) | 버튼 면이 **흰색·검정이 아니라 크림**이고 1.5 잉크 테두리 — HIG는 흰색/검정(또는 그 위의 은은한 질감)을 요구한다. 로고를 HIG 다운로드 로고 파일이 아니라 SF Symbol로 그렸다. 글자 높이 비율(버튼 높이의 43%)은 맞추지 않았다(보조 버튼 15pt) |
-
-심사에서 문제가 되면 애플 버튼만 흰 면(`#FFFFFF`)으로 바꾸는 것이 가장 작은 수정이다 — 나머지 셋과 모양·크기는 그대로다.
+| 애플 | 시스템 버튼 그대로(로고·글자·글자 비율은 시스템), 스타일 `.black`(HIG 기본 면), 문구 `continue`의 시스템 현지화, 높이 48·`cornerRadius` 12로 다른 셋과 같은 크기·반경(HIG가 반경 조정을 허용) | 없음 |

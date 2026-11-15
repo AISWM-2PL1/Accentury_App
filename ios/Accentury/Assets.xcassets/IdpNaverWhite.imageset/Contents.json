@@ -1,6 +1,6 @@
 {
   "images" : [
-    { "filename" : "IdpNaver.svg", "idiom" : "universal" }
+    { "filename" : "IdpNaverWhite.svg", "idiom" : "universal" }
   ],
   "info" : { "author" : "xcode", "version" : 1 },
   "properties" : { "preserves-vector-representation" : true }
