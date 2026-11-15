@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl } from './entryUrl'
+import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, entryPath } from './entryUrl'
 
 /** 앱 진입(bridge·app)과 공유 링크 진입(c)이 한꺼번에 들어 있는 최악의 조합 */
 const ENTRY = '?bridge=1&app=1.0&c=kko_share'
@@ -102,5 +102,24 @@ describe('buildTabUrl — 하단 탭 화면 (KAN-252)', () => {
     expect(next.get('bridge')).toBe('1')
     expect(next.get('c')).toBe('kko_share')
     expect(buildIntroUrl('?screen=home&adConsent=open')).toBe('')
+  })
+})
+
+describe('entryPath - 다음 URL의 경로 (KAN-346)', () => {
+  it('브라우저가 루트에 있으면 /test로 옮긴다', () => {
+    // 배포된 사이트의 쿼리 없는 /는 사투리 이야기 목록이다. 옛 결과 주소에서 인트로로 돌아갈 때 목록이 뜨면 안 된다
+    expect(entryPath('/', '?screen=result&sessionId=s_1')).toBe('/test')
+    expect(entryPath('/', '')).toBe('/test')
+    expect(entryPath('/', '?c=kko_share')).toBe('/test')
+  })
+
+  it('앱은 루트 그대로 둔다', () => {
+    // bridge가 붙은 루트에는 SPA가 나가고, 네이티브가 지금 URL에서 다음 URL을 만든다
+    expect(entryPath('/', '?bridge=2&app=1.0&screen=home')).toBe('/')
+  })
+
+  it('루트가 아닌 경로는 그대로 둔다', () => {
+    expect(entryPath('/t', '?c=kko_share')).toBe('/t')
+    expect(entryPath('/test', '')).toBe('/test')
   })
 })

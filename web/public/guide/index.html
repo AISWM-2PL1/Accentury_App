@@ -9,8 +9,21 @@
       content="Accentury 사투리 억양 테스트를 만들며 직접 정하고 측정한 내용을 모은 글 목록입니다. 테스트 진행 방식, 점수와 등급, 피치 곡선, 녹음 환경, 음성 데이터 처리를 다룹니다."
     />
     <!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->
-    <!-- KAN-346: 이 문서가 사이트의 루트다. CloudFront Function이 쿼리 없는 /에 이 파일을 내주고, 파일 경로 그대로의 주소는 /로 301을 보낸다 -->
     <link rel="canonical" href="https://accentury.app/" />
+    <link rel="icon" type="image/svg+xml" href="/favicon-v3.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v3.png" />
+    <meta name="theme-color" content="#f3ecd9" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Accentury" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:title" content="사투리 좀 치나?" />
+    <meta property="og:description" content="내 말투가 얼마나 경남 사투리인지 목소리로 재 봐요. 5등급 중 내 등급은?" />
+    <meta property="og:url" content="https://accentury.app/" />
+    <meta property="og:image" content="https://accentury.app/og-card-v3.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="마이크를 든 사투리 호소인 캐릭터와 '사투리 좀 치나?' 문구" />
+    <meta name="twitter:card" content="summary_large_image" />
     <!-- KAN-291: JS가 돌 때만 등장 애니메이션 시작 상태(.js .reveal 등)를 건다. JS가 꺼지면 본문이 처음부터 보인다 -->
     <script>document.documentElement.classList.add("js")</script>
     <!-- KAN-291: 글꼴은 아래 style의 url()로만 불려 정적 검사(고아 파일)가 못 본다. preload로 첫 페인트도 당긴다 -->

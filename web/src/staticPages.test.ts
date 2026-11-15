@@ -35,8 +35,11 @@ const HOME_FILE = 'guide/index.html'
 const TEST_PATH = '/test'
 
 /* privacy.html은 서버 레포 infra/privacy/가 같은 버킷 루트에 따로 올린다(KAN-133). 이 레포에
-   파일이 없는 것이 정상이라 존재 검사에서 뺀다. `/`는 HOME_FILE이고 `/test`는 SPA라 public/에 같은 이름의 파일이 없다. */
-const PUBLISHED_ELSEWHERE = new Set(['/', TEST_PATH, '/privacy.html'])
+   파일이 없는 것이 정상이라 존재 검사에서 뺀다. `/test`는 SPA라 public/에 같은 이름의 파일이 없다. */
+const PUBLISHED_ELSEWHERE = new Set([TEST_PATH, '/privacy.html'])
+
+/** 주소가 가리키는 public/ 안의 파일. `/`는 HOME_FILE이다 */
+const publicFile = (path: string) => join(PUBLIC_DIR, path === '/' ? HOME_FILE : path.replace(/^\//, ''))
 
 const sitemap = new DOMParser().parseFromString(readFileSync(join(PUBLIC_DIR, 'sitemap.xml'), 'utf8'), 'application/xml')
 const locs = [...sitemap.getElementsByTagName('loc')].map((loc) => loc.textContent?.trim() ?? '')
@@ -79,7 +82,7 @@ describe('크롤러용 정적 파일', () => {
     for (const loc of locs) {
       const path = loc.slice(ORIGIN.length)
       if (PUBLISHED_ELSEWHERE.has(path)) continue
-      const file = join(PUBLIC_DIR, path.replace(/^\//, ''))
+      const file = publicFile(path)
       expect(existsSync(file) && statSync(file).isFile(), `${loc} 에 해당하는 파일이 public/에 없다`).toBe(true)
     }
   })
@@ -184,6 +187,11 @@ describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', (
     it(`${name}의 하단 nav가 사이트 링크를 모두 싣는다`, () => {
       const hrefs = [...doc.querySelectorAll('nav a[href]')].map((a) => a.getAttribute('href'))
       for (const link of [TEST_PATH, ...SITE_LINKS]) expect(hrefs, `${name} nav에 ${link}가 없다`).toContain(link)
+      /* 주소만 보면 `<a href="/">홈</a>`만 남은 옛 nav도 통과한다 (KAN-346). 루트가 목록이 된 뒤로
+         `/`는 「사투리 이야기」의 주소이고 테스트로 가는 항목은 따로 있어야 한다. 문구까지 본다. */
+      const label = (href: string) => doc.querySelector(`nav a[href="${href}"]`)?.textContent?.trim()
+      expect(label('/'), `${name} nav의 / 항목`).toBe('사투리 이야기')
+      expect(label(TEST_PATH), `${name} nav의 ${TEST_PATH} 항목`).toBe('억양 테스트')
     })
 
     it(`${name}의 내부 링크가 /, /test 또는 .html이다`, () => {
@@ -206,6 +214,22 @@ describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', (
     })
   }
 
+  it('목록이 상대 경로를 쓰지 않는다', () => {
+    /* 목록은 파일 위치(/guide/)가 아니라 루트에서 나간다 (KAN-346). 상대 경로(`faq.html`, `assets/x.webp`)는
+       배포된 사이트에서 `/faq.html`로 풀려 404가 되는데, 로컬에서는 `/guide/index.html`로 열어 멀쩡해 보인다. */
+    const doc = parse(readFileSync(join(PUBLIC_DIR, HOME_FILE), 'utf8'))
+    const refs = [...doc.querySelectorAll('[href], [src]')].map((el) => el.getAttribute('href') ?? el.getAttribute('src') ?? '')
+    expect(refs.length).toBeGreaterThan(0)
+    for (const ref of refs) {
+      expect(/^(\/|https:\/\/|mailto:|#|data:)/.test(ref), `${HOME_FILE}의 ${ref} 는 상대 경로다`).toBe(true)
+    }
+    // CSS의 url()도 같다 (글꼴이 여기로 불린다)
+    const css = [...doc.querySelectorAll('style')].map((style) => style.textContent ?? '').join('\n')
+    for (const [, ref] of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) {
+      expect(/^(\/|https:\/\/|data:)/.test(ref), `${HOME_FILE}의 url(${ref}) 는 상대 경로다`).toBe(true)
+    }
+  })
+
   it('목록의 테스트 진입 버튼이 /test로 간다', () => {
     /* 루트가 목록이 된 뒤로 `/`를 가리키면 제자리로 돈다 (KAN-346). 버튼이 테스트로 가는 유일한 큰 길이다 */
     const doc = parse(readFileSync(join(PUBLIC_DIR, HOME_FILE), 'utf8'))
@@ -226,7 +250,7 @@ describe('소개·문의·사투리 이야기 페이지 (KAN-275 2·3단계)', (
         .map((a) => a.getAttribute('href') ?? '')
         .filter((href) => href.startsWith('/') && !PUBLISHED_ELSEWHERE.has(href))
       for (const href of internal) {
-        const file = join(PUBLIC_DIR, href.slice(1))
+        const file = publicFile(href)
         expect(existsSync(file) && statSync(file).isFile(), `${name}의 ${href} 에 해당하는 파일이 public/에 없다`).toBe(true)
       }
     }

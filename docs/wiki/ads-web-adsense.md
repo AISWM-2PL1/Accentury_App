@@ -628,9 +628,14 @@ curl -s https://accentury.app/sitemap.xml
 **루트와 테스트 화면의 주소 (KAN-346).** 쿼리 없는 `/`는 사투리 이야기 목차이고 테스트 화면은 `/test`다.
 파일을 옮긴 것이 아니다. 버킷의 `index.html`은 그대로 SPA이고, 서버 레포의 CloudFront Function
 (`infra/modules/edge/spa-rewrite.js`)이 `/` 요청에 `guide/index.html`을 내준다. 스토어에 나간 앱이 루트에
-`bridge` 쿼리를 붙여 WebView로 열기 때문에, 루트라도 쿼리에 `bridge`나 `screen`이 있으면 SPA가 나간다.
+`bridge` 쿼리를 붙여 WebView로 열기 때문에, 루트라도 쿼리에 SPA가 읽는 키(`bridge`, `screen`, 공유 유입
+계측 코드 `c`)가 있으면 SPA가 나간다. `utm_*`만 붙은 루트는 목차다.
 그래서 글에서 테스트로 보내는 링크는 `/test`로, 목차로 보내는 링크는 `/`로 적는다. `/guide/index.html`은
 301이라 어디에도 적지 않는다(`staticPages.test.ts`가 검사). 공유 링크 `/t?c=...`는 그대로다.
+SPA는 브라우저가 루트에 있으면 화면을 옮길 때 `/test`로 옮긴다(`navigation/entryUrl.ts`의 `entryPath`).
+옛 루트 주소에서 [다시 테스트하기]를 눌렀을 때 목차가 뜨지 않게 하려는 것이다. 앱은 루트 그대로다.
+목차는 루트에서 나가므로 상대 경로를 쓰지 않고(테스트가 검사), 사이트의 첫 화면이라 파비콘과 `og:*`를 head에 둔다.
+홈 화면 바로가기가 여는 주소(manifest의 `start_url`)도 `/test`다.
 로컬 Vite(`npm run dev`)에는 이 Function이 없어 `/`가 테스트 화면이고 목차는 `/guide/index.html`로 연다.
 
 새 페이지는 `about.html`을 복사해 head·main만 바꾼다(인라인 스타일, 외부 CSS·글꼴·스크립트 0, 배경은 앱 종이색

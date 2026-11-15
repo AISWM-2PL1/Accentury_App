@@ -82,6 +82,24 @@ export function buildIntroUrl(search: string): string {
   return toQuery(params)
 }
 
+/** 테스트 화면(SPA)의 정식 주소 (KAN-346). 배포된 사이트의 루트(`/`)는 사투리 이야기 목록이다 */
+export const TEST_PATH = '/test'
+
+/**
+ * 다음 URL의 **경로 부분**. 지금 경로를 그대로 쓰되, 브라우저가 루트에 있으면 [TEST_PATH]로 옮긴다 (KAN-346).
+ *
+ * 배포된 사이트에서 쿼리 없는 `/`는 SPA가 아니라 사투리 이야기 목록이다 (서버 레포의 CloudFront Function).
+ * 그래서 옛 루트 주소(`/?screen=result&sessionId=...`)로 들어온 사람이 [다시 테스트하기]를 눌러
+ * `/`로 가면 인트로 대신 글 목록이 뜬다. 화면을 옮길 때마다 `/test`로 옮겨 두면 그 길이 없다.
+ *
+ * 앱(쿼리에 `bridge`)은 루트 그대로 둔다. Function이 `bridge`가 붙은 루트에 SPA를 내주고, 네이티브가
+ * 지금 URL에서 다음 URL을 만들기 때문에 경로를 바꾸지 않는 편이 안전하다.
+ */
+export function entryPath(pathname: string, search: string): string {
+  if (pathname === '/' && !new URLSearchParams(search).has('bridge')) return TEST_PATH
+  return pathname
+}
+
 /** 남은 파라미터가 없으면 물음표도 붙이지 않는다 — `/t?`로 끝나는 주소를 만들지 않기 위해서다 */
 function toQuery(params: URLSearchParams): string {
   const query = params.toString()
