@@ -1,14 +1,19 @@
 /**
- * 단어 학습 W-2~W-5 (KAN-255 3단계, 세트 목록은 KAN-347 3단계에서 사투리 여행 지도로). 훅의 전체 순환, 화면별 계약, 상태별 출구를 본다.
+ * 단어 스탬프 (KAN-255 3단계 → KAN-347 4단계: 카드·문항 5초 제한·피드백·성적표). 훅의 전체 순환, 화면별 계약, 상태별 출구를 본다.
  * 네트워크는 deps.fetchImpl로 갈아끼운다 — 경로·메서드별로 응답을 고르는 작은 가짜 서버다.
  */
 
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import { useWordLearning, type WordLearningView } from './useWordLearning'
-import { WordLearningRoute, WordQuizScreen, WordSetCompleteScreen } from './WordLearningScreens'
+import { WordLearningRoute, WordQuizScreen, WordReportScreen, quotePrompt } from './WordLearningScreens'
 import type { WordApiDeps } from './wordApi'
+import type { CourseStarsChange } from './travel'
+import { WORD_TIME_LIMIT_MS, pauseCountdown, remainingMs, resumeCountdown, wordTimeLimitMs } from './wordTimer'
+
+/** 코스 1의 「단어 학습 2」 */
+const STAMP = { kind: 'word' as const, id: 's1', course: 1, n: 2 }
 
 const SET = {
   contentVersion: 'v1',
@@ -144,11 +149,25 @@ describe('useWordLearning', () => {
 
 // ── 라우트 (화면 결선) ───────────────────────────────────────────────────
 
-function renderRoute(routes: Record<string, Reply | Reply[]>, token: string | null = 'acc') {
+function renderRoute(
+  routes: Record<string, Reply | Reply[]>,
+  token: string | null = 'acc',
+  options: { courseStars?: { collected: number; required: number } | null; timeLimitMs?: number | null } = {},
+) {
   const server = fakeServer(routes)
   const exits = { toMap: vi.fn(), toNextStamp: vi.fn() }
   // 탭 바 자리 표시 — 어느 단계에서 그려지는지만 본다 (탭 바 자체는 `ui/TabBar.test.tsx`)
-  render(<WordLearningRoute apiBase="http://api" setId="s1" exits={exits} tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl, token)} />)
+  render(
+    <WordLearningRoute
+      apiBase="http://api"
+      stamp={STAMP}
+      courseStars={options.courseStars ?? null}
+      exits={exits}
+      tabBar={<nav aria-label="탭 바" />}
+      deps={deps(server.fetchImpl, token)}
+      timeLimitMs={options.timeLimitMs ?? null}
+    />,
+  )
   return { ...server, exits }
 }
 
@@ -165,11 +184,15 @@ describe('WordLearningRoute', () => {
     expect(tabBar()).toBeNull()
   })
 
-  it('W-2는 표준어와 사투리를 보이고 마지막 카드에서만 [문제 풀기]다', async () => {
+  it('카드(s-12)는 「단어 1 / 2」 진행 표시, 표준어·사투리 라벨과 낱말을 보이고 마지막 카드에서만 [문제 풀기]다 (4-1)', async () => {
     renderRoute(happyRoutes())
     expect(await screen.findByText('정구지')).toBeInTheDocument()
     expect(screen.getByText('부추')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: '카드 진행률' })).toHaveAttribute('aria-valuenow', '1')
+    expect(screen.getByText('표준어')).toBeInTheDocument()
+    expect(screen.getByText('사투리')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '단어' })).toHaveAttribute('aria-valuenow', '1')
+    expect(document.querySelector('.progress-indicator__count')).toHaveTextContent('1 / 2')
+    expect(screen.getByRole('button', { name: '다음 카드' }).querySelector('svg')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '다음 카드' }))
     expect(screen.getByText('머하노')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '문제 풀기' }))
@@ -207,7 +230,8 @@ describe('WordLearningRoute', () => {
     render(
       <WordLearningRoute
         apiBase="http://api"
-        setId="s1"
+        stamp={STAMP}
+        courseStars={null}
         exits={{ toMap: vi.fn(), toNextStamp: vi.fn() }}
         deps={{ fetchImpl: server.fetchImpl, refreshToken: async () => false }}
       />,
@@ -265,14 +289,14 @@ describe('WordLearningRoute', () => {
     expect(exits.toMap).toHaveBeenCalledTimes(1)
   })
 
-  it('완료 실패면 오류 문구와 [다시 시도], 성공하면 W-5다', async () => {
+  it('완료 실패면 오류 문구와 [다시 시도], 성공하면 성적표다', async () => {
     const { calls } = renderRoute({ ...happyRoutes(), '/complete': ['network', ok(RESULT)] })
     await clickStartQuiz()
     await answerAllAndShowResult()
     expect(await screen.findByRole('alert')).toHaveTextContent('네트워크 오류')
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
-    expect(await screen.findByRole('heading', { level: 1, name: '세트 완료' })).toBeInTheDocument()
-    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: '단어 학습 2 결과' })).toBeInTheDocument()
+    expect(screen.getByText('1 / 2 정답 · 정답률 50%')).toBeInTheDocument()
     expect(calls.filter((c) => c.path.endsWith('/complete'))).toHaveLength(2)
   })
 
@@ -296,7 +320,7 @@ describe('WordLearningRoute', () => {
     expect(tabBar()).not.toBeNull()
   })
 
-  it('카드·퀴즈엔 오른쪽 위 ✕(닫기)가 있고 누르면 지도로 간다, 완료엔 없고 [지도로]가 같은 길이다 (KAN-252, 3-8)', async () => {
+  it('카드·퀴즈엔 오른쪽 위 ✕(닫기)가 있고 누르면 지도로 간다, 성적표엔 없고 「지도로」가 같은 길, [다음 스탬프]는 toNextStamp다 (KAN-252, 3-8, 4-4)', async () => {
     const { exits } = renderRoute(happyRoutes())
     const close = () => screen.queryByRole('button', { name: '닫기' })
     expect(await screen.findByText('정구지')).toBeInTheDocument()
@@ -309,11 +333,14 @@ describe('WordLearningRoute', () => {
     expect(exits.toMap).toHaveBeenCalledTimes(2)
 
     await answerAllAndShowResult()
-    expect(await screen.findByRole('heading', { name: '세트 완료' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '단어 학습 2 결과' })).toBeInTheDocument()
     expect(close()).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '지도로' }))
     expect(exits.toMap).toHaveBeenCalledTimes(3)
     expect(exits.toNextStamp).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '다음 스탬프' }))
+    expect(exits.toNextStamp).toHaveBeenCalledTimes(1)
+    expect(exits.toMap).toHaveBeenCalledTimes(3)
   })
 })
 
@@ -322,7 +349,7 @@ describe('WordLearningRoute', () => {
 describe('WordQuizScreen', () => {
   const item = SET.items[0]
 
-  function renderQuiz(props: { result?: ReturnType<typeof answer> | null; submit?: (c: string, k: string) => Promise<void> } = {}) {
+  function renderQuiz(props: { result?: ReturnType<typeof answer> | null; submit?: (c: string | null, k: string) => Promise<void> } = {}) {
     const submit = vi.fn(props.submit ?? (async () => {}))
     const onNext = vi.fn()
     const view = render(
@@ -331,10 +358,14 @@ describe('WordQuizScreen', () => {
     return { submit, onNext, view }
   }
 
-  it('W-3: 고르기 전에는 [제출]이 비활성이고, 진척도가 보인다', () => {
+  it('문항(s-13): 고르기 전에는 [제출](체크 아이콘)이 비활성이고, 「단어 1 / 2」 진행 표시가 보인다', () => {
     renderQuiz()
     expect(screen.getByRole('button', { name: '제출' })).toBeDisabled()
-    expect(screen.getByRole('progressbar', { name: '문항 진행률' })).toHaveAttribute('aria-valuenow', '1')
+    expect(screen.getByRole('button', { name: '제출' }).querySelector('svg')).not.toBeNull()
+    expect(screen.getByRole('progressbar', { name: '단어' })).toHaveAttribute('aria-valuenow', '1')
+    expect(document.querySelector('.progress-indicator__count')).toHaveTextContent('1 / 2')
+    // 제한 시간이 꺼져 있으면(기본, KAN-360 전) 막대가 없다
+    expect(screen.queryByRole('timer')).toBeNull()
     fireEvent.click(screen.getByRole('radio', { name: '정구지' }))
     expect(screen.getByRole('button', { name: '제출' })).toBeEnabled()
     // 제출 전에는 정오 클래스가 없다
@@ -368,7 +399,7 @@ describe('WordQuizScreen', () => {
     expect(screen.getByRole('radio', { name: /정구지/ }).closest('label')).toHaveTextContent('정답')
   })
 
-  it('W-4 오답: ✕ 아이콘과 「오답」 글자, 정답 문구, 내가 고른 보기에 「내 답」', async () => {
+  it('피드백(s-14) 오답: ✕ 아이콘과 「오답」 글자, 서버 해설 그대로, 고른 칸 「내 답」·정답 칸 「정답」', async () => {
     const { view, submit, onNext } = renderQuiz()
     fireEvent.click(screen.getByRole('radio', { name: '시금치' }))
     fireEvent.click(screen.getByRole('button', { name: '제출' }))
@@ -378,11 +409,20 @@ describe('WordQuizScreen', () => {
     )
     const verdict = screen.getByRole('status')
     expect(verdict).toHaveTextContent('오답')
-    expect(verdict).toHaveTextContent('정답은 정구지')
+    // 해설은 서버 문장 그대로, 앱이 덧붙이던 「정답은 …」 줄은 없다 (s-14)
+    expect(verdict.querySelector('.word-verdict__explanation')).toHaveTextContent(/^정구지가 맞아요$/)
+    expect(verdict).not.toHaveTextContent('정답은')
     // 정답의 ✓와 다른 모양 (✕)
     expect(verdict.querySelector('svg path')?.getAttribute('d')).toMatch(/^M5 5/)
-    expect(screen.getByRole('radio', { name: /시금치/ }).closest('label')).toHaveTextContent('내 답')
-    expect(screen.getByRole('radio', { name: /정구지/ }).closest('label')).toHaveTextContent('정답')
+    // 고른 칸 「내 답」 + 벽돌 테두리(흔들림 대상), 정답 칸 「정답」 꼬리표(SVG + 글자)
+    const mine = screen.getByRole('radio', { name: /시금치/ }).closest('label')!
+    expect(mine).toHaveTextContent('내 답')
+    expect(mine).toHaveClass('choice--wrong')
+    expect(mine.closest('.word-quiz')).not.toBeNull()
+    const right = screen.getByRole('radio', { name: /정구지/ }).closest('label')!
+    expect(right).toHaveTextContent('정답')
+    expect(right.querySelector('.choice__mark--correct svg')).not.toBeNull()
+    expect(screen.getByRole('button', { name: '다음 문항' }).querySelector('svg')).not.toBeNull()
   })
 
   it('마지막 문항의 W-4 버튼은 [결과 보기]다', () => {
@@ -394,7 +434,7 @@ describe('WordQuizScreen', () => {
 
   it('제출 실패 뒤 같은 답 재시도는 같은 멱등 키다 (재시도 불가 오류여도 같은 화면에 남는다)', async () => {
     const submit = vi
-      .fn<(c: string, k: string) => Promise<void>>()
+      .fn<(c: string | null, k: string) => Promise<void>>()
       .mockRejectedValueOnce(new Error('이미 답한 문항이에요'))
       .mockResolvedValueOnce(undefined)
     renderQuiz({ submit })
@@ -408,22 +448,367 @@ describe('WordQuizScreen', () => {
   })
 })
 
-// ── W-5 ─────────────────────────────────────────────────────────────────
+// ── 5초 제한 (4-2, 4-5) ──────────────────────────────────────────────────
 
-describe('WordSetCompleteScreen', () => {
-  it('정답률·맞힌 수·오답 목록·복습 안내를 응답 그대로 그린다', () => {
+describe('5초 제한 막대 (4-2)', () => {
+  const item = SET.items[0]
+  const timedOutAnswer = { ...answer(false, 'i1a', '정구지', 1) }
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllEnvs()
+    Reflect.deleteProperty(document, 'visibilityState')
+  })
+
+  function renderTimed(submit = vi.fn<(c: string | null, k: string) => Promise<void>>(async () => {})) {
+    vi.useFakeTimers()
+    const onNext = vi.fn()
+    const view = render(
+      <WordQuizScreen item={item} itemNumber={1} totalItems={2} result={null} submit={submit} onNext={onNext} timeLimitMs={5000} />,
+    )
+    const rerenderWith = (result: ReturnType<typeof answer>) =>
+      view.rerender(
+        <WordQuizScreen item={item} itemNumber={1} totalItems={2} result={result} submit={submit} onNext={onNext} timeLimitMs={5000} />,
+      )
+    return { submit, onNext, rerenderWith }
+  }
+  const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms))
+  const timer = () => screen.getByRole('timer')
+  const fill = () => timer().querySelector<HTMLElement>('.word-timer__fill')!
+
+  it('설정값 기본은 꺼짐이고 VITE_WORD_TIME_LIMIT=true면 5초다 (4-5, KAN-360 전 꺼 둔다)', () => {
+    expect(wordTimeLimitMs()).toBeNull()
+    vi.stubEnv('VITE_WORD_TIME_LIMIT', 'true')
+    expect(wordTimeLimitMs()).toBe(5000)
+  })
+
+  it('꺼져 있으면 막대가 없고 10초가 지나도 아무것도 내지 않는다', () => {
+    vi.useFakeTimers()
+    const submit = vi.fn(async () => {})
+    render(<WordQuizScreen item={item} itemNumber={1} totalItems={2} result={null} submit={submit} onNext={() => {}} />)
+    advance(10_000)
+    expect(screen.queryByRole('timer')).toBeNull()
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('radio')[0]).toBeEnabled()
+  })
+
+  it('진행 표시 아래 막대가 linear로 줄고, 마지막 1초에 벽돌색 경고(흔들림)로 바뀐다 (타일 11)', () => {
+    renderTimed()
+    expect(timer()).toHaveAttribute('aria-label', '남은 시간 5초')
+    expect(fill().style.transform).toBe('scaleX(1)')
+    // 진행 표시 바로 다음 자리
+    expect(document.querySelector('.progress-indicator')?.nextElementSibling).toBe(timer())
+    advance(3000)
+    expect(timer()).toHaveAttribute('aria-label', '남은 시간 2초')
+    expect(fill().style.transform).toBe('scaleX(0.4)')
+    expect(timer()).not.toHaveClass('word-timer--warning')
+    advance(1000)
+    expect(timer()).toHaveClass('word-timer--warning')
+    expect(timer()).toHaveAttribute('aria-label', '남은 시간 1초')
+  })
+
+  it('5초 안에 안 고르면 고르지 않은 답(null)을 내고 선택지를 잠근다, 채점이 오면 정답 공개 + 「시간이 다 됐어요」 + [다음 문항]', async () => {
+    const { submit, rerenderWith } = renderTimed()
+    advance(4999)
+    expect(submit).not.toHaveBeenCalled()
+    advance(1)
+    await act(async () => {})
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit.mock.calls[0][0]).toBeNull()
+    screen.getAllByRole('radio').forEach((r) => expect(r).toBeDisabled())
+    advance(10_000)
+    expect(submit).toHaveBeenCalledTimes(1)
+
+    rerenderWith(timedOutAnswer)
+    const verdict = screen.getByRole('status')
+    expect(verdict).toHaveTextContent('시간이 다 됐어요')
+    expect(verdict).not.toHaveTextContent('오답')
+    expect(verdict).toHaveTextContent('정구지가 맞아요')
+    expect(screen.getByRole('radio', { name: /정구지/ }).closest('label')).toHaveTextContent('정답')
+    expect(screen.queryByText('내 답')).toBeNull()
+    expect(screen.getByRole('button', { name: '다음 문항' })).toBeEnabled()
+  })
+
+  it('답을 고르면 멈추고 제출 전까지 답을 바꿀 수 있다 — 고른 답을 그대로 낸다', async () => {
+    const { submit } = renderTimed()
+    advance(2000)
+    fireEvent.click(screen.getByRole('radio', { name: '시금치' }))
+    advance(10_000)
+    expect(submit).not.toHaveBeenCalled()
+    expect(timer()).toHaveAttribute('aria-label', '남은 시간 3초')
+    fireEvent.click(screen.getByRole('radio', { name: '정구지' }))
+    fireEvent.click(screen.getByRole('button', { name: '제출' }))
+    await act(async () => {})
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit.mock.calls[0][0]).toBe('i1a')
+  })
+
+  it('앱 전환·화면 꺼짐(visibilitychange hidden)이면 멈추고, 돌아오면 남은 시간부터 잇는다', async () => {
+    const { submit } = renderTimed()
+    advance(1000)
+    const setVisibility = (state: 'hidden' | 'visible') => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+    }
+    setVisibility('hidden')
+    advance(60_000)
+    expect(submit).not.toHaveBeenCalled()
+    expect(timer()).toHaveAttribute('aria-label', '남은 시간 4초')
+    setVisibility('visible')
+    advance(3999)
+    expect(submit).not.toHaveBeenCalled()
+    advance(1)
+    await act(async () => {})
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit.mock.calls[0][0]).toBeNull()
+  })
+
+  it('시간 초과 답안 제출이 실패하면 [다시 시도]가 같은 멱등 키로 다시 낸다', async () => {
+    const submit = vi
+      .fn<(c: string | null, k: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('네트워크 오류로 요청하지 못했어요'))
+      .mockResolvedValueOnce(undefined)
+    renderTimed(submit)
+    advance(5000)
+    await act(async () => {})
+    expect(screen.getByRole('alert')).toHaveTextContent('네트워크 오류로 요청하지 못했어요')
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await act(async () => {})
+    expect(submit).toHaveBeenCalledTimes(2)
+    expect(submit.mock.calls[1]).toEqual(submit.mock.calls[0])
+    expect(submit.mock.calls[1][0]).toBeNull()
+  })
+})
+
+describe('Countdown 순수 계산', () => {
+  it('남은 시간은 멈춘 동안 줄지 않고, 다시 가면 남은 값부터 준다', () => {
+    let c = resumeCountdown({ left: WORD_TIME_LIMIT_MS, since: null }, 1000)
+    expect(remainingMs(c, 2500)).toBe(3500)
+    c = pauseCountdown(c, 2500)
+    expect(remainingMs(c, 99_999)).toBe(3500)
+    // 두 번 멈춰도, 두 번 가도 값이 그대로다
+    expect(pauseCountdown(c, 5000)).toEqual(c)
+    c = resumeCountdown(c, 10_000)
+    expect(resumeCountdown(c, 11_000)).toEqual(c)
+    expect(remainingMs(c, 13_000)).toBe(500)
+    expect(remainingMs(c, 20_000)).toBe(0)
+  })
+})
+
+describe('quotePrompt', () => {
+  it('서버 prompt 앞머리 작은따옴표 한 짝만 「」로 바꾼다 (4-2)', () => {
+    expect(quotePrompt("'할머니'를 경남 사투리로 무엇이라 할까요?")).toBe('「할머니」를 경남 사투리로 무엇이라 할까요?')
+    expect(quotePrompt("'밥 묵었나'를 'X'로?")).toBe("「밥 묵었나」를 'X'로?")
+    expect(quotePrompt('부추를 사투리로?')).toBe('부추를 사투리로?')
+  })
+})
+
+// ── 시간 초과 한 바퀴 (라우트, KAN-360 계약 목) ────────────────────────────
+
+describe('시간 초과 문항 — 라우트 한 바퀴 (KAN-360 계약)', () => {
+  it('고르지 않고 시간이 끝나면 { timedOut: true }를 내고, 성적표에서 그 행이 「시간 초과 → 정답」으로 펼쳐진다', async () => {
+    const timedOutResult = {
+      ...RESULT,
+      correctCount: 0,
+      accuracyPercent: 0,
+      wrongItems: [
+        {
+          itemId: 'i1', cardId: 'c1', prompt: '부추를 사투리로?', chosenChoiceId: null, chosenText: null,
+          correctChoiceId: 'i1a', correctText: '정구지', explanation: '정구지가 맞아요', timedOut: true,
+        },
+        { ...RESULT.wrongItems[0], timedOut: false },
+      ],
+    }
+    const { calls } = renderRoute(
+      { ...happyRoutes(), '/items/i1/answer': ok(answer(false, 'i1a', '정구지', 1)), '/complete': ok(timedOutResult) },
+      'acc',
+      // 실시간으로 돌리되 짧게 — 5초 상수는 위 가짜 타이머 시험이 본다
+      { timeLimitMs: 60 },
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '다음 카드' }))
+    fireEvent.click(screen.getByRole('button', { name: '문제 풀기' }))
+    expect(await screen.findByText('시간이 다 됐어요')).toBeInTheDocument()
+    const sent = calls.find((c) => c.path.endsWith('/items/i1/answer'))!
+    expect(JSON.parse(sent.body!)).toEqual({ timedOut: true })
+    expect(sent.headers['Idempotency-Key']).toEqual(expect.any(String))
+
+    fireEvent.click(screen.getByRole('button', { name: '다음 문항' }))
+    fireEvent.click(await screen.findByRole('radio', { name: '머꼬' }))
+    fireEvent.click(screen.getByRole('button', { name: '제출' }))
+    fireEvent.click(await screen.findByRole('button', { name: '결과 보기' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: '단어 학습 2 결과' })).toBeInTheDocument()
+    const rows = screen.getAllByRole('listitem')
+    fireEvent.click(rows[0].querySelector('summary')!)
+    expect(rows[0]).toHaveTextContent('시간 초과')
+    expect(rows[0]).toHaveTextContent('정구지')
+    expect(rows[0]).not.toHaveTextContent('내 답')
+    expect(rows[0]).not.toHaveTextContent('null')
+    expect(rows[1]).toHaveTextContent('내 답')
+  })
+})
+
+// ── 성적표 (s-15-A) ──────────────────────────────────────────────────────
+
+describe('WordReportScreen', () => {
+  const RESULT_STARS = { ...RESULT, stars: 2 }
+  const COURSE: CourseStarsChange = { course: 1, before: 5, after: 7, required: 21, unlocked: null }
+
+  function renderReport(result: typeof RESULT & { stars?: number }, course: CourseStarsChange | null) {
+    const onNextStamp = vi.fn()
     const onToMap = vi.fn()
-    render(<WordSetCompleteScreen result={RESULT} onToMap={onToMap} />)
-    expect(screen.getByText('50%')).toBeInTheDocument()
-    expect(screen.getByText('2문항 중 1개 맞혔어요')).toBeInTheDocument()
-    expect(screen.getByText('오답이 복습에 쌓였어요')).toBeInTheDocument()
-    const wrong = screen.getByRole('listitem')
-    expect(wrong).toHaveTextContent('뭐 하니를 사투리로?')
-    expect(wrong).toHaveTextContent('내 답: 머꼬')
-    expect(wrong).toHaveTextContent('정답: 머하노')
+    render(<WordReportScreen set={SET} result={result} course={course} n={2} onNextStamp={onNextStamp} onToMap={onToMap} />)
+    return { onNextStamp, onToMap }
+  }
+
+  it('앱 바 「스탬프 완료」, 제목 「단어 학습 n 결과」, 점수 원(정답률)·별(이번 시도 stars)·코스 별 줄을 그린다', () => {
+    renderReport(RESULT_STARS, COURSE)
+    expect(screen.getByText('스탬프 완료')).toHaveClass('stamp-done-badge')
+    expect(screen.getByRole('heading', { level: 1, name: '단어 학습 2 결과' })).toBeInTheDocument()
+    expect(document.querySelector('.score-donut')).toHaveTextContent('50점')
+    expect(screen.getByRole('img', { name: '별 3개 중 2개' })).toBeInTheDocument()
+    const course = screen.getByRole('region', { name: '코스 별 5개에서 7개로, 다음 코스까지 필요한 별 21개' })
+    expect(course.querySelector('.stamp-reward__count')).toHaveTextContent('★ 5 → 7 / 21')
+    expect(within(course).getByRole('progressbar', { name: '코스 별' })).toHaveAttribute('aria-valuenow', '7')
+    // 이번에 더한 칸이 앞 칸과 따로 그려진다
+    expect(course.querySelector<HTMLElement>('.stamp-reward__bar-earned')!.style.width).toBe(`${(5 / 21) * 100}%`)
+    expect(course.querySelector<HTMLElement>('.stamp-reward__bar-added')!.style.width).toBe(`${(7 / 21) * 100 - (5 / 21) * 100}%`)
+    expect(course).toHaveTextContent('이번 스탬프 +2')
+    expect(course).toHaveTextContent('다음 코스까지 별 14개')
+    expect(screen.queryByText(/코스가 열렸어요/)).toBeNull()
+  })
+
+  it('문항별 결과는 세트 문항 전체(맞힌 행 + wrongItems)이고 「n / N 정답 · 정답률 p%」, 틀린 행을 펼치면 「내 답 → 정답」과 해설', () => {
+    renderReport(RESULT_STARS, COURSE)
+    expect(screen.getByRole('heading', { level: 2, name: '문항별 결과' })).toBeInTheDocument()
+    expect(screen.getByText('1 / 2 정답 · 정답률 50%')).toBeInTheDocument()
+    const [right, wrong] = screen.getAllByRole('listitem')
+    // 행 이름은 카드의 표준어 낱말이다 (시안 s-15-A)
+    expect(right).toHaveTextContent('부추')
+    expect(right).toHaveTextContent('정답')
+    expect(right.querySelector('details')).toBeNull()
+    expect(wrong).toHaveTextContent('뭐 하니')
+    expect(wrong).toHaveTextContent('오답')
+    const details = wrong.querySelector('details')!
+    expect(details.open).toBe(false)
+    fireEvent.click(wrong.querySelector('summary')!)
+    expect(details.open).toBe(true)
+    expect(wrong.querySelector('.word-report__answer')).toHaveTextContent(/^내 답\s*머꼬\s*→\s*정답\s*머하노$/)
     expect(wrong).toHaveTextContent('머하노가 맞아요')
+    // 옛 W-5 문구는 없어졌다
+    expect(screen.queryByText('오답이 복습에 쌓였어요')).toBeNull()
+    expect(screen.queryByRole('button', { name: '세트 목록으로' })).toBeNull()
+  })
+
+  it('[다음 스탬프]는 onNextStamp, 글자 버튼 「지도로」는 onToMap이다', () => {
+    const { onNextStamp, onToMap } = renderReport(RESULT_STARS, COURSE)
+    expect(screen.getByRole('button', { name: '지도로' })).toHaveClass('btn--text')
+    fireEvent.click(screen.getByRole('button', { name: '다음 스탬프' }))
+    expect(onNextStamp).toHaveBeenCalledTimes(1)
+    expect(onToMap).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '지도로' }))
     expect(onToMap).toHaveBeenCalledTimes(1)
+  })
+
+  it('이번 결과로 코스 별이 필요 별에 처음 닿으면 「다음 코스까지」 자리에 「n코스가 열렸어요」', () => {
+    renderReport(RESULT_STARS, { course: 1, before: 20, after: 22, required: 21, unlocked: 2 })
+    expect(screen.getByRole('status')).toHaveTextContent('2코스가 열렸어요')
+    expect(screen.queryByText(/다음 코스까지/)).toBeNull()
+    expect(screen.getByRole('progressbar', { name: '코스 별' })).toHaveAttribute('aria-valuenow', '21')
+  })
+
+  it('KAN-359 전(완료 응답에 stars 없음)이면 별·코스 별 줄 없이 점수 원과 문항별 결과만 그린다 (4-5)', () => {
+    renderReport(RESULT, COURSE)
+    expect(document.querySelector('.score-donut')).toHaveTextContent('50점')
+    expect(screen.queryByRole('img', { name: /별 3개 중/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: /코스 별/ })).toBeNull()
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByText('스탬프 완료')).toBeInTheDocument()
+  })
+
+  it('stars는 있고 구간 요약이 없으면(course null) 별만 그리고 코스 별 줄을 숨긴다', () => {
+    renderReport(RESULT_STARS, null)
+    expect(screen.getByRole('img', { name: '별 3개 중 2개' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /코스 별/ })).toBeNull()
+  })
+})
+
+describe('성적표 「코스 별」 — 라우트가 구간 요약을 다시 받는다 (KAN-359 목)', () => {
+  const LEVELS = (collected: number) => ({
+    totalStars: collected,
+    starThresholds: [30, 70],
+    levels: [
+      { level: 1, setCount: 9, completedSetCount: 2, collectedStars: collected, requiredStars: 21, unlocked: true },
+      { level: 2, setCount: 9, completedSetCount: 0, collectedStars: 0, requiredStars: 21, unlocked: collected >= 21 },
+    ],
+  })
+
+  async function finishSet() {
+    fireEvent.click(await screen.findByRole('button', { name: '다음 카드' }))
+    fireEvent.click(screen.getByRole('button', { name: '문제 풀기' }))
+    fireEvent.click(await screen.findByRole('radio', { name: '정구지' }))
+    fireEvent.click(screen.getByRole('button', { name: '제출' }))
+    fireEvent.click(await screen.findByRole('button', { name: '다음 문항' }))
+    fireEvent.click(await screen.findByRole('radio', { name: '머꼬' }))
+    fireEvent.click(screen.getByRole('button', { name: '제출' }))
+    fireEvent.click(await screen.findByRole('button', { name: '결과 보기' }))
+    await screen.findByRole('heading', { level: 1, name: '단어 학습 2 결과' })
+  }
+
+  it('들어가기 전 별(prop)과 완료 뒤 다시 받은 collectedStars로 「★ 5 → 7 / 21」을 그린다', async () => {
+    const { calls } = renderRoute(
+      { ...happyRoutes(), '/complete': ok({ ...RESULT, stars: 2 }), '/v0/learning/levels': ok(LEVELS(7)) },
+      'acc',
+      { courseStars: { collected: 5, required: 21 } },
+    )
+    await finishSet()
+    expect(await screen.findByText('이번 스탬프')).toBeInTheDocument()
+    expect(document.querySelector('.stamp-reward__count')).toHaveTextContent('★ 5 → 7 / 21')
+    // 완료 요청 다음에 요약을 읽는다 — 끝난 뒤 값이어야 한다
+    const paths = calls.map((c) => c.path)
+    expect(paths.indexOf('/v0/learning/levels')).toBeGreaterThan(paths.indexOf('/v0/learning/word-attempts/a1/complete'))
+  })
+
+  it('이번 결과로 21개에 처음 닿으면 「2코스가 열렸어요」 (4단계 AC)', async () => {
+    renderRoute(
+      { ...happyRoutes(), '/complete': ok({ ...RESULT, stars: 2 }), '/v0/learning/levels': ok(LEVELS(22)) },
+      'acc',
+      { courseStars: { collected: 20, required: 21 } },
+    )
+    await finishSet()
+    expect(await screen.findByText('2코스가 열렸어요')).toBeInTheDocument()
+  })
+
+  it('이미 21개를 넘긴 코스면 다시 열렸다고 하지 않는다', async () => {
+    renderRoute(
+      { ...happyRoutes(), '/complete': ok({ ...RESULT, stars: 2 }), '/v0/learning/levels': ok(LEVELS(24)) },
+      'acc',
+      { courseStars: { collected: 22, required: 21 } },
+    )
+    await finishSet()
+    expect(await screen.findByText('이번 스탬프')).toBeInTheDocument()
+    expect(screen.queryByText(/코스가 열렸어요/)).toBeNull()
+  })
+
+  it('완료 응답에 stars가 없으면(KAN-359 전) 요약을 부르지 않고 별·코스 별 줄 없이 성적표가 선다', async () => {
+    const { calls } = renderRoute(happyRoutes(), 'acc', { courseStars: { collected: 5, required: 21 } })
+    await finishSet()
+    expect(screen.queryByRole('img', { name: /별 3개 중/ })).toBeNull()
+    expect(screen.queryByText('이번 스탬프')).toBeNull()
+    expect(calls.some((c) => c.path.endsWith('/levels'))).toBe(false)
+  })
+
+  it('요약 조회가 실패해도(404) 성적표는 선다 — 별은 그리고 코스 별 줄만 숨긴다', async () => {
+    renderRoute(
+      { ...happyRoutes(), '/complete': ok({ ...RESULT, stars: 2 }), '/v0/learning/levels': fail(404, 'NOT_FOUND', '없음', false) },
+      'acc',
+      { courseStars: { collected: 5, required: 21 } },
+    )
+    await finishSet()
+    expect(screen.getByRole('img', { name: '별 3개 중 2개' })).toBeInTheDocument()
+    expect(screen.queryByText('이번 스탬프')).toBeNull()
   })
 })
 
@@ -446,7 +831,7 @@ describe('게스트 로그인 안내 (KAN-330)', () => {
     const openSettings = vi.fn()
     guestBridge({ requestLogin, openSettings })
     const server = fakeServer(happyRoutes())
-    render(<WordLearningRoute apiBase="http://api" setId="s1" exits={EXITS} tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl)} />)
+    render(<WordLearningRoute apiBase="http://api" stamp={STAMP} courseStars={null} exits={EXITS} tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl)} />)
 
     expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
     expect(server.calls).toHaveLength(0)
@@ -463,14 +848,14 @@ describe('게스트 로그인 안내 (KAN-330)', () => {
   it('requestLogin을 모르는 앱이면 [로그인하기]가 설정 화면으로 내려간다', async () => {
     const openSettings = vi.fn()
     guestBridge({ openSettings })
-    render(<WordLearningRoute apiBase="http://api" setId="s1" exits={EXITS} deps={deps(fakeServer(happyRoutes()).fetchImpl)} />)
+    render(<WordLearningRoute apiBase="http://api" stamp={STAMP} courseStars={null} exits={EXITS} deps={deps(fakeServer(happyRoutes()).fetchImpl)} />)
     fireEvent.click(await screen.findByRole('button', { name: '로그인하기' }))
     expect(openSettings).toHaveBeenCalledTimes(1)
   })
 
   it('계정 종류를 모르는 앱이 서버 403 AUTH_GUEST_NOT_ALLOWED를 받아도 같은 안내다', async () => {
     const server = fakeServer({ '/word-sets/s1': fail(403, 'AUTH_GUEST_NOT_ALLOWED', '로그인이 필요한 기능입니다.', false) })
-    render(<WordLearningRoute apiBase="http://api" setId="s1" exits={EXITS} tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl)} />)
+    render(<WordLearningRoute apiBase="http://api" stamp={STAMP} courseStars={null} exits={EXITS} tabBar={<nav aria-label="탭 바" />} deps={deps(server.fetchImpl)} />)
     expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('navigation', { name: '탭 바' })).toBeInTheDocument()

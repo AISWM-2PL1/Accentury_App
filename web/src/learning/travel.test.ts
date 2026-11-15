@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { IntonationCourseSummary } from './intonationApi'
-import { buildTravel, celebrationFor, loadTravel, type LearningLevels } from './travel'
+import { buildTravel, celebrationFor, courseStarsChange, loadTravel, type LearningLevels } from './travel'
 import type { WordSetSummary } from './wordApi'
 
 /** 코스 1·2 × (단어 4 + 억양 5). done에 든 id는 completed, 별 필드는 withStars일 때만 */
@@ -149,5 +149,32 @@ describe('loadTravel', () => {
   it('구간 요약 모양이 계약과 다르면 없는 것으로 친다', async () => {
     const travel = await loadTravel('http://api', deps(fetchWith(ok({ totalStars: '2' }))))
     expect(travel.stars).toBeNull()
+  })
+})
+
+describe('courseStarsChange — 성적표 「코스 별」 (4-4)', () => {
+  const levels = (c1: number, withNext = true): LearningLevels => ({
+    totalStars: c1,
+    starThresholds: [30, 70],
+    levels: [
+      { level: 1, setCount: 9, completedSetCount: 3, collectedStars: c1, requiredStars: 21, unlocked: true },
+      ...(withNext ? [{ level: 2, setCount: 9, completedSetCount: 0, collectedStars: 0, requiredStars: 21, unlocked: c1 >= 21 }] : []),
+    ],
+  })
+
+  it('전 값은 들어가기 전 코스 별, 뒤 값·필요 별은 다시 받은 구간 요약이다', () => {
+    expect(courseStarsChange(1, { collected: 5 }, levels(7))).toEqual({ course: 1, before: 5, after: 7, required: 21, unlocked: null })
+  })
+
+  it('필요 별에 처음 닿으면 다음 코스 번호, 이미 넘겼거나 다음 코스가 없으면 null', () => {
+    expect(courseStarsChange(1, { collected: 20 }, levels(21))?.unlocked).toBe(2)
+    expect(courseStarsChange(1, { collected: 21 }, levels(23))?.unlocked).toBeNull()
+    expect(courseStarsChange(1, { collected: 20 }, levels(21, false))?.unlocked).toBeNull()
+  })
+
+  it('KAN-359 전(전 값 없음·요약 없음·그 구간 없음)이면 null — 줄을 숨긴다', () => {
+    expect(courseStarsChange(1, null, levels(7))).toBeNull()
+    expect(courseStarsChange(1, { collected: 5 }, null)).toBeNull()
+    expect(courseStarsChange(3, { collected: 5 }, levels(7))).toBeNull()
   })
 })

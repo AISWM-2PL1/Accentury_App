@@ -215,3 +215,36 @@ export function celebrationFor(before: Travel, after: Travel, finished: { kind: 
   const celebration = { stamp: newlyCompleted && passport === null, passport, unlocked }
   return celebration.stamp || passport !== null || unlocked !== null ? celebration : null
 }
+
+// ── 성적표 「코스 별」 줄 (4-4·5-4) ──────────────────────────────────────────
+
+/**
+ * 이 스탬프를 마치기 전과 뒤의 코스 별. 전후 값은 둘 다 서버 구간 요약(KAN-359)의 `collectedStars`(최고 기록 기준)다 —
+ * 앱이 점수로 다시 계산하지 않는다(3-5). `unlocked`는 이번 결과로 그 코스의 별이 필요 별에 **처음** 닿아 열린 다음 코스 번호다.
+ */
+export interface CourseStarsChange {
+  course: number
+  before: number
+  after: number
+  required: number
+  unlocked: number | null
+}
+
+/** 들어가기 전 코스 별(`TravelCourse.stars`)과 끝난 뒤 다시 받은 구간 요약을 견준다. 어느 쪽이든 없으면(KAN-359 전) null — 줄을 숨긴다 */
+export function courseStarsChange(
+  course: number,
+  before: { collected: number } | null,
+  after: LearningLevels | null,
+): CourseStarsChange | null {
+  const level = after?.levels.find((l) => l.level === course)
+  if (before === null || level === undefined) return null
+  const reached = before.collected < level.requiredStars && level.collectedStars >= level.requiredStars
+  const next = after!.levels.some((l) => l.level === course + 1)
+  return {
+    course,
+    before: before.collected,
+    after: level.collectedStars,
+    required: level.requiredStars,
+    unlocked: reached && next ? course + 1 : null,
+  }
+}

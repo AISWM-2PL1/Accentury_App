@@ -115,6 +115,30 @@ describe('요청 형태 — 다섯 경로', () => {
     expect(JSON.parse(init?.body as string)).toEqual({ choiceId: 'i1b' })
   })
 
+  it('시간 초과 답안: choiceId 없이 { timedOut: true } 본문 (KAN-360)', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, ANSWER))
+
+    await submitWordAnswer(API, { attemptId: 'a1', itemId: 'i1', choiceId: null, idempotencyKey: 'key-t' }, deps(fetchImpl))
+
+    const [, init] = fetchImpl.mock.calls[0]
+    expect(init?.headers).toMatchObject({ 'Idempotency-Key': 'key-t' })
+    expect(JSON.parse(init?.body as string)).toEqual({ timedOut: true })
+  })
+
+  it('완료: 시간 초과 오답(chosenChoiceId·chosenText null, timedOut true)과 이번 시도 stars를 받는다 (KAN-359·360)', async () => {
+    const timedOut = { ...RESULT.wrongItems[0], chosenChoiceId: null, chosenText: null, timedOut: true }
+    const body = { ...RESULT, wrongItems: [timedOut], stars: 2 }
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, body))
+
+    expect(await completeWordAttempt(API, 'a1', deps(fetchImpl))).toEqual(body)
+  })
+
+  it('완료: stars가 숫자가 아니면 모양 오류다', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, { ...RESULT, stars: '2' }))
+
+    expect((await caught(completeWordAttempt(API, 'a1', deps(fetchImpl)))).message).toBe('학습 정보를 해석할 수 없어요')
+  })
+
   it('완료: POST .../complete, 본문 없음', async () => {
     const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, RESULT))
 

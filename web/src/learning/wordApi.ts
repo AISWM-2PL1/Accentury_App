@@ -125,11 +125,15 @@ export interface WordWrongItem {
   itemId: string
   cardId: string
   prompt: string
-  chosenChoiceId: string
-  chosenText: string
+  /** 시간 초과 문항이면 null (KAN-360) */
+  chosenChoiceId: string | null
+  /** 시간 초과 문항이면 null (KAN-360). 화면은 이 자리에 「시간 초과」를 쓴다 */
+  chosenText: string | null
   correctChoiceId: string
   correctText: string
   explanation: string
+  /** 고르지 않고 시간이 끝난 문항 (KAN-360). KAN-360 전 서버는 키가 없다 */
+  timedOut?: boolean
 }
 
 /** `POST /v0/learning/word-attempts/{attemptId}/complete` */
@@ -143,6 +147,8 @@ export interface WordAttemptResult {
   wrongItems: WordWrongItem[]
   /** ISO-8601 */
   completedAt: string
+  /** 이번 시도의 별 1~3 (KAN-359). KAN-359 전 서버는 키가 없다 — 성적표가 별과 「코스 별」 줄을 숨긴다 (4-5) */
+  stars?: number
 }
 
 // ── 오류 ────────────────────────────────────────────────────────────────
@@ -217,12 +223,14 @@ export async function startWordAttempt(apiBase: string, setId: string, deps: Wor
 export interface WordAnswerSubmission {
   attemptId: string
   itemId: string
-  choiceId: string
+  /** null이면 고르지 않고 5초가 끝났다 — 본문이 `{ timedOut: true }`다 (KAN-360) */
+  choiceId: string | null
   idempotencyKey: string
 }
 
 /**
- * 답안 제출과 채점 (W-4). `ITEM_ALREADY_ANSWERED`(409)도 오류로 던진다 — 머리 주석.
+ * 답안 제출과 채점 (W-4). `ITEM_ALREADY_ANSWERED`(409)도 오류로 던진다 — 머리 주석. 시간 초과 답안(`choiceId: null`)은
+ * KAN-360 서버만 받는다(전에는 400) — 그래서 5초 제한은 설정값으로 꺼 둔다(`wordTimer.ts`).
  * 그 밖의 코드: 400 `VALIDATION_FAILED`, 403 `LEARNING_ATTEMPT_FORBIDDEN`, 404
  * `LEARNING_ATTEMPT_NOT_FOUND`, 409 `LEARNING_ATTEMPT_COMPLETED`, 422 `ITEM_NOT_IN_VERSION`, 429.
  */
@@ -232,11 +240,13 @@ export async function submitWordAnswer(
   deps: WordApiDeps = {},
 ): Promise<WordAnswerResult> {
   const { attemptId, itemId, choiceId, idempotencyKey } = submission
-  requireValues({ attemptId, itemId, choiceId, idempotencyKey })
+  requireValues({ attemptId, itemId, idempotencyKey, ...(choiceId === null ? {} : { choiceId }) })
   const path =
     `/v0/learning/word-attempts/${encodeURIComponent(attemptId)}` +
     `/items/${encodeURIComponent(itemId)}/answer`
-  const body = await request(apiBase, path, 'POST', { json: { choiceId }, idempotencyKey }, deps)
+  // 시간 초과는 choiceId를 싣지 않는다 — 둘 다 있으면 400이다 (KAN-360 Requirements 1)
+  const json = choiceId === null ? { timedOut: true } : { choiceId }
+  const body = await request(apiBase, path, 'POST', { json, idempotencyKey }, deps)
   if (!isWordAnswerResult(body)) throw shapeError()
   return body
 }
@@ -404,9 +414,16 @@ function isWordAttemptResult(v: unknown): v is WordAttemptResult {
       attemptId: 'string', contentVersion: 'string', setId: 'string', itemCount: 'number',
       correctCount: 'number', accuracyPercent: 'number', completedAt: 'string',
     }) &&
-    isArrayOf(v.wrongItems, {
-      itemId: 'string', cardId: 'string', prompt: 'string', chosenChoiceId: 'string', chosenText: 'string',
-      correctChoiceId: 'string', correctText: 'string', explanation: 'string',
-    })
+    isArrayOf(
+      v.wrongItems,
+      { itemId: 'string', cardId: 'string', prompt: 'string', correctChoiceId: 'string', correctText: 'string', explanation: 'string' },
+      // 고른 보기는 시간 초과면 null이다 (KAN-360)
+      (w) => isStringOrNull(w.chosenChoiceId) && isStringOrNull(w.chosenText),
+    ) &&
+    (v.stars === undefined || typeof v.stars === 'number')
   )
+}
+
+function isStringOrNull(value: unknown): boolean {
+  return value === null || typeof value === 'string'
 }

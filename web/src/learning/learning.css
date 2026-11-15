@@ -72,8 +72,7 @@
   gap: var(--space-2);
 }
 
-.word-verdict__explanation,
-.word-wrong__explanation {
+.word-verdict__explanation {
   color: var(--color-muted-foreground);
   word-break: keep-all;
 }
@@ -86,36 +85,353 @@
 
 /* ── W-5 세트 완료 ── */
 
+.wo/* 억양 결과 요약이 아직 쓴다 (5단계 성적표가 걷는다) */
 .word-complete__count {
   text-align: center;
 }
 
-.word-wrong {
+/* ── 단어 문항 5초 막대 (KAN-347 4-2, 시안 s-13 `.v34-timer`, 타일 11) ── */
+
+/* 진행 표시 바로 아래 4px 알약. 화면 틈(24)을 위 8·아래 12로 줄여 진행 표시에 붙인다 */
+.word-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 4px;
+  margin: calc(var(--space-4) * -1) 0 calc(var(--space-3) * -1);
+  color: var(--color-primary);
+}
+
+.word-timer__track {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-dim);
+  overflow: hidden;
+}
+
+/* 폭은 JS가 남은 시간으로 매 50ms 정한다(`transform`) — CSS 애니메이션으로 두면 동작 줄이기 전역 규칙(0.01ms)이 막대를 바로 비운다 */
+.word-timer__fill {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transform-origin: left;
+}
+
+.word-timer__number {
+  width: 14px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  line-height: 1;
+}
+
+/* 마지막 1초: 벽돌색 + 흔들림. 흔들림 시간은 토큰이라 동작 줄이기에서 사라지고 색만 남는다 */
+.word-timer--warning {
+  color: var(--color-point);
+  animation: word-timer-warning var(--duration-fast) var(--ease-out);
+}
+
+@keyframes word-timer-warning {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-1px);
+  }
+}
+
+/* ── 단어 피드백 움직임 (타일 3) — 레벨 테스트 선택지에는 걸지 않게 `.word-quiz` 안에서만 ── */
+
+.word-quiz .choice--wrong {
+  animation: word-choice-shake var(--duration-base) var(--ease-out);
+}
+
+@keyframes word-choice-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+/* 정답 체크가 그려진다. 경로 길이(약 17.7)보다 조금 긴 18로 자른다 — 동작 줄이기에서는 끝 상태(다 그린 체크) */
+.word-quiz .choice__mark--correct path {
+  stroke-dasharray: 18;
+  animation: word-check-draw var(--duration-base) var(--ease-out) both;
+}
+
+@keyframes word-check-draw {
+  from {
+    stroke-dashoffset: 18;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── 스탬프 성적표 보상 (`StampReward`, 시안 s-15-A, 타일 12) — 단어·억양 성적표가 같이 쓴다 ── */
+
+.stamp-reward {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 별은 점수 원 count-up(600ms)이 끝난 뒤 150ms 간격으로 하나씩 300ms에 찍힌다 */
+.stamp-reward__stars .stars {
+  gap: 1px;
+}
+
+.stamp-reward__stars .stars__star--filled {
+  transform-origin: center;
+  animation: stamp-reward-star var(--duration-base) var(--ease-out) both;
+  animation-delay: var(--duration-reveal);
+}
+
+.stamp-reward__stars .stars__star--filled:nth-child(2) {
+  animation-delay: calc(var(--duration-reveal) + var(--duration-fast));
+}
+
+.stamp-reward__stars .stars__star--filled:nth-child(3) {
+  animation-delay: calc(var(--duration-reveal) + var(--duration-fast) * 2);
+}
+
+@keyframes stamp-reward-star {
+  0% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.stamp-reward__course {
+  align-self: stretch;
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+.stamp-reward__course-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.stamp-reward__count {
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+}
+
+.stamp-reward__brick {
+  color: var(--color-point);
+}
+
+.stamp-reward__muted {
+  color: var(--color-muted-foreground);
+}
+
+.stamp-reward__bar {
+  display: flex;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-dim);
+  overflow: hidden;
+}
+
+.stamp-reward__bar-earned,
+.stamp-reward__bar-added {
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--color-point);
+}
+
+/* 이번에 더한 칸 — 앞 칸과 바탕색 3px 틈으로 갈린다. 별이 다 찍힌 뒤(600 + 150×2 + 300ms) 300ms로 늘어난다 */
+.stamp-reward__bar-added {
+  border-left: 3px solid var(--color-background);
+  transform-origin: left;
+  animation: stamp-reward-bar var(--duration-base) var(--ease-out) both;
+  animation-delay: calc(var(--duration-reveal) + var(--duration-fast) * 2 + var(--duration-base));
+}
+
+@keyframes stamp-reward-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.stamp-reward__note {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 3px;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-label);
+}
+
+/* 「n코스가 열렸어요」 — 막대가 다 늘어난 뒤 떠오른다 */
+.stamp-reward__unlock {
+  color: var(--color-point);
+  animation: stamp-reward-unlock var(--duration-base) var(--ease-out) both;
+  animation-delay: calc(var(--duration-reveal) + var(--duration-fast) * 2 + var(--duration-base) * 2);
+}
+
+@keyframes stamp-reward-unlock {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 앱 바 오른쪽 「스탬프 완료」 — 출석 배지(`.streak-badge`)와 같은 자리 규칙. 글자뿐이라 누르는 자리가 아니다 */
+.stamp-done-badge {
+  position: fixed;
+  top: calc((var(--app-bar-height) - var(--touch-target-min)) / 2 + env(safe-area-inset-top));
+  right: var(--screen-padding-x);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: var(--touch-target-min);
+  color: var(--color-muted-foreground);
+  pointer-events: none;
+}
+
+/* ── 단어 성적표 문항별 결과 (s-15-A) ── */
+
+.word-report {
+  gap: var(--space-4);
+}
+
+.word-report__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.word-report__summary {
+  color: var(--color-muted-foreground);
+}
+
+.word-report__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.word-report__row {
+  padding: 9px var(--space-4);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-card);
+}
+
+.word-report__row--wrong {
+  border-color: var(--color-point);
+}
+
+.word-report__row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+summary.word-report__row-top {
+  min-height: var(--touch-target-min);
+  margin: -9px 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+summary.word-report__row-top::-webkit-details-marker {
+  display: none;
+}
+
+summary.word-report__row-top:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+.word-report__row details[open] {
+  padding-bottom: 2px;
+}
+
+.word-report__word {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  line-height: 1.875rem;
+}
+
+.word-report__mark {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.word-report__row--wrong .word-report__mark {
+  color: var(--color-point);
+}
+
+.word-report__answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: var(--text-label);
+}
+
+.word-report__correct {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.word-report__explanation {
+  margin-top: 5px;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-label);
+  word-break: keep-all;
+}
+
+.word-report__footer {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.word-wrong__notice {
-  color: var(--color-muted-foreground);
-}
-
-.word-wrong__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.word-wrong__item {
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-muted-foreground);
-  border-radius: var(--radius-md);
-}
-
-/* ── 억양 학습 A-2 (KAN-253) ── */
+── */
 
 .intonation-note {
   width: 100%;
