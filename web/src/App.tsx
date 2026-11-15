@@ -26,7 +26,7 @@ import {
   requestMicPermission,
   waitForAccessToken,
 } from './bridge/bridge'
-import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, type TabScreen } from './navigation/entryUrl'
+import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, entryPath, type TabScreen } from './navigation/entryUrl'
 import { assignHref } from './navigation/spaNavigate'
 import { clearSnapshot, defaultSnapshotStorage, sweepSnapshots } from './progress/progressSnapshot'
 import { TestFlowScreen } from './progress/TestFlowScreen'
@@ -218,7 +218,7 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
         // navigate(replace)는 AppRoot를 재마운트해 네이티브 저장 전에 getAdConsent를 다시 읽고 홈도 다시 조회한다.
         // 재마운트 없이 URL만 걷고, 네이티브의 현재 URL 기록은 spaNavigate처럼 통지로 맞춘다
         onAdConsentReopenDone={() => {
-          window.history.replaceState(null, '', window.location.pathname + buildTabUrl(window.location.search, 'home'))
+          window.history.replaceState(null, '', entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, 'home'))
           notifyLocationChanged(window.location.href)
         }}
       />
@@ -546,7 +546,7 @@ async function startStandaloneTest(
 
   // 진입 경로(`/t`)와 나머지 쿼리(`c` 등)는 그대로 두고 화면 지정만 얹는다.
   navigate(
-    window.location.pathname +
+    entryPath(window.location.pathname, window.location.search) +
       buildTestUrl(search, {
         testVersion: session.testVersion,
         voiceSet: session.voiceSet,
@@ -755,7 +755,7 @@ function ResultRoute({
  * 다루므로 히스토리에 한 칸이 더 있고 없고가 화면 흐름을 바꾸지 않는다.
  */
 function goToResult(sessionId: string, navigate: Navigate): void {
-  navigate(window.location.pathname + buildResultUrl(window.location.search, sessionId), {
+  navigate(entryPath(window.location.pathname, window.location.search) + buildResultUrl(window.location.search, sessionId), {
     replace: true,
   })
 }
@@ -777,7 +777,7 @@ function goToResult(sessionId: string, navigate: Navigate): void {
  */
 function goToIntro(navigate: Navigate): void {
   // 결과 화면 상태는 `AppRoot`의 화면별 재마운트로 버려진다 (SPA 전환, 구버전 앱은 문서 재로드 - KAN-290).
-  navigate(window.location.pathname + buildIntroUrl(window.location.search))
+  navigate(entryPath(window.location.pathname, window.location.search) + buildIntroUrl(window.location.search))
 }
 
 /**
@@ -787,7 +787,7 @@ function goToIntro(navigate: Navigate): void {
  * 히스토리는 쌓는다(`replace` 아님). 앱 안의 뒤로가기는 네이티브가 자기 규칙으로 다룬다 ([goToResult] 주석).
  */
 function goToTab(tab: TabScreen, navigate: Navigate): void {
-  navigate(window.location.pathname + buildTabUrl(window.location.search, tab))
+  navigate(entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, tab))
 }
 
 /**

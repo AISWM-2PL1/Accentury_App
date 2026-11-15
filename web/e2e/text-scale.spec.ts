@@ -189,7 +189,7 @@ async function denyMic(page: Page): Promise<void> {
 /** 화면별 진입. 끝나면 그 화면이 다 그려져 있다 */
 const SCREENS: Record<string, (page: Page) => Promise<void>> = {
   인트로: async (page) => {
-    await page.goto('/')
+    await page.goto('/test')
     await passAdConsentIfShown(page)
   },
   홈: async (page) => {
@@ -239,7 +239,7 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
   },
   '마이크 차단': async (page) => {
     await denyMic(page)
-    await page.goto('/')
+    await page.goto('/test')
     await passAdConsentIfShown(page)
     await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
     await expect(page.getByRole('button', { name: '앱으로 테스트하기' })).toBeVisible()

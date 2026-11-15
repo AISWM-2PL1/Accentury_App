@@ -279,8 +279,9 @@ jobs:
           ADS_TXT_GENERATED: ${{ steps.adstxt.outputs.generated }}
           STATIC_PATHS: ${{ steps.staticpages.outputs.paths }}
         run: |
-          # /는 default_root_object로 index.html을 받지만 캐시 키는 /다. 확장자 없는 경로는
-          # SPA 재작성 Function이 /index.html로 바꿔 그 키를 쓴다 (KAN-126). 둘 다 지운다.
+          # 확장자 없는 경로(/test, /t)와 앱이 여는 루트(쿼리에 bridge)는 SPA 재작성 Function이
+          # /index.html로 바꿔 그 키를 쓴다 (KAN-126). 쿼리 없는 루트는 Function이 /guide/index.html로
+          # 바꾸고 (KAN-346), 그 키는 아래 정적 페이지 목록에 들어 있다. /도 함께 지운다.
           # 해시 자산은 이름이 바뀌므로 무효화 대상이 아니다.
           paths=('/' '/index.html')
           # ads.txt는 방금 올렸을 때만 더한다 (KAN-197). 이름에 해시가 없어 무효화하지 않으면

@@ -71,7 +71,7 @@ const E2E_REGION = { label: '경남', code: 'GYEONGNAM' } as const
  *
  * ## 인트로가 그려지기를 여기서 기다린다 (PR #109 리뷰 (2026-09-13))
  *
- * `isVisible()`은 기다리지 않는 즉답이라, `page.goto('/')` 직후에 부르면 React가 시트를 그리기
+ * `isVisible()`은 기다리지 않는 즉답이라, `page.goto('/test')` 직후에 부르면 React가 시트를 그리기
  * 전의 빈 순간을 「시트 없음」으로 읽는다. 그러면 헬퍼는 그냥 지나가고 다음 클릭이 뒤늦게 덮인
  * 막 밑에서 actionability를 기다리다 시간 초과로 죽는다 — 호출부 세 곳(`smoke`, `mic-blocked`
  * 둘) 중 하나라도 빠뜨리면 플레이키가 되므로, 호출자에게 맡기지 않고 이 함수가 인트로의 h1을
@@ -125,7 +125,7 @@ export async function passAdConsentIfShown(page: Page): Promise<void> {
  */
 export async function startTest(page: Page, options: { voiceConsent?: boolean } = {}): Promise<void> {
   const voiceConsent = options.voiceConsent === true
-  await page.goto('/')
+  await page.goto('/test')
 
   /*
    * 인트로가 그려지기를 기다리는 일도 헬퍼가 맡는다 (PR #109 리뷰 (2026-09-13)). 첫 방문이면

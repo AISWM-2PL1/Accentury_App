@@ -11,7 +11,7 @@
 - `apple-touch-icon-<VERSION>.png` iOS Safari "홈 화면에 추가" (180×180)
 - `icon-192-<VERSION>.png` · `icon-512-<VERSION>.png`   manifest 아이콘
 - `og-card-<VERSION>.png`          링크 미리보기 카드 (1200×630)
-- `manifest-<VERSION>.webmanifest` 위 아이콘을 가리키는 manifest
+- `manifest-<MANIFEST_VERSION>.webmanifest` 위 아이콘을 가리키는 manifest
 
 **파일명에 버전 토큰이 박히는 이유는 캐시다.** `web-deploy.yml`(KAN-127)은 index.html을 뺀
 `dist/` 전부를 `Cache-Control: public, max-age=31536000, immutable`로 올리고, CloudFront 무효화
@@ -105,6 +105,13 @@ OG_BRAND = chars.BRAND_LINE  # "Accentury · 경남 사투리 레벨 테스트"
 
 APP_NAME = "Accentury"  # 앱 표시 이름 (KAN-178 §1) — strings.xml·CFBundleDisplayName과 같은 값
 MANIFEST_NAME = "Accentury · 경남 사투리 레벨 테스트"
+
+
+# manifest만 따로 버전을 문다 (KAN-346). start_url을 /test로 바꾸면서 아이콘은 그대로 두었다.
+# 아이콘을 갈아 VERSION을 올릴 때는 이 값도 함께 올린다. manifest가 옛 아이콘 이름을 품기 때문이다.
+MANIFEST_VERSION = "v4"
+# 테스트 화면(SPA)의 주소다. 루트(`/`)는 사투리 이야기 목록이라 홈 화면 바로가기가 테스트로 열리려면 여기여야 한다.
+MANIFEST_START_URL = "/test"
 
 
 def name(stem: str, ext: str) -> str:
@@ -225,7 +232,7 @@ def build_manifest(path: Path) -> int:
         "name": MANIFEST_NAME,
         "short_name": APP_NAME,
         "lang": "ko",
-        "start_url": "/",
+        "start_url": MANIFEST_START_URL,
         "display": "browser",
         "theme_color": f"#{CREAM[0]:02x}{CREAM[1]:02x}{CREAM[2]:02x}",
         "background_color": f"#{CREAM[0]:02x}{CREAM[1]:02x}{CREAM[2]:02x}",
@@ -274,7 +281,7 @@ def main() -> None:
     record(og_path, og_bytes, (OG_W, OG_H), og_ok)
 
     # manifest — 적힌 아이콘이 실제로 옆에 있는지까지 본다
-    man_path = OUT / name("manifest", "webmanifest")
+    man_path = OUT / f"manifest-{MANIFEST_VERSION}.webmanifest"
     man_bytes = build_manifest(man_path)
     listed = json.loads(man_path.read_text(encoding="utf-8"))["icons"]
     record(man_path, man_bytes, None, all((OUT / i["src"].lstrip("/")).exists() for i in listed))
@@ -282,7 +289,7 @@ def main() -> None:
     print(f"{'파일':32s} {'bytes':>9s} {'규격':>10s}  판정")
     for file_name, size_bytes, shape, ok in rows:
         print(f"{file_name:32s} {size_bytes:>9,} {shape:>10s}  {'OK' if ok else 'FAIL'}")
-    print(f"\nweb/index.html이 가리켜야 할 버전: {VERSION}")
+    print(f"\nweb/index.html이 가리켜야 할 버전: {VERSION} (manifest는 {MANIFEST_VERSION})")
     if not all(ok for *_, ok in rows):
         sys.exit(1)
 
