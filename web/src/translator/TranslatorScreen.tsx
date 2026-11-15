@@ -147,7 +147,8 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
   return (
     <>
       <main className="item-screen" inert={sheetOpen}>
-        <h1 className="type-title">사투리 번역기</h1>
+        {/* 탭 화면 제목 윗선 y=80, 입력 화면 제목 26 (KAN-347 1단계, 시안 s-03) */}
+        <h1 className="type-headline tab-title">사투리 번역기</h1>
         <div className="item-screen__body">
           <div className="translator-direction">
             <label className="type-label" htmlFor="translator-input">

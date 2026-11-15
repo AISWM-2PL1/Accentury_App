@@ -4,3 +4,7 @@ export { ProgressIndicator, type ProgressIndicatorProps } from './ProgressIndica
 export { StatusBlock, type StatusBlockProps } from './StatusBlock'
 export { TabBar, type TabBarProps } from './TabBar'
 export { CloseButton } from './CloseButton'
+export { BottomSheet, type BottomSheetProps } from './BottomSheet'
+export { Dialog, type DialogProps } from './Dialog'
+export { ScoreDonut, type ScoreDonutProps } from './ScoreDonut'
+export { Stars, type StarsProps } from './Stars'

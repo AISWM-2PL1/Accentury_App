@@ -26,7 +26,7 @@
  */
 
 import { PrivacyPolicyLink } from '../legal/PrivacyPolicyLink'
-import { Button } from '../ui'
+import { BottomSheet, Button } from '../ui'
 import {
   TRANSLATOR_CONSENT_AGREE,
   TRANSLATOR_CONSENT_CANCEL,
@@ -49,30 +49,29 @@ const TITLE_ID = 'translator-consent-title'
 
 export function TranslatorConsentSheet({ onAgree, onCancel }: TranslatorConsentSheetProps) {
   return (
-    <div className="ad-consent-sheet">
-      <div className="ad-consent-panel" role="dialog" aria-modal="true" aria-labelledby={TITLE_ID}>
-        <h2 id={TITLE_ID} className="type-title ad-consent-title">
-          {TRANSLATOR_CONSENT_TITLE}
-        </h2>
-        <div className="type-body-sm ad-consent-body">
-          <p>{TRANSLATOR_CONSENT_LEAD}</p>
-          <p>{TRANSLATOR_CONSENT_NOT_SENT}</p>
-          <p className="ad-consent-muted">{TRANSLATOR_CONSENT_GOOGLE_NOTE}</p>
-          <p className="ad-consent-muted">
-            {TRANSLATOR_CONSENT_DETAIL_LEAD}
-            <PrivacyPolicyLink />
-            {TRANSLATOR_CONSENT_DETAIL_TAIL}
-          </p>
-        </div>
-        <div className="ad-consent-actions">
-          <Button autoFocus onClick={onAgree}>
-            {TRANSLATOR_CONSENT_AGREE}
-          </Button>
-          <Button variant="secondary" onClick={onCancel}>
-            {TRANSLATOR_CONSENT_CANCEL}
-          </Button>
-        </div>
+    // 서식·움직임은 공용 바텀 시트 (KAN-347 1단계, 시안 s-10-translator-consent-sheet)
+    <BottomSheet labelledBy={TITLE_ID} overlayClassName="ad-consent-sheet" className="ad-consent-panel">
+      <h2 id={TITLE_ID} className="type-headline ad-consent-title">
+        {TRANSLATOR_CONSENT_TITLE}
+      </h2>
+      <div className="type-body-sm ad-consent-body">
+        <p>{TRANSLATOR_CONSENT_LEAD}</p>
+        <p>{TRANSLATOR_CONSENT_NOT_SENT}</p>
+        <p className="ad-consent-muted">{TRANSLATOR_CONSENT_GOOGLE_NOTE}</p>
+        <p className="ad-consent-muted">
+          {TRANSLATOR_CONSENT_DETAIL_LEAD}
+          <PrivacyPolicyLink />
+          {TRANSLATOR_CONSENT_DETAIL_TAIL}
+        </p>
       </div>
-    </div>
+      <div className="ad-consent-actions">
+        <Button autoFocus onClick={onAgree}>
+          {TRANSLATOR_CONSENT_AGREE}
+        </Button>
+        <Button variant="secondary" onClick={onCancel}>
+          {TRANSLATOR_CONSENT_CANCEL}
+        </Button>
+      </div>
+    </BottomSheet>
   )
 }

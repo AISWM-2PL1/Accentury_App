@@ -38,7 +38,7 @@
 
 import { detectStorePlatform } from '../audio/storeLink'
 import { PrivacyPolicyLink } from '../legal/PrivacyPolicyLink'
-import { Button } from '../ui'
+import { BottomSheet, Button } from '../ui'
 import type { AdConsent, AdConsentChoice } from '../bridge/bridge'
 import {
   type AdVendor,
@@ -91,49 +91,48 @@ export function AdConsentSheet({
   // iOS 앱(AdMob)만 설명 + [계속]이다 (KAN-330·KAN-344, `adConsentText.ts` 「iOS 앱은」 절). 브라우저 단독(AdSense)·안드로이드는 두 선택지
   const iosApp = vendor === 'admob' && detectStorePlatform(navigator.userAgent, navigator.maxTouchPoints) === 'ios'
   return (
-    <div className="ad-consent-sheet">
-      <div className="ad-consent-panel" role="dialog" aria-modal="true" aria-labelledby={TITLE_ID}>
-        <h2 id={TITLE_ID} className="type-title ad-consent-title">
-          {AD_CONSENT_TITLE}
-        </h2>
-        <div className="type-body-sm ad-consent-body">
-          {/* iOS는 지금 상태 줄이 없다 — 맞춤형 여부는 ATT가 정해 저장 값(늘 granted)이 그 상태를 말하지 않는다 */}
-          {current !== 'unknown' && !iosApp && <p className="ad-consent-current">{AD_CONSENT_CURRENT[current]}</p>}
-          {/* 디자인 3 (KAN-288): 사업자(흐린 잉크) · 수집·영향(잉크) · 바꾸는 길(흐린 잉크)을 문단으로 가른다 */}
-          <p className="ad-consent-muted">{AD_CONSENT_WHY[vendor]}</p>
-          <p>{iosApp ? AD_CONSENT_EFFECT_IOS : AD_CONSENT_EFFECT[vendor]}</p>
-          <p className="ad-consent-muted">
-            {iosApp ? AD_CONSENT_CHANGE_HINT_IOS : changeHint} {AD_CONSENT_DETAIL_LEAD} <PrivacyPolicyLink />
-            {AD_CONSENT_DETAIL_TAIL}
-          </p>
-        </div>
-        <div className="ad-consent-actions">
-          {/*
-            두 버튼이 같은 보조 버튼이다 (KAN-288 디자인 검수 HIG-A). 동의 선택지 중 한쪽만 주버튼이면
-            그쪽으로 기울이는 화면이 되고(App Store 심사 5.1.1 · 개인정보위 가이드라인의 "동등한 선택"),
-            어느 쪽도 이 화면의 "다음 단계"가 아니다. 초점은 예전처럼 위 버튼에서 시작한다.
-          */}
-          {iosApp ? (
-            // 선택지가 하나라 「동등한 선택」 문제가 없다 — 다음 단계로 가는 주버튼이다. 값은 늘 granted(§8.7)
-            <Button autoFocus onClick={() => onChoose('granted')}>
-              {AD_CONSENT_CONTINUE}
+    // 서식·움직임은 공용 바텀 시트 (KAN-347 1단계, 시안 s-12-ad-consent-sheet). 버튼 무게는 아래 HIG-A 판단 그대로다
+    <BottomSheet labelledBy={TITLE_ID} overlayClassName="ad-consent-sheet" className="ad-consent-panel">
+      <h2 id={TITLE_ID} className="type-headline ad-consent-title">
+        {AD_CONSENT_TITLE}
+      </h2>
+      <div className="type-body-sm ad-consent-body">
+        {/* iOS는 지금 상태 줄이 없다 — 맞춤형 여부는 ATT가 정해 저장 값(늘 granted)이 그 상태를 말하지 않는다 */}
+        {current !== 'unknown' && !iosApp && <p className="ad-consent-current">{AD_CONSENT_CURRENT[current]}</p>}
+        {/* 디자인 3 (KAN-288): 사업자(흐린 잉크) · 수집·영향(잉크) · 바꾸는 길(흐린 잉크)을 문단으로 가른다 */}
+        <p className="ad-consent-muted">{AD_CONSENT_WHY[vendor]}</p>
+        <p>{iosApp ? AD_CONSENT_EFFECT_IOS : AD_CONSENT_EFFECT[vendor]}</p>
+        <p className="ad-consent-muted">
+          {iosApp ? AD_CONSENT_CHANGE_HINT_IOS : changeHint} {AD_CONSENT_DETAIL_LEAD} <PrivacyPolicyLink />
+          {AD_CONSENT_DETAIL_TAIL}
+        </p>
+      </div>
+      <div className="ad-consent-actions">
+        {/*
+          두 버튼이 같은 보조 버튼이다 (KAN-288 디자인 검수 HIG-A). 동의 선택지 중 한쪽만 주버튼이면
+          그쪽으로 기울이는 화면이 되고(App Store 심사 5.1.1 · 개인정보위 가이드라인의 "동등한 선택"),
+          어느 쪽도 이 화면의 "다음 단계"가 아니다. 초점은 예전처럼 위 버튼에서 시작한다.
+        */}
+        {iosApp ? (
+          // 선택지가 하나라 「동등한 선택」 문제가 없다 — 다음 단계로 가는 주버튼이다. 값은 늘 granted(§8.7)
+          <Button autoFocus onClick={() => onChoose('granted')}>
+            {AD_CONSENT_CONTINUE}
+          </Button>
+        ) : (
+          <>
+            <Button variant="secondary" autoFocus onClick={() => onChoose('granted')}>
+              {AD_CONSENT_ALLOW}
             </Button>
-          ) : (
-            <>
-              <Button variant="secondary" autoFocus onClick={() => onChoose('granted')}>
-                {AD_CONSENT_ALLOW}
-              </Button>
-              <Button variant="secondary" onClick={() => onChoose('denied')}>
-                {AD_CONSENT_DENY}
-              </Button>
-            </>
-          )}
-        </div>
-        {/* ATT 창은 앱(AdMob) 실행의 iOS에서만 뜬다 — 브라우저 단독(AdSense)과 안드로이드에는 없는 말이다 */}
-        {iosApp && (
-          <p className="type-caption ad-consent-muted">{AD_CONSENT_IOS_ATT_NOTE}</p>
+            <Button variant="secondary" onClick={() => onChoose('denied')}>
+              {AD_CONSENT_DENY}
+            </Button>
+          </>
         )}
       </div>
-    </div>
+      {/* ATT 창은 앱(AdMob) 실행의 iOS에서만 뜬다 — 브라우저 단독(AdSense)과 안드로이드에는 없는 말이다 */}
+      {iosApp && (
+        <p className="type-caption ad-consent-muted">{AD_CONSENT_IOS_ATT_NOTE}</p>
+      )}
+    </BottomSheet>
   )
 }
