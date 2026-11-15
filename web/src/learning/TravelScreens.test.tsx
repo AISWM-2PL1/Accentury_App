@@ -3,6 +3,7 @@
  * 진행 모델의 규칙 자체는 `travel.test.ts`가 본다. 여기서는 그 값이 화면에 어떻게 서는지와 화면 사이의 길을 본다.
  */
 
+import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
@@ -144,6 +145,31 @@ describe('사투리 여행 지도 (s-11)', () => {
     expect(await screen.findByText('정구지')).toBeInTheDocument()
     expect(calls).toContain('/v0/learning/word-sets/w2')
     expect(tabBar()).toBeNull()
+  })
+
+  it('진행 조회가 겹치면(StrictMode 이중 실행) 늦게 온 앞 응답이 [시작]으로 들어간 스탬프를 지도로 되돌리지 않는다', async () => {
+    const server = fakeServer({ ...routesOf(['w1', 'k1'], null), '/v0/learning/word-sets/w2': WORD_SET('w2') })
+    // 첫 목록 조회만 붙잡아 두었다가 [시작] 뒤에 놓는다
+    let release = () => {}
+    let held = false
+    const fetchImpl: FetchLike = (input, init) => {
+      if (!held && new URL(input).pathname === '/v0/learning/word-sets') {
+        held = true
+        return new Promise((resolve) => (release = () => resolve(server.fetchImpl(input, init))))
+      }
+      return server.fetchImpl(input, init)
+    }
+    render(
+      <StrictMode>
+        <TravelRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(fetchImpl)} />
+      </StrictMode>,
+    )
+    await mapHeading()
+    fireEvent.click(screen.getByRole('button', { name: '시작' }))
+    expect(await screen.findByText('정구지')).toBeInTheDocument()
+    await act(async () => release())
+    expect(screen.getByText('정구지')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: '사투리 여행' })).toBeNull()
   })
 
   it('이어가기 표식이 있으면 지도를 거치지 않고 지금 스탬프로 들어가고 표식을 지운다 (홈 [이어가기], 3-6)', async () => {
