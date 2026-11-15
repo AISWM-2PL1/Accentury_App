@@ -193,11 +193,11 @@ struct RecordingScreen: View {
     // MARK: - 하단
 
     /// 대사 위 흐린 한 줄. 억양 학습은 표준어 원문(KAN-253, 없으면 그리지 않는다 §12), 레벨 테스트는 감정 칩이 없는 문항만
-    /// 읽기 안내가 칩 자리를 대신한다 — 감정이 있는 문항은 시안대로 대사와 칩뿐이다.
+    /// 읽기 안내(번호 없이, 번호는 진행 표시가 맡는다)가 칩 자리를 대신한다 — 감정이 있는 문항은 시안대로 대사와 칩뿐이다.
     private var promptCardCaption: String? {
         switch purpose {
-        case let .levelTest(itemNumber, totalItems, emotion):
-            return emotionCue(emotion) == nil ? promptCaption(questionIndex: itemNumber, totalQuestions: totalItems) : nil
+        case let .levelTest(_, _, emotion):
+            return emotionCue(emotion) == nil ? promptCaption : nil
         case let .intonationLearning(standard, _, _):
             return standard.map { "표준어 · \($0)" }
         }
