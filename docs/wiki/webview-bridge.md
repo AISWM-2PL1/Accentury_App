@@ -729,8 +729,11 @@ KAN-347 3단계에서 탭 바가 **4칸**(학습 · 홈 · 사투리 번역기 �
   (`BACK_TO_HOME_SCREENS`/`backToHomeScreens`) 광고 설정 행을 연다(`webAdConsentUrl`). `learn`을 실으면 옛 빌드에서 학습 탭의
   뒤로가기가 앱 종료(Android)·무반응(iOS)이 된다. 새 빌드(KAN-354·355)는 `learn`과 옛 값을 함께 받는다 — `learn`을 받는 빌드가
   스토어에 다 퍼진 뒤 `LEARN_URL_SCREEN` 하나를 `'learn'`으로 바꾼다. 이 표는 `entryUrl.test.ts`의 「학습 탭 화면 값」 묶음이 지킨다.
-- **`resume=1`**: 홈 [이어가기]가 학습 탭 URL에 붙인다. 웹이 지금 스탬프로 바로 들어간 뒤 `history.replaceState`로 걷고
-  `onLocationChanged`로 알린다(광고 동의 `adConsent`와 같은 방법). 네이티브는 이 값을 읽지 않는다.
+- **홈 [이어가기]는 URL에 싣지 않는다**: 「지금 스탬프로 바로」는 WebView의 sessionStorage 일회성 표식(`learning/resumeFlag`)으로
+  건네고, 학습 탭이 읽는 즉시 지운다. 스토어의 옛 빌드와 새 빌드 모두 `webTabUrl`이 현재 URL의 모르는 쿼리를 보존하므로, URL에
+  `resume=1`을 실으면 웹이 걷기 전에 네이티브가 들고 있던 그 URL로 녹음 ✕·뒤로가기가 다시 열어 지도 대신 스탬프로 들어간다.
+  sessionStorage는 같은 출처·같은 WebView라 문서 전체 로드(구버전 앱)와 SPA 이동을 모두 건넌다. URL에 `resume`이 들어와도 웹은
+  읽지 않고 다음 탭 이동(`buildTabUrl`)에서 지운다. 네이티브는 할 일이 없다.
 - 설정 톱니 판정(`showsSettingsGear`)은 `screen`이 없거나 `test`일 때만이라 학습 탭 값과 무관하다.
 
 ### web → native: `openSettings()`

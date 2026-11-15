@@ -18,6 +18,7 @@ import { STAR_PATH } from '../ui/Stars'
 import { GuestLoginPrompt } from './GuestLoginPrompt'
 import { fetchLearningHome } from './homeApi'
 import { IntonationLearningRoute } from './IntonationLearningScreens'
+import { takeResumeLearning } from './resumeFlag'
 import { STAMP_MINUTES, stampName, stampUnit, type StampKind } from './stampNaming'
 import {
   celebrationFor,
@@ -48,16 +49,17 @@ export interface TravelRouteProps {
   apiBase: string
   /** 하단 탭 바 (KAN-252). 지도·코스 지도·로딩·게스트·오류에 선다(3-7). 스탬프 안(진행 중)에는 서지 않는다(KAN-147) */
   tabBar?: ReactNode
-  /** 홈 [이어가기]로 들어왔다(`resume=1`) — 지도를 거치지 않고 지금 스탬프로 바로 (3-6) */
-  resume?: boolean
-  /** `resume`을 한 번 썼다 — App이 URL에서 걷는다(새로고침·재진입에 또 들어가지 않게) */
-  onResumeConsumed?: () => void
   /** 테스트 주입용 (fetch·토큰 대체) */
   deps?: WordApiDeps
 }
 
-export function TravelRoute({ apiBase, tabBar, resume = false, onResumeConsumed, deps }: TravelRouteProps) {
+export function TravelRoute({ apiBase, tabBar, deps }: TravelRouteProps) {
   const [view, setView] = useState<TravelView>({ screen: 'loading' })
+  /**
+   * 홈 [이어가기] 표식(`resumeFlag`) — 지도를 거치지 않고 지금 스탬프로 바로 (3-6). 마운트마다 한 번 읽고 지우며, ref에 잡아 두어
+   * StrictMode의 effect 두 번 실행에도 두 번째가 같은 값을 본다
+   */
+  const resumeRef = useRef<boolean | null>(null)
   const [tier, setTier] = useState<{ code: string; name: string } | null>(null)
   const visits = useRef(0)
 
@@ -84,10 +86,9 @@ export function TravelRoute({ apiBase, tabBar, resume = false, onResumeConsumed,
 
   // 진입: 진행 한 번 + 지도 머리의 등급 캐릭터(홈 응답, 없거나 실패면 그림 없이). StrictMode 이중 실행은 조회 두 번일 뿐이다
   useEffect(() => {
-    reload((travel) => {
-      if (resume) onResumeConsumed?.()
-      return resume && travel.current !== null ? stampView(travel, travel.current) : mapView(travel)
-    })
+    resumeRef.current ??= takeResumeLearning()
+    const resume = resumeRef.current
+    reload((travel) => (resume && travel.current !== null ? stampView(travel, travel.current) : mapView(travel)))
     let alive = true
     fetchLearningHome(apiBase, deps).then(
       (home) => {
@@ -708,8 +709,8 @@ function StampCard({ stamp, onOpen }: { stamp: TravelStamp; onOpen: () => void }
 // ── 홈 이어가기 카드 (s-02, 3-6) ──────────────────────────────────────────
 
 /**
- * 테스트 후 홈의 「이어가기」 카드. 지도와 같은 진행 모델([loadTravel])의 `current`로 간다 — [이어가기]는 학습 탭을 `resume`으로
- * 열고, 그 라우트가 같은 `current`로 바로 들어간다(지도 [시작]과 같은 스탬프). 「스탬프 n개」는 KAN-359 값이 있을 때만.
+ * 테스트 후 홈의 「이어가기」 카드. 지도와 같은 진행 모델([loadTravel])의 `current`로 간다 — [이어가기]는 학습 탭을 일회성 표식
+ * (`resumeFlag`)과 함께 열고, 그 라우트가 같은 `current`로 바로 들어간다(지도 [시작]과 같은 스탬프). 「스탬프 n개」는 KAN-359 값이 있을 때만.
  * 진행을 못 받았거나 열린 스탬프를 다 끝냈으면 카드를 그리지 않는다 — 홈의 덧붙인 정보라 오류 문구를 두지 않는다
  */
 export function ContinueCard({ apiBase, onResume, deps }: { apiBase: string; onResume: () => void; deps?: WordApiDeps }) {

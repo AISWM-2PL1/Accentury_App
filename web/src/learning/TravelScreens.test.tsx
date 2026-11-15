@@ -9,6 +9,7 @@ import type { FetchLike } from '../progress/fetchTestDefinition'
 import { ContinueCard, TravelRoute } from './TravelScreens'
 import type { LearningLevels } from './travel'
 import type { WordApiDeps } from './wordApi'
+import { markResumeLearning, takeResumeLearning } from './resumeFlag'
 
 type Reply = { status: number; body: unknown } | 'network'
 const ok = (body: unknown): Reply => ({ status: 200, body })
@@ -69,17 +70,15 @@ const deps = (fetchImpl: FetchLike, token: string | null = 'acc'): WordApiDeps =
 
 function renderRoute(routes: Record<string, Reply | Reply[]>, props: { resume?: boolean; token?: string | null } = {}) {
   const server = fakeServer(routes)
-  const onResumeConsumed = vi.fn()
+  if (props.resume === true) markResumeLearning()
   render(
     <TravelRoute
       apiBase="http://api"
       tabBar={<nav aria-label="탭 바" />}
-      resume={props.resume}
-      onResumeConsumed={onResumeConsumed}
       deps={deps(server.fetchImpl, props.token === undefined ? 'acc' : props.token)}
     />,
   )
-  return { ...server, onResumeConsumed }
+  return server
 }
 
 const routesOf = (done: string[], level: Reply | null) => {
@@ -147,11 +146,11 @@ describe('사투리 여행 지도 (s-11)', () => {
     expect(tabBar()).toBeNull()
   })
 
-  it('resume이면 지도를 거치지 않고 지금 스탬프로 들어가 한 번 썼다고 알린다 (홈 [이어가기], 3-6)', async () => {
-    const { onResumeConsumed } = renderRoute({ ...routesOf([], null), '/v0/learning/word-sets/w1': WORD_SET('w1') }, { resume: true })
+  it('이어가기 표식이 있으면 지도를 거치지 않고 지금 스탬프로 들어가고 표식을 지운다 (홈 [이어가기], 3-6)', async () => {
+    renderRoute({ ...routesOf([], null), '/v0/learning/word-sets/w1': WORD_SET('w1') }, { resume: true })
     expect(await screen.findByText('정구지')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 1, name: '사투리 여행' })).toBeNull()
-    expect(onResumeConsumed).toHaveBeenCalledTimes(1)
+    expect(takeResumeLearning()).toBe(false)
   })
 
   it('홈 응답에 등급이 있으면 제목 옆에 등급 캐릭터를 그린다', async () => {

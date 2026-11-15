@@ -12,6 +12,7 @@ import { AttendanceBadge, AttendanceSheet } from './learning/AttendanceCalendar'
 import { fetchLearningHome, type LearningHome } from './learning/homeApi'
 import { ContinueCard, TravelRoute } from './learning/TravelScreens'
 import { GuestLoginPrompt } from './learning/GuestLoginPrompt'
+import { markResumeLearning } from './learning/resumeFlag'
 import { AUTH_GUEST_NOT_ALLOWED, WordLearningError } from './learning/wordApi'
 import { VOICE_CONSENT_VERSION } from './legal/voiceConsent'
 import { VoiceConsentScreen } from './legal/VoiceConsentScreen'
@@ -214,7 +215,10 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
       <HomeScreen
         apiBase={API_BASE}
         onStartTest={() => requestMicPermission() || goToIntro(navigate)}
-        onResumeLearning={() => goToTab('learn', navigate, { resume: true })}
+        onResumeLearning={() => {
+          markResumeLearning()
+          goToTab('learn', navigate)
+        }}
         tabBar={tabBar('home')}
         adConsentRequested={params.get('adConsent') === 'open'}
         // navigate(replace)는 AppRoot를 재마운트해 네이티브 저장 전에 getAdConsent를 다시 읽고 홈도 다시 조회한다.
@@ -230,7 +234,7 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
   /*
    * `?screen=translate` — 사투리 번역기 탭 (KAN-252 진입, KAN-256 화면). 입력·대기·결과·오류를 문서 재로드
    * 없이 화면 안에서 바꾼다(`translator/TranslatorScreen`). 탭 바는 모든 상태에서 서고, 계정 토큰이 없으면
-   * `useAccountTabs`가 그리지 않는다 — 그때 [바꾸기]는 로그인 안내로 끝난다(ux-ui 「사투리 번역기 화면」 절).
+   * `useAccountTabs`가 그리지 않는다 — 그때 [번역하기](원형 ↓ 버튼)는 로그인 안내로 끝난다(ux-ui 「사투리 번역기 화면」 절).
    */
   if (params.get('screen') === 'translate') {
     return <TranslatorScreen apiBase={API_BASE} tabBar={tabBar('translate')} />
@@ -241,19 +245,11 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
    * 2026-11-16) — 옛 앱 빌드의 억양 녹음 ✕·뒤로가기·옛 링크가 그 값으로 연다. 웹이 내보내는 값은 `LEARN_URL_SCREEN`(옛 값)이다
    * (`navigation/entryUrl` 주석). 지도·코스 지도·스탬프(단어 세트·억양 코스) 사이는 문서를 다시 로드하지 않고 라우트 안의 상태로
    * 넘긴다. 탭 바는 지도·코스 지도·로딩·게스트·오류에 서고 스탬프 안에는 서지 않는다(KAN-147).
-   * `resume=1`(홈 [이어가기])이면 지금 스탬프로 바로 들어가고, 한 번 쓴 뒤 URL에서 걷는다 — 광고 동의 플래그와 같은 방법이다.
+   * 홈 [이어가기]는 URL이 아니라 일회성 표식(`learning/resumeFlag`)으로 지금 스탬프로 바로 들어가게 한다 — URL의 `resume`은 무시한다.
    */
   if (isLearnScreen(params.get('screen'))) {
     return (
-      <TravelRoute
-        apiBase={API_BASE}
-        tabBar={tabBar('learn')}
-        resume={params.get('resume') === '1'}
-        onResumeConsumed={() => {
-          window.history.replaceState(null, '', entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, 'learn'))
-          notifyLocationChanged(window.location.href)
-        }}
-      />
+      <TravelRoute apiBase={API_BASE} tabBar={tabBar('learn')} />
     )
   }
 
@@ -796,8 +792,8 @@ const LEARNING_ENTRY_TAB: TabScreen = 'learn'
  *
  * 히스토리는 쌓는다(`replace` 아님). 앱 안의 뒤로가기는 네이티브가 자기 규칙으로 다룬다 ([goToResult] 주석).
  */
-function goToTab(tab: TabScreen, navigate: Navigate, options?: { resume?: boolean }): void {
-  navigate(entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, tab, options))
+function goToTab(tab: TabScreen, navigate: Navigate): void {
+  navigate(entryPath(window.location.pathname, window.location.search) + buildTabUrl(window.location.search, tab))
 }
 
 /**
@@ -823,7 +819,7 @@ function HomeScreen({
 }: {
   apiBase: string
   onStartTest: () => void
-  /** 이어가기 카드 [이어가기] — 학습 탭을 열어 지금 스탬프로 바로 (KAN-347 3-6) */
+  /** 이어가기 카드 [이어가기] — 표식을 남기고 학습 탭을 열어 지금 스탬프로 바로 (KAN-347 3-6) */
   onResumeLearning: () => void
   /** 하단 탭 바 (KAN-252). 동의 시트가 떠 있는 동안 함께 `inert`로 막으려고 홈이 그린다 */
   tabBar?: ReactNode
