@@ -392,7 +392,9 @@ test('시간 초과(KAN-360 목) + 별·코스 별(KAN-359 목) - 「시간 초�
   await expect(page.locator('.score-donut')).toContainText('50점')
   await expect(page.getByRole('img', { name: '별 3개 중 2개' })).toBeVisible()
   const course = page.getByRole('region', { name: '코스 별 20개에서 22개로, 다음 코스까지 필요한 별 21개' })
-  await expect(course.locator('.stamp-reward__count')).toHaveText('★ 20 → 22 / 21')
+  // ★·→는 SVG다(티켓 1-1) — 글자는 숫자만
+  await expect(course.locator('.stamp-reward__count')).toHaveText(/^\s*20\s+22 \/ 21$/)
+  await expect(course.locator('.stamp-reward__count svg')).toHaveCount(2)
   await expect(course).toContainText('이번 스탬프 +2')
   await expect(course.getByRole('status')).toHaveText('2코스가 열렸어요')
 
@@ -401,7 +403,8 @@ test('시간 초과(KAN-360 목) + 별·코스 별(KAN-359 목) - 「시간 초�
   await expect(rows).toHaveCount(2)
   const timedOutRow = rows.filter({ hasText: '할머니' })
   await timedOutRow.locator('summary').click()
-  await expect(timedOutRow.locator('.word-report__answer')).toHaveText(/^시간 초과\s*→\s*정답\s*할매$/)
+  await expect(timedOutRow.locator('.word-report__answer')).toHaveText(/^시간 초과\s*정답\s*할매$/)
+  await expect(timedOutRow.locator('.word-report__arrow svg')).toHaveCount(1)
   await expect(timedOutRow).not.toContainText('내 답')
   await expect(rows.filter({ hasText: '할아버지' })).toContainText('정답')
 
