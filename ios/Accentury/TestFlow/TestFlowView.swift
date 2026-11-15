@@ -1004,14 +1004,19 @@ private struct RecordingOverlay: View {
             onNext: onSubmit
         )
         /*
-         * 확인 창 (KAN-288, 시안 17~20). 설정의 로그아웃·탈퇴 확인과 같은 시스템 알림이다 — iOS 쪽 확인 창은 아직 디자인 3
-         * 종이 창(안드로이드 `ConfirmDialog`)으로 옮기지 않았다. 머무는 쪽 [계속하기]가 취소 역할이라 바깥을 눌러도 머문다.
+         * 확인 창 (KAN-288, 모양은 KAN-355 시안 s-06-confirm-quit). 시스템 `.alert` 대신 공용 종이 대화상자다(로그아웃 확인과 같은 모양).
+         * 머무는 쪽 [계속하기]가 왼쪽이고 바깥 탭·escape도 같은 동작이라 녹음 화면에 머문다. [그만두기]는 벽돌 외곽선(2026-11-16 결정).
          */
-        .alert("테스트를 그만둘까요?", isPresented: $confirmingQuit) {
-            Button("계속하기", role: .cancel) {}
-            Button("그만두기", action: onQuit)
-        } message: {
-            Text("그만두면 처음부터 다시 시작해야 해요")
+        .confirmDialog(isPresented: confirmingQuit) {
+            ConfirmDialog(
+                title: "테스트를 그만둘까요?",
+                message: ["그만두면 처음부터 다시 시작해야 해요"],
+                cancel: .init(text: "계속하기") { confirmingQuit = false },
+                confirm: .init(text: "그만두기", variant: .destructive) {
+                    confirmingQuit = false
+                    onQuit()
+                }
+            )
         }
         // 화면이 걷히면 마이크를 놓는다. 되감기 판정(`continuesFrom`)은 상위가 하지만, 오버레이
         // 자체가 사라지는 경우(웹으로 돌아감)는 여기서도 한 번 더 막는다 — 상위의 페이즈 변화가

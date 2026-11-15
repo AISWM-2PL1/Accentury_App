@@ -25,58 +25,62 @@ struct VoiceCheckScreen: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        /*
+         * 녹음 화면과 같은 형식이다 (KAN-355 시안 s-05): 대사 카드 · 「내 억양」 곡선 카드 · 입력 레벨 바를 스크롤 본문에 두고,
+         * 상태 한 줄 · 안내 한 줄 · 버튼을 하단에 고정한다. 여기서 말한 방식 그대로 문항에서도 말하면 된다는 뜻이 된다.
+         * 상단 바는 워드마크만 있다 — 시작 게이트 한가운데라 ✕로 빠질 곳이 없다.
+         */
         VStack(spacing: 0) {
-            Text("목소리를 확인할게요")
-                .papercutType(.headline)
-                .foregroundColor(Papercut.ink)
-                .multilineTextAlignment(.center)
+            ScrollView {
+                VStack(spacing: Papercut.space6) {
+                    PromptCard(caption: "목소리 점검", prompt: "안녕하세요", cue: "편하게 말해 주세요", cueAbovePrompt: true)
 
-            Spacer().frame(height: Papercut.space2)
-            Text("아래 말을 편하게 해 주세요")
-                .papercutType(.bodySmall)
-                .foregroundColor(Papercut.muted)
-                .multilineTextAlignment(.center)
-
-            Spacer().frame(height: Papercut.space4)
-            // 문항 화면과 같은 카드다 — 여기서 말한 방식 그대로 문항에서도 말하면 된다는 뜻이 된다.
-            PromptCard(caption: "목소리 점검", prompt: "안녕하세요")
-
-            Spacer().frame(height: Papercut.space4)
-            /*
-             * 레인은 하나다. 점검에는 따라 할 가이드가 없으므로(자기 목소리만 재는 자리)
-             * 빈 가이드 레인을 함께 세우면 사용자는 없는 곡선을 찾게 된다.
-             * 레인 하나여도 상자는 문항 화면과 같다 — 테두리·모서리는 상자가 갖는다.
-             */
-            CurveLaneGroup {
-                CurveLaneView(label: "내 억양", variant: .user)
+                    VStack(spacing: Papercut.space4) {
+                        /*
+                         * 레인은 하나이고 두 칸 높이다. 점검에는 따라 할 가이드가 없으므로(자기 목소리만 재는 자리)
+                         * 빈 가이드 레인을 함께 세우면 사용자는 없는 곡선을 찾게 된다. 곡선은 지금 신호(`userCurveDisplayPoints`)
+                         * 그대로이고, 움직임 줄이기에서도 정보라 그린다.
+                         */
+                        CurveLaneGroup {
+                            CurveLaneView(
+                                label: "내 억양",
+                                variant: .user,
+                                segments: userCurveDisplayPoints(curveFrames, windowMs: voiceCheckWindowMs, centerHz: curveCenterHz),
+                                height: Papercut.curveLaneHeight * 2
+                            )
+                        }
+                        // 시안에는 없지만 유지한다 (2026-11-16 결정) — 소리가 작을 때 「얼마나 더 크게」를 알려 준다.
+                        InputLevelBar(level: listeningLevel)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, Papercut.space6)
+                .padding(.top, Papercut.space2)
+                .padding(.bottom, Papercut.space2)
             }
 
-            Spacer().frame(height: Papercut.space4)
-            InputLevelBar(level: listeningLevel)
-
-            Spacer().frame(height: Papercut.space4)
-            StatusBlock(
-                // 실패에만 error를 준다 — 그래야 스크린 리더가 스스로 읽는다.
-                // 듣는 중 문구는 청크마다 바뀌므로 읽어 주면 소음이 된다.
-                tone: isFailed ? .error : .waiting,
-                message: Self.statusMessage(model.state),
-                // 시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 — "잡히지 않았어요"만으로는
-                // 다음에 무엇을 다르게 해야 하는지 알 수 없다.
-                detail: timedOutHint
-            )
-
-            Spacer(minLength: 0)
-
-            action
-
-            Spacer().frame(height: Papercut.space4)
-            Text("이 소리는 저장하거나 보내지 않아요")
-                .papercutType(.caption)
-                .foregroundColor(Papercut.muted)
-                .multilineTextAlignment(.center)
-            Spacer().frame(height: Papercut.space8)
+            VStack(spacing: Papercut.space2) {
+                StatusBlock(
+                    // 실패에만 error를 준다 — 그래야 스크린 리더가 스스로 읽는다.
+                    // 듣는 중 문구는 청크마다 바뀌므로 읽어 주면 소음이 된다.
+                    tone: isFailed ? .error : .waiting,
+                    message: Self.statusMessage(model.state),
+                    // 시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 — "잡히지 않았어요"만으로는
+                    // 다음에 무엇을 다르게 해야 하는지 알 수 없다.
+                    detail: timedOutHint
+                )
+                Text("이 소리는 저장하거나 보내지 않아요")
+                    .papercutType(.caption)
+                    .foregroundColor(Papercut.muted)
+                    .multilineTextAlignment(.center)
+                action
+                    .padding(.top, Papercut.space3)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Papercut.space6)
+            .padding(.top, Papercut.space4)
+            .padding(.bottom, Papercut.space8)
         }
-        .padding(Papercut.space4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // 워드마크 앱바 (KAN-288 디자인 3) — 배경도 함께 깐다
         .paperAppBar()
@@ -125,15 +129,33 @@ struct VoiceCheckScreen: View {
     private var action: some View {
         switch model.state {
         case .ready(_, let centerHz):
-            AccenturyButton(text: "다음", fillsWidth: true) { onDone(centerHz) }
+            AccenturyButton(text: "다음", fillsWidth: true, trailingIcon: "arrow.right") { onDone(centerHz) }
 
         case .timedOut, .failed:
             AccenturyButton(text: "다시 시도", fillsWidth: true) { model.restart() }
 
-        // 듣는 중에는 버튼이 없다 — 지금 사용자가 할 일은 말하는 것 하나뿐이라,
-        // 누를 것을 주면 말하기를 멈추고 그걸 누른다.
+        // 듣는 중에는 [다음]이 비활성으로 자리만 지킨다 (KAN-355 시안 「하단 고정 [다음 →]」) — 지금 사용자가 할 일은
+        // 말하는 것 하나뿐이라 눌리는 것을 주지 않되, 통과하면 같은 자리에서 켜져 버튼이 튀어나오지 않는다.
         case .listening:
-            EmptyView()
+            AccenturyButton(text: "다음", enabled: false, fillsWidth: true, trailingIcon: "arrow.right") {}
+        }
+    }
+
+    /// 곡선에 그릴 프레임 (안드로이드 `VoiceCheckScreen`과 같은 갈림). 실패는 그릴 것이 없다.
+    private var curveFrames: [RecordingEngine.PitchFrame] {
+        switch model.state {
+        case .listening(let listening): return listening.frames
+        case .ready(let frames, _), .timedOut(let frames, _): return frames
+        case .failed: return []
+        }
+    }
+
+    /// 판정기가 잠근 중심을 곡선 축으로 그대로 쓴다 — 판정 규칙이 바뀌어도 곡선이 따라간다(안드로이드와 같다).
+    private var curveCenterHz: Float? {
+        switch model.state {
+        case .listening(let listening): return listening.centerHz
+        case .ready(_, let centerHz): return centerHz
+        case .timedOut, .failed: return nil
         }
     }
 
@@ -174,6 +196,9 @@ struct VoiceCheckScreen: View {
     }
 }
 
+/// 점검 곡선의 창 길이. 안드로이드 `VOICE_CHECK_WINDOW_MS`와 같은 값이다 — 「안녕하세요」 한 마디가 레인을 왼쪽부터 채운다.
+private let voiceCheckWindowMs: Int64 = 1_000
+
 /// 입력 레벨 바. 곡선이 "무엇을 말했는가"라면 이건 "얼마나 크게 말했는가"다 —
 /// 볼륨 부족은 곡선만 봐서는 알 수 없다(작게 말해도 F0는 잡힌다).
 ///
@@ -188,15 +213,13 @@ private struct InputLevelBar: View {
         let threshold = Self.barFraction(AudioQuality.quietRmsThreshold)
 
         /*
-         * 그릇은 면이 아니라 **테두리**로 그린다 (KAN-161 4단계, 웹 `.level-bar`와 같은 규격).
-         * 종이 그림자 색(#cfc5aa) 면이었는데 크림 위 1.46:1이라 바의 오른쪽 끝이 어디인지
-         * 보이지 않았다 — 채운 만큼만 보이고 전체 길이가 안 보이면 "얼마나 더 크게"를 알 수 없다.
+         * 종이 그림자 바탕에 벽돌 채움, 높이 8 알약이다 (KAN-355, 진행 표시 칸과 같은 면). 바탕이 크림 위 1.46:1로 옅지만
+         * 진행 표시 칸과 같은 모양이라 「여기까지 차는 그릇」으로 읽히고, 넘어야 할 자리는 눈금이 따로 말한다.
          */
         return GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(Papercut.cream)
-                Capsule()
-                    .fill(Papercut.ink)
+                Papercut.paperShadow
+                Papercut.point
                     .frame(width: proxy.size.width * fraction)
                 // 눈금은 채움 위에 그린다 — 채움이 눈금을 넘어선 순간에도 선이 보여야 통과가 읽힌다.
                 Papercut.muted
@@ -204,7 +227,6 @@ private struct InputLevelBar: View {
                     .offset(x: proxy.size.width * threshold - 2)
             }
             .clipShape(Capsule())
-            .overlay(Capsule().stroke(Papercut.ink, lineWidth: Papercut.borderHairline))
         }
         .frame(height: Papercut.progressBarHeight)
         // 값이 아니라 뜻만 읽힌다 — 시시각각 바뀌는 숫자를 읽어 주면 화면을 못 쓴다.

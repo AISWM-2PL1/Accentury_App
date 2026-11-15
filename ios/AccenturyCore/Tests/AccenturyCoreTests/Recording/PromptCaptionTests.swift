@@ -22,13 +22,26 @@ final class PromptCaptionTests: XCTestCase {
     }
 
     func test감정_칩_emotion이_있으면_앞뒤_공백을_걷고_문구를_붙인다_KAN283() {
-        XCTAssertEqual("부탁하는 느낌으로 말해주세요!", emotionCue("부탁하는"))
-        XCTAssertEqual("다급한 느낌으로 말해주세요!", emotionCue("  다급한 "))
+        XCTAssertEqual("부탁하는 느낌으로 말해 주세요", emotionCue("부탁하는"))
+        XCTAssertEqual("다급한 느낌으로 말해 주세요", emotionCue("  다급한 "))
     }
 
     func test감정_칩_nil_빈_문자열_공백뿐이면_칩_없음_KAN283() {
         XCTAssertNil(emotionCue(nil))
         XCTAssertNil(emotionCue(""))
         XCTAssertNil(emotionCue("  "))
+    }
+
+    func test긴_대사_두_줄_분량을_넘으면_26으로_줄인다_KAN355() {
+        // 시안 s-06의 긴 문항(37자)은 26, s-17의 짧은 대사와 목소리 점검은 30
+        XCTAssertTrue(isLongPrompt("처마가 길게 뻗어서 햇빛도 막아 주고, 비도 막아 주이까네 참 좋아예."))
+        XCTAssertFalse(isLongPrompt("밥 뭇나?"))
+        XCTAssertFalse(isLongPrompt("안녕하세요"))
+    }
+
+    func test긴_대사_경계는_20자_앞뒤_공백은_세지_않는다_KAN355() {
+        XCTAssertFalse(isLongPrompt(String(repeating: "가", count: 20)))
+        XCTAssertTrue(isLongPrompt(String(repeating: "가", count: 21)))
+        XCTAssertFalse(isLongPrompt("  " + String(repeating: "가", count: 20) + "\n"))
     }
 }
