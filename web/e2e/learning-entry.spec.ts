@@ -1,6 +1,6 @@
 /**
  * 앱 진입 구조 (KAN-252) — 하단 탭 바(홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정)와 결과 화면의
- * [이 등급에 맞는 억양 학습 시작]. 1단계의 학습 종류 선택 L-1은 2단계에서 탭 바로 바뀌어 없어졌다(2026-10-13 결정).
+ * [학습 시작](KAN-347 2-7에서 「이 등급에 맞는 억양 학습 시작」을 줄였다). 1단계의 학습 종류 선택 L-1은 2단계에서 탭 바로 바뀌어 없어졌다(2026-10-13 결정).
  *
  * 여기서만 확인할 수 있는 것은 **문서를 다시 로드하는 전환이 앱 표식(`bridge`·`app`)을 싣고 간다**는 점이다.
  * vitest는 `navigate`에 넘긴 URL까지만 보고, 그 URL로 실제로 다시 열린 문서가 앱 실행으로 판정돼 탭 화면과
@@ -28,7 +28,7 @@ const RESULT_BODY = {
   expiresAt: '2099-01-01T00:00:00Z',
 }
 
-const LEARN_BUTTON = '이 등급에 맞는 억양 학습 시작'
+const LEARN_BUTTON = '학습 시작'
 
 const WORD_SET = {
   contentVersion: 'e2e',
@@ -123,7 +123,7 @@ function expectAppMarkers(page: Page, screen: string): void {
   expect(params.get('app')).toBe('1.0')
 }
 
-test('앱 결과 화면 - 공유 아래 [이 등급에 맞는 억양 학습 시작]이 서고, 누르면 A-1이 앱 실행으로 열린다', async ({ page }) => {
+test('앱 결과 화면 - 공유 아래 [학습 시작]이 서고, 누르면 A-1이 앱 실행으로 열린다', async ({ page }) => {
   await stubServer(page)
   await asApp(page)
   await page.goto('/?bridge=2&app=1.0&screen=result&sessionId=s_e2e')
@@ -135,9 +135,10 @@ test('앱 결과 화면 - 공유 아래 [이 등급에 맞는 억양 학습 시�
   // 공유 바로 아래 — 위계를 바꾸지 않는다
   const [shareBox, learnBox] = [await share.boundingBox(), await learn.boundingBox()]
   expect(learnBox!.y).toBeGreaterThan(shareBox!.y)
-  // 앱 안 결과 화면에는 탭 바가 서고, 결과는 탭 화면이 아니라 어느 탭도 강조하지 않는다
+  // 앱 안 결과 화면에는 탭 바가 서고 「홈」이 선택돼 있다 (KAN-347 2-7)
   await expect(tabBar(page)).toBeVisible()
-  await expect(tabBar(page).locator('[aria-current]')).toHaveCount(0)
+  await expect(tabBar(page).locator('[aria-current]')).toHaveCount(1)
+  await expect(tab(page, '홈')).toHaveAttribute('aria-current', 'page')
 
   await learn.click()
   await expect(page.getByRole('heading', { level: 1, name: '억양 학습' })).toBeVisible()
@@ -188,7 +189,7 @@ test('앱 홈 - 탭 바로 억양 → 단어 → 번역기 → 홈을 돌고, �
   await asApp(page)
   await page.goto('/?bridge=2&app=1.0&screen=home')
 
-  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeVisible()
   await expect(tab(page, '홈')).toHaveAttribute('aria-current', 'page')
   await expect(tabBar(page).getByRole('button')).toHaveCount(5)
 
@@ -209,7 +210,7 @@ test('앱 홈 - 탭 바로 억양 → 단어 → 번역기 → 홈을 돌고, �
   expectAppMarkers(page, 'translate')
 
   await tab(page, '홈').click()
-  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeVisible()
   expectAppMarkers(page, 'home')
 
   // 홈의 [레벨 테스트 시작]은 인트로를 거치지 않고 인트로 [시작하기]와 같은 브리지 호출로 바로 시작한다
@@ -227,7 +228,7 @@ test('앱 홈 - 탭 바로 억양 → 단어 → 번역기 → 홈을 돌고, �
   await expect(tabBar(page)).toHaveCount(0)
 })
 
-test('KAN-287 홈 테스트 후 - 등급 카드·KST 응시일·출석 문구가 서고, [억양 학습 시작]은 A-1로, [다시 테스트하기]는 브리지로 간다', async ({ page }) => {
+test('KAN-347 홈 테스트 후 - 등급 캐릭터·이름·5칸 막대·[다시 테스트하기]가 서고, 주 7칸 출석 줄과 [억양 학습 시작]은 없다', async ({ page }) => {
   await stubServer(page)
   await stubHome(page, {
     levelTestTaken: true,
@@ -239,27 +240,113 @@ test('KAN-287 홈 테스트 후 - 등급 카드·KST 응시일·출석 문구가
   await asApp(page)
   await page.goto('/?bridge=2&app=1.0&screen=home')
 
-  const card = page.getByRole('region', { name: '명예주민' })
-  await expect(card.getByRole('heading', { level: 1, name: '명예주민' })).toBeVisible()
-  await expect(card.getByRole('img', { name: '명예주민' })).toBeVisible()
-  // UTC 16:00은 KST 다음 날 01:00 — 실브라우저 Intl에서도 날짜가 넘어간다
-  await expect(card.locator('p.type-label')).toHaveText('2026년 10월 14일 응시')
-  await expect(page.locator('p.home-streak')).toHaveText('3일 연속 출석 중 · 오늘 학습하면 4일')
-  await expect(page.locator('.btn--primary')).toHaveCount(1)
-  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toHaveCount(0)
+  const hero = page.getByRole('region', { name: '명예주민' })
+  await expect(hero.getByRole('heading', { level: 1, name: '명예주민' })).toBeVisible()
+  await expect(hero.getByRole('img', { name: '명예주민' })).toBeVisible()
+  const steps = hero.getByRole('img', { name: `${RESULT_BODY.tier.of}개 등급 중 ${RESULT_BODY.tier.rank}번째` })
+  await expect(steps.locator('i')).toHaveCount(5)
+  await expect(steps.locator('i.is-on')).toHaveCount(RESULT_BODY.tier.rank)
+  await expect(page.locator('.btn--primary')).toHaveCount(0)
+  await expect(page.locator('.home-attendance, .home-streak')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '억양 학습 시작', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toHaveCount(0)
   await expect(tab(page, '홈')).toHaveAttribute('aria-current', 'page')
 
-  await page.getByRole('button', { name: '억양 학습 시작', exact: true }).click()
-  await expect(page.getByRole('heading', { level: 1, name: '억양 학습' })).toBeVisible()
-  expectAppMarkers(page, 'intonation')
-
-  await tab(page, '홈').click()
   await page.getByRole('button', { name: '다시 테스트하기', exact: true }).click()
   await expect.poll(() => micCalls(page)).toBe(1)
   expectAppMarkers(page, 'home')
 })
 
-test('KAN-287 홈 테스트 전 - streak 키가 없는 구서버 응답이면 기존 홈 그대로, 출석 문구가 없다', async ({ page }) => {
+/** 월별 출석 응답 — 요청한 연·월을 그대로 돌려준다. 「오늘」은 서버 today가 정하므로 그 달의 2일로 고정한다 */
+function attendanceReply(year: number, month: number, days: { day: number; items: object[] }[], monthCount: number, lastMonthCount: number) {
+  const iso = (d: number) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  return {
+    year, month,
+    days: days.map((d) => ({ date: iso(d.day), items: d.items })),
+    monthCount, lastMonthCount,
+    streak: { currentDays: 2, attendedToday: true, lastAttendedDate: iso(2) },
+    today: iso(2),
+  }
+}
+
+test('KAN-347 출석 배지·달력 - 홈 앱 바에만 서고, 칸은 33px·누르는 영역 48px, 지난달·날짜 상세가 응답대로 바뀐다', async ({ page }) => {
+  await stubServer(page)
+  await stubHome(page, {
+    levelTestTaken: false, levelTest: null, recommendedCourseId: null, recommendedSetId: null,
+    streak: { currentDays: 2, attendedToday: true, lastAttendedDate: '2026-11-12' },
+  })
+  // 첫 요청 달은 기기 시계의 KST 달이라, 응답은 요청 쿼리의 연·월로 만든다. 처음 받은 달이 이번 달이고 다른 달은 지난달이다
+  // (개발 서버 StrictMode가 이펙트를 두 번 돌려 같은 달 요청이 두 번 올 수 있어 횟수로 가르지 않는다)
+  let thisMonth: string | null = null
+  await page.route(
+    (url) => url.pathname === '/v0/learning/attendance',
+    (route) => {
+      const q = new URL(route.request().url()).searchParams
+      const [year, month] = [Number(q.get('year')), Number(q.get('month'))]
+      thisMonth ??= `${year}-${month}`
+      return route.fulfill({
+        json:
+          thisMonth === `${year}-${month}`
+            ? attendanceReply(year, month, [
+                { day: 1, items: [{ kind: 'SET', key: 'a1', id: 's1', title: '서버 제목', done: 3, total: 3 }] },
+                { day: 2, items: [{ kind: 'COURSE', key: 'e2e:k1', id: 'k1', title: '서버 제목', done: 3, total: 3 }] },
+              ], 2, 9)
+            : attendanceReply(year, month, [{ day: 3, items: [] }], 1, 4),
+      })
+    },
+  )
+  await asApp(page)
+  await page.goto('/?bridge=2&app=1.0&screen=home')
+
+  const badge = page.getByRole('button', { name: '연속 출석 2일, 출석 달력 열기' })
+  await expect(badge).toBeVisible()
+  // 앱 바 띠(높이 56) 안 오른쪽 끝(본문 여백 24)
+  const box = (await badge.boundingBox())!
+  expect(box.y + box.height).toBeLessThanOrEqual(56)
+  expect(Math.round(page.viewportSize()!.width - (box.x + box.width))).toBe(24)
+
+  await badge.click()
+  const sheet = page.getByRole('dialog', { name: '출석 달력' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByText('이번 달 2일 · 지난달 9일')).toBeVisible()
+  const day1 = sheet.getByRole('button', { name: /월 1일, 출석$/ })
+  // 시트가 다 올라온 뒤 잰다·누른다 (300ms, feedback.spec과 같은 이유)
+  await page.waitForTimeout(400)
+  const drawn = (await day1.locator('.attendance-cell__day').boundingBox())!
+  const hit = (await day1.boundingBox())!
+  expect(Math.round(drawn.width)).toBe(33)
+  expect(Math.round(drawn.height)).toBe(33)
+  expect(hit.width).toBeGreaterThanOrEqual(48)
+  expect(hit.height).toBeGreaterThanOrEqual(48)
+
+  await day1.click()
+  await expect(sheet.getByText('1코스 단어 학습 1')).toBeVisible()
+  await expect(sheet.getByText('3문항 완료')).toBeVisible()
+  await sheet.getByRole('button', { name: /월 2일, 오늘, 출석$/ }).click()
+  await expect(sheet.getByText('1코스 억양 학습 1')).toBeVisible()
+  await expect(sheet.getByText('대사 3개 완료')).toBeVisible()
+  await expect(sheet.getByText('서버 제목')).toHaveCount(0)
+  await sheet.getByRole('button', { name: /월 5일, / }).click()
+  await expect(sheet.getByText('학습 기록이 없어요')).toBeVisible()
+
+  await sheet.getByRole('button', { name: '이전 달' }).click()
+  await expect(sheet.getByText('이번 달 1일 · 지난달 4일')).toBeVisible()
+  await expect(sheet.getByRole('button', { name: /월 3일, 출석$/ })).toHaveClass(/is-attended/)
+  await expect(sheet.getByRole('button', { name: /월 1일, 미출석$/ })).toBeVisible()
+
+  await sheet.getByRole('button', { name: '출석 달력 닫기' }).click()
+  await expect(sheet).toHaveCount(0)
+
+  // 다른 탭(학습·번역기) 앱 바에는 배지가 없다
+  await tab(page, '사투리 번역기').click()
+  await expect(page.getByRole('heading', { level: 1, name: '사투리 번역기' })).toBeVisible()
+  await expect(page.locator('.streak-badge')).toHaveCount(0)
+  await tab(page, '억양 학습').click()
+  await expect(page.getByRole('heading', { level: 1, name: '억양 학습' })).toBeVisible()
+  await expect(page.locator('.streak-badge')).toHaveCount(0)
+})
+
+test('KAN-287 홈 테스트 전 - streak 키가 없는 구서버 응답이면 테스트 전 홈 그대로, 출석 배지가 없다', async ({ page }) => {
   await stubServer(page)
   await stubHome(page, { levelTestTaken: false, levelTest: null, recommendedCourseId: null, recommendedSetId: null })
   await asApp(page)
@@ -267,9 +354,10 @@ test('KAN-287 홈 테스트 전 - streak 키가 없는 구서버 응답이면 �
   await page.goto('/?bridge=2&app=1.0&screen=home')
   await home
 
-  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeVisible()
   await expect(page.getByRole('button', { name: '레벨 테스트 시작', exact: true })).toBeVisible()
-  await expect(page.locator('.home-streak')).toHaveCount(0)
+  await expect(page.locator('.streak-badge')).toHaveCount(0)
+  await expect(page.getByText('7문항 · 약 3분')).toBeVisible()
   await expect(tabBar(page)).toBeVisible()
 })
 
@@ -281,10 +369,10 @@ test('KAN-287 홈 조회 실패 - 503 봉투면 카드만 숨기고 기존 홈·
   await page.goto('/?bridge=2&app=1.0&screen=home')
   await home
 
-  await expect(page.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeVisible()
   await expect(tabBar(page)).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(0)
-  await expect(page.locator('.home-tier')).toHaveCount(0)
+  await expect(page.locator('.home-hero, .streak-badge')).toHaveCount(0)
 
   await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
   await expect.poll(() => micCalls(page)).toBe(1)

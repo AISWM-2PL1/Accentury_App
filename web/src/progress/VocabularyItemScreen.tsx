@@ -18,6 +18,7 @@ import { VocabSubmitError, type VocabSubmitResult } from './submitVocabAnswer'
 import { RetestAction } from '../result/RetestAction'
 import type { RetestControl } from '../result/useRetest'
 import { Button, ChoiceList, StatusBlock } from '../ui'
+import { ArrowRightIcon } from '../ui/icons'
 import { useChoiceIdempotencyKey } from '../net/useChoiceIdempotencyKey'
 import { itemCaption } from './itemBadge'
 import { isSessionExitCode } from './sessionExit'
@@ -144,7 +145,12 @@ export function VocabularyItemScreen({
               onClick={() => void submit()}
               style={{ width: '100%' }}
             >
-              {submitting ? '제출 중…' : errorMessage !== null ? '다시 시도' : '다음'}
+              {submitting ? '제출 중…' : errorMessage !== null ? '다시 시도' : (
+                <>
+                  다음
+                  <ArrowRightIcon />
+                </>
+              )}
             </Button>
           </>
         )}

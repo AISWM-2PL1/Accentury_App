@@ -9,7 +9,8 @@ import type { CaptureFactory } from './audio'
 import { detectStorePlatform } from './audio/storeLink'
 import { IntroScreen } from './intro/IntroScreen'
 import { IntonationLearningRoute } from './learning/IntonationLearningScreens'
-import { attendanceWeek, fetchLearningHome, formatKstDate, type HomeStreak, type LearningHome } from './learning/homeApi'
+import { AttendanceBadge, AttendanceSheet } from './learning/AttendanceCalendar'
+import { fetchLearningHome, type LearningHome } from './learning/homeApi'
 import { WordLearningRoute } from './learning/WordLearningScreens'
 import { GuestLoginPrompt } from './learning/GuestLoginPrompt'
 import { AUTH_GUEST_NOT_ALLOWED, WordLearningError } from './learning/wordApi'
@@ -33,7 +34,9 @@ import { TestFlowScreen } from './progress/TestFlowScreen'
 import type { RegionCode } from './region/regions'
 import { RegionSelectScreen } from './region/RegionSelectScreen'
 import { ResultScreen, TierCharacter } from './result/ResultScreen'
+import homeIcon from './assets/home-icon-wave.png'
 import { Button, TabBar } from './ui'
+import { MicLineIcon, RefreshIcon } from './ui/icons'
 import { useRetest } from './result/useRetest'
 import { readCampaignToken, sanitizeCampaignToken } from './session/campaign'
 import { shareResult } from './share/shareResult'
@@ -204,15 +207,14 @@ export default function App({ navigate = assignHref, voiceCheckCapture }: AppPro
    * 재로드는 네이티브가 한다. 브리지가 받지 않는 구버전 앱만 예전처럼 인트로로 보낸다. 웹 단독 시작 게이트는
    * 옮기지 않는다 — 홈은 앱 안에서만 쓰인다. 응시 시작 계측(`referral_test_started`)은 테스트 문서 진입에서
    * 세므로 여기서 따로 보내지 않는다.
-   * 테스트 후면 등급 카드·[억양 학습 시작]을, 응답에 `streak`가 있으면 연속 출석을 더한다(KAN-287, 2026-10-15 팀 결정 —
-   * ux-ui 「홈 카드 (KAN-287)」 절). 판정은 `GET /v0/learning/home` 응답이고 [HomeScreen]이 조회한다.
+   * 테스트 후면 등급 캐릭터·이름·막대·[다시 테스트하기]를, 응답에 `streak`가 있으면 앱 바에 출석 배지를 더한다(KAN-287 →
+   * KAN-347 2단계 시안 s-01·s-02). 판정은 `GET /v0/learning/home` 응답이고 [HomeScreen]이 조회한다.
    */
   if (params.get('screen') === 'home') {
     return (
       <HomeScreen
         apiBase={API_BASE}
         onStartTest={() => requestMicPermission() || goToIntro(navigate)}
-        onStartLearning={() => goToTab('intonation', navigate)}
         tabBar={tabBar('home')}
         adConsentRequested={params.get('adConsent') === 'open'}
         // navigate(replace)는 AppRoot를 재마운트해 네이티브 저장 전에 getAdConsent를 다시 읽고 홈도 다시 조회한다.
@@ -634,17 +636,17 @@ function ResultRoute({
     : undefined
 
   /*
-   * [이 등급에 맞는 억양 학습 시작] (KAN-252)은 앱 안 + 계정 로그인 상태에서만 준다([useAccountTabs], 탭 바와 같은 판정 —
+   * [학습 시작] (KAN-252, 문구는 KAN-347 2-7)은 앱 안 + 계정 로그인 상태에서만 준다([useAccountTabs], 탭 바와 같은 판정 —
    * 익명 빌드에서는 학습이 로그인 안내로 막힌다, PR #33 리뷰 P1) — `storePlatform`의 반대편이다. 학습은
    * 로그인 필수(2026-10-04)라 웹 단독 실행에서 A-1을 열면 로그인 안내에서 막힌다. 웹에서는 스토어 URL이
    * 나오면 그쪽으로 잇는다 (2026-10-13 사용자 결정, 후속).
    */
   const accountTabs = useAccountTabs()
-  const onStartLearning = standalone || !accountTabs ? undefined : () => goToTab('intonation', navigate)
+  const onStartLearning = standalone || !accountTabs ? undefined : () => goToTab(LEARNING_ENTRY_TAB, navigate)
 
   /*
    * 결과 화면은 앱 안이면 탭 바를 세운다 (KAN-252). 테스트가 끝난 자리라 진행 중 이탈 규칙(KAN-147)에 걸리지
-   * 않고, 앱에서는 여기서 다른 탭으로 가는 길이 있어야 한다. 어느 탭도 강조하지 않는다 — 결과는 탭 화면이 아니다.
+   * 않고, 앱에서는 여기서 다른 탭으로 가는 길이 있어야 한다. 「홈」을 강조한다 — 테스트는 홈에서 시작한다(KAN-347 2-7).
    */
   return (
     <>
@@ -730,7 +732,8 @@ function ResultRoute({
         onFeedbackOpen={() => track({ name: 'feedback_opened' })}
         onFeedbackSubmitted={(rating) => track({ name: 'feedback_submitted', rating })}
       />
-      {!standalone && <AccountTabBar navigate={navigate} />}
+      {/* 결과는 테스트를 연 홈 탭 아래 화면으로 본다 — 탭 바는 「홈」 선택 (KAN-347 2-7) */}
+      {!standalone && <AccountTabBar current="home" navigate={navigate} />}
     </>
   )
 }
@@ -781,6 +784,11 @@ function goToIntro(navigate: Navigate): void {
 }
 
 /**
+ * 결과 화면 [학습 시작]의 목적지 (KAN-347 2-7). 3단계가 새 학습 탭(`learn`)으로 바꾸는 자리는 이 상수 하나다.
+ */
+const LEARNING_ENTRY_TAB: TabScreen = 'intonation'
+
+/**
  * 탭 화면 전환 (KAN-252). SPA로 옮기고(구버전 앱은 문서 재로드, KAN-290), 남기고 지우는 규칙은 [buildTabUrl]이
  * 소유한다 — 앱 표식(`bridge`·`app`)이 남아야 다음 화면도 앱 실행으로 판정된다.
  *
@@ -791,26 +799,27 @@ function goToTab(tab: TabScreen, navigate: Navigate): void {
 }
 
 /**
- * 앱 홈 (KAN-252, 등급 카드·출석은 KAN-287). 버튼은 화면 가운데 본문 아래에 둔다 — 하단은 탭 바 자리라 주버튼을
- * 바닥에 붙이면 두 띠가 겹쳐 보인다.
+ * 앱 홈 (KAN-252, 테스트 후·출석은 KAN-287, 디자인 개정 KAN-347 2단계 시안 s-01·s-02·s-02-b). 버튼은 화면 가운데 본문 아래에
+ * 둔다 — 하단은 탭 바 자리라 주버튼을 바닥에 붙이면 두 띠가 겹쳐 보인다.
  *
- * 응답 전에는 테스트 전 홈(제목·설명·[레벨 테스트 시작])을 먼저 그린다. 홈은 앱이 처음 여는 화면이라 로딩 화면을
- * 두면 [레벨 테스트 시작]과 탭 바가 API를 기다리게 된다. 응답이 오면 테스트 후 카드·출석으로 채운다.
+ * 응답 전에는 테스트 전 홈(카드·[레벨 테스트 시작])을 먼저 그린다. 홈은 앱이 처음 여는 화면이라 로딩 화면을
+ * 두면 [레벨 테스트 시작]과 탭 바가 API를 기다리게 된다. 응답이 오면 테스트 후 모양·출석 배지로 채운다.
  *
  * 조회 실패(401 포함 어떤 오류든)는 조용히 삼키고 응답 전 모양으로 남는다. 홈 카드는 덧붙인 정보라, 막다른
  * [다시 시도] 화면이나 오류 문구보다 테스트 진입과 탭 바가 그대로 있는 편이 낫다(ux-ui 「홈 카드」 절).
+ *
+ * 출석 배지는 로그인 홈에만 선다 — 응답에 `streak`가 있다는 것이 곧 계정 토큰으로 조회에 성공했다는 뜻이고, 게스트·웹 단독
+ * (토큰 없음)은 조회가 끊겨 배지가 없다. 다른 탭은 이 컴포넌트를 그리지 않으므로 배지도 없다.
  */
 function HomeScreen({
   apiBase,
   onStartTest,
-  onStartLearning,
   tabBar,
   adConsentRequested = false,
   onAdConsentReopenDone,
 }: {
   apiBase: string
   onStartTest: () => void
-  onStartLearning: () => void
   /** 하단 탭 바 (KAN-252). 동의 시트가 떠 있는 동안 함께 `inert`로 막으려고 홈이 그린다 */
   tabBar?: ReactNode
   /** URL에 `adConsent=open`이 있다 — 네이티브 설정 「맞춤형 광고 설정」이 시트를 다시 열라고 보냈다 (KAN-315) */
@@ -857,76 +866,61 @@ function HomeScreen({
     }
   }, [apiBase, guest])
 
-  const levelTest = home?.levelTest ?? null
-  const streak = home?.streak
-  const tested = levelTest === null ? '' : formatKstDate(levelTest.completedAt)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const badgeRef = useRef<HTMLButtonElement>(null)
+  const closeCalendar = () => {
+    setCalendarOpen(false)
+    badgeRef.current?.focus({ preventScroll: true })
+  }
+
+  const levelTest = guest ? null : (home?.levelTest ?? null)
+  const streak = guest ? undefined : home?.streak
+  const backgroundInert = sheetOpen || calendarOpen
 
   return (
     <>
-      <main className="screen" inert={sheetOpen}>
-        {/* 테스트 후는 위에서부터 쌓는다(시안 32) — 카드·버튼·출석이 한 화면을 채워 가운데 정렬이면 위만 빈다 */}
-        <div className={levelTest === null || guest ? 'screen__body' : 'screen__body home-after'}>
-          {levelTest === null || guest ? (
-            <>
-              {/* 디자인 3 (KAN-288, 시안 31): 앱 아이콘·제목·설명·버튼이 종이 카드 한 장에 묶인다 */}
-              <div className="card home-card">
-                <img className="home-card__icon" src={`${import.meta.env.BASE_URL}icon-192-v3.png`} alt="" />
-                <h1 className="type-title">내 사투리 레벨 테스트</h1>
-                <p className="type-body home-card__lead">억양과 단어로 내 사투리 등급을 알아봐요</p>
-                <Button onClick={onStartTest} style={{ width: '100%' }}>
-                  레벨 테스트 시작
-                </Button>
-              </div>
-              {guest && <GuestLoginPrompt />}
-            </>
-          ) : (
-            <>
-              {/* 시안 32: 테이프 붙은 종이에 캐릭터 왼쪽, 순위·등급명·응시일 오른쪽 */}
-              <section className="card home-tier" aria-labelledby="home-tier-name">
-                <TierCharacter code={levelTest.tier.code} name={levelTest.tier.name} className="illustration--home" />
-                <div className="home-tier__text">
-                  <p className="type-caption home-tier__rank">
-                    {levelTest.tier.of}개 등급 중 {levelTest.tier.rank}번째
-                  </p>
-                  <h1 id="home-tier-name" className="type-display">
-                    {levelTest.tier.name}
-                  </h1>
-                  {tested !== '' && <p className="type-label home-tier__date">{tested} 응시</p>}
-                </div>
-              </section>
-              <Button onClick={onStartLearning} style={{ width: '100%' }}>
-                억양 학습 시작
+      <main className="screen" inert={backgroundInert}>
+        {streak !== undefined && (
+          <AttendanceBadge ref={badgeRef} days={streak.currentDays} onOpen={() => setCalendarOpen(true)} />
+        )}
+        {levelTest === null ? (
+          <div className="screen__body home-before">
+            <div className="card home-card">
+              <img className="home-card__icon" src={homeIcon} alt="" />
+              <h1 className="type-title">경남 사투리 레벨 테스트</h1>
+              <p className="type-body home-card__lead">억양과 단어로 내 경남 사투리 등급을 알아봐요</p>
+              <p className="home-card__meta">7문항 · 약 3분</p>
+              <Button onClick={onStartTest} style={{ width: '100%' }}>
+                <MicLineIcon />
+                레벨 테스트 시작
               </Button>
-              <Button variant="secondary" onClick={onStartTest} style={{ width: '100%' }}>
+            </div>
+            {guest && <GuestLoginPrompt />}
+          </div>
+        ) : (
+          <div className="screen__body home-after">
+            <section className="home-hero" aria-labelledby="home-tier-name">
+              <TierCharacter code={levelTest.tier.code} name={levelTest.tier.name} className="illustration--home" />
+              <h1 id="home-tier-name">{levelTest.tier.name}</h1>
+              {/* 순위만큼 벽돌 칸 — 색만으로 말하지 않도록 순위를 읽히는 이름으로 준다 */}
+              <div className="grade-steps" role="img" aria-label={`${levelTest.tier.of}개 등급 중 ${levelTest.tier.rank}번째`}>
+                {Array.from({ length: levelTest.tier.of }, (_, i) => (
+                  <i key={i} className={i < levelTest.tier.rank ? 'is-on' : undefined} />
+                ))}
+              </div>
+              <Button variant="text" className="home-retest" onClick={onStartTest}>
+                <RefreshIcon />
                 다시 테스트하기
               </Button>
-            </>
-          )}
-          {streak !== undefined && !guest && (
-            <section className="home-attendance" aria-labelledby="home-attendance-title">
-              <h2 id="home-attendance-title" className="type-label">
-                연속 출석
-              </h2>
-              <p className="home-streak type-body-sm">{streakText(streak)}</p>
-              {/* 출석한 날은 벽돌 ✓, 아닌 날은 잉크 ○ — 색과 기호를 함께 바꿔 색만으로 가르지 않는다 */}
-              <ol className="home-attendance__week">
-                {attendanceWeek(streak).map((day) => (
-                  <li key={day.label} className={day.attended ? 'home-attendance__day is-attended' : 'home-attendance__day'}>
-                    <span aria-hidden="true">{day.label}</span>
-                    <i aria-hidden="true">{day.attended ? '✓' : '○'}</i>
-                    <span className="sr-only">
-                      {day.label}요일 {day.attended ? '출석' : '출석 전'}
-                    </span>
-                  </li>
-                ))}
-              </ol>
             </section>
-          )}
-        </div>
+            {/* 「이어가기」 카드 자리 — 사투리 여행 진행 데이터가 필요해 3단계(3-6)가 여기 붙인다 */}
+          </div>
+        )}
       </main>
       {/* 시트가 떠 있는 동안 배경(본문·탭 바)은 `inert` — 초점이 시트 밖으로 빠지지 않게(TranslatorScreen 선례) */}
-      {tabBar && <div inert={sheetOpen}>{tabBar}</div>}
+      {tabBar && <div inert={backgroundInert}>{tabBar}</div>}
       {/* 시트는 탭 바 뒤에 그린다 — 쌓임 순서상 뒤에 와야 막이 탭 바를 덮는다(IntroScreen 동의 시트 주석) */}
+      {calendarOpen && <AttendanceSheet apiBase={apiBase} onClose={closeCalendar} />}
       {sheetOpen && (
         <AdConsentSheet
           current={consent}
@@ -941,13 +935,6 @@ function HomeScreen({
       )}
     </>
   )
-}
-
-/** 홈 출석 문구 (KAN-287). 끊겼거나 오늘 아직이어도 탓하지 않고 다음 한 걸음만 말한다(ux-ui 카피 톤) */
-function streakText({ currentDays, attendedToday }: HomeStreak): string {
-  if (currentDays === 0) return '오늘 학습하면 출석이 시작돼요'
-  if (attendedToday) return `${currentDays}일 연속 출석 중이에요`
-  return `${currentDays}일 연속 출석 중 · 오늘 학습하면 ${currentDays + 1}일`
 }
 
 /** 신버전 웹 + 구버전 앱 조합에서만 보이는 화면. 비난 없는 카피 톤(ux-ui.md)을 지킨다. */

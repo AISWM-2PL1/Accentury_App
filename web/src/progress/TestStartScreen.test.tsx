@@ -9,7 +9,7 @@
 import { StrictMode } from 'react'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { START_COUNTDOWN_SECONDS, START_SCREEN_SUBTITLE, TestStartScreen } from './TestStartScreen'
+import { START_COUNTDOWN_SECONDS, TestStartScreen } from './TestStartScreen'
 
 /** 링 둘레. 컴포넌트와 같은 반지름(54, `score-donut`과 같은 viewBox)으로 여기서 다시 계산한다 */
 const CIRCUMFERENCE = 2 * Math.PI * 54
@@ -31,19 +31,15 @@ describe('TestStartScreen — 시작 대기 화면 (KAN-216)', () => {
     expect(START_COUNTDOWN_SECONDS).toBe(3)
   })
 
-  it('제목이 h1 "곧 시작합니다"이고 status 문구가 확정 카피와 정확히 같다', () => {
+  it('제목이 h1 「곧 시작해요」이고 부제 없이 그 제목 하나가 status로 읽힌다 (KAN-347 2-4)', () => {
     render(<TestStartScreen secondsLeft={3} />)
 
     // 이 화면에는 다른 제목이 없다 — 히어로 문구가 곧 화면 이름이라 h1으로 서야 한다
-    expect(screen.getByRole('heading', { level: 1, name: '곧 시작합니다' })).toBeInTheDocument()
-    /*
-     * 문구는 상수를 참조해 대조한다 — 복붙하면 카피가 바뀔 때 테스트가 낡은 문구를 지키는
-     * 꼴이 된다. 이 테스트가 잠그는 것은 "status로 한 번 읽히는 문구가 확정 카피 그 자체"
-     * 라는 구조다.
-     */
+    expect(screen.getByRole('heading', { level: 1, name: '곧 시작해요' })).toBeInTheDocument()
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent(START_SCREEN_SUBTITLE)
+    expect(status).toHaveTextContent(/^곧 시작해요$/)
     expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(screen.queryByText('당신의 경남 사투리 실력을 보여주세요!')).toBeNull()
   })
 
   it('링과 숫자 블록은 통째로 aria-hidden이고, 숫자는 받은 초 그대로다', () => {
