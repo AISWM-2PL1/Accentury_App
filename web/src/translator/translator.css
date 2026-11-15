@@ -1,0 +1,415 @@
+/*
+ * 사투리 번역기 화면 (KAN-347 6단계). 수치는 시안 s-03·s-04·s-04-limit·s-09-translator-waiting·s-09-error-C·s-09-error-input을
+ * Playwright로 잰 값이다(390 폭, 루트 16px). 글자와 글자를 품은 칸은 rem, 테두리·반경·그림자·점·받아 적는 줄은 px다
+ * (code wiki ux-ui.md 「크기 단위 규칙」).
+ *
+ * 7장 공통 틀(6-1-1): 제목 윗선 y=80, 입력 카드 윗선 y=211은 어느 상태에서도 같다. 상태마다 바뀌는 것은 카드 높이다 —
+ * 결과·한도는 입력 카드를 126으로 줄이고(`--compact`), 입력 오류 한 줄이 서면 결과 카드를 126으로 줄인다(`--error`).
+ */
+
+/* `.item-screen`의 칸 사이 24를 걷고 시안 간격을 요소마다 준다. components.css가 이 파일 뒤에 실려 클래스 둘로 이긴다 */
+.item-screen.translator {
+  gap: 0;
+}
+
+/* 시안 제목 줄 높이 26/1.3 — 아래 줄들이 시안 y(규칙 줄 170, 입력 카드 211)에 서게 */
+.translator .tab-title {
+  line-height: 1.3;
+}
+
+/* ── 「표준어 ⇄ 경남 사투리」 (움직임 타일 7) ── */
+
+.translator-pair {
+  display: grid;
+  grid-template-columns: 1fr var(--touch-target-min) 1fr;
+  align-items: center;
+  min-height: 2.75rem;
+  margin-top: 0.25rem;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* 두 이름은 자기 칸 폭 + 버튼 칸만큼 옮겨 자리를 바꾼다(300ms). 모션 축소면 tokens.css가 시간을 0에 가깝게 줄여 끝 상태다 */
+.translator-pair__lang {
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.translator-pair--swapped .translator-pair__lang--standard {
+  transform: translateX(calc(100% + var(--touch-target-min)));
+}
+
+.translator-pair--swapped .translator-pair__lang--dialect {
+  transform: translateX(calc(-100% - var(--touch-target-min)));
+}
+
+/*
+ * 그림은 지름 44 원(시안)이고 누르는 상자는 48이다(터치 최소선). 위아래 음수 여백으로 줄 높이는 44를 지킨다 —
+ * 48로 두면 아래 규칙 줄·카드가 4px 내려가 시안 위치에서 어긋난다.
+ */
+.translator-pair__toggle {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  margin: calc((2.75rem - var(--touch-target-min)) / 2) 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.translator-pair__toggle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: auto;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-full);
+  background: var(--color-paper);
+}
+
+.translator-pair__toggle svg {
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.translator-pair--swapped .translator-pair__toggle svg {
+  transform: rotate(180deg);
+}
+
+.translator-pair__toggle:disabled {
+  color: var(--color-muted-foreground);
+  cursor: not-allowed;
+}
+
+.translator-rule {
+  margin: 0.5rem 0 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-label);
+  line-height: 1.3125rem;
+}
+
+/* ── 카드 두 장과 ↓ 버튼 ── */
+
+.translator-stack {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1.25rem;
+}
+
+.translator-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 11.125rem;
+  padding: 1.5rem 1.25rem 1.125rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-card);
+}
+
+/* 카드 안 라벨 — Jua 15 + 7px 점. 표준어 = 빈 원, 경남 사투리 = 벽돌 원, 이용 안내 = 점 없음 */
+.translator-card__label {
+  position: absolute;
+  top: 0.75rem;
+  left: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.25rem;
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-body-sm);
+  line-height: 1.25rem;
+}
+
+.translator-card__label::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-full);
+}
+
+.translator-card__label--dialect::before {
+  border-color: var(--color-point);
+  background: var(--color-point);
+}
+
+.translator-card__label--plain::before {
+  content: none;
+}
+
+.translator-card__input {
+  width: 100%;
+  height: 6.1875rem;
+  padding: 0.875rem 0 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-display);
+  font-size: var(--text-headline);
+  line-height: 1.5;
+  resize: none;
+}
+
+.translator-card__input::placeholder {
+  color: var(--color-muted-foreground);
+}
+
+.translator-card__counter {
+  margin: 0.3125rem 0 0;
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  text-align: right;
+}
+
+/* 100자 초과 — 흐린 글자를 잉크로 올려 아래 오류 한 줄과 짝을 짓는다 */
+.translator-card__counter--over {
+  color: var(--color-primary);
+}
+
+.translator-stack--compact > .translator-card:first-child {
+  min-height: 7.875rem;
+}
+
+.translator-stack--compact .translator-card__input {
+  height: 3.5rem;
+}
+
+/* 입력 오류 한 줄 (s-09-error-input). 주의 아이콘 16 + 본문 14 잉크 */
+.translator-error {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0.625rem 0 0 0.5rem;
+  color: var(--color-primary);
+  font-size: var(--text-label);
+  line-height: 1.3125rem;
+}
+
+.translator-error svg {
+  flex-shrink: 0;
+}
+
+/* ↓ 번역 버튼 — 지름 56 벽돌 원. 보낼 수 없으면(빈 입력·100자 초과·대기·한도) #cfc5aa 면 */
+.btn.translator-go {
+  align-self: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-top: 0.6875rem;
+  padding: 0;
+  border-radius: var(--radius-full);
+}
+
+.btn.translator-go:disabled {
+  border-color: var(--color-primary-dim);
+}
+
+.translator-stack--error .translator-go {
+  margin-top: 0.75rem;
+}
+
+.translator-card--output {
+  min-height: 9.375rem;
+  margin-top: 1.8125rem;
+  /* 아래 8 — 대기의 줄 둘 + 문구가 150 안에 든다(시안 s-09-translator-waiting) */
+  padding-top: 4.125rem;
+  padding-bottom: 0.5rem;
+}
+
+.translator-stack--error .translator-card--output {
+  min-height: 7.875rem;
+  margin-top: 1.75rem;
+}
+
+.translator-card--result,
+.translator-card--limit {
+  padding: 2.75rem 1.25rem 3.5rem;
+}
+
+.translator-card--result {
+  min-height: 11.625rem;
+}
+
+.translator-card--limit {
+  min-height: 13.125rem;
+}
+
+.translator-card__empty {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-label);
+  line-height: 1.3125rem;
+}
+
+/* ── 대기 — 받아 적는 회색 줄 둘 (움직임 타일 10) ── */
+
+.translator-wait {
+  margin: 0.125rem 0 1rem;
+}
+
+/* 줄 두께·반경은 장식이라 px. 모션 축소면 tokens.css가 한 번·0.01ms로 줄여 다 그린 줄(끝 상태)로 멈춘다 */
+.translator-wait i {
+  display: block;
+  width: 60%;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--color-primary-dim);
+  transform-origin: left;
+  animation: translator-wait-write var(--duration-reveal) var(--ease-out) infinite alternate;
+}
+
+.translator-wait i + i {
+  width: 28%;
+  margin-top: 12px;
+  animation-delay: var(--duration-base);
+  animation-fill-mode: backwards;
+}
+
+@keyframes translator-wait-write {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+/* ── 결과 ── */
+
+.translator-result__text {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  line-height: 1.4;
+}
+
+/* 왼쪽 「오늘 n번 남았어요」, 오른쪽 복사·공유 (s-04) */
+.translator-result__foot {
+  position: absolute;
+  right: 0.625rem;
+  bottom: 0.625rem;
+  left: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.translator-result__meta {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-label);
+  line-height: 1.3125rem;
+}
+
+.translator-result__count {
+  font-family: var(--font-display);
+}
+
+.translator-result__actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.translator-icon-button {
+  display: grid;
+  place-items: center;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* 부적절한 결과 신고 — 결과 카드 아래 글자 링크(s-04). 보낸 뒤 같은 자리에 안내가 선다 */
+.translator-report {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: var(--touch-target-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted-foreground);
+  font: inherit;
+  font-size: var(--text-caption);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.translator-report:disabled {
+  cursor: not-allowed;
+}
+
+.translator-report--note {
+  text-decoration: none;
+  cursor: auto;
+}
+
+.translator-report-error {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: var(--text-caption);
+}
+
+/* ── 아래 고지 둘 ── */
+
+.translator-notices {
+  margin-top: 1rem;
+}
+
+.translator-report + .translator-notices,
+.translator-report-error + .translator-notices {
+  margin-top: 0;
+}
+
+.translator-notice {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
+/* 처리방침 링크는 한 덩어리로 줄을 넘긴다 — 「개인/정보처리방침」으로 갈리지 않게(시안 `.v13-notice a`) */
+.translator-notice .text-link {
+  display: inline-block;
+}
+
+.translator-notice__icon {
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+/* ── 하루 한도 (s-04-limit) ── */
+
+.translator-limit__title {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: var(--weight-normal);
+  line-height: 1.4;
+}
+
+.translator-limit__body {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-body-sm);
+  line-height: 1.6;
+  word-break: keep-all;
+}

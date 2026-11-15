@@ -1,5 +1,5 @@
 /**
- * 사투리 번역기 Google Gemini 전송 동의 시트 (KAN-304). 미동의 상태의 첫 [바꾸기]에서 T-1 위를 덮는다.
+ * 사투리 번역기 Google Gemini 전송 동의 시트 (KAN-304). 미동의 상태의 첫 번역(↓)에서 T-1 위를 덮는다.
  * 문안 정본은 `translatorConsentText.ts`, 동의 저장은 `translatorConsentStore.ts`다.
  *
  * 구조·접근성은 광고 동의 시트(`ads/AdConsentSheet.tsx`)를 그대로 따른다. `role="dialog"` +
@@ -27,6 +27,7 @@
 
 import { PrivacyPolicyLink } from '../legal/PrivacyPolicyLink'
 import { BottomSheet, Button } from '../ui'
+import { SendIcon } from '../ui/icons'
 import {
   TRANSLATOR_CONSENT_AGREE,
   TRANSLATOR_CONSENT_CANCEL,
@@ -66,6 +67,7 @@ export function TranslatorConsentSheet({ onAgree, onCancel }: TranslatorConsentS
       </div>
       <div className="ad-consent-actions">
         <Button autoFocus onClick={onAgree}>
+          <SendIcon />
           {TRANSLATOR_CONSENT_AGREE}
         </Button>
         <Button variant="secondary" onClick={onCancel}>

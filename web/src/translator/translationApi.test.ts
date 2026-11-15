@@ -26,7 +26,7 @@ async function caught(promise: Promise<unknown>): Promise<WordLearningError> {
 describe('translate — POST /v0/translations (KAN-256)', () => {
   it('200이면 dialect를 준다. 본문 {text, direction}, Bearer·JSON 헤더', async () => {
     const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, { dialect: '밥 뭇나' }))
-    await expect(translate(API, '밥 먹었어?', 'toDialect', deps(fetchImpl))).resolves.toBe('밥 뭇나')
+    await expect(translate(API, '밥 먹었어?', 'toDialect', deps(fetchImpl))).resolves.toEqual({ result: '밥 뭇나', remaining: null })
     expect(fetchImpl).toHaveBeenCalledWith('http://localhost:8080/v0/translations', {
       method: 'POST',
       headers: { Accept: 'application/json', Authorization: 'Bearer acc-1', 'Content-Type': 'application/json' },
@@ -39,6 +39,7 @@ describe('translate — POST /v0/translations (KAN-256)', () => {
     [422, 'TRANSLATION_TOO_LONG', false],
     [422, 'TRANSLATION_REJECTED', false],
     [503, 'TRANSLATION_UNAVAILABLE', true],
+    [429, 'TRANSLATION_DAILY_LIMIT_EXCEEDED', false],
   ])('%i %s → 같은 code·retryable %s', async (status, code, retryable) => {
     const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(status, envelope(code, '서버 문구', retryable)))
     const error = await caught(translate(API, '안녕', 'toDialect', deps(fetchImpl)))
@@ -56,7 +57,7 @@ describe('translate — POST /v0/translations (KAN-256)', () => {
       token = 'new'
       return true
     })
-    await expect(translate(API, '안녕하세요', 'toDialect', deps(fetchImpl, { getToken: () => token, refreshToken }))).resolves.toBe('안녕하이소')
+    await expect(translate(API, '안녕하세요', 'toDialect', deps(fetchImpl, { getToken: () => token, refreshToken }))).resolves.toEqual({ result: '안녕하이소', remaining: null })
     expect(refreshToken).toHaveBeenCalledTimes(1)
     expect(fetchImpl).toHaveBeenCalledTimes(2)
     expect((fetchImpl.mock.calls[1][1]?.headers as Record<string, string>).Authorization).toBe('Bearer new')
@@ -94,16 +95,26 @@ describe('translate — POST /v0/translations (KAN-256)', () => {
 })
 
 describe('translate — 방향 (KAN-317, 서버 KAN-316)', () => {
-  it('toDialect는 KAN-316 응답 {direction, dialect, remaining}에서 dialect만 쓴다', async () => {
+  it('toDialect는 KAN-316 응답 {direction, dialect, remaining}에서 dialect와 remaining을 쓴다', async () => {
     const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, { direction: 'toDialect', dialect: 'x', remaining: 4 }))
-    await expect(translate(API, '안녕', 'toDialect', deps(fetchImpl))).resolves.toBe('x')
+    await expect(translate(API, '안녕', 'toDialect', deps(fetchImpl))).resolves.toEqual({ result: 'x', remaining: 4 })
+  })
+
+  it.each([[-1], [1.5], ['4'], [null]])('remaining이 0 이상 정수가 아니면(%j) null — 화면이 남은 횟수를 숨긴다', async (remaining) => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, { direction: 'toDialect', dialect: 'x', remaining }))
+    await expect(translate(API, '안녕', 'toDialect', deps(fetchImpl))).resolves.toEqual({ result: 'x', remaining: null })
+  })
+
+  it('remaining 0은 그대로 0이다 (화면이 한도 카드로 바꾸는 신호)', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, { direction: 'toDialect', dialect: 'x', remaining: 0 }))
+    await expect(translate(API, '안녕', 'toDialect', deps(fetchImpl))).resolves.toEqual({ result: 'x', remaining: 0 })
   })
 
   it('toStandard는 본문 direction toStandard, 200 standard를 준다', async () => {
     const fetchImpl = vi.fn<FetchLike>(async () =>
       jsonResponse(200, { direction: 'toStandard', standard: '밥 먹었니?', remaining: 3 }),
     )
-    await expect(translate(API, '밥 뭇나?', 'toStandard', deps(fetchImpl))).resolves.toBe('밥 먹었니?')
+    await expect(translate(API, '밥 뭇나?', 'toStandard', deps(fetchImpl))).resolves.toEqual({ result: '밥 먹었니?', remaining: 3 })
     expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ text: '밥 뭇나?', direction: 'toStandard' }))
   })
 
