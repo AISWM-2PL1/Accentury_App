@@ -7,10 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -91,7 +88,26 @@ fun RegionSelectScreen(
     busy: Boolean = false,
     error: AuthFailure? = null,
 ) {
-    PaperScreen(modifier = modifier) {
+    // [다음]과 안내 줄은 바닥 고정(PaperFooter) — 하단 주 버튼은 모든 네이티브 화면에서 같은 자리다(KAN-354 리뷰 P1-1).
+    PaperScreen(
+        modifier = modifier,
+        footer = {
+            AccenturyButton(
+                text = "다음",
+                onClick = onNext,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = selected != null && !busy,
+                trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
+            )
+            Text(
+                "이 정보는 억양 분석 모델을 다듬는 데만 써요",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+    ) {
         PaperTitle("어느 지역 말씨가 몸에 배어 있나요?")
         Text(
             "본인이 쓴다고 생각하는 억양의 지역을 골라 주세요",
@@ -127,27 +143,6 @@ fun RegionSelectScreen(
         )
 
         if (error != null) AuthFailureBlock(error, verb = "저장", modifier = Modifier.padding(top = Spacing.x4))
-
-        Spacer(Modifier.weight(1f))
-        Column(
-            modifier = Modifier.padding(top = Spacing.x6),
-            verticalArrangement = Arrangement.spacedBy(Spacing.x4),
-        ) {
-            AccenturyButton(
-                text = "다음",
-                onClick = onNext,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = selected != null && !busy,
-                trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
-            )
-            Text(
-                "이 정보는 억양 분석 모델을 다듬는 데만 써요",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
     }
 }
 
