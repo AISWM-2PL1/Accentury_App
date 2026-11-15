@@ -81,8 +81,8 @@ private struct PreparingScreen: View {
     }
 }
 
-/// 실패 화면. 웹 로드 실패 화면과 같은 ``StatusBlock`` 구성이다 — 비난 없는 문구 + 지금 할 수
-/// 있는 동작 하나. 문구는 안드로이드 `FailureScreen`을 그대로 옮겼다.
+/// 실패 화면. 예외 화면 서식(``ExceptionScreen``, KAN-355 시안 s-15-session-gate)이다 — 비난 없는 문구 + 지금 할 수
+/// 있는 동작. 문구는 안드로이드 `FailureScreen`을 그대로 옮겼다.
 private struct FailureScreen: View {
 
     let reason: SessionFailureReason
@@ -98,36 +98,40 @@ private struct FailureScreen: View {
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(spacing: Papercut.space3) {
-            StatusBlock(tone: .error, message: message, detail: detail) {
-                VStack(spacing: Papercut.space2) {
-                    /*
-                     * 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15, 안드로이드 8ccde12): 주 버튼 [업데이트하기]가 App Store를
-                     * 열고, 예전 [처음으로] 동작은 [나중에]로 남는다 — 지금 업데이트하지 않는 사람도 인트로로 돌아갈 길이 있어야
-                     * 갇히지 않는다. 상품 페이지가 아직 없는 빌드(`APP_STORE_ID` 빈 값)는 예전 [처음으로] 하나 그대로다.
-                     */
-                    if isUnsupported, let storeURL = AppConfig.appStoreURL {
-                        AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
-                        AccenturyButton(text: "나중에", variant: .text, action: onBackToIntro)
-                    } else {
-                        if !isUnsupported {
-                            AccenturyButton(text: retryLabel, enabled: remaining <= 0, action: onRetry)
-                        }
-                        AccenturyButton(
-                            text: "처음으로",
-                            variant: isUnsupported ? .primary : .text,
-                            action: onBackToIntro
-                        )
-                    }
+        ExceptionScreen(systemImage: symbol, title: message, message: detail) {
+            /*
+             * 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15, 안드로이드 8ccde12): 주 버튼 [업데이트하기]가 App Store를
+             * 열고, 예전 [처음으로] 동작은 [나중에]로 남는다 — 지금 업데이트하지 않는 사람도 인트로로 돌아갈 길이 있어야
+             * 갇히지 않는다. 상품 페이지가 아직 없는 빌드(`APP_STORE_ID` 빈 값)는 예전 [처음으로] 하나 그대로다.
+             */
+            if isUnsupported, let storeURL = AppConfig.appStoreURL {
+                AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
+                AccenturyButton(text: "나중에", variant: .text, action: onBackToIntro)
+            } else {
+                if !isUnsupported {
+                    AccenturyButton(text: retryLabel, enabled: remaining <= 0, leadingIcon: "arrow.clockwise", action: onRetry)
                 }
+                AccenturyButton(
+                    text: "처음으로",
+                    variant: isUnsupported ? .primary : .text,
+                    action: onBackToIntro
+                )
             }
         }
-        .padding(Papercut.space4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         // 실패가 바뀔 때마다(다른 이유·다른 대기 시간) 카운트다운을 새로 잡는다.
         .onAppear { remaining = retryAfterSeconds ?? 0 }
         .onChange(of: retryAfterSeconds) { remaining = $0 ?? 0 }
         .onReceive(tick) { _ in if remaining > 0 { remaining -= 1 } }
+    }
+
+    /// 아이콘 원의 선화. 시안은 연결 실패(`offline`)만 그렸고 나머지 이유는 같은 선화 계열에서 골랐다 (KAN-355).
+    private var symbol: String {
+        switch reason {
+        case .network: return "wifi.slash"
+        case .rateLimited: return "hourglass"
+        case .server: return "exclamationmark.circle"
+        case .unsupported: return "arrow.down.app"
+        }
     }
 
     /// 서버가 재시도 불가로 못박은 거절. 같은 요청을 다시 보내도 같은 답이 오므로 버튼이
