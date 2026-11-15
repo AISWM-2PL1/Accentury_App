@@ -215,7 +215,7 @@ UserDefaults 키 이름은 광고 동의(`ad_consent.state`)와 같은 규칙이
 동의 화면의 체크 칸은 `Toggle`이 아니다. 로그인 화면 필수 동의 줄과 같은 그림(`ConsentCheckMark`, 잉크 테두리 칸에
 크림 체크)을 단 `Button`이다. iOS `Toggle`은 스위치로 그려져 "이 문장에 동의한다"는 뜻이 흐려진다. 한 앱에서
 동의 칸이 두 모양이 되는 것도 피했다. 접근성은 로그인 `ConsentRow`와 같다. 줄 전체가 한 요소로 읽히고 체크하면
-"선택됨"이 붙는다. 설정 화면의 켜고 끄기는 Android `Switch` 자리라 `Toggle`(잉크 색)을 그대로 쓴다.
+"선택됨"이 붙는다. 설정 화면의 켜고 끄기는 스위치 자리라 `Toggle`(잉크 색)을 그대로 쓴다. Android는 KAN-354부터 Material `Switch` 대신 시안 s-11-settings `.switch`를 그린 `PaperSwitch`(38×24 네모 트랙)이고, 읽기·누름은 행의 `toggleable`(`Role.Switch`)이 맡는다.
 
 ### 마이크 권한 설명 (plist)
 

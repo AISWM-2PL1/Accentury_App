@@ -5,23 +5,30 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,24 +39,33 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.accentury.app.R
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ButtonVariant
 import com.accentury.app.ui.components.ConfirmDialog
-import com.accentury.app.ui.components.PaperScreen
 import com.accentury.app.ui.components.PaperTitle
 import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPaper
 import com.accentury.app.ui.theme.LightPoint
+import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.ui.theme.accenturyColors
 import kotlinx.coroutines.launch
@@ -88,27 +104,6 @@ internal fun openAdReportMail(context: Context) {
         context.startActivity(intent)
     } catch (_: ActivityNotFoundException) {
         // 메일 앱 없음 — 위 KDoc
-    }
-}
-
-/** 「광고 신고」 행 (KAN-344-4). [AdConsentRow]와 같은 꼴이다. 회원·게스트·익명 설정 모두에 선다. */
-@Composable
-private fun AdReportRow() {
-    val context = LocalContext.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = Dimens.touchTargetMin)
-            .clickable(role = Role.Button) { openAdReportMail(context) },
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text("광고 신고", style = MaterialTheme.typography.bodyLarge)
-        // 받는 주소를 캡션에 보인다 — 메일 앱이 없는 기기는 탭해도 반응이 없어 신고할 곳을 알 길이 없다(iOS `AdReportRow`와 같다, PR #70 리뷰).
-        Text(
-            "부적절한 광고를 ${SUPPORT_EMAIL}로 알려 주세요",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -152,7 +147,8 @@ fun SettingsGearButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
  * 설정 화면 (KAN-247). 계정 정보, 회원 탈퇴(KAN-251), 음성 저장 동의(KAN-270), 로그아웃.
  *
  * TestFlow를 컴포지션에서 내리지 않고 **그 위를 덮는다** — WebView는 인트로부터 테스트 끝까지 한 인스턴스로
- * 살아야 하므로(TestFlow KDoc) 닫으면 보던 웹 화면 그대로다. 시스템 뒤로 가기도 닫기와 같다.
+ * 살아야 하므로(TestFlow KDoc) 닫으면 보던 웹 화면 그대로다. 시스템 뒤로 가기도 닫기와 같다. 열고 닫기는 전환 없이
+ * 바로 바뀐다 — 티켓의 300ms 이하를 채우고, 움직임 줄이기에서도 같은 결과다 (KAN-354).
  *
  * 계정 값은 게이트가 이미 든 [AuthGateState.SignedIn.user]를 쓴다 — 로그인·시작 확인 때 서버가 준 값이라
  * `/v0/users/me`를 또 부를 이유가 없다.
@@ -194,54 +190,49 @@ fun SettingsScreen(
 
     BackHandler(onBack = onClose)
 
-    // 시안 49 배치 (KAN-288 디자인 3): 앱바 오른쪽 48dp 닫기 ✕, Jua 제목, 실선으로 갈린 계정 줄, 바닥 고정 [로그아웃].
-    // 배경 크림은 아래 WebView 배경(#f3ecd9)과 같다 (RecordingOverlay와 같은 이유).
-    PaperScreen(
-        modifier = modifier,
-        onClose = onClose,
-        closeEnabled = !busy,
-        footer = {
+    // 시안 s-11-settings 「B 목록형」 (KAN-354): 왼쪽 「설정」·오른쪽 ✕ 머리, 계정·광고·개인정보 묶음. 바닥 고정 버튼은 없다.
+    SettingsFrame(onClose = onClose, closeEnabled = !busy, modifier = modifier) {
+        GroupLabel("계정", first = true)
+        // 추가 정보 화면을 지나 SignedIn이면 이름·이메일은 늘 있다. 서버 값이 비어 오는 경우만 대비한다.
+        SettingsRow(R.drawable.ic_user_24, "이름", value = user.name ?: "-")
+        RowDivider()
+        SettingsRow(R.drawable.ic_mail_24, "이메일", value = user.email ?: "-")
+        RowDivider()
+        SettingsRow(R.drawable.ic_key_24, "로그인 방식", value = providerName(user.provider))
+        // 계정 행 바로 아래 (시안 `.p5-account-actions`). 탈퇴는 KAN-251 팀 결정대로 두 번 누른다 — 여기서 한 번, 확인 창의 [탈퇴]에서 한 번 더.
+        AccountActions {
             AccenturyButton(
                 text = "로그아웃",
                 onClick = { confirming = true },
                 modifier = Modifier.fillMaxWidth(),
                 variant = ButtonVariant.Secondary,
                 enabled = !busy,
+                leading = { ButtonIcon(R.drawable.ic_logout_24) },
             )
-        },
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.x6)) {
-            PaperTitle("설정")
-
-            Column {
-                GroupLabel("계정")
-                // 추가 정보 화면을 지나 SignedIn이면 이름·이메일은 늘 있다. 서버 값이 비어 오는 경우만 대비한다.
-                AccountRow("이름", user.name ?: "-")
-                AccountRow("이메일", user.email ?: "-")
-                AccountRow("로그인 방식", providerName(user.provider))
-                // 계정 섹션 맨 아래 (KAN-251, 팀 결정: 버튼 두 번 — 여기서 한 번, 확인 창의 [탈퇴]에서 한 번 더).
-                AccenturyButton(
-                    text = "회원 탈퇴",
-                    onClick = {
-                        withdrawFailed = false
-                        confirmingWithdraw = true
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    variant = ButtonVariant.Text,
-                    enabled = !busy,
-                )
-            }
-
-            VoiceConsentSection(
-                consented = voiceConsent?.consented,
-                onChange = { onVoiceConsentChange(it) is AuthResult.Success },
-                onReload = onReloadVoiceConsent,
-                onOpenPrivacy = onOpenPrivacy,
-            ) {
-                AdConsentRow(consent = adConsent, available = adConsentEnabled, enabled = !busy && adConsentEnabled, onClick = onOpenAdConsent)
-                AdReportRow()
-            }
+            AccenturyButton(
+                text = "회원 탈퇴",
+                onClick = {
+                    withdrawFailed = false
+                    confirmingWithdraw = true
+                },
+                modifier = Modifier.fillMaxWidth(),
+                variant = ButtonVariant.Text,
+                enabled = !busy,
+                leading = { ButtonIcon(R.drawable.ic_trash_24) },
+            )
         }
+
+        GroupLabel("광고")
+        AdConsentRow(consent = adConsent, available = adConsentEnabled, enabled = !busy && adConsentEnabled, onClick = onOpenAdConsent)
+        RowDivider()
+        AdReportRow()
+
+        VoiceConsentSection(
+            consented = voiceConsent?.consented,
+            onChange = { onVoiceConsentChange(it) is AuthResult.Success },
+            onReload = onReloadVoiceConsent,
+            onOpenPrivacy = onOpenPrivacy,
+        )
     }
 
     if (confirming) {
@@ -270,8 +261,8 @@ fun SettingsScreen(
 
     /*
      * 탈퇴 확인 창 (KAN-251). 문구는 개인정보처리방침의 말("탈퇴하시면 지체 없이 파기합니다")과 맞춘다.
-     * [탈퇴]는 벽돌 외곽선 확인 버튼이다 (KAN-288 시안 HIG 수정) — 벽돌 채움이면 주 버튼과 같은 무게라 "눌러도 되는
-     * 쪽"으로 읽히고, 잉크 텍스트 버튼이면 [취소]와 구별되지 않았다. 시안 문구 「계정 삭제」 대신 현재 문구를 유지한다.
+     * [탈퇴]는 벽돌 외곽선 확인 버튼에 휴지통을 앞에 둔다 (KAN-354 확정 결정, 시안 s-11-confirm-withdraw의 채움 그림은 이 결정으로 읽는다) —
+     * 벽돌 채움이면 주 버튼과 같은 무게라 "눌러도 되는 쪽"으로 읽힌다. 시안 문구 「계정 삭제」 대신 현재 문구를 유지한다.
      */
     if (confirmingWithdraw) {
         ConfirmDialog(
@@ -292,6 +283,7 @@ fun SettingsScreen(
                 }
             },
             busy = withdrawing,
+            confirmLeading = { ButtonIcon(R.drawable.ic_trash_24) },
         ) {
             Text(
                 "계정 정보(이메일·이름 등)는 탈퇴하면 지체 없이 파기해요\n" +
@@ -306,146 +298,16 @@ fun SettingsScreen(
     }
 }
 
-/** 설정 묶음 이름 (시안 `.group-label`) */
-@Composable
-private fun GroupLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        modifier = Modifier.padding(bottom = Spacing.x2).semantics { heading() },
-    )
-}
-
 /**
- * 「개인정보」 섹션 — 음성 저장 선택 동의의 유일한 켜고 끄는 자리 (KAN-270, 팀 결정 2026-10-06: 건너뛴 사용자에게
- * 동의 화면을 다시 띄우지 않는다).
- *
- * 스위치는 서버 값([VoiceConsent.consented])을 따른다. 누르는 동안만 새 값을 먼저 보여 주고, 실패하면 그 값을 버려
- * 원래 자리로 돌아간 뒤 한 줄 안내를 남긴다. 서버가 받은 값이 아니면 켜진 것처럼 보이면 안 된다.
- *
- * 익명 모드(KAN-270 5단계, [AnonymousSettingsScreen])도 이 섹션을 쓴다 — 값은 기기 로컬이고 바꾸기는 늘 성공한다.
- *
- * @param consented 지금 값. null이면(계정 모드에서 상태를 못 받음) 스위치 대신 [다시 시도]
- * @param onChange 새 값을 남긴다. true면 성공
- * @param caption 스위치 아래 안내. 익명 모드는 [VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS]
- * @param extra 안내 아래·방침 링크 위에 같은 절로 붙는 행 (KAN-315 로그인 빌드의 「맞춤형 광고 설정」)
- */
-@Composable
-private fun VoiceConsentSection(
-    consented: Boolean?,
-    onChange: suspend (Boolean) -> Boolean,
-    onReload: suspend () -> Unit,
-    onOpenPrivacy: () -> Unit,
-    caption: String = VOICE_CONSENT_SETTING_CAPTION,
-    extra: @Composable () -> Unit = {},
-) {
-    val scope = rememberCoroutineScope()
-    var pending by remember { mutableStateOf<Boolean?>(null) }
-    var failed by remember { mutableStateOf(false) }
-    var reloading by remember { mutableStateOf(false) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.x3)) {
-        GroupLabel("개인정보")
-        if (consented == null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(VOICE_CONSENT_SETTING_LABEL, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Text("상태를 불러오지 못했어요", style = MaterialTheme.typography.bodyMedium)
-            }
-            AccenturyButton(
-                text = "다시 시도",
-                onClick = {
-                    scope.launch {
-                        reloading = true
-                        try {
-                            onReload()
-                        } finally {
-                            reloading = false
-                        }
-                    }
-                },
-                variant = ButtonVariant.Text,
-                enabled = !reloading,
-            )
-        } else {
-            val checked = pending ?: consented
-            // 줄 전체가 스위치 하나로 읽히고 눌린다(48dp 터치) — LoginScreen 동의 줄과 같은 구성.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = Dimens.touchTargetMin)
-                    .toggleable(value = checked, role = Role.Switch, enabled = pending == null) { next ->
-                        // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(리뷰 P2-1, iOS는 동기라 해당 없음).
-                        pending = next
-                        failed = false
-                        scope.launch {
-                            try {
-                                failed = !onChange(next)
-                            } finally {
-                                pending = null
-                            }
-                        }
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(VOICE_CONSENT_SETTING_LABEL, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                // 시안 `.switch`: 켜짐은 벽돌 트랙·크림 손잡이, 꺼짐은 크림 트랙·잉크 테두리·잉크 손잡이
-                Switch(
-                    checked = checked,
-                    onCheckedChange = null,
-                    enabled = pending == null,
-                    colors = SwitchDefaults.colors(
-                        checkedTrackColor = LightPoint,
-                        checkedThumbColor = MaterialTheme.colorScheme.background,
-                        checkedBorderColor = LightPoint,
-                        uncheckedTrackColor = MaterialTheme.colorScheme.background,
-                        uncheckedThumbColor = MaterialTheme.colorScheme.onBackground,
-                        uncheckedBorderColor = MaterialTheme.colorScheme.onBackground,
-                    ),
-                )
-            }
-            if (failed) StatusBlock(tone = StatusTone.Error, message = "바꾸지 못했어요 · 잠시 후 다시 시도해 주세요")
-        }
-        Text(
-            caption,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        extra()
-        AccenturyButton(text = "개인정보처리방침", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
-    }
-}
-
-/**
- * 「맞춤형 광고 설정」 행 (KAN-315, 팀 결정 2026-11-03). 광고 동의 시트를 다시 여는 유일한 네이티브 경로다.
- * 글자는 [VoiceConsentSection]의 라벨(bodyLarge)·캡션(bodyMedium, 보조색)을 따르고, 줄 전체가 48dp 버튼 하나로 눌린다.
- */
-@Composable
-private fun AdConsentRow(consent: AdConsent, available: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = Dimens.touchTargetMin)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text("맞춤형 광고 설정", style = MaterialTheme.typography.bodyLarge)
-        Text(
-            adConsentSettingValue(consent, available),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/**
- * 로그인을 끈 빌드(익명 모드)의 설정 화면 (KAN-270 5단계). 톱니는 그대로 두고 「개인정보」만 남긴다 — 계정 섹션·
+ * 로그인을 끈 빌드(익명 모드)의 설정 화면 (KAN-270 5단계). 톱니는 그대로 두고 「광고 신고」와 「개인정보」만 남긴다 — 계정 섹션·
  * 로그아웃·계정 동의 토글은 없다. 스위치는 [AnonymousVoiceConsentStore]를 바꾸고 다음 세션 생성부터 반영된다.
- * 덮는 방식·뒤로 가기는 [SettingsScreen]과 같다.
+ * 덮는 방식·뒤로 가기·목록형 서식(KAN-354)은 [SettingsScreen]과 같다.
  *
  * 게스트 계정(KAN-330)도 이 화면이다 — 게스트의 레벨 테스트는 서버가 익명 세션으로 받아(§3.21) 음성 동의가 같은 기기 로컬
- * 값이고, 계정 섹션·회원 탈퇴는 지울 개인 정보가 없어 두지 않는다. 대신 바닥에 [onLogin]의 「로그인」을 둔다.
+ * 값이고, 계정 행·회원 탈퇴는 지울 개인 정보가 없어 두지 않는다. 대신 「계정」 묶음에 [onLogin]의 「로그인」을 둔다 —
+ * 회원 설정의 [로그아웃] 자리다(KAN-354, 바닥 고정 버튼 없음).
  *
- * @param onLogin 게스트만 — 게스트 토큰을 버리고 로그인 화면으로 ([AuthGateController.requestLogin]). null이면 버튼이 없다
+ * @param onLogin 게스트만 — 게스트 토큰을 버리고 로그인 화면으로 ([AuthGateController.requestLogin]). null이면 「계정」 묶음이 없다
  * @param adConsent 게스트만 — 「맞춤형 광고 설정」 행의 값 (KAN-330 5단계, iOS 게스트 설정과 맞춤). null이면 행이 없다.
  *   [adConsentEnabled]·[onOpenAdConsent]는 [SettingsScreen]과 같다
  */
@@ -462,49 +324,358 @@ fun AnonymousSettingsScreen(
     onOpenAdConsent: () -> Unit = {},
 ) {
     BackHandler(onBack = onClose)
-    PaperScreen(
-        modifier = modifier,
-        onClose = onClose,
-        footer = onLogin?.let { login ->
-            {
-                AccenturyButton(text = "로그인", onClick = login, modifier = Modifier.fillMaxWidth())
+    SettingsFrame(onClose = onClose, modifier = modifier) {
+        if (onLogin != null) {
+            GroupLabel("계정", first = true)
+            AccountActions {
+                AccenturyButton(text = "로그인", onClick = onLogin, modifier = Modifier.fillMaxWidth())
             }
-        },
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.x6)) {
-            PaperTitle("설정")
-            // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다.
-            VoiceConsentSection(
-                consented = consented,
-                onChange = { onChange(it); true },
-                onReload = {},
-                onOpenPrivacy = onOpenPrivacy,
-                caption = VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS,
-                extra = {
-                    adConsent?.let { AdConsentRow(consent = it, available = adConsentEnabled, enabled = adConsentEnabled, onClick = onOpenAdConsent) }
-                    AdReportRow()
-                },
+        }
+        GroupLabel("광고", first = onLogin == null)
+        adConsent?.let {
+            AdConsentRow(consent = it, available = adConsentEnabled, enabled = adConsentEnabled, onClick = onOpenAdConsent)
+            RowDivider()
+        }
+        AdReportRow()
+        // consented가 늘 있어 [다시 시도] 갈래는 닿지 않는다 — onReload는 빈 함수다.
+        VoiceConsentSection(
+            consented = consented,
+            onChange = { onChange(it); true },
+            onReload = {},
+            onOpenPrivacy = onOpenPrivacy,
+            caption = VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS,
+        )
+    }
+}
+
+/**
+ * 설정 화면 틀 (KAN-354, 시안 s-11-settings `.app-bar`·`.p5-list`). 머리는 왼쪽 「설정」 제목(Jua 26)·오른쪽 48 ✕이고
+ * 스크롤하지 않는다. 목록은 좌우 24 안에서 스크롤한다. 워드마크 앱바·바닥 고정 버튼 자리가 없어 [PaperScreen]을 쓰지 않는다.
+ * 배경 크림은 아래 WebView 배경(#f3ecd9)과 같다 (RecordingOverlay와 같은 이유).
+ */
+@Composable
+private fun SettingsFrame(
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    closeEnabled: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize()) {
+            // ✕ 상자의 오른쪽 여백은 [PaperAppBar]와 같은 12 — 글리프가 본문 오른쪽 선(24)에 맞는다.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.x6, end = Spacing.x3, top = Spacing.x2)
+                    .height(APP_BAR_HEIGHT),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PaperTitle("설정", modifier = Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .size(Dimens.touchTargetMin)
+                        .clickable(enabled = closeEnabled, role = Role.Button, onClick = onClose),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.outline_close_24),
+                        contentDescription = "설정 닫기",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = Spacing.x6, end = Spacing.x6, top = Spacing.x1, bottom = Spacing.x6),
+                content = content,
             )
         }
     }
 }
 
-/** 계정 한 줄 — 아래 그림자색 실선 (시안 `.account-row`) */
+/** 시안 `.app-bar` 높이 56 */
+private val APP_BAR_HEIGHT = 56.dp
+
+/** 시안 `.row` 높이 56 — 터치 최소 48보다 크다 */
+private val ROW_MIN_HEIGHT = 56.dp
+
+/** 시안 `.row`·`.value` 글자 13 */
+private val ROW_TEXT = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 20.sp)
+
+/** 시안 `.section-label`·`.caption` 글자 12/18 */
+private val SMALL_TEXT = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 18.sp)
+
+/** 설정 묶음 이름 (시안 `.section-label`: 12 흐린 잉크, 위 6·아래 2, 첫 묶음은 위 여백 없음) */
 @Composable
-private fun AccountRow(label: String, value: String) {
-    Column {
-        Row(
-            modifier = Modifier.padding(vertical = Spacing.x3),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.x4),
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(0.35f),
-            )
-            Text(value, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(0.65f))
+private fun GroupLabel(text: String, first: Boolean = false) {
+    Text(
+        text,
+        style = SMALL_TEXT,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(top = if (first) 0.dp else Spacing.x2, bottom = Spacing.x1)
+            .semantics { heading() },
+    )
+}
+
+/** 행 사이 그림자색 1 실선 (시안 `.row + .row`) */
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.accenturyColors.primaryDim)
+}
+
+/** 행 앞 선화 20 (시안 `.icon`). 이름은 행 글자가 읽으므로 그림은 읽지 않는다 */
+@Composable
+private fun RowIcon(@DrawableRes icon: Int, size: Dp = ICON_SIZE) {
+    Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(size))
+}
+
+/** 버튼 라벨 앞 아이콘 20 (1단계 계약) */
+@Composable
+private fun ButtonIcon(@DrawableRes icon: Int) {
+    Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(ICON_SIZE))
+}
+
+private val ICON_SIZE = 20.dp
+
+/**
+ * 목록 한 행 (시안 `.row`): 앞 선화, 라벨, 오른쪽 흐린 값, [onClick]이 있으면 오른쪽 꺾쇠와 행 전체 누름.
+ * 높이 56 이상이라 글자를 키우면 행이 따라 자란다. [caption]은 라벨 아래 흐린 줄이다(「광고 신고」의 받는 주소).
+ */
+@Composable
+private fun SettingsRow(
+    @DrawableRes icon: Int,
+    label: String,
+    value: String? = null,
+    caption: String? = null,
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = ROW_MIN_HEIGHT)
+            .then(if (onClick != null) Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick) else Modifier)
+            .padding(vertical = Spacing.x2),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ROW_GAP),
+    ) {
+        RowIcon(icon)
+        Column(Modifier.weight(if (value == null) 1f else 0.45f)) {
+            Text(label, style = ROW_TEXT)
+            if (caption != null) Text(caption, style = SMALL_TEXT, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.accenturyColors.primaryDim)
+        if (value != null) {
+            Text(
+                value,
+                style = ROW_TEXT,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(0.55f),
+            )
+        }
+        if (onClick != null) RowIcon(R.drawable.ic_chevron_24, size = CHEVRON_SIZE)
     }
 }
+
+/** 시안 `.row` 간격 10 */
+private val ROW_GAP = 10.dp
+
+/** 시안 `.chevron` 14 */
+private val CHEVRON_SIZE = 14.dp
+
+/** 계정 행 아래 버튼 자리 (시안 `.p5-account-actions`: 위 8, 버튼 사이 4, 버튼은 폭 전체) */
+@Composable
+private fun AccountActions(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = Spacing.x2, bottom = Spacing.x2),
+        verticalArrangement = Arrangement.spacedBy(Spacing.x1),
+        content = content,
+    )
+}
+
+/**
+ * 「광고 신고」 행 (KAN-344-4). 「맞춤형 광고 설정」 바로 아래 같은 목록 행이다. 회원·게스트·익명 설정 모두에 선다.
+ * 받는 주소를 캡션에 보인다 — 메일 앱이 없는 기기는 탭해도 반응이 없어 신고할 곳을 알 길이 없다(iOS `AdReportRow`와 같다, PR #70 리뷰).
+ */
+@Composable
+private fun AdReportRow() {
+    val context = LocalContext.current
+    SettingsRow(
+        icon = R.drawable.ic_flag_24,
+        label = "광고 신고",
+        caption = "부적절한 광고를 ${SUPPORT_EMAIL}로 알려 주세요",
+        onClick = { openAdReportMail(context) },
+    )
+}
+
+/**
+ * 「맞춤형 광고 설정」 행 (KAN-315, 팀 결정 2026-11-03). 광고 동의 시트를 다시 여는 유일한 네이티브 경로다.
+ * 값은 오른쪽 흐린 글자, 그 뒤 꺾쇠다 (시안 `.row.ad`). 줄 전체가 버튼 하나로 눌린다.
+ */
+@Composable
+private fun AdConsentRow(consent: AdConsent, available: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    SettingsRow(
+        icon = R.drawable.ic_megaphone_24,
+        label = "맞춤형 광고 설정",
+        value = adConsentSettingValue(consent, available),
+        onClick = onClick,
+        enabled = enabled,
+    )
+}
+
+/**
+ * 「개인정보」 묶음 — 음성 저장 선택 동의의 유일한 켜고 끄는 자리 (KAN-270, 팀 결정 2026-10-06: 건너뛴 사용자에게
+ * 동의 화면을 다시 띄우지 않는다). 스위치 행, 안내, 「개인정보처리방침」 행 순서다 (시안 `.voice`·`.caption`·`.policy`).
+ *
+ * 스위치는 서버 값([VoiceConsent.consented])을 따른다. 누르는 동안만 새 값을 먼저 보여 주고, 실패하면 그 값을 버려
+ * 원래 자리로 돌아간 뒤 한 줄 안내를 남긴다. 서버가 받은 값이 아니면 켜진 것처럼 보이면 안 된다.
+ *
+ * 익명 모드(KAN-270 5단계, [AnonymousSettingsScreen])도 이 묶음을 쓴다 — 값은 기기 로컬이고 바꾸기는 늘 성공한다.
+ *
+ * @param consented 지금 값. null이면(계정 모드에서 상태를 못 받음) 스위치 대신 [다시 시도]
+ * @param onChange 새 값을 남긴다. true면 성공
+ * @param caption 스위치 아래 안내. 익명 모드는 [VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS]
+ */
+@Composable
+private fun VoiceConsentSection(
+    consented: Boolean?,
+    onChange: suspend (Boolean) -> Boolean,
+    onReload: suspend () -> Unit,
+    onOpenPrivacy: () -> Unit,
+    caption: String = VOICE_CONSENT_SETTING_CAPTION,
+) {
+    val scope = rememberCoroutineScope()
+    var pending by remember { mutableStateOf<Boolean?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    var reloading by remember { mutableStateOf(false) }
+
+    GroupLabel("개인정보")
+    if (consented == null) {
+        Row(
+            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = ROW_MIN_HEIGHT),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(ROW_GAP),
+        ) {
+            RowIcon(R.drawable.ic_mic_24)
+            Text(VOICE_CONSENT_SETTING_LABEL, style = ROW_TEXT, modifier = Modifier.weight(1f))
+            Text("상태를 불러오지 못했어요", style = ROW_TEXT, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        AccenturyButton(
+            text = "다시 시도",
+            onClick = {
+                scope.launch {
+                    reloading = true
+                    try {
+                        onReload()
+                    } finally {
+                        reloading = false
+                    }
+                }
+            },
+            variant = ButtonVariant.Text,
+            enabled = !reloading,
+        )
+    } else {
+        val checked = pending ?: consented
+        // 줄 전체가 스위치 하나로 읽히고 눌린다(toggleable + Role.Switch가 켜짐·꺼짐을 말로 읽는다) — LoginScreen 동의 줄과 같은 구성.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = ROW_MIN_HEIGHT)
+                .toggleable(value = checked, role = Role.Switch, enabled = pending == null) { next ->
+                    // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다(리뷰 P2-1, iOS는 동기라 해당 없음).
+                    pending = next
+                    failed = false
+                    scope.launch {
+                        try {
+                            failed = !onChange(next)
+                        } finally {
+                            pending = null
+                        }
+                    }
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(ROW_GAP),
+        ) {
+            RowIcon(R.drawable.ic_mic_24)
+            Text(VOICE_CONSENT_SETTING_LABEL, style = ROW_TEXT, modifier = Modifier.weight(1f))
+            PaperSwitch(checked = checked, enabled = pending == null)
+        }
+        if (failed) StatusBlock(tone = StatusTone.Error, message = "바꾸지 못했어요 · 잠시 후 다시 시도해 주세요")
+    }
+    Text(
+        caption,
+        style = SMALL_TEXT,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = Spacing.x2),
+    )
+    RowDivider()
+    // 시안 `.policy`: 방패 선화, 밑줄 글자, 오른쪽 외부 링크 16
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = ROW_MIN_HEIGHT)
+            .clickable(role = Role.Button, onClick = onOpenPrivacy),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ROW_GAP),
+    ) {
+        RowIcon(R.drawable.ic_shield_24)
+        Text(
+            "개인정보처리방침",
+            style = ROW_TEXT.copy(textDecoration = TextDecoration.Underline),
+            modifier = Modifier.weight(1f),
+        )
+        RowIcon(R.drawable.ic_external_24, size = EXTERNAL_ICON_SIZE)
+    }
+}
+
+/** 시안 `.end` 16 */
+private val EXTERNAL_ICON_SIZE = 16.dp
+
+/**
+ * 시안 `.switch` (KAN-354): 38×24 모서리 4 트랙에 16 네모 손잡이. 꺼짐은 paper 트랙·잉크 손잡이, 켜짐은 벽돌 트랙·paper 손잡이와
+ * 왼쪽 체크. 그림만 그린다 — 누름과 읽기는 행의 toggleable이 맡는다. 진행 중(비활성)은 시안 `--opacity-disabled` 0.6이다.
+ * 손잡이는 전환 없이 자리를 바꾼다(움직임 줄이기와 같은 결과).
+ */
+@Composable
+private fun PaperSwitch(checked: Boolean, enabled: Boolean) {
+    val ink = MaterialTheme.colorScheme.onBackground
+    Box(
+        modifier = Modifier
+            .size(Dimens.touchTargetMin)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 38.dp, height = 24.dp)
+                .clip(RoundedCornerShape(Radius.sm))
+                .background(if (checked) LightPoint else LightPaper)
+                .border(1.dp, ink, RoundedCornerShape(Radius.sm)),
+        ) {
+            if (checked) {
+                Icon(
+                    painterResource(R.drawable.ic_check_24),
+                    contentDescription = null,
+                    tint = LightPaper,
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 2.dp).size(12.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
+                    .padding(horizontal = 3.dp)
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (checked) LightPaper else ink),
+            )
+        }
+    }
+}
+
+/** 시안 `--opacity-disabled` */
+private const val DISABLED_ALPHA = 0.6f

@@ -302,8 +302,9 @@ class WebConfigTest {
 
     @Test
     fun `탭 화면의 뒤로는 홈 문서다`() {
-        listOf("intonation", "words", "translate").forEach { screen ->
-            assertEquals(home, webBackTarget("$app&screen=$screen", startRequested = false))
+        // 학습 탭 learn과 옛 값 intonation·words (KAN-354 — 웹과 앱 배포 시점이 달라도 홈으로 간다)
+        listOf("learn", "intonation", "words", "translate").forEach { screen ->
+            assertEquals(screen, home, webBackTarget("$app&screen=$screen", startRequested = false))
         }
     }
 
@@ -343,6 +344,18 @@ class WebConfigTest {
     }
 
     @Test
+    fun `억양 녹음 ✕의 목적지는 현재 문서의 screen만 learn으로 바꾼 학습 탭 문서다`() {
+        assertEquals("learn", LEARN_SCREEN)
+        listOf("$app&screen=learn", "$app&screen=intonation", home).forEach { from ->
+            assertEquals(from, "$app&screen=learn", webTabUrl(from, LEARN_SCREEN))
+        }
+        assertEquals(
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=learn",
+            webTabUrl("$app&screen=intonation&adConsent=open&c=abc#x", LEARN_SCREEN),
+        )
+    }
+
+    @Test
     fun `탭 문서는 레벨테스트 값을 지우고 계측 코드는 남기며 fragment를 뗀다`() {
         assertEquals(
             "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=intonation",
@@ -364,7 +377,7 @@ class WebConfigTest {
 
     @Test
     fun `광고 동의 목적지는 홈·탭 화면·시작 전 인트로에서 홈에 플래그를 붙인다`() {
-        listOf(app, home, "$app&screen=words", "$app&screen=intonation", "$app&screen=translate").forEach { from ->
+        listOf(app, home, "$app&screen=learn", "$app&screen=words", "$app&screen=intonation", "$app&screen=translate").forEach { from ->
             assertEquals(from, "$home&adConsent=open", webAdConsentUrl(from, startRequested = false))
         }
         // 홈·탭 화면은 시작 게이트와 무관하다
@@ -433,7 +446,7 @@ class WebConfigTest {
 
     @Test
     fun `탭 화면과 결과에서는 톱니가 없다`() {
-        listOf("home", "intonation", "words", "translate", "result").forEach { screen ->
+        listOf("home", "learn", "intonation", "words", "translate", "result").forEach { screen ->
             assertFalse(screen, showsSettingsGear("$app&screen=$screen"))
         }
     }
