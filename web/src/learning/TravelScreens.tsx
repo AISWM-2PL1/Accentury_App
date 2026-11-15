@@ -63,12 +63,19 @@ export function TravelRoute({ apiBase, tabBar, deps }: TravelRouteProps) {
   const [tier, setTier] = useState<{ code: string; name: string } | null>(null)
   const visits = useRef(0)
 
-  /** 진행을 다시 받아 다음 화면을 고른다. 실패는 목록 오류 화면(s-21)이고 [다시 시도]는 지도로 다시 받는다 */
+  /*
+   * 진행을 다시 받아 다음 화면을 고른다. 실패는 목록 오류 화면(s-21)이고 [다시 시도]는 지도로 다시 받는다.
+   * 마지막으로 시작한 조회의 응답만 쓴다 — StrictMode 이중 실행처럼 조회가 겹치면 늦게 온 앞 응답이, 그 사이 [시작]으로
+   * 들어간 스탬프 화면을 지도로 되돌렸다(E2E 7 workers에서 재현)
+   */
+  const reloadSeq = useRef(0)
   const reload = (next: (travel: Travel) => TravelView) => {
+    const seq = ++reloadSeq.current
     setView({ screen: 'loading' })
     loadTravel(apiBase, deps).then(
-      (travel) => setView(next(travel)),
+      (travel) => seq === reloadSeq.current && setView(next(travel)),
       (error: unknown) =>
+        seq === reloadSeq.current &&
         setView({
           screen: 'error',
           error: error instanceof WordLearningError ? error : new WordLearningError(String(error), null, true),
