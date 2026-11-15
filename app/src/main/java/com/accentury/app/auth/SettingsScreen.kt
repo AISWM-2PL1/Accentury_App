@@ -249,6 +249,8 @@ fun SettingsScreen(
             title = "로그아웃할까요?",
             onDismiss = { if (!leaving) confirming = false },
             confirmLabel = "로그아웃",
+            // 로그아웃은 되돌릴 수 있는 확인이라 시안대로 벽돌 채움 주 버튼이다 (KAN-354, s-11-confirm-logout)
+            confirmVariant = ButtonVariant.Primary,
             onConfirm = {
                 scope.launch {
                     leaving = true

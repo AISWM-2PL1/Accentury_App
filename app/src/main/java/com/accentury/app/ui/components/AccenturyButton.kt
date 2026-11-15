@@ -7,25 +7,31 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
+import com.accentury.app.ui.theme.ButtonLabel
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.LightPointForeground
@@ -33,16 +39,16 @@ import com.accentury.app.ui.theme.Motion
 import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.ui.theme.accenturyColors
-import com.accentury.app.ui.theme.motionDuration
+import com.accentury.app.ui.theme.isReducedMotionEnabled
 
 /**
  * 버튼 무게 (KAN-148, 모양은 KAN-288 디자인 3).
  *
  * - [Primary] 주동작 (녹음 시작·다음·허용). 화면에서 유일하게 벽돌로 꽉 찬 면이고 종이 그림자가 있다
  * - [Secondary] 보조 (재녹음·재시도·취소). 크림 면에 잉크 1dp 테두리, 그림자 없음
- * - [Text] 이탈·종료. 흐린 잉크 밑줄 글자라 무게를 가장 뺀다
- * - [Destructive] 되돌릴 수 없는 확인 (로그아웃·탈퇴 확인 창). 크림 면에 벽돌 1.5dp 테두리·벽돌 글자 —
- *   벽돌 채움이면 주 버튼과 같은 무게라 "눌러도 되는 쪽"으로 읽힌다 (시안 HIG 수정 50·50b)
+ * - [Text] 이탈·종료. 흐린 잉크 글자라 무게를 가장 뺀다. 밑줄은 눌린 동안만 긋는다 (KAN-311 시안 `.btn--text:active`)
+ * - [Destructive] 되돌릴 수 없는 확인 ([그만두기]·[탈퇴]). 크림 면에 벽돌 1.5dp 테두리·벽돌 글자 —
+ *   벽돌 채움이면 주 버튼과 같은 무게라 "눌러도 되는 쪽"으로 읽힌다 (시안 HIG 수정 50·50b, 2026-11-16 두 앱 공통 결정)
  */
 enum class ButtonVariant { Primary, Secondary, Text, Destructive }
 
@@ -58,10 +64,17 @@ enum class ButtonVariant { Primary, Secondary, Text, Destructive }
  * 그림자 없음. 동의 화면의 「동의하고 계속」처럼 "아직 못 누른다"가 화면의 정보인 자리에서 흐린 벽돌은
  * 눌리는 버튼과 구별되지 않았다.
  *
- * 최소 높이는 주 버튼이 [Dimens.controlHeightLg] 50dp, 나머지가 [Dimens.touchTargetMin] 48dp다.
- * 라벨은 전부 본문 산세리프다 — Jua는 제목·대사·점수·등급 전용이다 (디자인 3 규칙).
+ * 최소 높이는 주 버튼이 [Dimens.controlHeightLg], 나머지가 [Dimens.touchTargetMin]이다 — 둘 다 48dp (KAN-354).
+ * 라벨은 Jua다 — 주·보조·위험 확인 17, 글자 버튼 16 ([ButtonLabel], 2026-11-12 결정 KAN-311·KAN-354). 디자인 3의
+ * 「버튼 라벨은 본문 산세리프」 규칙을 바꿨다. Jua는 굵기가 400 하나뿐이라 굵기를 주지 않는다(합성 볼드 방지, [Typography]).
  *
- * @param leading 라벨 왼쪽 끝에 붙는 그림 (KAN-224 IdP 로고). 라벨 위치는 바뀌지 않는다
+ * 눌림은 [Motion.PRESS] 75ms이고 주 버튼만 그림자 자리로 내려간다. 움직임 줄이기([isReducedMotionEnabled])면
+ * 내려가지 않는다 — 그림자도 그대로라 눌러도 모양이 바뀌지 않는다.
+ *
+ * @param leading 라벨 앞 그림 (시안 「다시 시도」 새로고침, KAN-224 IdP 로고). 라벨과 8dp 사이를 두고 함께 가운데에 선다
+ * @param trailing 라벨 뒤 그림 (시안 「다음 →」·「계속」 화살표). [leading]과 같은 규칙이다
+ *
+ * 그림의 색은 라벨 색을 따른다 — `Icon`은 [LocalContentColor]를 tint로 읽는다. 크기는 시안 20dp를 호출자가 준다.
  */
 @Composable
 fun AccenturyButton(
@@ -71,25 +84,32 @@ fun AccenturyButton(
     variant: ButtonVariant = ButtonVariant.Primary,
     enabled: Boolean = true,
     leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+
     if (variant == ButtonVariant.Text) {
         TextButton(
             onClick = onClick,
             enabled = enabled,
+            interactionSource = interaction,
             modifier = modifier.defaultMinSize(minHeight = Dimens.touchTargetMin),
         ) {
-            Text(
-                text,
-                style = MaterialTheme.typography.labelLarge.copy(textDecoration = TextDecoration.Underline),
+            ButtonContent(
+                text = text,
+                style = ButtonLabel.Text.copy(
+                    textDecoration = if (pressed && enabled) TextDecoration.Underline else TextDecoration.None,
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                leading = leading,
+                trailing = trailing,
             )
         }
         return
     }
 
     val colors = MaterialTheme.accenturyColors
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
 
     val isPrimary = variant == ButtonVariant.Primary
     // 주동작에만 가벼운 탭 (KAN-258 B안). 햅틱은 아껴 써야 뜻이 남아서 보조·텍스트 버튼은 떨지 않는다.
@@ -110,10 +130,11 @@ fun AccenturyButton(
 
     // 눌림은 0..1 한 값이다 - 본체가 내려가는 거리를 x·y 따로 애니메이션하면 두 축이
     // 미세하게 어긋나 종이가 비스듬히 미끄러진다.
+    val reducedMotion = isReducedMotionEnabled()
     val sink by animateFloatAsState(
-        targetValue = if (pressed && enabled && isPrimary) 1f else 0f,
+        targetValue = if (pressed && enabled && isPrimary && !reducedMotion) 1f else 0f,
         animationSpec = tween(
-            durationMillis = motionDuration(Motion.PRESS),
+            durationMillis = Motion.PRESS,
             easing = Motion.easeOut,
         ),
         label = "buttonSink",
@@ -138,18 +159,31 @@ fun AccenturyButton(
             .padding(horizontal = Spacing.x6),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = label,
-        )
-        // 앞머리 그림(로그인 IdP 로고)은 왼쪽 안쪽 여백에 붙고 라벨은 버튼 가운데 그대로다. 본체 안에 그려야 눌림을 함께 탄다.
-        if (leading != null) {
-            Box(Modifier.align(Alignment.CenterStart)) { leading() }
+        // 앞뒤 그림도 본체 안에 그려야 눌림을 함께 탄다.
+        ButtonContent(text = text, style = ButtonLabel.Regular, color = label, leading = leading, trailing = trailing)
+    }
+}
+
+/** 라벨과 앞뒤 그림 한 줄. 그림은 라벨 색을 [LocalContentColor]로 받는다 */
+@Composable
+private fun ButtonContent(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    leading: (@Composable () -> Unit)?,
+    trailing: (@Composable () -> Unit)?,
+) {
+    CompositionLocalProvider(LocalContentColor provides color) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(ICON_GAP)) {
+            leading?.invoke()
+            Text(text, style = style, color = color)
+            trailing?.invoke()
         }
     }
 }
+
+/** 시안 `.btn` gap 8px */
+private val ICON_GAP = Spacing.x2
 
 /** 라벨이 짧아도 손가락이 닿을 만큼은 넓게 잡는다 */
 private val MIN_BUTTON_WIDTH = 120.dp

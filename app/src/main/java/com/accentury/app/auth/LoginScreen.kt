@@ -348,7 +348,16 @@ fun AuthCheckScreen(failure: AuthFailure?, onRetry: () -> Unit, modifier: Modifi
                 onSecondaryClick = onRetry,
             )
         } else {
-            PaperFailureScreen(title = message, detail = detail, buttonLabel = "다시 시도", onButtonClick = onRetry, modifier = modifier)
+            PaperFailureScreen(
+                title = message,
+                detail = detail,
+                buttonLabel = "다시 시도",
+                onButtonClick = onRetry,
+                modifier = modifier,
+                // 전송 실패(Retry)는 「네트워크를 확인하고」 문구라 연결 끊김 그림이다 (KAN-354)
+                icon = if (failure.reason == AuthFailureReason.Retry) R.drawable.ic_offline_24 else R.drawable.ic_alert_24,
+                buttonIcon = R.drawable.ic_refresh_24,
+            )
         }
     }
 }

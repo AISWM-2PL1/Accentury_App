@@ -1,5 +1,6 @@
 package com.accentury.app.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,10 +33,12 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.accentury.app.R
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.LightPoint
+import com.accentury.app.ui.theme.ScreenTitle
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.ui.theme.accenturyColors
 
@@ -129,10 +132,18 @@ fun PaperFooter(modifier: Modifier = Modifier, content: @Composable ColumnScope.
     }
 }
 
-/** 화면 제목 — 왼쪽 정렬 Jua (시안 `.screen-title`) */
+/**
+ * 화면 제목 — 왼쪽 정렬 Jua (시안 `.screen-title`). 크기는 화면이 하는 일로 [ScreenTitle]에서 고른다 (KAN-354):
+ * 입력·동의·설정·확인 창은 [ScreenTitle.Form] 26(기본값), 안내·예외·대기는 [ScreenTitle.Notice] 30.
+ */
 @Composable
-fun PaperTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = MaterialTheme.typography.headlineMedium, modifier = modifier.semantics { heading() })
+fun PaperTitle(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = ScreenTitle.Form,
+    textAlign: TextAlign? = null,
+) {
+    Text(text, style = style, textAlign = textAlign, modifier = modifier.semantics { heading() })
 }
 
 /** 제목 아래 흐린 잉크 한 줄 (시안 `.lead`) */
@@ -165,15 +176,77 @@ fun PaperWaitingScreen(title: String, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(Spacing.x6),
         ) {
             PaperSpinner()
-            Text(title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+            // 대기 화면 제목은 안내·예외와 같은 Jua 30이다 (KAN-354)
+            Text(title, style = ScreenTitle.Notice, textAlign = TextAlign.Center)
         }
         Spacer(Modifier.weight(1f))
     }
 }
 
 /**
- * 실패 화면 (시안 06b·14b·15) — 「!」 표식, 제목, 부연, 바닥의 주 버튼 하나. 비난 없는 문구 + 지금 할 수 있는 동작 하나라는
- * [StatusBlock]의 규칙 그대로이고, 문구가 화면이 이미 떠 있는 동안 바뀔 수 있어 오류 통지(liveRegion)를 건다.
+ * 예외 화면 서식 (KAN-354, KAN-311 시안 s-15-session-gate·s-15-webview-failed). 앱바 아래 가운데 정렬로 아이콘 원 112,
+ * 제목 Jua 30, 설명 15 흐린 잉크, 내용 너비 버튼이 차례로 선다. 원 윗선은 화면 위에서 200(앱바 56 + 144)이다.
+ * 세션 확인 실패·웹뷰 연결 실패·앱 업데이트 안내·로그인 확인 실패([PaperFailureScreen])와 마이크 권한 화면이 같이 쓴다.
+ *
+ * 문구가 화면이 이미 떠 있는 동안 바뀔 수 있어 제목·설명에 오류 통지(liveRegion)를 건다.
+ *
+ * @param icon 원 안 선화. [Dimens.heroIconGlyph] 56으로 그린다. 색은 잉크([LocalContentColor])
+ * @param body 설명 아래 덧붙는 본문 (마이크 권한 화면의 안심 목록). 가운데 정렬 열 안에 선다
+ * @param actions 설명(또는 [body]) 아래 내용 너비 버튼들. 주 버튼 아래 글자 버튼 순서다
+ * @param footer 바닥에 고정되는 버튼 자리([PaperFooter]). 있으면 [actions] 대신 이쪽에 주 버튼을 둔다
+ */
+@Composable
+fun PaperExceptionScreen(
+    icon: @Composable () -> Unit,
+    title: String,
+    detail: String?,
+    modifier: Modifier = Modifier,
+    body: (@Composable ColumnScope.() -> Unit)? = null,
+    footer: (@Composable ColumnScope.() -> Unit)? = null,
+    actions: @Composable ColumnScope.() -> Unit = {},
+) {
+    PaperScreen(modifier = modifier, footer = footer) {
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // PaperScreen 본문 위 여백 16 + 이 값 = 시안 144
+            Spacer(Modifier.height(EXCEPTION_ICON_TOP))
+            HeroIcon(content = icon)
+            Column(
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(Spacing.x6))
+                PaperTitle(title, style = ScreenTitle.Notice, textAlign = TextAlign.Center)
+                if (detail != null) {
+                    Spacer(Modifier.height(Spacing.x2))
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            body?.invoke(this)
+            Spacer(Modifier.height(Spacing.x8))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.x2),
+                content = actions,
+            )
+        }
+    }
+}
+
+/** 시안 원 윗선 y=200 − 앱바 56 − [PaperScreen] 본문 위 여백 16 */
+private val EXCEPTION_ICON_TOP = 128.dp
+
+/**
+ * 실패 화면 — [PaperExceptionScreen]에 주 버튼 하나와 선택적 글자 버튼을 얹은 것. 비난 없는 문구 + 지금 할 수 있는 동작
+ * 하나라는 [StatusBlock]의 규칙 그대로다.
+ *
+ * @param icon 원 안 선화. 연결 실패면 [R.drawable.ic_offline_24], 그 밖은 느낌표(기본값)
+ * @param buttonIcon 주 버튼 라벨 앞 그림 ([다시 시도]면 [R.drawable.ic_refresh_24])
+ * @param secondaryLabel 주 버튼 아래 글자 버튼 (세션 확인 실패 [처음으로], 업데이트 안내 [나중에]). null이면 버튼 하나다
  */
 @Composable
 fun PaperFailureScreen(
@@ -182,33 +255,27 @@ fun PaperFailureScreen(
     buttonLabel: String,
     onButtonClick: () -> Unit,
     modifier: Modifier = Modifier,
-    // 주 버튼 아래 텍스트 버튼 (시안 15 「나중에」, HIG 수정: 높이 48). null이면 버튼 하나다.
     secondaryLabel: String? = null,
     onSecondaryClick: () -> Unit = {},
+    @DrawableRes icon: Int = R.drawable.ic_alert_24,
+    @DrawableRes buttonIcon: Int? = null,
 ) {
-    PaperScreen(
+    PaperExceptionScreen(
+        icon = { Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(Dimens.heroIconGlyph)) },
+        title = title,
+        detail = detail,
         modifier = modifier,
-        footer = {
-            AccenturyButton(text = buttonLabel, onClick = onButtonClick, modifier = Modifier.fillMaxWidth())
-            if (secondaryLabel != null) {
-                AccenturyButton(
-                    text = secondaryLabel,
-                    onClick = onSecondaryClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    variant = ButtonVariant.Text,
-                )
-            }
-        },
     ) {
-        Spacer(Modifier.height(Spacing.x6))
-        HeroIcon { Text("!", style = MaterialTheme.typography.titleMedium) }
-        Spacer(Modifier.height(Spacing.x6))
-        Column(
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
-            verticalArrangement = Arrangement.spacedBy(Spacing.x3),
-        ) {
-            PaperTitle(title)
-            if (detail != null) PaperLead(detail)
+        AccenturyButton(
+            text = buttonLabel,
+            onClick = onButtonClick,
+            leading = buttonIcon?.let { res -> { Icon(painterResource(res), contentDescription = null, modifier = Modifier.size(BUTTON_ICON_SIZE)) } },
+        )
+        if (secondaryLabel != null) {
+            AccenturyButton(text = secondaryLabel, onClick = onSecondaryClick, variant = ButtonVariant.Text)
         }
     }
 }
+
+/** 시안 `.btn` 안 아이콘 20 */
+private val BUTTON_ICON_SIZE = 20.dp
