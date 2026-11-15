@@ -29,7 +29,7 @@ import {
   type TravelCourse,
   type TravelStamp,
 } from './travel'
-import { COURSE_REGION_BOXES, COURSE_REGIONS, GYEONGNAM_OUTLINE } from './travelMapPaths'
+import { COURSE_NODES, COURSE_REGION_BOXES, COURSE_REGIONS, GYEONGNAM_OUTLINE } from './travelMapPaths'
 import { errorExit } from './useWordLearning'
 import { AUTH_GUEST_NOT_ALLOWED, WordLearningError, type WordApiDeps } from './wordApi'
 import { WordLearningRoute } from './WordLearningScreens'
@@ -551,29 +551,38 @@ function PassportPage({ course }: { course: number }) {
 
 // ── 코스 지도 (s-16) ─────────────────────────────────────────────────────
 
-/**
- * 스탬프 9개의 자리 — 시안 s-16 3코스 확대 지도(390×480 상자, 구역이 x 30~360·y 31~451에 놓인다)의 번호 원 좌표를 0~1로
- * 접었다. 코스마다 구역 모양이 달라 시안의 확대 그림을 그대로 쓸 수 없어, 구역을 상자에 맞춰 키운 뒤 같은 비율 자리에 둔다
- */
-const NODE_LAYOUT: readonly (readonly [number, number])[] = [
-  [132, 68], [140, 136], [80, 172], [148, 252], [184, 304], [224, 376], [276, 292], [280, 192], [196, 180],
-].map(([x, y]) => [(x - 30) / 330, (y - 31) / 420] as const)
-
-/** 확대 지도 상자: 폭 390, 구역을 330×420 안에 비율 그대로 맞추고 위아래 30을 둔다 */
-function zoomFrame(course: number) {
+/** 확대 지도 상자: 폭 390, 구역을 330×420 안에 비율 그대로 맞추고 위아래 30을 둔다. 번호 원 자리는 [COURSE_NODES]를 같이 옮긴다 */
+export function zoomFrame(course: number) {
   const [x, y, w, h] = COURSE_REGION_BOXES[course - 1] ?? [0, 0, 330, 420]
+  const nodes = COURSE_NODES[course - 1] ?? []
   const scale = Math.min(330 / w, 420 / h)
-  const width = w * scale
-  const height = h * scale
-  const left = (390 - width) / 2
+  const left = (390 - w * scale) / 2
   return {
-    viewHeight: height + 60,
+    viewHeight: h * scale + 60,
     transform: `translate(${left} 30) scale(${scale}) translate(${-x} ${-y})`,
     node: (i: number) => {
-      const [u, v] = NODE_LAYOUT[i % NODE_LAYOUT.length]
-      return [left + u * width, 30 + v * height] as const
+      const [nx, ny] = nodes[i % nodes.length] ?? [x, y]
+      return [left + (nx - x) * scale, 30 + (ny - y) * scale] as const
     },
   }
+}
+
+/** 「지금 여기」 꼬리표 중심 후보(번호 원 기준, 시안 자리가 첫째). 다른 번호 원을 가리지 않는 첫 자리를 쓴다 */
+const TAPE_OFFSETS = [[24, 32], [-24, 32], [24, -32], [-24, -32], [0, 36], [0, -36]] as const
+
+/** 꼬리표(82×24를 .75배 → 반폭 31.5·반높이 9) 자리. 모든 후보가 가리면 시안 자리 */
+export function tapeOffset(points: readonly (readonly [number, number])[], i: number) {
+  const covers = ([ox, oy]: readonly [number, number]) => {
+    const cx = points[i][0] + ox
+    const cy = points[i][1] + oy
+    return points.some(([px, py], j) => {
+      if (j === i) return false
+      const dx = px - Math.max(cx - 31.5, Math.min(px, cx + 31.5))
+      const dy = py - Math.max(cy - 9, Math.min(py, cy + 9))
+      return Math.hypot(dx, dy) < 16
+    })
+  }
+  return TAPE_OFFSETS.find((o) => !covers(o)) ?? TAPE_OFFSETS[0]
 }
 
 export function CourseMapScreen({
@@ -591,6 +600,7 @@ export function CourseMapScreen({
   const region = COURSE_REGIONS[course.course - 1]
   const points = course.stamps.map((_, i) => frame.node(i))
   const current = course.stamps.find((s) => s.state === 'current')
+  const tape = current === undefined ? null : [current.order - 1, tapeOffset(points, current.order - 1)] as const
   const hasNext = travel.courses.some((c) => c.course === course.course + 1)
   const { stars } = course
 
@@ -638,8 +648,8 @@ export function CourseMapScreen({
               </g>
             )
           })}
-          {current !== undefined && (
-            <g transform={`translate(${points[current.order - 1][0] + 24} ${points[current.order - 1][1] + 32}) scale(.75)`}>
+          {tape !== null && (
+            <g transform={`translate(${points[tape[0]][0] + tape[1][0]} ${points[tape[0]][1] + tape[1][1]}) scale(.75)`}>
               <path className="travel-zoom__tape" d="M-40 -12L42 -10 39 12 -42 10Z" />
               <text className="travel-zoom__tape-text" textAnchor="middle" y="4">
                 지금 여기
