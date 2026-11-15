@@ -743,7 +743,10 @@ describe('성적표 (s-07-A)', () => {
     const fb = (word: string) => [{ word, raise: null, lower: word[0], split: false }]
     renderReport({ c0: done(90, fb('가')), c1: done(60, fb('나'), 70), c2: done(60, fb('다')) }, onOpen)
     const card = practiceCard()
-    expect(card).toHaveTextContent('↓1 나') // 「나 나」의 첫 글자에 음절 표시
+    // 「나 나」의 첫 글자에 음절 표시 — 화살표는 글자가 아니라 SVG다(티켓 1-1)
+    expect(card).toHaveTextContent('나1 나')
+    expect(card.querySelector('.intonation-mark__sign svg')).toBeInTheDocument()
+    expect(card.querySelector('[role="img"]')).toHaveAccessibleName('나, 낮추기, 1번')
     expect(card).toHaveTextContent('▼10')
     expect(card).toHaveTextContent('「나」 음절을 낮춰 보세요')
     expect(screen.getByRole('img', { name: '나, 낮추기, 1번' })).toHaveClass('intonation-mark--lower')
@@ -821,8 +824,13 @@ describe('카드 피드백 (s-19)·결과 상세 (s-08)', () => {
     expect(lower1).toHaveClass('intonation-mark--lower')
     expect(raise2).toHaveClass('intonation-mark--raise')
     expect(raise2.querySelector('.intonation-mark__syllable')).toHaveTextContent('뭇')
-    expect(raise2.querySelector('[aria-hidden="true"]')).toHaveTextContent('↑2')
-    expect(lower2.querySelector('[aria-hidden="true"]')).toHaveTextContent('↓2')
+    // 화살표는 글자가 아니라 SVG 선 아이콘이다(티켓 1-1) — 위·아래가 다른 그림이고 글자는 번호만
+    const sign = (mark: HTMLElement) => mark.querySelector('.intonation-mark__sign')!
+    expect(sign(raise2)).toHaveTextContent(/^2$/)
+    expect(sign(lower2)).toHaveTextContent(/^2$/)
+    const arrow = (mark: HTMLElement) => sign(mark).querySelector('svg path')!.getAttribute('d')
+    expect(arrow(raise2)).not.toBe(arrow(lower2))
+    expect(arrow(lower1)).toBe(arrow(lower2))
     // 기호·번호를 빼면 대사 원문 그대로
     const line = raise2.closest('h1')!.cloneNode(true) as HTMLElement
     line.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove())

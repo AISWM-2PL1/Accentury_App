@@ -671,7 +671,9 @@ describe('WordReportScreen', () => {
     expect(document.querySelector('.score-donut')).toHaveTextContent('50점')
     expect(screen.getByRole('img', { name: '별 3개 중 2개' })).toBeInTheDocument()
     const course = screen.getByRole('region', { name: '코스 별 5개에서 7개로, 다음 코스까지 필요한 별 21개' })
-    expect(course.querySelector('.stamp-reward__count')).toHaveTextContent('★ 5 → 7 / 21')
+    // ★·→는 글자가 아니라 SVG다(티켓 1-1) — 글자는 숫자만 남는다
+    expect(course.querySelector('.stamp-reward__count')).toHaveTextContent(/^5 7 \/ 21$/)
+    expect(course.querySelectorAll('.stamp-reward__count svg')).toHaveLength(2)
     expect(within(course).getByRole('progressbar', { name: '코스 별' })).toHaveAttribute('aria-valuenow', '7')
     // 이번에 더한 칸이 앞 칸과 따로 그려진다
     expect(course.querySelector<HTMLElement>('.stamp-reward__bar-earned')!.style.width).toBe(`${(5 / 21) * 100}%`)
@@ -696,7 +698,8 @@ describe('WordReportScreen', () => {
     expect(details.open).toBe(false)
     fireEvent.click(wrong.querySelector('summary')!)
     expect(details.open).toBe(true)
-    expect(wrong.querySelector('.word-report__answer')).toHaveTextContent(/^내 답\s*머꼬\s*→\s*정답\s*머하노$/)
+    expect(wrong.querySelector('.word-report__answer')).toHaveTextContent(/^내 답\s*머꼬\s*정답\s*머하노$/)
+    expect(wrong.querySelector('.word-report__arrow svg')).toBeInTheDocument()
     expect(wrong).toHaveTextContent('머하노가 맞아요')
     // 옛 W-5 문구는 없어졌다
     expect(screen.queryByText('오답이 복습에 쌓였어요')).toBeNull()
@@ -773,7 +776,7 @@ describe('성적표 「코스 별」 — 라우트가 구간 요약을 다시 �
     )
     await finishSet()
     expect(await screen.findByText('이번 스탬프')).toBeInTheDocument()
-    expect(document.querySelector('.stamp-reward__count')).toHaveTextContent('★ 5 → 7 / 21')
+    expect(document.querySelector('.stamp-reward__count')).toHaveTextContent(/^5 7 \/ 21$/)
     // 완료 요청 다음에 요약을 읽는다 — 끝난 뒤 값이어야 한다
     const paths = calls.map((c) => c.path)
     expect(paths.indexOf('/v0/learning/levels')).toBeGreaterThan(paths.indexOf('/v0/learning/word-attempts/a1/complete'))

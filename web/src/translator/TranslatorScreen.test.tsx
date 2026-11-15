@@ -239,6 +239,7 @@ describe('오류 상태', () => {
     fireEvent.click(within(await screen.findByRole('dialog', { name: FAILED_TITLE })).getByRole('button', { name: '닫기' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(input()).toHaveValue('밥 먹었어?')
+    expect(document.activeElement).toBe(input()) // 닫으면 초점이 입력칸으로 돌아온다
     expect(document.querySelector('main')).not.toHaveAttribute('inert')
     expect(goButton()).toBeEnabled()
 
@@ -246,6 +247,7 @@ describe('오류 상태', () => {
     fireEvent.keyDown(await screen.findByRole('dialog', { name: FAILED_TITLE }), { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(input()).toHaveValue('밥 먹었어?')
+    expect(document.activeElement).toBe(input())
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 

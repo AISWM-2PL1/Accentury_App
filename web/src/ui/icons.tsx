@@ -197,7 +197,12 @@ export function ArrowLeftIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M20 12H4m6-6-6 6 6 6" />
 }
 
-/** ↓ 번역하기 원형 버튼 (s-03) */
+/** ↑ 음절 표시 「더 높이기」 (s-19·s-08-intonation-detail) */
+export function ArrowUpIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M12 21V3m-6 6 6-6 6 6" />
+}
+
+/** ↓ 번역하기 원형 버튼 (s-03), 음절 표시 「낮추기」 */
 export function ArrowDownIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M12 3v18m-6-6 6 6 6-6" />
 }

@@ -295,6 +295,8 @@ test('503 TRANSLATION_UNAVAILABLE - 가운데 대화상자(배경 inert), [닫�
   await expect(dialog).toHaveCount(0)
   await expect(input(page)).toHaveValue('밥 먹었니?')
   await expect(page.locator('main')).not.toHaveAttribute('inert', '')
+  // 닫으면 초점이 입력칸으로 돌아온다 — 배경 inert가 풀린 뒤에 옮겨야 실제 브라우저에서 들어간다
+  await expect(input(page)).toBeFocused()
 
   await submit(page).click()
   await expect(dialog).toBeVisible()
