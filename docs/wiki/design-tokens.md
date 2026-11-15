@@ -32,12 +32,13 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 ## 2. 색
 
 **Papercut** — 크림 종이 위에 잉크로 그린 그림이고, 두 번째 잉크로 테라코타 한 색을 더 쓴다.
-값은 다섯이고 semantic 토큰은 전부 이 다섯 중 하나로 접힌다.
+값은 여섯이고 semantic 토큰은 전부 이 여섯 중 하나로 접힌다 (PAPER는 KAN-354에서 더했다).
 
 | 역할 | 값 | 하는 일 |
 |---|---|---|
 | INK | `#1c1a17` | 텍스트·선·버튼 면·곡선. 화면에서 "그려진 것"은 대부분 이 색이다 |
 | CREAM | `#f3ecd9` | 배경·카드·잉크 위 글자. 종이 자체 |
+| PAPER | `#f8f3e6` | 크림 위에 한 장 더 얹은 면 — 카드·입력 칸·확인 창 (KAN-311 시안 `--color-paper`, KAN-354). Android `LightPaper` |
 | PAPER_SHADOW | `#cfc5aa` | 오프셋 그림자(`3px 4px 0`)와 장식 면. 종이 그늘 |
 | MUTED | `#6b6459` | 흐린 텍스트. 잉크를 옅게 쓴 것이지 회색이 아니다 |
 | TERRACOTTA | `#a8503a` | **포인트 컬러.** 화면당 한 자리 — 지금 눌러야 할 것과 지금 여기를 짚는다 (§7) |
@@ -86,6 +87,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `curve-lane-border` | `#1c1a17` | 곡선 레인 테두리 |
 | `point` | `#a8503a` | **포인트 컬러.** 인트로 제목 아치, 녹음 화면 내 억양 곡선, 결과 점수 도넛 호·막대. 화면당 한 자리 규칙과 화면별 표는 §7 |
 | `point-foreground` | `#f3ecd9` | point 면 위 텍스트. **지금 쓰는 곳이 없다** — 색이 면이 아니라 선으로만 서 있다 (§7) |
+| `paper` | `#f8f3e6` | 카드·입력 칸·확인 창 면. 크림과 1.06:1이라 면만으로 갈리지 않고 잉크 테두리가 경계를 맡는다. Android `LightPaper` (KAN-354) |
 
 ### 다크
 
@@ -144,14 +146,19 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `display` | 40sp | `2.5rem` | 400 | Jua | 결과 등급 |
 | `headline` | 26sp | `1.625rem` | 400 | Jua | **대사 카드**·대기 제목 (§5 최소선 24sp 충족) |
 | `title` | 30sp | `1.875rem` | 400 | Jua | 단어 문항·인트로 제목 |
-| `titleSmall` | 20sp | `1.25rem` | 400 | Jua | 주 CTA 라벨·화면 제목 |
+| `titleSmall` | 20sp | `1.25rem` | 400 | Jua | 앱바 워드마크 |
 | `timer` | 16sp | `1rem` | 400 | Jua | 녹음 타이머·8초 경고 캡슐 (자간 0.04em) |
 | `body` | 16sp | `1rem` | 400 | 시스템 | 본문 |
-| `bodySmall` | 15sp | `0.9375rem` | 400 | 시스템 | 선택지, 보조 버튼 라벨 |
+| `bodySmall` | 15sp | `0.9375rem` | 400 | 시스템 | 선택지, 예외 화면 설명 |
 | `label` | 14sp | `0.875rem` | 500 | 시스템 | 부가 설명 |
 | `caption` | 13sp | `0.8125rem` | 500 | 시스템 | 카드 위 캡션, 레인 라벨, 진행 표기 |
 
 행간은 대사·등급이 `1.15`, 나머지가 `1.5`.
+
+**버튼 라벨·화면 제목 (KAN-354, 2026-11-12 결정).** 버튼 라벨은 Jua다 — 주·보조·위험 확인 17, 글자 버튼 16. Android는
+M3 슬롯 밖의 `ButtonLabel.Regular`(17/22)·`ButtonLabel.Text`(16/20)이고 `AccenturyButton`만 읽는다. 화면 제목은 화면이
+하는 일로 두 크기다: 안내·예외·대기 Jua 30(`title`, Android `ScreenTitle.Notice`), 입력·동의·설정·시트·확인 창 Jua 26
+(`headline`, Android `ScreenTitle.Form`). 두 이름은 슬롯을 가리킬 뿐 새 크기가 아니다.
 
 웹 열은 `tokens.css`의 값이다. 웹 크기는 rem(16px = 1rem)이라 루트 글자 크기를 따르고, rem과 px를 가르는 규칙은 [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)이 정본이다 (KAN-313).
 
@@ -175,6 +182,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `radius-sm` | **4dp** | `4px` | 칩·별점 칸·선택지 번호 상자 (KAN-288, 이전 12) |
 | `radius-md` | **6dp** | `6px` | 버튼, 선택지, 입력 칸, 학습 목록 행 (KAN-288, 이전 16) |
 | `radius-lg` | **10dp** | `10px` | 카드·대사 카드·시트 (KAN-288, 이전 18) |
+| `radius-sheet` | **16dp** | (KAN-347) | 시트·확인 창 (KAN-354, 시안 `.sheet` 16). Android `Radius.sheet` |
 | `radius-xl` | **10dp** | `10px` | `radius-lg`와 같은 값으로 접었다 — 디자인 3에 10보다 큰 종이 모서리가 없다 (KAN-288, 이전 24) |
 | `radius-full` | 9999 | `9999px` | 원형·캡슐 (녹음 버튼, 히어로 아이콘, 진행 도트) |
 | `touch-target-min` | **48dp** | `max(48px, 3rem)` | 모든 탭 가능 요소의 최소 높이·너비 |
@@ -435,6 +443,13 @@ KAN-161이 세운 근거(색만으로 상태를 알리지 않는다, WCAG 1.4.1)
 **`screen-padding-top` 64가 네이티브에도 붙었다.** 3단계에서 웹 4화면에만 있던 값이고,
 녹음 화면이 `Dimens.screenPaddingTop`으로 같은 값을 쓴다. 좌우 24·아래 32는 그대로다.
 
+### KAN-354 — 버튼 라벨은 Jua (2026-11-12, KAN-311)
+
+디자인 3(KAN-288)의 「Jua는 제목·대사·점수·등급 전용이고 버튼 라벨은 본문 산세리프」 규칙을 바꿨다. 버튼 라벨은
+Jua다 — 주·보조·위험 확인 17, 글자 버튼 16 (이성주, 2026-11-12). Android 앱 주 버튼이 본문 산세리프 15·높이 50,
+iOS가 Jua 20·높이 56이라 두 앱 버튼이 서로 달랐고, KAN-311 시안이 한 규칙(Jua 17·높이 48)으로 묶었다.
+Jua에는 굵기가 400 하나뿐이라 라벨에도 굵기를 주지 않는다(§3). Android 반영은 KAN-354 1단계.
+
 ### 시안에서 조정한 값
 
 배치·간격·타이포는 아직 KAN-148 시안(`prototype/`)에서 오고, 아래 둘만 조정한 채로 유지된다.
@@ -504,11 +519,14 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 
 | | 높이 | 테두리 | 면 | 그림자 | 라벨 |
 |---|---|---|---|---|---|
-| Primary | `control-height-lg` 48 | 1px 벽돌 | **벽돌 `point`** | 있음 | 본문 `label` 14 / 500, 크림 글자 |
-| Secondary | `touch-target-min` 48 | 1px 잉크 | 크림 | **없음** | 본문 `label` 14 / 500, 잉크 글자 |
-| Text | `touch-target-min` 48 | 없음 | 없음 | 없음 | `label` 14, 잉크 글자 |
+| Primary | `control-height-lg` 48 | 1px 벽돌 | **벽돌 `point`** | 있음 | Jua 17, 크림 글자 |
+| Secondary | `touch-target-min` 48 | 1px 잉크 | 크림 | **없음** | Jua 17, 잉크 글자 |
+| Text | `touch-target-min` 48 | 없음 | 없음 | 없음 | Jua 16, 흐린 잉크 글자. 밑줄은 눌린 동안만 |
+| Destructive | `touch-target-min` 48 | 1.5px 벽돌 | 크림 | 없음 | Jua 17, 벽돌 글자 — 확인 창의 [그만두기]·[탈퇴] (2026-11-16 결정) |
 
-위 표는 KAN-288 디자인 3 값이다 (웹 반영). 이전(KAN-161)에는 Primary가 56 높이·2px 잉크 테두리·잉크 면·Jua 20
+위 표의 라벨 열은 2026-11-12 결정(§7 KAN-354)이고 Android는 KAN-354 1단계에서 반영했다(`AccenturyButton`, `ButtonLabel`).
+라벨 앞뒤에 20dp 아이콘을 8dp 사이로 붙일 수 있다(Android `leading`·`trailing`, 색은 라벨 색). 눌림은 `duration-press` 75ms에
+주 버튼만 그림자 자리로 내려가고, 움직임 줄이기면 내려가지 않는다. 그 밖의 값은 KAN-288 디자인 3이다. 이전(KAN-161)에는 Primary가 56 높이·2px 잉크 테두리·잉크 면·Jua 20
 라벨, Secondary가 1.5px 잉크 테두리였다. 비활성 Primary는 종이 그림자 면 + 흐린 잉크 글자·테두리다.
 
 **화면당 주 행동은 벽돌 면 하나다 (KAN-288).** 주 버튼이 벽돌이 되면서 보조 행동은 Secondary·Text로 둔다.
@@ -581,6 +599,24 @@ Secondary다 — 맞춤형 광고 시트 [맞춤형 광고 받기]·[일반 광�
 이유도 없다 — 무엇이 잘못됐는지는 잉크 문구가 말하고 부연은 양쪽 다 흐린 잉크다.
 복구 동작은 보조 버튼으로 들어온다.
 
+### 확인 창 (KAN-354)
+
+Android `ui/components/ConfirmDialog.kt` (시안 s-11-confirm-logout·s-11-confirm-withdraw·s-06-confirm-quit). 폭 320(좁은
+화면은 좌우 16을 남기고 준다)·모서리 `radius-sheet` 16·`paper` 면·잉크 1 테두리·그림자 없음·안쪽 20, 제목 Jua 26, 본문,
+바닥에 버튼 둘을 12 사이로 나란히 — 왼쪽 보조(머무는 쪽), 오른쪽 확인. 확인 버튼은 [그만두기]·[탈퇴]가 Destructive,
+[로그아웃]이 Primary다(`confirmVariant`). 덮개는 `primary-dim` `#cfc5aa` 불투명도 0.6 — 토큰이 아니라 이 자리에만 쓰는
+값이다. 창 바깥·시스템 뒤로가기는 왼쪽 버튼과 같고, 진행 중(`busy`)이면 두 버튼과 바깥·뒤로가기가 모두 막힌다.
+덮개와 종이는 `duration-fast` 150ms에 함께 나타나고 움직임 줄이기면 처음부터 다 보인다.
+
+### 예외 화면 서식 (KAN-354)
+
+Android `PaperExceptionScreen`·`PaperFailureScreen` (`ui/components/PaperScreen.kt`, 시안 s-15-session-gate·s-15-webview-failed).
+앱바 아래 가운데 정렬로 아이콘 원 112(안의 선화 56), 제목 Jua 30, 설명 15 흐린 잉크, 내용 너비 버튼(주 버튼 아래 글자 버튼).
+원 윗선은 화면 위에서 200(앱바 56 + 144), 제목 위 24·설명 위 8·버튼 위 32. 슬롯은 아이콘·제목·설명·본문(선택)·버튼들·
+바닥 고정 버튼(선택)이다. 세션 확인 실패([다시 시도]·[처음으로])·웹뷰 연결 실패(앱바에 설정 톱니)·앱 업데이트 안내
+([업데이트하기]·[나중에])·로그인 확인 실패가 이 서식이고, 마이크 권한 화면이 본문 슬롯·바닥 버튼을 쓰는 변형이다.
+연결 실패는 offline 선화, 그 밖은 느낌표 선화다.
+
 ### 곡선 레인
 
 상자 하나가 레인 하나 또는 둘을 담는다. **테두리와 모서리는 상자가 갖고 레인은 갖지
@@ -616,6 +652,8 @@ Secondary다 — 맞춤형 광고 시트 [맞춤형 광고 받기]·[일반 광�
 ### 히어로 아이콘
 
 지름 `hero-icon-size` 112, 1.5px 잉크 테두리, 크림 면, 오프셋 그림자 (§7).
+Android는 KAN-354에서 시안(`.p3-status-symbol`·`.hero-icon`)대로 1dp 잉크 테두리·크림 면·**그림자 없음**, 안의 선화 56dp
+(`Dimens.heroIconGlyph`, 잉크)로 그린다(`HeroIcon`). KAN-288의 기울인 벽돌 점선 사각형(76)을 바꿨다.
 안에 들어가는 이모지는 아직 시안 이전 상태다 — 시안의 히어로는 손으로 오린 일러스트인데
 이모지는 색을 갖고 있어 화면에서 유일한 색조로 남는다. 일러스트 자산은 화면 이식 몫이다.
 

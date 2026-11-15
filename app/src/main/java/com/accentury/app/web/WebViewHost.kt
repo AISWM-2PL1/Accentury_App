@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import com.accentury.app.R
 import com.accentury.app.BuildConfig
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.analytics.CrashReports
@@ -75,6 +76,7 @@ sealed interface WebLoadState {
  * @param onRequestLogin 브리지 `requestLogin` (KAN-330). 메인 스레드로 온다
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
+ * @param onLoadFailedChanged 연결 실패 화면이 섰다(true)·내려갔다(false) (KAN-354). 상위가 그 화면에 설정 톱니를 세운다
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -105,11 +107,14 @@ fun WebViewHost(
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
     onWebViewReleased: (WebView) -> Unit = {},
+    onLoadFailedChanged: (Boolean) -> Unit = {},
 ) {
     // 상태 전이 규칙은 WebLoadController에 모여 있다(JVM 테스트 대상). 여기는 결선만 한다.
     val controller = remember { WebLoadController() }
+    val loadFailed = controller.state == WebLoadState.Failed
+    LaunchedEffect(loadFailed) { onLoadFailedChanged(loadFailed) }
 
-    if (controller.state == WebLoadState.Failed) {
+    if (loadFailed) {
         LoadFailureScreen(onRetry = controller::retry, modifier = modifier)
         return
     }
@@ -283,7 +288,10 @@ private fun LoadingScreen(modifier: Modifier = Modifier) {
     PaperWaitingScreen(title = "사투리 억양 테스트", modifier = modifier)
 }
 
-/** 네이티브 오류 화면 (§6) — 비난 없는 카피 + [다시 시도]. 시안 06b 배치(KAN-288). */
+/**
+ * 네이티브 오류 화면 (§6) — 비난 없는 카피 + [다시 시도]. 예외 화면 서식(KAN-354, 시안 s-15-webview-failed).
+ * 앱바 오른쪽 설정 톱니는 상위(`TestFlow`)가 [WebViewHost]의 `onLoadFailedChanged`를 보고 세운다.
+ */
 @Composable
 private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     PaperFailureScreen(
@@ -292,6 +300,8 @@ private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier
         buttonLabel = "다시 시도",
         onButtonClick = onRetry,
         modifier = modifier,
+        icon = R.drawable.ic_offline_24,
+        buttonIcon = R.drawable.ic_refresh_24,
     )
 }
 

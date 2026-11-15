@@ -664,6 +664,8 @@ private fun TestFlow(
     // 결과를 웹에 넣으려면 evaluateJavascript를 부를 인스턴스가 필요하다.
     // 로드 실패 화면·재시도 구간에는 WebView가 아예 없으므로 nullable이다.
     var webView by remember { mutableStateOf<WebView?>(null) }
+    // 웹뷰 연결 실패 화면이 떠 있는가 (KAN-354). 그 화면엔 웹 탭 바가 없어 설정으로 갈 길이 톱니뿐이다.
+    var webLoadFailed by remember { mutableStateOf(false) }
     // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
     var webUrl by remember { mutableStateOf<String?>(null) }
     // WebView 로드·브리지 판정과 앱 안 이동 목적지 판정(KAN-324)이 같은 allowlist를 쓰게 한 곳에 둔다.
@@ -1134,6 +1136,7 @@ private fun TestFlow(
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.
                 onWebViewReleased = { if (webView === it) webView = null },
+                onLoadFailedChanged = { webLoadFailed = it },
             )
 
             /*
@@ -1403,8 +1406,9 @@ private fun TestFlow(
                 retestRegionPending ||
                 (intonationStart != null && !intonationMicOk)
             // 탭 바 빌드의 탭 화면·결과는 탭 바의 [설정]이 설정을 연다 (KAN-252, webview-bridge §13).
+            // 웹뷰 연결 실패 화면은 문서와 무관하게 톱니를 세운다 — 탭 바가 뜨지 않았다 (KAN-354, 시안 s-15-webview-failed).
             val gearVisible = if (tabBarEntry) {
-                showsSettingsGear(webUrl) && overlayStart == null && intonationStart == null
+                (webLoadFailed || showsSettingsGear(webUrl)) && overlayStart == null && intonationStart == null
             } else {
                 true
             }

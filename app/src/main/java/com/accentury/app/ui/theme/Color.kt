@@ -11,9 +11,9 @@ import androidx.compose.ui.graphics.Color
  * 이름은 정본의 semantic 토큰 이름을 그대로 옮겼다 (`primary` → [LightPrimary]).
  * 대비는 `tools/check_contrast.py`가 검증한다 — 감수(WAIVED) 항목은 KAN-161로 전부 사라졌다.
  *
- * **팔레트는 넷뿐이다** — 잉크 `#1c1a17`, 크림 `#f3ecd9`, 종이 그림자 `#cfc5aa`,
- * 흐린 잉크 `#6b6459`. 반투명(알파) 값은 하나도 없다: 종이를 오려 붙인 그림에는
- * 비쳐 보이는 면이 없다.
+ * **팔레트** — 잉크 `#1c1a17`, 크림 `#f3ecd9`, 종이 `#f8f3e6`(KAN-354), 종이 그림자 `#cfc5aa`,
+ * 흐린 잉크 `#6b6459`, 포인트 벽돌 `#a8503a`. 토큰 값에는 반투명(알파)이 없다: 종이를 오려 붙인 그림에는
+ * 비쳐 보이는 면이 없다. 확인 창 덮개만 그림자색에 불투명도를 준다([com.accentury.app.ui.components.ConfirmDialog]).
  *
  * **Dark*는 Light*와 값이 같다** (KAN-161). 이름을 남겨 둔 것은 정본 §2의 다크 표와
  * 대조하는 `tools/check_tokens.py`가 짝을 찾기 때문이고, 다크 전용 팔레트는 후속 티켓이다.
@@ -51,6 +51,12 @@ val LightAccentForeground = Color(0xFFF3ECD9)
  */
 val LightPoint = Color(0xFFA8503A)
 val LightPointForeground = Color(0xFFF3ECD9)
+
+/**
+ * 종이 (KAN-354, KAN-311 시안 `--color-paper`). 크림 바탕 위에 한 장 더 얹은 면 — 카드·입력 칸·확인 창 면이다.
+ * 크림과 1.06:1이라 면만으로 갈리지 않고, 잉크 테두리가 경계를 맡는다. 글자는 잉크 그대로 쓴다.
+ */
+val LightPaper = Color(0xFFF8F3E6)
 
 /**
  * 정답도 잉크다. 단일 잉크 팔레트에서 초록·빨강을 되살리면 종이 그림이 깨지므로,

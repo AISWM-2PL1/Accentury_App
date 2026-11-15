@@ -13,7 +13,7 @@ import com.accentury.app.R
  * 타이포 토큰 (KAN-148). 정본은 `docs/wiki/design-tokens.md` §3.
  *
  * 두 벌을 쓴다.
- * - [Jua] - 제목·대사·등급. 어느 기기에도 없는 디스플레이 폰트라 번들이 필수다.
+ * - [Jua] - 제목·대사·등급·버튼 라벨(KAN-354). 어느 기기에도 없는 디스플레이 폰트라 번들이 필수다.
  * - [FontFamily.Default] - 본문. Android 시스템 산세리프가 이미 Noto Sans CJK KR이고
  *   WebView의 `sans-serif`도 같은 폰트로 풀리므로, 양쪽이 저절로 같은 글꼴로 수렴한다.
  *   9.9MB짜리 Noto Sans KR 가변폰트를 번들해도 타깃 기기에서 보이는 글자는 같다.
@@ -85,7 +85,7 @@ val Typography = Typography(
         // 자간을 주는 슬롯은 여기 하나다 (웹 `.type-timer`와 같은 값).
         letterSpacing = 0.04.em,
     ),
-    // body 16sp - 본문, 버튼 라벨
+    // body 16sp - 본문
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
@@ -114,3 +114,24 @@ val Typography = Typography(
         lineHeight = 20.sp,
     ),
 )
+
+/**
+ * 화면 제목 두 크기 (KAN-354, KAN-311 시안). 크기는 화면이 하는 일로 고른다 — 같은 일을 하는 화면이 같은 크기여야
+ * 화면을 넘어갈 때 제목이 들썩이지 않는다. 값은 [Typography]의 슬롯을 그대로 가리킨다(새 크기를 만들지 않는다).
+ */
+object ScreenTitle {
+    /** 안내·예외·대기 화면 — Jua 30 (`titleLarge`). 세션 확인 실패·웹뷰 연결 실패·권한 안내 */
+    val Notice: TextStyle = Typography.titleLarge
+
+    /** 입력·동의·설정 화면, 시트·확인 창 — Jua 26 (`headlineMedium`). 프로필·출신 지역·음성 저장 동의·설정 */
+    val Form: TextStyle = Typography.headlineMedium
+}
+
+/**
+ * 버튼 라벨 (2026-11-12 결정, KAN-311·KAN-354). 주·보조·위험 확인 버튼 Jua 17, 글자 버튼 Jua 16.
+ * M3 슬롯에 없는 크기라 [Typography] 밖에 둔다 — 버튼 컴포넌트 하나만 읽는다.
+ */
+object ButtonLabel {
+    val Regular = TextStyle(fontFamily = Jua, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 22.sp)
+    val Text = TextStyle(fontFamily = Jua, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 20.sp)
+}

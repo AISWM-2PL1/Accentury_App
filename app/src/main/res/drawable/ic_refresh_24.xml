@@ -1,0 +1,7 @@
+<!--
+  ~ 다시 시도(refresh) — KAN-354 예외 화면 서식. KAN-311 시안(s-15-session-gate·s-15-webview-failed)의 선화 아이콘을 옮겼다
+  ~ (24 격자, 1.5 선, 둥근 끝). 색은 쓰는 쪽의 tint(LocalContentColor)를 따른다.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M20,8a8,8 0,0 0,-14,-3L3,8m0,-5v5h5M4,16a8,8 0,0 0,14,3l3,-3m0,5v-5h-5" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+</vector>

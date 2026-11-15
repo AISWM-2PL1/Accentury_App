@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.accentury.app.R
 import com.accentury.app.ui.components.PaperFailureScreen
 import com.accentury.app.ui.components.PaperWaitingScreen
 import com.accentury.app.ui.components.StatusBlock
@@ -142,13 +143,16 @@ private fun FailureScreen(
 
     // 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15): 주 버튼 [업데이트하기]가 스토어를 열고, 예전 [처음으로]
     // 동작은 [나중에]로 남는다 — 지금 업데이트하지 않는 사람도 인트로로 돌아갈 길이 있어야 갇히지 않는다.
+    // 재시도할 수 있는 실패도 [다시 시도] 아래 글자 버튼 [처음으로]로 같은 길을 연다 (KAN-354, 시안 s-15-session-gate).
     val context = LocalContext.current
     PaperFailureScreen(
         title = message,
         detail = detail,
         buttonLabel = if (unsupported) "업데이트하기" else "다시 시도",
         onButtonClick = if (unsupported) ({ openStoreListing(context) }) else onRetry,
-        secondaryLabel = if (unsupported) "나중에" else null,
+        secondaryLabel = if (unsupported) "나중에" else "처음으로",
         onSecondaryClick = onBackToIntro,
+        icon = if (state.reason == SessionFailureReason.Network) R.drawable.ic_offline_24 else R.drawable.ic_alert_24,
+        buttonIcon = if (unsupported) null else R.drawable.ic_refresh_24,
     )
 }
