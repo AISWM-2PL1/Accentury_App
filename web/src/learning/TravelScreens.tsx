@@ -156,19 +156,11 @@ export function TravelRoute({ apiBase, tabBar, resume = false, onResumeConsumed,
             after.current !== null ? stampView(after, after.current) : mapView(after, celebrationFor(before, after, stamp)),
           ),
       }
-      return stamp.kind === 'word' ? (
-        <WordLearningRoute
-          key={view.visit}
-          apiBase={apiBase}
-          stamp={stamp}
-          // 성적표 「코스 별」 줄의 전 값 — 끝난 뒤 값은 흐름이 구간 요약을 다시 받는다 (4-4)
-          courseStars={before.courses.find((c) => c.course === stamp.course)?.stars ?? null}
-          exits={exits}
-          tabBar={tabBar}
-          deps={deps}
-        />
-      ) : (
-        <IntonationLearningRoute key={view.visit} apiBase={apiBase} courseId={stamp.id} exits={exits} tabBar={tabBar} deps={deps} />
+      // 성적표 「코스 별」 줄의 전 값 — 끝난 뒤 값은 흐름이 구간 요약을 다시 받는다 (4-4·5-4)
+      const courseStars = before.courses.find((c) => c.course === stamp.course)?.stars ?? null
+      const Route = stamp.kind === 'word' ? WordLearningRoute : IntonationLearningRoute
+      return (
+        <Route key={view.visit} apiBase={apiBase} stamp={stamp} courseStars={courseStars} exits={exits} tabBar={tabBar} deps={deps} />
       )
     }
   }

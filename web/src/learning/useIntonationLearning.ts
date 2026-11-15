@@ -15,6 +15,9 @@
  * 자동으로 한 번 연다 — 녹음 대기 화면이 카드 n/N·대사·곡선을 다 보여 A-2와 중복이었다. 그래서 A-2는
  * 녹음 화면을 뒤로가기로 닫았을 때 드러나는 일시정지 화면이다. 호출은 effect가 아니라 그 전이를 만든
  * 비동기 작업·클릭 핸들러 안에서 한다 — StrictMode가 effect를 두 번 돌려도 두 번 열리지 않게.
+ *
+ * KAN-347 5단계: 'summary'는 성적표(s-07-A)다. 「코스 별」 줄의 끝난 뒤 값은 마지막 채점이 끝난 뒤 구간 요약(KAN-359)을
+ * 다시 받아 만든다(`levels`). 들어가기 전 코스 별이 없으면(KAN-359 전) 부르지 않는다 — 단어 흐름(`useWordLearning`)과 같은 규칙.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -29,6 +32,7 @@ import {
   type PitchFeedbackItem,
 } from './intonationApi'
 import { attemptOutcome } from './intonationFeedback'
+import { fetchLearningLevels, type LearningLevels } from './travel'
 
 /** 녹음 최대 길이 — 레벨테스트 음성 문항과 같은 10초 컷 (KAN-253 브리지 계약) */
 const MAX_DURATION_MS = 10_000
@@ -60,8 +64,11 @@ export type IntonationLearningView =
   /** 마지막 회신 뒤 A-4 — 분석 중인 카드가 다 끝나면 'summary'로 넘어간다 */
   | { screen: 'waiting'; course: IntonationCourse }
   | { screen: 'summary'; course: IntonationCourse }
-  /** 결과 목록의 한 행. 무엇을 그릴지는 results[그 카드]가 정한다 */
-  | { screen: 'detail'; course: IntonationCourse; index: number }
+  /**
+   * 성적표의 한 대사. 무엇을 그릴지는 results[그 카드]가 정한다. afterRecording: 상세에서 다시 녹음한 뒤의 카드 피드백(s-19)이면 true,
+   * 성적표에서 연 결과 상세(s-08-intonation-detail)면 false — 둘은 「결과 목록으로」 자리만 다르다
+   */
+  | { screen: 'detail'; course: IntonationCourse; index: number; afterRecording: boolean }
   | { screen: 'error'; error: WordLearningError; retry: () => void; fromList: boolean }
 
 function toError(error: unknown): WordLearningError {
@@ -69,9 +76,18 @@ function toError(error: unknown): WordLearningError {
   return new WordLearningError(error instanceof Error ? error.message : String(error), null, true)
 }
 
-export function useIntonationLearning(apiBase: string, courseId: string, deps: WordApiDeps = {}) {
+export function useIntonationLearning(
+  apiBase: string,
+  courseId: string,
+  deps: WordApiDeps = {},
+  /** 성적표 「코스 별」 줄의 전 값 (KAN-347 5-4). stars가 null이면 KAN-359 전이라 구간 요약을 부르지 않는다 */
+  before: { course: number; stars: { collected: number } | null } | null = null,
+) {
   const [view, setView] = useState<IntonationLearningView>({ screen: 'loading' })
   const [results, setResults] = useState<Record<string, CardResult>>({})
+  /** 끝난 뒤 구간 요약 (KAN-359). 없거나 실패면 null — 「코스 별」 줄을 숨기고 별 경계는 앱 상수 */
+  const [levels, setLevels] = useState<LearningLevels | null>(null)
+  const loadLevels = () => fetchLearningLevels(apiBase, deps).catch(() => null)
   /** cardId → 그 카드 폴링 취소. 같은 카드를 다시 올리면 앞 시도 폴링을 끊는다 */
   const polls = useRef(new Map<string, () => void>())
 
@@ -188,7 +204,7 @@ export function useIntonationLearning(apiBase: string, courseId: string, deps: W
       if (cardId !== card.cardId || handled) return
       handled = true
       startPolling(cardId, attemptId)
-      if (revisit) return setView({ screen: 'detail', course, index })
+      if (revisit) return setView({ screen: 'detail', course, index, afterRecording: true })
       if (index + 1 < course.cards.length) {
         setView({ screen: 'card', course, index: index + 1, revisit: false })
         recordCard(course, index + 1)
@@ -199,22 +215,35 @@ export function useIntonationLearning(apiBase: string, courseId: string, deps: W
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardView])
 
-  // 마지막 회신 뒤 대기 → 분석 중인 카드가 하나도 없으면 결과 목록 (소진으로 끝난 카드도 끝난 것이다)
+  // 마지막 회신 뒤 대기 → 분석 중인 카드가 하나도 없으면 성적표 (소진으로 끝난 카드도 끝난 것이다).
+  // KAN-359가 있으면 구간 요약을 받은 뒤 넘어간다 — 「코스 별」 줄이 성적표가 선 뒤에 끼어들어 화면이 밀리지 않게
   useEffect(() => {
     if (view.screen !== 'waiting') return
-    if (view.course.cards.every((c) => results[c.cardId] !== undefined && results[c.cardId].outcome !== 'processing')) {
-      setView({ screen: 'summary', course: view.course })
+    if (!view.course.cards.every((c) => results[c.cardId] !== undefined && results[c.cardId].outcome !== 'processing')) return
+    const summary: IntonationLearningView = { screen: 'summary', course: view.course }
+    if (before?.stars == null) return setView(summary)
+    let cancelled = false
+    void loadLevels().then((l) => {
+      if (cancelled) return
+      setLevels(l)
+      setView(summary)
+    })
+    return () => {
+      cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, results])
 
   const openDetail = (index: number) => {
     if (view.screen !== 'summary') return
-    setView({ screen: 'detail', course: view.course, index })
+    setView({ screen: 'detail', course: view.course, index, afterRecording: false })
   }
 
+  /** 성적표로 돌아간다. 다시 녹음으로 코스 별이 바뀌었을 수 있어 구간 요약을 다시 받는다(실패면 앞 값 유지) */
   const backToSummary = () => {
     if (view.screen !== 'detail' && view.screen !== 'card') return
     setView({ screen: 'summary', course: view.course })
+    if (before?.stars != null) void loadLevels().then((l) => l !== null && setLevels(l))
   }
 
   /** 소진 행의 [다시 시도] — 같은 attemptId로 폴링을 다시 세운다. 상세는 결과가 분석 중이라 A-4를 그린다 */
@@ -232,5 +261,5 @@ export function useIntonationLearning(apiBase: string, courseId: string, deps: W
     recordCard(view.course, view.index)
   }
 
-  return { view, results, openDetail, backToSummary, retryPolling, rerecord }
+  return { view, results, levels, openDetail, backToSummary, retryPolling, rerecord }
 }

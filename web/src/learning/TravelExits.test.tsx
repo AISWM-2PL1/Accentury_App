@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { StampExits } from './travel'
 
-const captured: { stamp?: { id: string }; courseId?: string; exits?: StampExits }[] = []
+const captured: { stamp?: { id: string }; exits?: StampExits }[] = []
 
 vi.mock('./WordLearningScreens', () => ({
   WordLearningRoute: (props: { stamp: { id: string }; exits: StampExits }) => {
@@ -17,9 +17,9 @@ vi.mock('./WordLearningScreens', () => ({
   },
 }))
 vi.mock('./IntonationLearningScreens', () => ({
-  IntonationLearningRoute: (props: { courseId: string; exits: StampExits }) => {
+  IntonationLearningRoute: (props: { stamp: { id: string }; exits: StampExits }) => {
     captured.push(props)
-    return <p>억양 흐름 {props.courseId}</p>
+    return <p>억양 흐름 {props.stamp.id}</p>
   },
 }))
 
