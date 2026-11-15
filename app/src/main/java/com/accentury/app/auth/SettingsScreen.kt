@@ -264,7 +264,7 @@ fun SettingsScreen(
             },
             busy = leaving,
         ) {
-            Text("다시 쓰려면 로그인해야 해요", style = MaterialTheme.typography.bodyMedium)
+            Text("다시 쓰려면 로그인해야 해요")
         }
     }
 
@@ -297,7 +297,6 @@ fun SettingsScreen(
                 "계정 정보(이메일·이름 등)는 탈퇴하면 지체 없이 파기해요\n" +
                     "테스트 결과는 계정과 분리돼 익명으로 남아요\n" +
                     "탈퇴하면 되돌릴 수 없어요",
-                style = MaterialTheme.typography.bodyMedium,
             )
             // 실패는 로그인 상태 그대로다 — 창을 닫지 않고 여기서 알려 같은 자리에서 다시 누르게 한다.
             if (withdrawFailed) {

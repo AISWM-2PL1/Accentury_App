@@ -11,59 +11,51 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPaper
 import com.accentury.app.ui.theme.Radius
-import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.ui.theme.accenturyColors
 
 /**
- * 대사 카드 (KAN-148, 형태는 KAN-161 2단계). 웹의 `.prompt-card`와 같은 규격이다 —
- * 어휘 문항(웹)과 이 화면이 번갈아 나오므로 카드 크기·모서리·그림자가 다르면 전환마다
- * 화면이 들썩인다.
+ * 대사 카드 (KAN-148, 형태는 KAN-354 시안 s-06·s-17·s-05-voicecheck-app `.prompt-card`). 웹의 `.prompt-card`와 같은 규격이다 —
+ * 어휘 문항(웹)과 이 화면이 번갈아 나오므로 카드 크기·모서리·그림자가 다르면 전환마다 화면이 들썩인다.
  *
- * 오려 낸 종이 카드다 (디자인 3 `.practice-sheet`): 크림 면에 그림자색 1dp 테두리, 반경 10, 그리고 [paperShadow]가
- * 오른쪽·아래로 어긋난 그늘 한 겹을 깐다. 카드와 배경이 같은 크림이라 카드를 세우는 것은 색이 아니라 그늘이다.
- * 시안의 카드 위쪽 점선은 넣지 않는다 — 사용자가 앞서 지우라고 한 요소다 (KAN-288).
+ * 오려 낸 종이 카드다: paper 면에 잉크 1dp 테두리, 반경 10, 그리고 [paperShadow]가 오른쪽·아래로 어긋난 그늘 한 겹을 깐다.
+ * 높이를 [Dimens.promptCardMinHeight]로 잡는 이유는 그대로다: 문항마다 글자 수가 달라도 카드가 같은 크기여야
+ * 아래 요소가 제자리에 있는 것처럼 읽힌다. 넘치면 카드가 자라고 본문이 스크롤된다 — 대사를 자르지 않는다.
  *
- * 높이를 [Dimens.promptCardMinHeight]로 잡는 이유는 그대로다: 문항마다 글자 수가 달라도
- * 카드가 같은 크기여야 아래 요소가 제자리에 있는 것처럼 읽힌다.
+ * 대사는 Jua 30이고, 세 줄 이상으로 접히면 26으로 줄인다(KAN-354, 시안의 긴 대사). 첫 배치의 줄 수를 보고 한 번만 줄인다 —
+ * 글자 수로 미리 짐작하면 기기 폭·글꼴 배율마다 문턱이 어긋난다.
  *
- * [caption]은 알약 배지가 아니라 카드 맨 위 캡션 한 줄이다 — 배지는 면을 하나 더 만드는데,
- * 카드가 이미 배경과 같은 크림이라 그 면이 카드 안에 또 카드를 그린 것처럼 보였다.
- * `badge`라는 이름이 그 사라진 알약을 가리키고 있어 캡션으로 바꿔 달았다 (KAN-161 4단계).
- *
- * [cue]는 위 원칙의 예외로 다시 둔 알약 칩이다 (KAN-283, 사용자 결정 2026-10-14). 감정 지시
- * ("부탁하는 느낌으로 말해주세요!")는 읽기 전에 말투를 먼저 정해야 쓸모가 있어서, 캡션처럼
- * 흐린 한 줄이 아니라 대사 위에 강조로 둔다. 면이 하나 더 생기는 비용보다 대사를 다 읽고 나서야
- * 말투를 알게 되는 비용이 크다고 봤다. null이면 그리지 않는다.
- *
- * 칩이 있으면 카드 맨 위에 칩 하나만 두고 [caption]은 그리지 않는다 — 칩이 캡션 자리를 대신한다
- * (사용자 결정 2026-10-14 에뮬 확인). 처음엔 캡션 아래 따로 한 줄을 뒀더니 읽기 안내와 감정 안내가
- * 두 줄로 겹쳐 대사 위가 무거웠고, 캡션 줄에 「1 / 7 ·」 번호만 남겨 칩을 붙여 봤더니 그 번호는 카드
- * 위 진행 표시(「1 / 7 · 음성」)와 같은 말을 한 번 더 했다. 그리고 칩이 있을 때만 카드 위 여백을
- * [Spacing.x2]만큼 줄인다 — 알약은 제 안쪽 여백까지 면이라 캡션 글자보다 위가 떠 보여서, 칩·대사를
- * 함께 8 올렸다. [cue]가 없으면 지금처럼 캡션 한 줄과 기본 여백이다.
- *
- * [supporting]은 아트보드에 없다. 대사 아래 한 줄을 더 두면 카드가 "읽을 문장"과 "읽는 법"
- * 둘을 함께 내미는데, 그 둘의 글자 크기 차이(26 대 14)만으로는 어느 쪽을 소리 내야 하는지가
- * 즉시 갈리지 않는다. 안내는 카드 밖 하단 캡션이 맡는다. 남겨 둔 이유는 아트보드가 없는
- * 화면(목소리 점검)이 아직 쓰기 때문이다.
+ * [caption]은 카드 맨 위 흐린 한 줄이다(목소리 점검 「목소리 점검」, 억양 학습 「표준어 · …」, 감정 칩이 없는 레벨 테스트 문항
+ * 「n / N · 이 문장을 읽어주세요」). [cue]는 잉크 면 알약 칩이다(KAN-283 감정 칩, 억양 학습 「사투리로 따라 말해 보세요」,
+ * 목소리 점검 「편하게 말해 주세요」). 칩은 대사 아래에 둔다(KAN-354) — 대사가 먼저 읽히고 말투 안내가 뒤따른다. 목소리 점검만
+ * 시안대로 캡션 아래·대사 위에 둔다([cueAbovePrompt]).
  */
 @Composable
 fun PromptCard(
-    caption: String,
     prompt: String,
     modifier: Modifier = Modifier,
-    supporting: String? = null,
+    caption: String? = null,
     cue: String? = null,
+    cueAbovePrompt: Boolean = false,
 ) {
     val colors = MaterialTheme.accenturyColors
     val shape = RoundedCornerShape(Radius.lg)
+    // 대사가 바뀌면 30부터 다시 잰다
+    var long by remember(prompt) { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -71,33 +63,15 @@ fun PromptCard(
             .paperShadow(colors.primaryDim, Radius.lg)
             .defaultMinSize(minHeight = Dimens.promptCardMinHeight)
             .clip(shape)
-            .background(colors.promptCardStart)
-            .border(CARD_BORDER, colors.primaryDim, shape)
-            .padding(
-                start = Dimens.promptCardPadding,
-                end = Dimens.promptCardPadding,
-                bottom = Dimens.promptCardPadding,
-                top = if (cue != null) Dimens.promptCardPadding - Spacing.x2 else Dimens.promptCardPadding,
-            ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.x2, Alignment.CenterVertically),
+            .background(LightPaper)
+            .border(CARD_BORDER, MaterialTheme.colorScheme.onBackground, shape)
+            .padding(horizontal = CARD_PADDING_X, vertical = CARD_PADDING_Y),
+        verticalArrangement = Arrangement.spacedBy(CARD_GAP, Alignment.CenterVertically),
     ) {
-        if (cue != null) {
-            Text(
-                cue,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                // 시안 `.badge` — 크림 알약에 흐린 잉크 1dp 테두리. 잉크로 채운 알약은 주 버튼과 무게가 겹쳤다.
-                modifier = Modifier
-                    .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(Radius.full))
-                    .padding(horizontal = Spacing.x3, vertical = Spacing.x1),
-            )
-        } else {
-            Text(
-                caption,
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.onPromptCardMuted,
-            )
+        if (caption != null) {
+            Text(caption, style = MaterialTheme.typography.labelSmall, color = colors.onPromptCardMuted)
         }
+        if (cue != null && cueAbovePrompt) Cue(cue)
         Text(
             prompt,
             /*
@@ -109,19 +83,47 @@ fun PromptCard(
              * 한 줄씩 채운다) 마지막 줄에 한 낱말만 남는 모양도 함께 줄어든다.
              */
             style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = if (long) LONG_PROMPT_SIZE else PROMPT_SIZE,
+                lineHeight = if (long) LONG_PROMPT_LINE else PROMPT_LINE,
                 lineBreak = LineBreak.Paragraph,
             ),
             color = colors.onPromptCard,
+            onTextLayout = { if (!long && it.lineCount >= LONG_PROMPT_LINES) long = true },
         )
-        if (supporting != null) {
-            Text(
-                supporting,
-                style = MaterialTheme.typography.labelLarge,
-                color = colors.onPromptCardMuted,
-            )
-        }
+        if (cue != null && !cueAbovePrompt) Cue(cue)
     }
 }
 
-/** 테두리 굵기 (시안 `.practice-sheet` 1px 그림자색) */
+/** 시안 `.prompt-card__badge` — 잉크 면·크림 글자 알약(반경 4), 본문 글꼴 12/18 */
+@Composable
+private fun Cue(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontFamily = FontFamily.Default,
+            fontWeight = FontWeight.Normal,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+        ),
+        color = MaterialTheme.colorScheme.background,
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(MaterialTheme.colorScheme.onBackground)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
+/** 테두리 굵기 (시안 1px 잉크) */
 private val CARD_BORDER = 1.dp
+
+/** 시안 `.p2-record .prompt-card` padding 18 20 · gap 10 — 간격 토큰 사이 값이라 여기에만 적는다 */
+private val CARD_PADDING_X = 20.dp
+private val CARD_PADDING_Y = 18.dp
+private val CARD_GAP = 10.dp
+
+/** 대사 Jua 30/1.3, 긴 대사(세 줄 이상) 26/1.3 (시안 `.type-headline`) */
+private val PROMPT_SIZE = 30.sp
+private val PROMPT_LINE = 39.sp
+private val LONG_PROMPT_SIZE = 26.sp
+private val LONG_PROMPT_LINE = 34.sp
+private const val LONG_PROMPT_LINES = 3

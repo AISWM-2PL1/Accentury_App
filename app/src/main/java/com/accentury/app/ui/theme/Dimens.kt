@@ -53,15 +53,11 @@ object Dimens {
     /** 대사 카드 최소 높이. 문항 길이가 달라도 카드가 들썩이지 않게 고정한다 */
     val promptCardMinHeight = 152.dp
 
-    /** 대사·질문 카드 안쪽 여백 */
-    val promptCardPadding = 22.dp
-
     /**
-     * 곡선 레인 하나의 높이. 시안은 폰 목업(390x844) 기준 72px인데, 실제 기기에서는
-     * 대사 카드 아래로 220dp 가까이 비어 있어 곡선이 필요 이상으로 납작했다.
-     * 곡선의 오르내림이 이 화면의 정보 자체라(ux-ui.md §D) 읽히는 크기를 우선한다.
+     * 곡선 레인 하나의 높이 (KAN-354 시안 `.p2-lane` 112, 이전 120). 옛 시안의 72는 실제 기기에서 곡선이 납작했다 —
+     * 곡선의 오르내림이 이 화면의 정보 자체라(ux-ui.md §D) 읽히는 크기를 우선한다. 목소리 점검은 레인 하나에 두 배를 쓴다.
      */
-    val curveLaneHeight = 120.dp
+    val curveLaneHeight = 112.dp
 
     /** 원형 녹음 버튼 지름 (시안: w-20 h-20) */
     val recordButtonSize = 80.dp

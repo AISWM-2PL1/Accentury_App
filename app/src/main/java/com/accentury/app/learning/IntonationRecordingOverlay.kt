@@ -60,6 +60,8 @@ fun IntonationRecordingOverlay(
     recording: RecordingViewModel,
     /** 시작 게이트의 목소리 점검이 잰 중심 음높이. 학습만 한 사용자는 null — 녹음의 첫 유성 프레임으로 잡는다. */
     centerHz: Float?,
+    /** 앱바 ✕ (KAN-354 시안 s-17). 뒤로가기와 같은 정리 다음 목적지로 가는 길은 호출자가 정한다. 제출 중에도 눌린다. */
+    onClose: () -> Unit,
 ) {
     val activity = LocalActivity.current
     val upload by uploader.uploadState.collectAsStateWithLifecycle()
@@ -126,6 +128,7 @@ fun IntonationRecordingOverlay(
                     uploader.submit(WavWriter.toWavBytes(pcm), durationMs, AudioQuality.measure(pcm))
                 }
             },
+            onClose = onClose,
             viewModel = recording,
         )
     }
@@ -159,10 +162,11 @@ private fun UploadFailedControls(
 }
 
 /**
- * 억양 학습 화면(권한 게이트 포함) 오른쪽 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 화면에 나가는 버튼이 없어
+ * 억양 학습 권한 게이트 오른쪽 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 녹음 화면에서는 [RecordingScreen]의 앱바 ✕가 같은
+ * 일을 한다(KAN-354). 화면에 나가는 버튼이 없어
  * 시스템 뒤로가기를 알아야만 나갈 수 있었다. 호출자는 뒤로가기와 같은 `close`를 넘긴다 — 정리(마이크·PCM, 진행 중
  * 업로드 폐기, 웹 회신 없음)가 한 길로 간다. 뒤로가기가 제출 중에도 닫으므로 ✕도 늘 선다.
- * 모양·크기는 설정 톱니(auth/SettingsScreen.kt `SettingsGearButton`)와 같다. 녹음 화면 본문은 위 64dp부터라 겹치지 않는다.
+ * 모양·크기는 설정 톱니(auth/SettingsScreen.kt `SettingsGearButton`)와 같다.
  */
 @Composable
 fun IntonationCloseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {

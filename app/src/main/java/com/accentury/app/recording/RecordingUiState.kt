@@ -56,7 +56,7 @@ sealed interface RecordingPurpose {
 
     /**
      * 레벨테스트 음성 문항 (KAN-100). 화면 모양은 KAN-253 전과 같다.
-     * [emotion]은 대사 위 감정 칩의 재료다 (KAN-283) — 칩을 그릴지는 `emotionCue`가 가른다.
+     * [emotion]은 대사 아래 감정 칩의 재료다 (KAN-283) — 칩을 그릴지는 `emotionCue`가 가른다.
      */
     data class LevelTest(val itemNumber: Int, val totalItems: Int, val emotion: String? = null) : RecordingPurpose {
         override val offersPlayback get() = false
@@ -64,7 +64,7 @@ sealed interface RecordingPurpose {
 
     /**
      * 억양 학습 카드 (KAN-253, webview-bridge.md §12). 표준어 줄은 null이면 생략.
-     * 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「카드 진행률」)를 그린다.
+     * 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「억양」 n / N, KAN-354)를 그린다.
      */
     data class IntonationLearning(val standard: String?, val itemNumber: Int, val totalItems: Int) : RecordingPurpose {
         override val offersPlayback get() = true

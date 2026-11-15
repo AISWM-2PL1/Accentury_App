@@ -1,0 +1,7 @@
+<!--
+  ~ 마이크 — KAN-354 4단계. KAN-311 시안(s-04-mic-permission-gate·s-06-recording-idle)의 `data-added-icon="mic"` 선화를 옮겼다
+  ~ (24 격자, 1.5 선, 둥근 끝, ic_refresh_24와 같은 방식). 권한 화면 원 안과 녹음 버튼이 같이 쓴다. 색은 쓰는 쪽의 tint를 따른다.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M8,10V6a4,4 0,0 1,8 0v4a4,4 0,0 1,-8 0ZM5,10v2a7,7 0,0 0,14 0v-2M12,19v3m-4,0h8" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+</vector>
