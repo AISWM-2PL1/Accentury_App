@@ -90,6 +90,12 @@ private val TEST_QUERY_KEYS = setOf("sessionId", "testVersion", "voiceSet")
 private const val AD_CONSENT_KEY = "adConsent"
 
 /**
+ * 홈 [이어가기]가 학습 탭에 「하던 곳부터」를 알리는 일회성 플래그 키 (KAN-347 3단계, `screen=intonation&resume=1`).
+ * 웹 `buildTabUrl`처럼 [webTabUrl]이 지운다 — 녹음 ✕·뒤로가기·광고 동의 URL에 따라가면 그 문서가 다시 이어가기로 열린다.
+ */
+private const val RESUME_KEY = "resume"
+
+/**
  * 첫 문서를 홈(`screen=home`)으로 열까 (KAN-252). 세 조건을 다 넘어야 홈이다 — 탭 바 빌드(로그인 빌드)이고, 재응시가 인트로를
  * 요청하지 않았고, **앱 링크로 들어오지 않았다.** 앱 링크는 계측 코드가 없거나 무효여도(campaignToken null) 링크로 친다 —
  * 공유 링크를 누른 사람은 테스트를 하러 온 것이라 예전처럼 인트로다 (PR #33 리뷰 P1). 그래서 campaignToken이 아니라
@@ -126,7 +132,8 @@ fun webBackTarget(currentUrl: String?, startRequested: Boolean): String? {
 
 /**
  * 현재 문서를 탭 [screen] 문서로 옮긴 URL (KAN-252). 웹 탭 이동(`buildTabUrl`)과 같은 쿼리 규칙이다 — `screen`만 바꾸고
- * 레벨테스트 값과 광고 동의 플래그(`adConsent`, KAN-315)를 지우며 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다.
+ * 레벨테스트 값과 광고 동의 플래그(`adConsent`, KAN-315)·이어가기 플래그(`resume`, KAN-347)를 지우며 나머지(`bridge`·`app`·`c`)는
+ * 보존하고 fragment는 뗀다.
  * [webBackTarget](홈)과 억양 녹음 ✕ ([LEARN_SCREEN], KAN-354 — 2026-10-13 사용자 결정의 억양 탭이 학습 탭으로 합쳐졌다)가 같이 쓴다. 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
  */
 fun webTabUrl(currentUrl: String?, screen: String): String? {
@@ -134,7 +141,7 @@ fun webTabUrl(currentUrl: String?, screen: String): String? {
     val withoutFragment = currentUrl.substringBefore('#')
     val base = withoutFragment.substringBefore('?')
     val params = withoutFragment.substringAfter('?', "").split('&').filter { it.isNotEmpty() }
-    val kept = params.filter { it.substringBefore('=').let { key -> key != "screen" && key != AD_CONSENT_KEY && key !in TEST_QUERY_KEYS } }
+    val kept = params.filter { it.substringBefore('=').let { key -> key != "screen" && key != AD_CONSENT_KEY && key != RESUME_KEY && key !in TEST_QUERY_KEYS } }
     return "$base?" + (kept + "screen=$screen").joinToString("&")
 }
 
