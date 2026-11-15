@@ -373,6 +373,14 @@ class WebConfigTest {
         assertEquals("$app&screen=words", webTabUrl("$home&adConsent=open", "words"))
     }
 
+    @Test
+    fun `홈 이어가기의 resume 플래그는 뒤로가기·억양 ✕·광고 동의 URL에 따라가지 않는다`() {
+        val resumed = "$app&screen=intonation&resume=1&c=abc"
+        assertEquals("$app&c=abc&screen=home", webBackTarget(resumed, startRequested = false))
+        assertEquals("$app&c=abc&screen=learn", webTabUrl(resumed, LEARN_SCREEN))
+        assertEquals("$app&c=abc&screen=home&adConsent=open", webAdConsentUrl(resumed, startRequested = false))
+    }
+
     // --- webAdConsentUrl: 설정 「맞춤형 광고 설정」의 목적지 (KAN-315) ---
 
     @Test

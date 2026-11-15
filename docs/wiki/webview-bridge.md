@@ -817,6 +817,7 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 - **같은 URL 재이동도 재마운트** — `AppRoot`의 키는 쿼리 문자열이 아니라 이동 횟수다. 키가 `search`였을 때 `replaceState`로 걷은 뒤 같은 URL로 두 번째 재열기 이동이 오면 상태가 같아 재마운트를 건너뛰어 시트가 안 떴다(두 번째 재열기 회귀, 2026-11-03 iOS 실기기).
 - **플래그는 따라가지 않는다** — 웹 `buildTabUrl`·`buildIntroUrl`(`web/src/navigation/entryUrl.ts`)과 네이티브 `webTabUrl`이
   `adConsent`를 지운다. 탭을 옮겼다 홈으로 돌아와도 시트가 다시 뜨지 않는다.
+  Android `webTabUrl`은 홈 [이어가기]의 `resume`(KAN-347 3단계 `screen=intonation&resume=1`)도 지운다(KAN-354) — 녹음 ✕·뒤로가기·광고 동의 URL에 따라가지 않는다.
 - **구버전 실행** — 브리지에 `getAdConsent`가 없어 `consent === null`이면 플래그가 있어도 시트를 열지 않는다(기존 규칙).
 
 ## 14. 업로드 재전송 (KAN-288 6단계)
