@@ -143,6 +143,13 @@ describe('ProgressIndicator', () => {
     expect(screen.getByText('7 / 10')).toBeInTheDocument()
   })
 
+  it('라벨이 왼쪽 위에 보이고 읽히지는 않는다 — 알약 칸 서식 (KAN-347)', () => {
+    const { container } = render(<ProgressIndicator current={2} total={7} label="단어" />)
+    expect(container.querySelector('.progress-indicator__label')).toHaveTextContent('단어')
+    expect(container.querySelector('.progress-indicator__head')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('progressbar', { name: '단어' })).toHaveAttribute('aria-valuenow', '2')
+  })
+
   it('note를 주면 숫자 뒤에 한 마디가 붙는다', () => {
     const { container } = render(<ProgressIndicator current={3} total={10} note="음성" />)
     expect(container.querySelector('.progress-indicator__count')).toHaveTextContent('3 / 10 · 음성')
@@ -173,5 +180,30 @@ describe('StatusBlock', () => {
       <StatusBlock tone="error" message="실패했어요" action={<Button>다시 시도</Button>} />,
     )
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+  })
+  it('icon을 주면 예외 화면 서식이다 — 아이콘 원 · h1 제목 · 설명 · 코드 한 줄 (KAN-347)', () => {
+    const { container } = render(
+      <StatusBlock
+        tone="error"
+        icon={<svg data-testid="icon" />}
+        message="목록을 불러오지 못했어요"
+        detail="잠시 뒤 다시 시도해 주세요"
+        action={<Button>다시 시도</Button>}
+        code="오류 코드 500"
+      />,
+    )
+    const block = screen.getByRole('alert')
+    // iOS 스모크 구동기가 보는 이름은 그대로 남는다
+    expect(block).toHaveClass('status-block', 'exception')
+    expect(container.querySelector('.exception__icon')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('heading', { level: 1, name: '목록을 불러오지 못했어요' })).toBeInTheDocument()
+    expect(container.querySelector('.exception__detail')).toHaveTextContent('잠시 뒤 다시 시도해 주세요')
+    expect(container.querySelector('.exception__code')).toHaveTextContent('오류 코드 500')
+  })
+
+  it('icon이 없으면 예전 블록 그대로다 — 다른 화면 안에 끼어 서는 블록', () => {
+    const { container } = render(<StatusBlock tone="waiting" message="여는 중…" />)
+    expect(container.querySelector('.exception')).toBeNull()
+    expect(screen.queryByRole('heading')).toBeNull()
   })
 })

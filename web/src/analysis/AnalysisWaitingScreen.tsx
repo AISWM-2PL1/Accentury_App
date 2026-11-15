@@ -305,7 +305,8 @@ export function AnalysisWaitingScreen({
   const waiting = status.kind === 'POLLING' || status.kind === 'READY'
 
   return (
-    <main className="screen">
+    // `screen--analysis-wait`: 이 대기 화면은 KAN-347 공통 규칙(폭 제한 해제·버튼 글꼴)에서 빠지고 지금 모양을 지킨다
+    <main className="screen screen--analysis-wait">
       {/*
         화면 맨 위 진행 막대 (아트보드 `Waiting.dc.html`). 문항 진행(`.progress-indicator`)의
         도트가 아니라 막대인 이유는 세는 것이 다르기 때문이다 — 저쪽은 "내가 몇 문항 풀었나"라

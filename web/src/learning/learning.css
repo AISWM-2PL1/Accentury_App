@@ -127,29 +127,7 @@
 
 /* ── W-4 정오 ── */
 
-/* 정오가 붙은 보기는 잠겨도 흐리게 하지 않는다 — 읽어야 할 표시가 그 안에 있다 */
-.choice--locked.choice--correct,
-.choice--locked.choice--wrong {
-  opacity: 1;
-}
-
-.choice--correct {
-  border-width: 2px;
-  border-color: var(--color-control-border);
-}
-
-.choice--wrong {
-  border-style: dashed;
-  border-color: var(--color-point);
-}
-
-.choice__mark {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex-shrink: 0;
-  font-size: var(--text-label);
-}
+/* 선택지 정오 테두리·꼬리표는 공용 `ChoiceList` 서식(components.css, KAN-347 1단계)이 갖는다 */
 
 .choice__mark--wrong,
 .word-verdict--wrong .word-verdict__label {

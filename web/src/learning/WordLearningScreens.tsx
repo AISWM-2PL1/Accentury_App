@@ -7,7 +7,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { Button, ChoiceList, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
-import { CheckIcon, CrossIcon } from '../ui/icons'
+import { CheckIcon, ClockIcon, CloudOffIcon, CrossIcon, RefreshIcon, UserIcon } from '../ui/icons'
 import { useChoiceIdempotencyKey } from '../net/useChoiceIdempotencyKey'
 import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordAnswerResult, type WordApiDeps, type WordAttemptResult, type WordItem, type WordSet, type WordSetSummary } from './wordApi'
 import { GuestLoginPrompt } from './GuestLoginPrompt'
@@ -36,7 +36,8 @@ export function WordLearningRoute({ apiBase, tabBar, deps }: WordLearningRoutePr
     case 'loading':
       return (
         <main className="screen">
-          <StatusBlock tone="waiting" message="불러오는 중이에요" />
+          {/* 예외 화면 서식 (KAN-347 1단계, 시안 s-14-learning-loading) */}
+          <StatusBlock tone="waiting" icon={<ClockIcon />} message="불러오는 중이에요" detail="잠시만 기다려 주세요" />
         </main>
       )
     case 'error':
@@ -98,7 +99,10 @@ function WordErrorScreen({
   // 'leave'(로그인 안내)는 버튼이 없다 — 라우트가 탭 바를 출구로 세운다 (KAN-252)
   const action =
     exit === 'leave' ? undefined : exit === 'retry' ? (
-      <Button onClick={view.retry}>다시 시도</Button>
+      <Button onClick={view.retry}>
+        <RefreshIcon />
+        다시 시도
+      </Button>
     ) : (
       <Button onClick={onBackToList}>세트 목록으로</Button>
     )
@@ -106,9 +110,15 @@ function WordErrorScreen({
     <main className="screen">
       {/* 게스트는 오류가 아니라 로그인 안내다 (KAN-330) — 미리 끊었든 서버 403이든 같은 code */}
       {view.error.code === AUTH_GUEST_NOT_ALLOWED ? (
-        <GuestLoginPrompt />
+        <GuestLoginPrompt screen />
       ) : (
-        <StatusBlock tone="error" message={message} action={action} />
+        // 예외 화면 서식 (KAN-347 1단계): 로그인 안내는 사람(s-20), 그 밖의 오류는 끊긴 구름(s-21)
+        <StatusBlock
+          tone="error"
+          icon={exit === 'leave' ? <UserIcon /> : <CloudOffIcon />}
+          message={message}
+          action={action}
+        />
       )}
     </main>
   )
@@ -140,7 +150,7 @@ export function WordSetListScreen({
 
   return (
     <main className="item-screen">
-      <h1 className="type-title">단어 학습</h1>
+      <h1 className="type-title tab-title">단어 학습</h1>
       {[...byLevel].map(([level, levelSets]) => (
         <section key={level} className="word-level" aria-labelledby={`word-level-${level}`}>
           <h2 id={`word-level-${level}`} className="type-label word-level__title">

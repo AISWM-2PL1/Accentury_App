@@ -35,12 +35,15 @@
   border: none;
   border-radius: var(--radius-md);
 
-  font-family: var(--font-body);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  /* 큰 글자에서 라벨이 두 줄이 될 때 낱말 가운데서 끊기지 않게 (KAN-313). 기본 글자의 라벨은 한 줄이다 */
+  /* 라벨은 Jua다 (KAN-347 1단계). 주·보조 17, 글자 버튼 16. Jua는 굵기 하나짜리라 400으로 둔다 */
+  font-family: var(--font-display);
+  font-size: var(--text-button);
+  font-weight: var(--weight-normal);
+  letter-spacing: 0.01em;
+  /* 기본 글자의 라벨은 한 줄이고, 큰 글자에서 칸을 넘으면 줄을 바꾼다(KAN-347 결정 2026-11-16).
+     낱말 가운데서 끊기지 않게 keep-all (KAN-313) */
   word-break: keep-all;
-  line-height: 1;
+  line-height: var(--leading-tight);
 
   cursor: pointer;
   transition:
@@ -49,9 +52,9 @@
 }
 
 /*
- * 주동작. 디자인 3 (KAN-288)에서 벽돌 면 + 크림 글자 + 본문 글꼴 14/500으로 바꿨다 — 잉크 면 +
- * Jua 20이었다. 시안은 "지금 누를 것"을 포인트 컬러로 짚고(정본 §7의 포인트 자리), 제목 글꼴은
- * 제목·대사·점수에만 남긴다. 벽돌 위 크림은 4.6:1이라 14px 500에서도 AA다.
+ * 주동작. 디자인 3 (KAN-288)에서 벽돌 면 + 크림 글자로 바꿨다 — 잉크 면이었다. 시안은 "지금 누를 것"을
+ * 포인트 컬러로 짚는다(정본 §7의 포인트 자리). 글자는 KAN-347 1단계에서 본문 14/500 → Jua 17로 올렸다(`.btn`).
+ * 벽돌 위 크림은 4.6:1이라 AA다.
  */
 .btn--primary {
   min-height: var(--control-height-lg);
@@ -59,7 +62,6 @@
   background: var(--color-point);
   color: var(--color-point-foreground);
   box-shadow: var(--shadow-card);
-  font-size: var(--text-label);
 }
 
 /*
@@ -71,7 +73,6 @@
   border: 1px solid var(--color-control-border);
   background: var(--color-card);
   color: var(--color-secondary-foreground);
-  font-size: var(--text-label);
 }
 
 /* 이탈·종료처럼 눌리면 안 되는 쪽. 잉크 글자만 남기고 터치 타겟 48dp는 지킨다 */
@@ -79,6 +80,7 @@
   background: none;
   color: var(--color-foreground);
   padding: 0 var(--space-3);
+  font-size: var(--text-button-text);
 }
 
 /*
@@ -124,13 +126,12 @@
 /* ── 진척도 ── */
 
 /*
- * 진행 도트 (KAN-161 2단계). 막대 하나가 아니라 문항 수만큼의 캡슐이다 — 남은 문항이
- * 몇 개인지 세어 볼 수 있고, 채워진 칸이 늘어나는 것이 막대가 자라는 것보다 "한 문항 넘어갔다"로
- * 읽힌다 (ux-ui.md §3 Goal-Gradient).
+ * 알약 칸 진행 표시 (KAN-347 1단계, 시안 s-07). 왼쪽 라벨(「단어」「억양」)과 오른쪽 「n / N」이 위 한 줄,
+ * 아래에 문항 수만큼의 알약 칸(높이 8, 간격 6)이 선다 — 남은 칸을 세어 볼 수 있고, 칸 하나가 채워지는 것이
+ * "한 문항 넘어갔다"로 읽힌다 (ux-ui.md §3 Goal-Gradient).
  *
- * 세 상태를 색이 아니라 **형태**로 가른다: 완료는 잉크로 찬 캡슐, 현재는 테두리가 2px로
- * 두꺼워지고 왼쪽 절반만 찬 캡슐, 미완료는 빈 캡슐이다. `primary-dim`(#cfc5aa)으로
- * 남은 칸을 칠하지 않는 이유는 크림 위 1.46:1이라 아무것도 안 보이기 때문이다 (정본 §7).
+ * 끝난 칸은 벽돌, 지금 칸은 왼쪽 절반만 벽돌, 남은 칸은 종이 그림자색이다. 지금 칸을 색이 아니라 **반만 찬 모양**으로
+ * 가르므로 끝난 칸과 색이 같아도 갈린다. 값은 progressbar 한 줄(aria)이 말하고 칸은 장식이다.
  */
 .progress-indicator {
   display: flex;
@@ -142,39 +143,32 @@
 .progress-indicator__dots {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 6px;
 }
 
 .progress-indicator__dot {
+  position: relative;
   flex: 1 1 0;
   height: var(--progress-dot-height);
-  /* 디자인 3 (KAN-288): 둥근 캡슐이 아니라 모서리 없는 띠, 지나온 칸은 벽돌이다. 남은 칸은 시안의
-     종이 그림자 면에 흐린 잉크 윤곽을 더해 크림 위에서도 칸 끝이 보이게 한다 */
-  border: 1px solid var(--color-muted-foreground);
+  border-radius: var(--radius-full);
   background: var(--color-primary-dim);
+  overflow: hidden;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .progress-indicator__dot[data-state='done'] {
-  border-color: var(--color-point);
   background: var(--color-point);
 }
 
-/*
- * 현재 칸만 절반이 차 있다. 그라디언트를 쓰지만 번지는 면이 아니라 50%에서 딱 끊기는
- * 두 색이라 결과는 잉크와 크림이 맞닿은 경계 하나다 - Papercut에서 유일하게 허용한
- * `linear-gradient`이고, 이 자리 말고는 쓰지 않는다.
- */
-.progress-indicator__dot[data-state='current'] {
-  border-width: 2px;
-  border-color: var(--color-point);
-  background: linear-gradient(90deg, var(--color-point) 50%, var(--color-card) 50%);
+/* 지금 칸 — 왼쪽 절반만 벽돌. 반쪽을 따로 그려 알약 모서리가 둥근 채로 잘린다 */
+.progress-indicator__dot[data-state='current']::before {
+  content: '';
+  position: absolute;
+  inset: 0 50% 0 0;
+  background: var(--color-point);
 }
 
-/*
- * 이름(왼쪽)과 숫자(오른쪽)가 도트 위 한 줄에 선다 (디자인 3 시안 `.card-progress`, KAN-288).
- * 숫자가 오른쪽인 것은 그대로다 - 왼쪽에서 차오르는 도트의 끝과 같은 쪽이다.
- */
+/* 이름(왼쪽)과 숫자(오른쪽)가 칸 위 한 줄에 선다. 둘 다 13px 흐린 잉크다 (시안 s-07) */
 .progress-indicator__head {
   display: flex;
   align-items: baseline;
@@ -182,14 +176,16 @@
   gap: var(--space-3);
 }
 
-.progress-indicator__label {
-  color: var(--color-foreground);
+.progress-indicator__label,
+.progress-indicator__count {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-normal);
 }
 
 .progress-indicator__count {
-  margin: 0;
   text-align: right;
-  color: var(--color-foreground);
 }
 
 /* ── 대기·오류 블록 ── */
@@ -260,8 +256,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-6);
+  /* 폭 제한(--content-max-width 20rem)을 풀었다 (KAN-347 1단계) — 390 폭에서 좌우가 35였다. 이제 화면 여백 24가 전부다 */
   width: 100%;
-  max-width: var(--content-max-width);
   text-align: center;
 }
 
@@ -284,9 +280,31 @@
   align-items: center;
   gap: var(--space-3);
   width: 100%;
-  max-width: var(--content-max-width);
   padding-top: var(--space-4);
   background: var(--color-background);
+}
+
+/*
+ * 두 분석 대기 화면(레벨 테스트 s-09, 억양 학습 s-18)은 KAN-347 공통 규칙에서 빠진다 (확정된 결정 2026-11-16) —
+ * 화면 틀의 폭 제한과 버튼 글자(본문 14/500 · 글자 버튼 16/500)를 이 화면 안에서만 옛 값으로 고정한다.
+ * `AnalysisWaitingScreen`과 억양 학습 대기(`IntonationWaitingScreen`)의 main이 이 클래스를 단다.
+ */
+.screen--analysis-wait .screen__body,
+.screen--analysis-wait .screen__footer {
+  max-width: var(--content-max-width);
+}
+
+.screen--analysis-wait .btn {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  letter-spacing: normal;
+  line-height: 1;
+}
+
+.screen--analysis-wait .btn--primary,
+.screen--analysis-wait .btn--secondary {
+  font-size: var(--text-label);
 }
 
 /* ── 히어로 아이콘 ── */
@@ -845,7 +863,9 @@ html[data-large-text] .home-tier__text h1 {
   text-align: center;
   white-space: nowrap;
   min-height: var(--touch-target-min);
-  /* 디자인 3 (KAN-288): 칩 글자는 Jua가 아니라 본문 14/500 — 주 버튼과 같은 목소리다 */
+  /* 디자인 3 (KAN-288): 칩 글자는 Jua가 아니라 본문 14/500. 지역 화면은 7단계가 다시 그리므로 KAN-347 1단계의
+     선택지 글자(Jua 20)를 받지 않는다 */
+  font-family: var(--font-body);
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
 }
@@ -872,28 +892,28 @@ html[data-large-text] .home-tier__text h1 {
 }
 
 /*
- * 오려 낸 종이 선택지 (KAN-161 2단계). 고르지 않은 것은 테두리만 두른 빈 칸이고,
- * 고른 것만 테두리가 2px로 두꺼워지며 그림자를 얻어 종이 한 장이 떠오른다.
+ * 선택지 (KAN-347 1단계, 시안 s-07). 종이(paper) 한 장: 높이 56, 모서리 10, 잉크 1px, 그림자 3/4, 번호 원 28, 글자 Jua 20.
  *
- * 잉크 한 색이라 "고른 것"을 색으로 말할 수 없다 - 두께·그림자·✓ 표시 셋이 함께 말한다.
- * 셋 중 어느 하나만으로도 읽히므로 색각 이상이나 대비 낮은 화면에서도 남는다 (WCAG 1.4.1).
+ * 고른 것은 잉크 2px + 번호 원이 잉크로 찬다. 제출 뒤 내 오답은 벽돌 2px 실선, 정답은 잉크 2px이고 둘 다 오른쪽에 SVG
+ * 체크·엑스 + 글자 꼬리표(「정답」「내 답」)가 붙는다 — 색 말고 기호·글자로도 가른다 (WCAG 1.4.1).
  */
 .choice {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: var(--control-height-choice);
-  padding: var(--space-3) var(--space-4);
-  /* 고르지 않은 칸은 흐린 잉크 1px (KAN-288 디자인 검수 HIG-B). 종이 그림자색(#cfc5aa)은
-     크림 위 1.46:1이라 칸 경계가 안 보였다 */
-  border: 1px solid var(--color-muted-foreground);
-  border-radius: var(--radius-md);
-  background: var(--color-card);
+  /* 56. 큰 글자에서는 글자와 함께 커진다 (KAN-313) */
+  min-height: max(48px, 3.5rem);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-choice);
   color: var(--color-foreground);
-  font-family: var(--font-body);
-  font-size: var(--text-body-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
   font-weight: var(--weight-normal);
+  line-height: 1.25;
   text-align: left;
   cursor: pointer;
   transition:
@@ -901,16 +921,17 @@ html[data-large-text] .home-tier__text h1 {
     transform var(--duration-press) var(--ease-out);
 }
 
-/* 번호 상자 (디자인 3 시안 `.choice .letter`, KAN-288) — 흐린 잉크 1px 24×24, 글자는 최소 12px */
+/* 번호 원 28 — Jua 14. 눈으로 짚는 자리라 읽히지 않는다 */
 .choice__number {
   display: grid;
   place-content: center;
   flex-shrink: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 1px solid var(--color-muted-foreground);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-tab-label);
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-size: var(--text-label);
   line-height: 1;
 }
 
@@ -923,28 +944,55 @@ html[data-large-text] .home-tier__text h1 {
 .choice--selected {
   border-width: 2px;
   border-color: var(--color-control-border);
-  box-shadow: var(--shadow-choice);
-  font-weight: var(--weight-medium);
 }
 
-/* 누르면 종이가 바닥에 닿는다 - 버튼과 같은 거리, 같은 규칙이다 */
+.choice--selected .choice__number {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+/* 누르면 종이가 바닥에 닿는다 - 그림자가 어긋난 거리(3/4)만큼 내려간다 */
 .choice:active:not(.choice--locked) {
-  transform: translate(var(--paper-shadow-x), var(--paper-shadow-y));
+  transform: translate(var(--choice-shadow-x), var(--choice-shadow-y));
   box-shadow: none;
 }
 
+/* 잠긴 칸은 흐리게 하지 않는다 — 정오 표시가 붙은 칸이 흐려지면 결과를 읽기 어렵다. 정오와 무관한 칸만 흐린 잉크로 */
 .choice--locked {
   cursor: default;
-  opacity: var(--opacity-disabled);
+}
+
+.choice--locked:not(.choice--correct):not(.choice--wrong) {
+  border-color: var(--color-muted-foreground);
+  color: var(--color-muted-foreground);
+  box-shadow: none;
+}
+
+.choice--locked:not(.choice--correct):not(.choice--wrong) .choice__number {
+  border-color: var(--color-muted-foreground);
+}
+
+.choice--correct {
+  border: 2px solid var(--color-border);
+}
+
+.choice--wrong {
+  border: 2px solid var(--color-point);
+}
+
+/* 정오 꼬리표 — SVG 기호 + 글자(Jua 14) */
+.choice__mark {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  font-size: var(--text-label);
 }
 
 /*
- * 고른 것의 표시. 테두리 두께·그림자와 함께 움직여 세 신호가 겹치게 한다.
- *
- * `✓` 글자가 아니라 SVG인 이유 (KAN-161 3단계): 이 문자는 폰트가 그리는 것이라 기기마다
- * 굵기와 크기가 달라지고, 시스템에 따라 이모지 글꼴로 잡히면 색까지 갖는다 — 잉크 한 색
- * 화면에서 유일한 색조가 생기는 경로였다. `display: flex`는 SVG 아래에 생기는 글줄 여백을
- * 없앤다(인라인 요소의 baseline 자리).
+ * 고른 것의 표시. `✓` 글자가 아니라 SVG인 이유 (KAN-161 3단계): 이 문자는 폰트가 그리는 것이라 기기마다
+ * 굵기와 크기가 달라지고, 시스템에 따라 이모지 글꼴로 잡히면 색까지 갖는다. `display: flex`는 SVG 아래에
+ * 생기는 글줄 여백을 없앤다.
  */
 .choice__check {
   display: flex;
@@ -1056,8 +1104,9 @@ html[data-large-text] .home-tier__text h1 {
    * 뚫고 나와 읽을 수 없게 된다 (2026-08-22 브라우저 확인). 계수 3.7은 기본 글자 크기
    * (headline 26)에서 96.2라 시안 값이 그대로 남고, 세 자리 점수(100점)가 원 안에 들어간다.
    */
-  width: max(96px, calc(var(--text-headline) * 3.7));
-  height: max(96px, calc(var(--text-headline) * 3.7));
+  /* 크기는 쓰는 자리가 `--score-donut-size`로 바꾼다 (공용 부품 `ui/ScoreDonut`, KAN-347 1단계). 기본은 결과 화면의 96 */
+  width: max(var(--score-donut-size, 96px), calc(var(--text-headline) * 3.7 * var(--score-donut-scale, 1)));
+  height: max(var(--score-donut-size, 96px), calc(var(--text-headline) * 3.7 * var(--score-donut-scale, 1)));
   flex-shrink: 0;
 }
 
@@ -1114,6 +1163,8 @@ html[data-large-text] .home-tier__text h1 {
 
 .score-donut__score {
   color: var(--color-primary);
+  /* 원 크기에 비례한다. 결과 화면(배율 1)에서는 .type-headline의 26 그대로다 */
+  font-size: calc(var(--text-headline) * var(--score-donut-scale, 1));
 }
 
 /*
@@ -1860,55 +1911,139 @@ a.btn {
   text-underline-offset: 0.2em;
 }
 
-/* ── 맞춤형 광고 동의 시트 (KAN-196) ── */
+/* ── 바텀 시트 (공용 `ui/BottomSheet`, KAN-347 1단계) ── */
 
 /*
- * 인트로 위를 덮는 막. `fixed; inset: 0`이 곧 모달의 실체다 — 뒤의 [시작하기]에 손이 닿지
- * 않는 것은 이 막이 화면을 다 덮기 때문이지 스크립트가 버튼을 잠가서가 아니다. 그래서
- * 시트가 떠 있는 동안 인트로 쪽 코드는 아무것도 몰라도 된다.
+ * 화면을 덮는 막 + 아래에서 올라온 종이 한 장. 광고 동의(`.ad-consent-*`)·번역기 전송 동의·이용 후기(`.feedback-*`)·
+ * 출석 달력(2단계)이 같이 쓴다. `fixed; inset: 0`이 곧 모달의 실체다 — 뒤의 버튼에 손이 닿지 않는 것은 이 막이 화면을
+ * 다 덮기 때문이다.
  *
- * 막의 색은 잉크를 옅게 깐 것이다. 팔레트에 반투명 토큰이 없어(정본은 전부 단색) 여기서
- * `color-mix`로 잉크(`--color-primary`)를 흐린다 — 새 색을 적는 것이 아니라 있는 색의 농도를
- * 낮추는 것이라 "네 번째 출처" 규칙(파일 헤더)에 어긋나지 않는다. 안드로이드 WebView·iOS
- * WebKit 모두 `color-mix`를 지원한다 (Chromium 111+, Safari 16.2+).
+ * 덮개는 종이 그림자 단색(#cfc5aa)을 .6으로 깐다 (시안 s-12). 반투명 색을 새로 만들지 않고 있는 색 면의 불투명도만
+ * 낮춘다. 면을 ::before로 따로 둔 이유는 그 불투명도가 시트 패널까지 흐리게 하지 않게 하려는 것이다.
  *
- * `z-index`는 이 파일에서 처음이다. 인트로의 `.screen__footer`가 `sticky`라 쌓임 맥락을
- * 만드는데, 막이 그보다 뒤에 오면 하단 고지가 막 위로 올라온다.
+ * 움직임 (motion 타일 4): 덮개 150ms로 나타나고 시트 300ms로 올라온다. 시간은 토큰이라 동작 줄이기에서는 0.01ms로
+ * 접혀 끝 상태가 바로 선다(tokens.css). `z-index`는 sticky 하단 띠(.screen__footer)가 막 위로 올라오지 않게.
  */
-.ad-consent-sheet {
+.sheet {
   position: fixed;
   inset: 0;
   z-index: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  isolation: isolate;
+}
+
+.sheet::before,
+.dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-primary-dim);
+  opacity: 0.6;
+  animation: scrim-in var(--duration-fast) var(--ease-out);
 }
 
 /*
- * 아래에서 올라온 종이 한 장. 카드(`.card`)와 같은 테두리·반경 규칙이고, 위 두 모서리만
- * 둥글다 — 아래는 화면 바닥에 붙어 있어 모서리가 보이지 않고, 둥글면 바닥과 시트 사이에 막
- * 색이 비친다. 그림자를 두지 않는 이유는 막이 이미 "떠 있다"를 말하기 때문이다.
- *
- * 좌우 여백은 `.screen`의 화면 여백(24)과 같은 값이라, 시트의 글자 왼쪽 선이 인트로의 글자
- * 왼쪽 선과 맞는다. `padding-bottom`에 안전 영역을 더한다 — 홈 인디케이터 뒤에 버튼이
- * 깔리면 눌리지 않는다.
+ * 종이 한 장. 바탕 paper, 위 두 모서리 16, 잉크 1px(아래 테두리 없음), 그림자 없음 — 막이 이미 "떠 있다"를 말한다.
+ * 좌우 여백은 화면 여백(24)과 같다. `padding-bottom`에 안전 영역을 더한다 — 홈 인디케이터 뒤에 버튼이 깔리면 눌리지 않는다.
+ * 높이는 화면을 넘지 않고 넘치면 시트 안에서 스크롤한다 — 키보드가 올라와 보이는 영역이 줄어도 버튼이 화면 밖으로 밀리지 않게.
+ * `vh`가 아니라 `dvh`인 이유: 모바일 브라우저에서 `vh`는 주소창이 접힌 상태의 큰 값으로 고정된다.
  */
-.ad-consent-panel {
+.sheet__panel {
+  /* 눈에서만 지운 라디오(`.sr-only`, position: absolute)의 기준 상자. 패널이 아니라 바깥 막이 기준이면 패널 안을 스크롤해도
+     그 라디오가 따라 움직이지 않아 화면 밖에 남는다(후기 시트 별점) */
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
+  max-height: calc(100dvh - var(--space-8));
+  overflow-y: auto;
   padding: 1.75rem var(--screen-padding-x) calc(var(--space-6) + env(safe-area-inset-bottom));
-  background: var(--color-card);
+  background: var(--color-paper);
   color: var(--color-card-foreground);
-  /* 디자인 3 (KAN-288, 시안 `.paper-modal`): 위 테두리 1px 잉크 + 위로 8 올린 종이 그림자 한 겹.
-     막 위에 종이 한 장이 올라온 것처럼 보이게 한다. 28은 시안의 위 여백이다 */
-  border-top: 1px solid var(--color-border);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: 0 -8px 0 var(--color-primary-dim);
+  border: 1px solid var(--color-border);
+  border-bottom: 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  animation: sheet-up var(--duration-base) var(--ease-out);
 }
 
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ── 가운데 대화상자 (공용 `ui/Dialog`, KAN-347 1단계) ── */
+
+/*
+ * 폭 320, 모서리 16, 바탕 paper, 잉크 1px, 제목 26 (시안 s-09-error-C). 덮개는 바텀 시트와 같다.
+ * 좁은 화면에서는 좌우 여백 24를 남기고 줄어든다. 번역기 오류(6단계)가 처음 쓴다.
+ */
+.dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--screen-padding-x);
+  isolation: isolate;
+}
+
+.dialog__panel {
+  width: min(320px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 1.25rem;
+  background: var(--color-paper);
+  color: var(--color-card-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sheet);
+  animation: scrim-in var(--duration-fast) var(--ease-out);
+}
+
+.dialog__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-headline);
+  font-weight: var(--weight-normal);
+  line-height: 1.3;
+  word-break: keep-all;
+}
+
+.dialog__body {
+  margin: var(--space-4) 0 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-body-sm);
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* 버튼은 세로로 쌓고 폭을 채운다 — 반 폭이면 Jua 17 라벨이 좁은 칸에서 두 줄로 갈린다 */
+.dialog__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.dialog__actions .btn {
+  width: 100%;
+}
+
+/* ── 맞춤형 광고 동의 시트 (KAN-196) ── */
+
+/* 막·패널은 `.sheet`·`.sheet__panel`이 그린다. 여기는 이 시트에만 있는 문단·버튼 배치다.
+   `.ad-consent-*` 이름은 iOS 스모크 구동기·번역기 동의 시트가 부르는 이름이라 남긴다 */
 .ad-consent-title {
   margin: 0;
 }
@@ -1966,49 +2101,7 @@ a.btn {
 
 /* ── 이용 후기 시트 (KAN-211) ── */
 
-/*
- * 막·패널·여백·반경·안전영역·버튼 스택의 값은 바로 위 `.ad-consent-*`에서 **복사**한 것이다.
- * 공용 클래스로 뽑거나 저쪽 이름을 빌려 쓰지 않는다: `.ad-consent-*`는 KAN-197 코드가 부르는
- * 이름이자 iOS 스모크 구동기가 화면을 가르는 선택자라(`nativeSmokeSelectors.test.ts`가 지킨다),
- * 개명하는 순간 스모크가 멈추고 광고 시트 쪽 회귀 위험을 이 티켓이 떠안는다.
- *
- * 사본이 둘인 상태는 의도적으로 남긴다. 세 번째 시트가 생기는 날 공통 부분을 클래스 하나로
- * 뽑고 두 시트가 그것을 얹는 편이 맞는데, 둘일 때 미리 뽑으면 "무엇이 공통인가"를 사례 둘로
- * 정하게 된다 — 지금 갈리는 것만 해도 패널 높이(아래 `max-height`)와 입력 필드다.
- */
-.feedback-sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  background: color-mix(in srgb, var(--color-primary) 45%, transparent);
-}
-
-/*
- * 아래에서 올라온 종이 한 장 (`.ad-consent-panel`과 같은 규칙).
- *
- * 저쪽에 없는 것은 높이 제한이다. 이 시트에는 입력칸이 둘 있어 키보드가 올라오면 보이는
- * 영역이 절반으로 줄고, 높이를 풀어 두면 [보내기]가 화면 밖으로 밀린다. `vh`가 아니라
- * `dvh`인 이유가 그것이다 — 모바일 브라우저에서 `vh`는 주소창이 접힌 상태의 큰 값으로
- * 고정돼, 주소창이 펼쳐진 실제 화면보다 큰 높이를 허락한다.
- */
-.feedback-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  width: 100%;
-  max-height: calc(100dvh - var(--space-8));
-  overflow-y: auto;
-  padding: 1.75rem var(--screen-padding-x) calc(var(--space-6) + env(safe-area-inset-bottom));
-  background: var(--color-card);
-  color: var(--color-card-foreground);
-  /* `.ad-consent-panel`과 같은 시안 `.paper-modal` 규칙 (KAN-288) */
-  border-top: 1px solid var(--color-border);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: 0 -8px 0 var(--color-primary-dim);
-}
+/* 막·패널·여백·반경·안전영역·높이 제한은 `.sheet`·`.sheet__panel`(KAN-347 1단계 공용 부품)이 갖는다 */
 
 .feedback-title {
   margin: 0;
@@ -2169,7 +2262,6 @@ a.btn {
  * (design-tokens.md에 명시). 높이는 여전히 주버튼만 갖는다 — 그림자를 주지 않아 떠 있는 종이는 하나다.
  *
  * 글자는 주버튼과 같은 크림(`--color-primary-foreground`), 벽돌 위 크림은 대비 4.6:1로 본문 AA를 넘는다.
- * 글자체도 주버튼과 같은 Jua, 굵기는 `--weight-normal` + 자간 0.02em.
  *
  * 전 화면 `.btn--secondary`가 아니라 결과 화면 한정인 이유: 대기·오류 화면의 재응시는 실패에서
  * 빠져나오는 복구 수단이라 눈에 띄면 안 된다. `.btn--secondary`와 특이도가 같아 파일 뒤쪽인 이 자리에
@@ -2180,11 +2272,7 @@ a.btn {
   background: var(--color-point);
   border-color: var(--color-point);
   color: var(--color-primary-foreground);
-
-  font-family: var(--font-display);
-  font-size: var(--text-body);
-  font-weight: var(--weight-normal);
-  letter-spacing: 0.02em;
+  /* 글자체·크기는 KAN-347 1단계부터 모든 버튼이 Jua 17이라(`.btn`) 따로 적지 않는다 */
 }
 
 /*
@@ -2195,14 +2283,12 @@ a.btn {
  * 밑줄은 사용자 요청(2026-09-15)이다. 글자 버튼은 테두리도 배경도 없어 눌리는 자리라는 것이 모양에
  * 드러나지 않아 `.text-link`의 관습(offset 0.2em, 한글 받침이 밑줄에 붙지 않게)을 빌린다.
  *
- * 글자체는 디자인 3(KAN-288)에서 Jua 대신 본문 글자체로 내렸다 — Jua는 제목·대사·점수·등급만 쓴다
- * (시안 `.btn.text`). 색은 `.btn--text`의 잉크 그대로다.
+ * 글자는 `.btn--text`의 Jua 16 그대로다 (KAN-347 1단계). 색도 `.btn--text`의 잉크 그대로다.
  */
 .result-feedback__open {
   width: 100%;
   text-decoration: underline;
   text-underline-offset: 0.2em;
-  font-size: var(--text-label);
 }
 
 /* 보낸 뒤 버튼 자리에 남는 한 줄. 더 누를 것이 없다는 뜻이라 가장 약하게 둔다 */
@@ -2428,4 +2514,103 @@ body:has(.tab-bar) main {
 .close-button:focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
+}
+
+/* ── 예외 화면 서식 (KAN-347 1단계 1-8, 시안 s-21·s-14-learning-loading·s-20·s-20b·s-22) ── */
+
+/*
+ * 아이콘 원 112(아이콘 56), 원 윗선 y=200, 제목 Jua 30, 설명 15 흐린 잉크, 버튼은 내용 너비(가운데). 다섯 화면이 같은
+ * 높이에 선다 — 원 윗선은 화면 위 여백(앱바 56 + 144)이 정한다. 하단 고정 버튼(마이크 차단의 스토어 링크)은 이 서식 밖의
+ * `.screen__footer`라 전체 너비 그대로다(확정된 결정 2026-11-16).
+ *
+ * `StatusBlock`(icon을 준 것)과 `MicBlockedScreen`이 이 클래스를 단다. `.status-block` 위에 얹을 때는 gap을 걷고
+ * 간격을 아래 margin들이 갖는다.
+ */
+.screen:has(> .exception) {
+  justify-content: flex-start;
+  padding-top: calc(var(--app-bar-height) + 144px + env(safe-area-inset-top));
+}
+
+.exception {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  text-align: center;
+}
+
+.exception__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--hero-icon-size);
+  height: var(--hero-icon-size);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+.exception__icon svg {
+  width: 56px;
+  height: 56px;
+}
+
+.exception__title {
+  margin: var(--space-6) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: var(--weight-normal);
+  line-height: var(--leading-tight);
+  word-break: keep-all;
+}
+
+.exception__detail {
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-body-sm);
+  line-height: var(--leading-normal);
+  word-break: keep-all;
+}
+
+.exception > .btn {
+  margin-top: var(--space-8);
+}
+
+.exception__code {
+  margin: var(--space-4) 0 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-caption);
+}
+
+/* ── 별 칸 (`ui/Stars`, KAN-347 1단계 1-5) ── */
+
+.stars {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* 빈 별 — 종이 그림자색 테두리만 */
+.stars__star {
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--color-primary-dim);
+  stroke-width: 1.5;
+}
+
+/* 채운 별 — 벽돌 면 + 잉크 1px 테두리 */
+.stars__star--filled {
+  fill: var(--color-point);
+  stroke: var(--color-primary);
+  stroke-width: 1;
+}
+
+/* ── 탭 화면 제목 (KAN-347 1단계 1-1) ── */
+
+/* 홈·학습·번역기 탭 화면의 제목 윗선은 y=80으로 같다 — 본문 시작(앱바 56 + 8)에서 16을 더 내린다 */
+.tab-title {
+  margin-top: var(--space-4);
 }

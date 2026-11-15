@@ -30,7 +30,7 @@ import { FEEDBACK_DONE_CAPTION, FEEDBACK_OPEN } from '../feedback/feedbackText'
 import { sendFeedback, type FeedbackInput } from '../feedback/sendFeedback'
 import { newIdempotencyKey } from '../net/idempotencyKey'
 import type { FetchLike } from '../progress/fetchTestDefinition'
-import { Button, StatusBlock } from '../ui'
+import { Button, ScoreDonut, StatusBlock } from '../ui'
 import { ShareIcon } from '../ui/icons'
 import { fetchResult, ResultFetchError } from './fetchResult'
 import { RetestAction } from './RetestAction'
@@ -300,7 +300,7 @@ export function ResultScreen({
           한쪽이 다른 쪽의 가중 평균이라 한 상자에 있는 편이 관계를 말한다.
         */}
         <div className="card result-card">
-          <ScoreDonut score={scores.overall} />
+          <ScoreDonut score={scores.overall} label="종합 점수" />
           <div className="result-scores">
             <ScoreRow label="억양" score={scores.intonation} />
             <ScoreRow label="단어" score={scores.vocabulary} />
@@ -535,52 +535,6 @@ function AppDownloadAction({
         {storeLabelFor(platform)}로 이동해요
       </p>
     </>
-  )
-}
-
-/**
- * 종합 점수 도넛.
- *
- * `<svg>`로 그리는 이유: 원호의 길이를 stroke-dasharray로 정확히 잘라낼 수 있고, 확대·
- * 접근성 글자 크기에서도 화질이 유지된다. viewBox 좌표(120·54 같은 값)는 디자인 토큰이
- * 아니라 도형의 좌표계라 그대로 적는다 — 화면에 나가는 실제 크기는 CSS가 정한다.
- *
- * 숫자를 도넛 안에 텍스트로도 적는다. 원호만으로는 72와 75를 구분할 수 없고, 원호는
- * 스크린 리더에 아무것도 아니다.
- */
-function ScoreDonut({ score }: { score: number }) {
-  const radius = 54
-  const circumference = 2 * Math.PI * radius
-  // 서버가 0~100을 보장하지만(§3.7), 배포 사고로 벗어난 값이 오면 원호가 한 바퀴를 넘어
-  // 그려진다. 그림만 가둔다 — 숫자는 받은 그대로 보여야 이상을 알아챌 수 있다.
-  const filled = Math.min(Math.max(score, 0), 100)
-
-  return (
-    <div className="score-donut">
-      <svg className="score-donut__ring" viewBox="0 0 120 120" aria-hidden="true">
-        <circle className="score-donut__track" cx="60" cy="60" r={radius} />
-        <circle
-          className="score-donut__value"
-          cx="60"
-          cy="60"
-          r={radius}
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - filled / 100)}
-        />
-      </svg>
-      <div className="score-donut__label">
-        {/*
-          "종합 점수" 캡션을 눈에서만 지웠다 (KAN-161 3단계, 아트보드). 96px 원 안에 두 줄이
-          들어가면 숫자가 캡션만 해지고, 옆 칸에 "억양"·"단어"가 이미 이름표를 달고 서 있어
-          왼쪽 큰 숫자가 무엇인지는 배치로 읽힌다.
-
-          소리로는 그 배치가 없다. 그래서 지운 것은 화면에서뿐이고 스크린 리더에는 남긴다 —
-          없으면 "74점"이 무엇의 74점인지 말해 주는 것이 아무것도 없다.
-        */}
-        <span className="sr-only">종합 점수</span>
-        <span className="type-headline score-donut__score">{score}점</span>
-      </div>
-    </div>
   )
 }
 

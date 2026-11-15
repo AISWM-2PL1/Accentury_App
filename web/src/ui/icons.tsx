@@ -114,3 +114,50 @@ export function MicIcon({ size = 56 }: { size?: number }) {
     </svg>
   )
 }
+
+/**
+ * 선 아이콘 한 벌 (KAN-347 1단계, 시안 v11 아이콘 세트). viewBox 24, 획 1.5. 예외 화면 아이콘 원(112) 안에서는 CSS가
+ * 56으로 키우고(`.exception__icon svg`), 버튼 안에서는 20으로 선다.
+ */
+function LineIcon({ d, size = 20 }: { d: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={d} />
+    </svg>
+  )
+}
+
+/** 시계 — 불러오는 중 (s-14-learning-loading) */
+export function ClockIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 7v5l4 2" />
+}
+
+/** 사람 — 로그인 안내 (s-20) */
+export function UserIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM4 21v-2a8 6 0 0 1 16 0v2" />
+}
+
+/** 자물쇠 — 게스트 안내 (s-20b-learning-guest) */
+export function LockIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M6 10h12v11H6ZM8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+}
+
+/** 끊긴 구름 — 목록 오류 (s-21) */
+export function CloudOffIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M3 3l18 18M5 16a4 4 0 0 1-1-8m4-3a7 7 0 0 1 12 5 4 4 0 0 1 1 7M8 18h7" />
+}
+
+/** 다시 시도 — 돌아가는 화살표 둘 */
+export function RefreshIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M20 8a8 8 0 0 0-14-3L3 8m0-5v5h5M4 16a8 8 0 0 0 14 3l3-3m0 5v-5h-5" />
+}

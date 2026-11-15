@@ -10,7 +10,7 @@ import { canStartIntonationRecording } from '../bridge/bridge'
 import { guideCurveDisplayPoints } from '../recording/guideCurve'
 import { CurveLane } from '../recording/CurveLane'
 import { Button, CloseButton, ProgressIndicator, StatusBlock } from '../ui'
-import { CheckSmallIcon } from '../ui/icons'
+import { CheckSmallIcon, ClockIcon, CloudOffIcon, RefreshIcon, UserIcon } from '../ui/icons'
 import { IntonationCurveLoop } from '../ui/IntonationCurveLoop'
 import { TextHero } from '../ui/TextHero'
 import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
@@ -46,7 +46,8 @@ export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLea
     case 'loading':
       return (
         <main className="screen">
-          <StatusBlock tone="waiting" message="불러오는 중이에요" />
+          {/* 예외 화면 서식 (KAN-347 1단계, 시안 s-14-learning-loading) */}
+          <StatusBlock tone="waiting" icon={<ClockIcon />} message="불러오는 중이에요" detail="잠시만 기다려 주세요" />
         </main>
       )
     case 'error':
@@ -154,7 +155,10 @@ function IntonationErrorScreen({
   // 'leave'(로그인 안내)는 버튼이 없다 — 라우트가 탭 바를 출구로 세운다 (KAN-252)
   const action =
     exit === 'leave' ? undefined : exit === 'retry' ? (
-      <Button onClick={view.retry}>다시 시도</Button>
+      <Button onClick={view.retry}>
+        <RefreshIcon />
+        다시 시도
+      </Button>
     ) : (
       <Button onClick={onBackToList}>코스 목록으로</Button>
     )
@@ -162,9 +166,15 @@ function IntonationErrorScreen({
     <main className="screen">
       {/* 게스트는 오류가 아니라 로그인 안내다 (KAN-330) — 미리 끊었든 서버 403이든 같은 code */}
       {view.error.code === AUTH_GUEST_NOT_ALLOWED ? (
-        <GuestLoginPrompt />
+        <GuestLoginPrompt screen />
       ) : (
-        <StatusBlock tone="error" message={message} action={action} />
+        // 예외 화면 서식 (KAN-347 1단계): 로그인 안내는 사람(s-20), 그 밖의 오류는 끊긴 구름(s-21)
+        <StatusBlock
+          tone="error"
+          icon={exit === 'leave' ? <UserIcon /> : <CloudOffIcon />}
+          message={message}
+          action={action}
+        />
       )}
     </main>
   )
@@ -194,7 +204,7 @@ export function IntonationCourseListScreen({
 
   return (
     <main className="item-screen">
-      <h1 className="type-title">억양 학습</h1>
+      <h1 className="type-title tab-title">억양 학습</h1>
       {[...byLevel].map(([level, levelCourses]) => (
         <section key={level} className="word-level" aria-labelledby={`intonation-level-${level}`}>
           <h2 id={`intonation-level-${level}`} className="type-label word-level__title">
@@ -320,8 +330,9 @@ export function IntonationWaitingScreen() {
 
   // 단계 마크업·클래스는 레벨테스트 대기 화면(AnalysisWaitingScreen)과 같다. 세션 10문항에 묶인 그 화면 대신 카드 1건용
   // 제목 아래 억양 곡선 루프도 같은 부품이다 — 두 대기 화면이 같은 모양으로 기다린다 (KAN-302)
+  // `screen--analysis-wait`: 이 대기 화면은 KAN-347 공통 규칙에서 빠지고 지금 모양을 지킨다 (components.css)
   return (
-    <main className="screen">
+    <main className="screen screen--analysis-wait">
       <div className="analysis-body analysis-body--centered">
         <div className="analysis-waiting">
           <h1 className="type-headline">분석 중이에요</h1>

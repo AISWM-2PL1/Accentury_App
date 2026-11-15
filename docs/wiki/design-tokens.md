@@ -55,7 +55,8 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `primary-dim` | `#cfc5aa` | 오프셋 종이 그림자 |
 | `background` | `#f3ecd9` | 화면 배경 |
 | `foreground` | `#1c1a17` | 본문 텍스트 |
-| `card` | `#f3ecd9` | 카드·선택지 표면. 배경과 같은 색이고 테두리·그림자로 갈린다 |
+| `card` | `#f3ecd9` | 카드 표면. 배경과 같은 색이고 테두리·그림자로 갈린다 |
+| `paper` | `#f8f3e6` | 크림 위에 한 장 더 얹은 밝은 종이 — 선택지·바텀 시트·대화상자 면 (KAN-347 1단계, 웹 `--color-paper`. 네이티브는 KAN-354·KAN-355) |
 | `card-foreground` | `#1c1a17` | 카드 위 텍스트 |
 | `secondary` | `#f3ecd9` | 보조 면 |
 | `secondary-foreground` | `#1c1a17` | 보조 면 위 텍스트 |
@@ -155,10 +156,14 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 
 행간은 대사·등급이 `1.15`, 나머지가 `1.5`.
 
-**버튼 라벨·화면 제목 (KAN-354, 2026-11-12 결정).** 버튼 라벨은 Jua다 — 주·보조·위험 확인 17, 글자 버튼 16. Android는
-M3 슬롯 밖의 `ButtonLabel.Regular`(17/22)·`ButtonLabel.Text`(16/20)이고 `AccenturyButton`만 읽는다. 화면 제목은 화면이
+**버튼 라벨·화면 제목 (KAN-354, 2026-11-12 결정 · KAN-347 1단계).** 버튼 라벨은 Jua다 — 주·보조·위험 확인 17, 글자 버튼 16이고
+굵기 400·자간 0.01em이다(본문 14/500에서 올렸다). 한 줄로 쓰고, 큰 글자에서 칸을 넘으면 줄을 바꾼다(낱말 단위). Android는
+M3 슬롯 밖의 `ButtonLabel.Regular`(17/22)·`ButtonLabel.Text`(16/20)이고 `AccenturyButton`만 읽는다. 웹은 `--text-button`
+`1.0625rem` / `--text-button-text` `1rem`(`.btn`). 소셜 로그인 버튼(네이티브)은 이 규칙 밖이다. 두 분석 대기 화면(레벨 테스트
+s-09·억양 학습 s-18)은 공통 규칙에서 빠져 옛 라벨(본문 14/500)을 지킨다(웹 `.screen--analysis-wait`). 화면 제목은 화면이
 하는 일로 두 크기다: 안내·예외·대기 Jua 30(`title`, Android `ScreenTitle.Notice`), 입력·동의·설정·시트·확인 창 Jua 26
-(`headline`, Android `ScreenTitle.Form`). 두 이름은 슬롯을 가리킬 뿐 새 크기가 아니다.
+(`headline`, Android `ScreenTitle.Form`). 두 이름은 슬롯을 가리킬 뿐 새 크기가 아니다. 탭 화면(홈·학습·번역기) 제목 윗선은
+y=80으로 같다(웹 `.tab-title`).
 
 웹 열은 `tokens.css`의 값이다. 웹 크기는 rem(16px = 1rem)이라 루트 글자 크기를 따르고, rem과 px를 가르는 규칙은 [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)이 정본이다 (KAN-313).
 
@@ -181,9 +186,9 @@ M3 슬롯 밖의 `ButtonLabel.Regular`(17/22)·`ButtonLabel.Text`(16/20)이고 `
 |---|---|---|---|
 | `radius-sm` | **4dp** | `4px` | 칩·별점 칸·선택지 번호 상자 (KAN-288, 이전 12) |
 | `radius-md` | **6dp** | `6px` | 버튼, 선택지, 입력 칸, 학습 목록 행 (KAN-288, 이전 16) |
-| `radius-lg` | **10dp** | `10px` | 카드·대사 카드·시트 (KAN-288, 이전 18) |
-| `radius-sheet` | **16dp** | (KAN-347) | 시트·확인 창 (KAN-354, 시안 `.sheet` 16). Android `Radius.sheet` |
-| `radius-xl` | **10dp** | `10px` | `radius-lg`와 같은 값으로 접었다 — 디자인 3에 10보다 큰 종이 모서리가 없다 (KAN-288, 이전 24) |
+| `radius-lg` | **10dp** | `10px` | 카드·대사 카드·선택지 (KAN-288, 이전 18. 선택지는 KAN-347에서 6 → 10). 시트·확인 창은 `radius-sheet` |
+| `radius-sheet` | **16dp** | `16px` | 바텀 시트 위 두 모서리·가운데 대화상자(확인 창) (KAN-347 1단계·KAN-354, 시안 `.sheet` 16). Android `Radius.sheet`, 웹 `--radius-sheet` |
+| `radius-xl` | **10dp** | `10px` | `radius-lg`와 같은 값으로 접었다 (KAN-288, 이전 24). 시트·대화상자는 위 `radius-sheet`다 |
 | `radius-full` | 9999 | `9999px` | 원형·캡슐 (녹음 버튼, 히어로 아이콘, 진행 도트) |
 | `touch-target-min` | **48dp** | `max(48px, 3rem)` | 모든 탭 가능 요소의 최소 높이·너비 |
 | `control-height-lg` | **48dp** | `max(48px, 3rem)` | 주 버튼 높이 (KAN-288, 이전 56). 보조 버튼과 같은 높이이고 위계는 면 색(벽돌/크림)이 말한다 |
@@ -192,12 +197,13 @@ M3 슬롯 밖의 `ButtonLabel.Regular`(17/22)·`ButtonLabel.Text`(16/20)이고 `
 | `prompt-card-min-height` | 152dp | `9.5rem` | 대사 카드 (문항 길이가 달라도 카드 크기 고정) |
 | `screen-padding-top` | 64dp (= 앱바 56 + 8) | 앱바 `3.5rem` + `0.5rem` + 안전 영역 | 화면 위쪽 여백. 좌우 24·아래 32와 다른 값이고, 첫 요소를 내려 그림·제목이 세로 가운데에 앉게 한다. **웹 4화면·네이티브 녹음 화면 반영 완료** (`Dimens.screenPaddingTop`). 디자인 3(KAN-288)부터 웹은 그 자리를 고정 워드마크 앱바(`--app-bar-height` 56, `ui/AppBar`)가 채우고, 브라우저에서 24로 내리던 분기(§7 KAN-199)는 걷었다 — 앱바 아래로 본문이 들어가면 안 돼서다 |
 | `screen-padding-x` | 24dp | `24px` | 화면 좌우 여백(`.screen`·`.item-screen`·앱바·하단 시트 패널). 값은 `space-6`과 같고 웹만 px로 고정한다 — 200%에서 48px이 되면 360 폭 본문이 312→264px로 준다 (KAN-313, PR #68 리뷰 2026-11-10) |
-| `content-max-width` | 320dp | `20rem` | 본문 최대 폭. 넓은 화면에서 한 줄이 길어져 읽기 힘들어지는 것을 막는다 |
+| `content-max-width` | 320dp | `20rem` | 본문 최대 폭. **웹 공통 화면 틀에서는 풀었다** (KAN-347 1단계) — 390 폭에서 좌우가 35가 되던 것을 좌우 여백 24로 맞춘다. 웹에 남은 쓰임은 지금 모양을 지키는 두 분석 대기 화면(`.screen--analysis-wait`)뿐이다 |
 | `opacity-disabled` | 0.6 | `0.6` | 비활성·제출 중 요소 |
 | `prompt-card-padding` | 24dp | `1.5rem` | 대사·질문 카드 안쪽 여백. Android 녹음 화면 대사 카드는 KAN-354에서 위아래 18·좌우 20(시안 `.p2-record .prompt-card`) |
 | `progress-bar-height` | **8dp** | `8px` | 막대 두께 (결과 점수 막대·입력 레벨 바·남은 시간 게이지). 12에서 내렸다 — §7 |
 | `progress-dot-height` | 8dp | `8px` | 진행 도트 하나의 두께. 막대와 값은 같지만 뜻이 다르다 — 저쪽은 그릇, 이쪽은 칸 하나다 |
 | `paper-shadow-x` / `paper-shadow-y` | **4dp / 5dp** | `4px / 5px` | 오프셋 종이 그림자가 어긋난 거리. 눌림도 이 값만큼 내려간다 (§5). KAN-288에서 3/4 → 4/5 |
+| `choice-shadow-x` / `choice-shadow-y` | 3dp / 4dp | `3px / 4px` | 선택지 그림자만의 거리 (KAN-347 1단계). 선택지 눌림도 이 값만큼 내려간다 |
 | `hero-icon-size` | 112dp | `112px` | 인트로·권한 화면의 원형 아이콘 (w-28) |
 | `record-button-size` | 80dp | — (웹 토큰 없음) | 원형 녹음 버튼 지름 (시안: w-20) |
 | `curve-lane-height` | 120dp | `7.5rem` | F0 곡선 레인 하나. 시안(72px)보다 키웠다 — 실제 기기에서는 아래가 비어 곡선이 납작했다. Android는 KAN-354에서 112(시안 `.p2-lane`, `Dimens.curveLaneHeight`) |
@@ -233,6 +239,10 @@ M3 슬롯 밖의 `ButtonLabel.Regular`(17/22)·`ButtonLabel.Text`(16/20)이고 `
 화면이 들썩인다. Material `elevation`과 CSS `filter: blur`는 사방으로 번지는 그림자라
 이 모양이 나오지 않는다 — 알파를 섞은 흐림은 Papercut에 없는 재질이다.
 
+**바텀 시트 (KAN-347 1단계, 움직임 타일 4)**: 덮개 `duration-fast` 150ms로 나타나고 시트가 `duration-base` 300ms로 아래에서
+올라온다(`ease-out`). **점수 원 count-up**: 0 → N점을 `duration-reveal` 600ms로 센다. 웹은 이 시간을 토큰에서 읽어
+JS로 돌리고, 동작 줄이기면 끝 값을 바로 그린다.
+
 **모션 축소 대응**: 웹은 `@media (prefers-reduced-motion: reduce)`에서 모든 duration을 `0.01ms`로 덮는다. 네이티브는 `Settings.Global.ANIMATOR_DURATION_SCALE`이 0이면 애니메이션을 건너뛴다. 축소 상태에서도 **최종 상태는 동일** — 사라지는 정보가 없어야 한다.
 
 ### 그림자
@@ -245,10 +255,13 @@ M3 슬롯 밖의 `ButtonLabel.Regular`(17/22)·`ButtonLabel.Text`(16/20)이고 `
 | `shadow-card` | `4px 5px 0 #cfc5aa` | 일반 카드 |
 | `shadow-prompt` | `4px 5px 0 #cfc5aa` | 대사·질문 카드 |
 | `shadow-hero` | `4px 5px 0 #cfc5aa` | 원형 히어로 아이콘 |
-| `shadow-choice` | `4px 5px 0 #cfc5aa` | 선택지 |
+| `shadow-choice` | `3px 4px 0 #cfc5aa` | 선택지 (KAN-347 1단계, 이전 `4px 5px 0`) |
 
-넷이 같은 값인 것은 미처리가 아니라 규칙이다. 종이 한 장의 두께는 카드든 버튼이든 같고,
-깊이로 위계를 만들려면 그림자가 아니라 크기·잉크 굵기를 쓴다.
+그림자는 `4px 5px 0 #cfc5aa` 하나이고 선택지만 `3px 4px 0`이다 (KAN-347 1단계) — 한 화면에 네 장이 쌓이는 선택지는
+한 칸 얇아야 그림자가 줄무늬로 보이지 않는다. 나머지가 같은 값인 것은 미처리가 아니라 규칙이다. 종이 한 장의 두께는
+카드든 버튼이든 같고, 깊이로 위계를 만들려면 그림자가 아니라 크기·잉크 굵기를 쓴다.
+
+바텀 시트·대화상자는 그림자를 두지 않는다. 덮개(종이 그림자색 단색, 불투명도 .6)가 이미 "떠 있다"를 말한다 (KAN-347).
 
 ## 6. 대비 검증 결과
 
@@ -488,7 +501,11 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 |---|---|---|
 | 버튼 | `ui/components/AccenturyButton.kt` | `web/src/ui/Button.tsx` + `.btn` |
 | 진척도 | `ui/components/ProgressIndicator.kt` | `web/src/ui/ProgressIndicator.tsx` |
-| 대기·오류 블록 | `ui/components/StatusBlock.kt` | `web/src/ui/StatusBlock.tsx` |
+| 대기·오류 블록·예외 화면 서식 | `ui/components/StatusBlock.kt` | `web/src/ui/StatusBlock.tsx` (`icon`을 주면 예외 서식, KAN-347) |
+| 점수 원 | — | `web/src/ui/ScoreDonut.tsx` (KAN-347) |
+| 별 칸 | — | `web/src/ui/Stars.tsx` (KAN-347) |
+| 바텀 시트 | — | `web/src/ui/BottomSheet.tsx` + `.sheet` (KAN-347) |
+| 가운데 대화상자 | — | `web/src/ui/Dialog.tsx` + `.dialog` (KAN-347) |
 | 대사·질문 카드 | `ui/components/PromptCard.kt` | `.prompt-card` |
 | 선택지 | `ui/components/ChoiceButton.kt` (KAN-224 성별·출신지역) · iOS `UI/Components/ChoiceButton.swift` | `.choice` |
 | 입력 칸 | `ui/components/AccenturyTextField.kt` (KAN-224 추가 정보) · iOS `UI/Components/AccenturyTextField.swift` | — |
@@ -516,6 +533,9 @@ KAN-148의 AC "텍스트 대비 4.5:1"은 이제 예외 없이 지켜진다.
 ### 버튼
 
 무게 세 가지(`Primary`·`Secondary`·`Text`).
+
+> **KAN-347 1단계 (웹 반영, 네이티브는 KAN-354·KAN-355):** 라벨이 Primary·Secondary Jua 17, Text Jua 16(굵기 400)으로
+> 바뀌었다(§3 「버튼 라벨」). 아래 표의 라벨 열은 그 전 값이다. 큰 글자에서 넘치면 줄을 바꾼다.
 
 | | 높이 | 테두리 | 면 | 그림자 | 라벨 |
 |---|---|---|---|---|---|
@@ -547,6 +567,13 @@ Secondary다 — 맞춤형 광고 시트 [맞춤형 광고 받기]·[일반 광�
 가이드의 면·글자·문구로 따로 그린다(높이 48·반경 12·테두리 없음·시스템 글꼴 15, 로고 왼쪽 고정). 출처·규칙은
 [social-login-logos.md](social-login-logos.md).
 
+### 선택지 (웹, KAN-347 1단계)
+
+paper 면, 높이 56, 반경 10, 잉크 1px, 그림자 `3px 4px 0`, 번호 원 28(Jua 14), 글자 Jua 20. 고른 칸 = 잉크 2px + 번호 원이
+잉크로 찬다. 제출 뒤 내 오답 = 벽돌 2px 실선, 정답 = 잉크 2px이고 둘 다 SVG 체크·엑스 + 글자 꼬리표(「정답」「내 답」)가 붙는다 —
+색 말고 기호로도 가른다(WCAG 1.4.1). 잠긴 칸 중 정오와 무관한 칸만 흐린 잉크다(흐리게 하지 않는다). 지역 칩(2열)은 7단계까지
+본문 14/500 글자를 유지한다.
+
 ### 선택지 (네이티브, KAN-224)
 
 `ChoiceButton` — Android는 고르지 않은 칸이 흐린 잉크(`muted-foreground`) 1 테두리 + `paper` 면 + 반경 6(`radius-md`),
@@ -563,6 +590,11 @@ Secondary다 — 맞춤형 광고 시트 [맞춤형 광고 받기]·[일반 광�
 아니라 누르는 칸(생년월일 → 달력)이 되고 버튼으로 읽힌다.
 
 ### 진척도
+
+> **KAN-347 1단계 (웹 반영):** 알약 칸이다. 왼쪽 라벨(「단어」「억양」)과 오른쪽 「n / N」이 13px 흐린 잉크로 위 한 줄에
+> 서고, 아래 알약 칸(높이 8, 간격 6, 반경 full)은 끝난 칸 벽돌 · 지금 칸 왼쪽 절반 벽돌 · 남은 칸 종이 그림자색이다. 테두리와
+> 그라디언트는 없어졌다(지금 칸 반쪽은 `::before`). progressbar 한 줄로만 값을 읽는 구조는 그대로다. 아래 KAN-288 인용과
+> 본문은 그 전 값이다.
 
 > **KAN-288 디자인 3 (웹 반영):** 칸은 모서리 없는 띠, 지나온 칸·현재 칸은 벽돌, 남은 칸은 종이 그림자 면 + 1px 흐린
 > 잉크다. 이름(「문항 진행률」)과 "3 / 10"이 도트 **위** 한 줄에 선다 — 이름 왼쪽, 숫자 오른쪽(시안 `.card-progress`).
@@ -605,6 +637,14 @@ Android는 KAN-354에서 시안 s-06·s-17(`.progress-indicator`)대로 그린�
 대사 위 흐린 13 캡션은 억양 학습 「표준어 · …」, 감정 칩이 없는 레벨 테스트 문항 「n / N · 이 문장을 읽어주세요」다.
 
 ### 대기·오류 블록
+
+> **예외 화면 서식 (KAN-347 1단계, 웹):** 아이콘 원 112(아이콘 56, 잉크 1px, 그림자 없음), 원 윗선 y=200, 제목 Jua 30, 설명 15
+> 흐린 잉크, 버튼은 내용 너비(위 32), 그 아래 오류 코드 13 흐린 잉크. 하단 고정 버튼(마이크 차단의 스토어 링크)은 전체 너비를
+> 유지한다. 대상: 학습 로딩·학습 탭 게스트 안내·로그인 안내·목록 오류·마이크 차단. 웹은 `StatusBlock`에 `icon`을 주면
+> 이 서식(`.exception`)이다.
+>
+> **바텀 시트·대화상자 (KAN-347 1단계, 웹):** 시트는 paper 면, 위 모서리 16, 잉크 1px(아래 없음), 제목 26, 덮개 `#cfc5aa`
+> 불투명도 .6. 대화상자는 폭 320, 모서리 16, 같은 면·덮개, 제목 26, 설명 15 흐린 잉크, 버튼 세로 쌓기.
 
 문구 + 부연 + 선택적 복구 동작. 오류일 때만 스스로 읽힌다 (웹 `role="alert"`, 네이티브
 `liveRegion`). 대기 문구는 곧 바뀔 상태라 매번 읽으면 소음이 된다.

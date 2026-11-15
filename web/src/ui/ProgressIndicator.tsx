@@ -1,13 +1,12 @@
 /**
- * 진척도 (KAN-148, 형태는 KAN-161 2단계). 도트 줄과 "2 / 7" 표기를 한 덩어리로 묶는다 —
- * 둘이 떨어져 있으면 한쪽만 고쳐 숫자와 도트가 어긋나는 날이 온다.
+ * 진척도 (KAN-148, 형태는 KAN-161 2단계 → KAN-347 1단계 알약 칸). 왼쪽 라벨(「단어」「억양」), 오른쪽 「n / N」(13px 흐린 잉크),
+ * 아래 알약 칸(높이 8, 간격 6)을 한 덩어리로 묶는다 — 떨어져 있으면 한쪽만 고쳐 숫자와 칸이 어긋나는 날이 온다.
  *
- * 막대 하나였는데 문항 수만큼의 캡슐로 바꿨다. 남은 문항을 세어 볼 수 있고, 칸 하나가
- * 채워지는 것이 막대가 조금 자라는 것보다 "한 문항 넘어갔다"로 읽힌다.
+ * 끝난 칸은 벽돌, 지금 칸은 왼쪽 절반만 벽돌, 남은 칸은 종이 그림자색이다(모양은 components.css). 지금 칸을 색이 아니라
+ * 반만 찬 모양으로 가르므로 끝난 칸과 색이 같아도 갈린다.
  *
- * `<progress>`를 버린 대가로 role·값 의미론을 손으로 채운다. 그래도 도트가 이기는 이유는
- * 형태다 — 완료·현재·미완료를 색이 아니라 채움과 테두리 두께로 갈라야 하는데(정본 §7),
- * `<progress>`의 내장 모양에는 "현재 칸" 같은 개념이 없다.
+ * `<progress>`를 버린 대가로 role·값 의미론을 손으로 채운다. 값은 progressbar 한 줄로만 읽힌다 — 칸과 위 글자는
+ * 눈으로만 읽는다.
  *
  * 값이 1부터 시작하는 건 호출자 몫이자 의도다 — 첫 문항을 0/7로 보이면 아직 시작도
  * 안 한 느낌이라 이탈이 는다 (ux-ui.md §3 Goal-Gradient, endowed progress).
@@ -33,12 +32,11 @@ export function ProgressIndicator({
   return (
     <div className="progress-indicator">
       {/*
-        디자인 3 (KAN-288): 이름과 숫자가 도트 위 한 줄에 선다 (시안 `.card-progress`). 둘 다 눈으로만
-        읽는다 — 값은 아래 progressbar 한 줄이 말한다.
+        이름과 숫자가 칸 위 한 줄에 선다 (시안 s-07). 둘 다 눈으로만 읽는다 — 값은 아래 progressbar 한 줄이 말한다.
       */}
       <div className="progress-indicator__head" aria-hidden="true">
-        <span className="type-caption progress-indicator__label">{label}</span>
-        <p className="type-caption progress-indicator__count">
+        <span className="progress-indicator__label">{label}</span>
+        <p className="progress-indicator__count">
           {current} / {total}
           {note !== undefined && ` · ${note}`}
         </p>

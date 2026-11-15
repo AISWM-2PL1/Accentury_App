@@ -13,11 +13,16 @@
 import { useState } from 'react'
 import { openSettings, requestLogin } from '../bridge/bridge'
 import { Button, StatusBlock } from '../ui'
+import { LockIcon, UserIcon } from '../ui/icons'
 
 export const GUEST_LOGIN_MESSAGE = '로그인하면 단어 학습과 억양 학습을 할 수 있어요'
 export const GUEST_LOGIN_ACTION = '로그인하기'
 
-export function GuestLoginPrompt() {
+/**
+ * @param screen 화면 하나를 통째로 차지할 때(학습 탭, s-20b-learning-guest) 예외 화면 서식(KAN-347 1단계)으로 선다.
+ *   홈처럼 다른 화면 안에 끼어 설 때는 예전 블록 그대로다
+ */
+export function GuestLoginPrompt({ screen = false }: { screen?: boolean }) {
   const [requested, setRequested] = useState(false)
   const onClick = () => {
     if (requestLogin()) setRequested(true)
@@ -26,9 +31,11 @@ export function GuestLoginPrompt() {
   return (
     <StatusBlock
       tone="waiting"
+      icon={screen ? <LockIcon /> : undefined}
       message={GUEST_LOGIN_MESSAGE}
       action={
         <Button onClick={onClick} disabled={requested}>
+          {screen && <UserIcon />}
           {GUEST_LOGIN_ACTION}
         </Button>
       }
