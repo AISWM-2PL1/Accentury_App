@@ -110,4 +110,12 @@ class LoginScreenStateTest {
         assertEquals(1, started)
         assertFalse(state.inFlight)
     }
+
+    @Test
+    fun `IdP 버튼 문구는 각 사 가이드 표기이고 구글 카카오 네이버 순서다`() {
+        assertEquals(
+            listOf("Google 계정으로 계속하기", "카카오 로그인", "네이버 로그인"),
+            LOGIN_PROVIDERS.map(::providerLabel),
+        )
+    }
 }

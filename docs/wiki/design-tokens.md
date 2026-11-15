@@ -543,7 +543,8 @@ Secondary다 — 맞춤형 광고 시트 [맞춤형 광고 받기]·[일반 광�
 
 비활성은 `opacity-disabled` 0.6뿐이다. 색으로 상태를 만들지 않는다.
 
-로그인 IdP 버튼(KAN-224)만 보조 버튼 왼쪽에 공식 로고를 공식 색으로 단다(`leading`). 출처·가이드 위반 목록은
+로그인 IdP 버튼은 이 버튼 위계 밖이다(2026-11-11 결정, KAN-354). Android는 `auth/LoginScreen.kt` `IdpButton`이 각 사
+가이드의 면·글자·문구로 따로 그린다(높이 48·반경 12·테두리 없음·시스템 글꼴 15, 로고 왼쪽 고정). 출처·규칙은
 [social-login-logos.md](social-login-logos.md).
 
 ### 선택지 (네이티브, KAN-224)

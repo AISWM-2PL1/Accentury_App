@@ -3,12 +3,19 @@ package com.accentury.app.auth
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -16,15 +23,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -33,6 +44,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +62,7 @@ import com.accentury.app.ui.components.StatusBlock
 import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.LightPoint
+import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.web.openStoreListing
 import kotlinx.coroutines.launch
@@ -56,9 +70,9 @@ import kotlinx.coroutines.launch
 /**
  * 로그인 화면 (KAN-224). 인트로(웹)보다 앞에 서는 필수 관문이다.
  *
- * 버튼은 브랜드 면색 없이 보조 버튼 모양을 쓴다 (2026-09-28 팀장 결정) — 크림·잉크 한 벌 화면에
- * 브랜드 색 셋이 서면 그것만 튄다. 글자만으로는 어느 계정인지 한눈에 읽히지 않아 왼쪽에 공식 로고만
- * 공식 색으로 둔다(docs/wiki/social-login-logos.md). 순서는 구글 → 카카오 → 네이버.
+ * IdP 버튼은 각 사 버튼 가이드의 면·글자·문구를 그대로 쓴다 (2026-11-11 사용자 결정, KAN-311 시안 s-01-login·KAN-354).
+ * 2026-09-28 팀장 결정(「Papercut 보조 버튼 유지」, 크림 면에 로고만 공식 색)을 바꿨다 — 출처·근거는
+ * docs/wiki/social-login-logos.md. 순서는 구글 → 카카오 → 네이버.
  *
  * @param error 방금 실패한 서버 로그인의 안내 ([AuthGateState.SignedOut.error])
  * @param providers 이 빌드에 보일 버튼 ([visibleProviders])
@@ -102,19 +116,19 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.x3),
             ) {
-                providers.forEach { provider ->
-                    AccenturyButton(
-                        text = "${providerLabel(provider)}로 계속하기",
-                        onClick = {
-                            scope.launch {
-                                state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        variant = ButtonVariant.Secondary,
-                        enabled = state.buttonsEnabled,
-                        leading = { IdpLogo(provider) },
-                    )
+                // 시안 `.p1-social-list` gap 10
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    providers.forEach { provider ->
+                        IdpButton(
+                            provider = provider,
+                            onClick = {
+                                scope.launch {
+                                    state.signIn(idp = { signInFor(provider).signIn(activity) }, login = onLogin)
+                                }
+                            },
+                            enabled = state.buttonsEnabled,
+                        )
+                    }
                 }
                 // 소셜 버튼 아래 글자 버튼 (KAN-330, 애플 5.1.1(v) — 번역처럼 계정과 무관한 기능은 로그인 없이 쓰게 한다).
                 // 동의 전에도 눌린다 — 누르면 동의 단계가 열리고 거기서 방침 동의와 만 14세 확인을 받는다.
@@ -211,24 +225,33 @@ private fun ConsentRow(
                 .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = null,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary,
-                    uncheckedColor = MaterialTheme.colorScheme.primary,
-                    checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-            )
-            // 시안 HIG 수정: 라벨 13/20 잉크
+            PaperCheck(checked)
+            // 시안 HIG 수정: 라벨 13/20 잉크. 상자와 12 사이 (`.p1-check` gap)
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal),
                 color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(start = Spacing.x2),
+                modifier = Modifier.padding(start = Spacing.x3),
             )
         }
         if (onOpenPrivacy != null) AccenturyButton(text = "보기", onClick = onOpenPrivacy, variant = ButtonVariant.Text)
+    }
+}
+
+/**
+ * 시안 `.p1-check input` (KAN-354): 22 상자·잉크 1 테두리·모서리 4·크림 면. 체크되면 안쪽 4를 띄운 벽돌 사각형이 찬다
+ * (`box-shadow: inset 0 0 0 4px` 위 `background: point`) — 체크 표시는 없다. 상태는 줄의 toggleable이 읽어 준다.
+ */
+@Composable
+private fun PaperCheck(checked: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(Radius.sm))
+            .background(MaterialTheme.colorScheme.background, RoundedCornerShape(Radius.sm))
+            .padding(1.dp + Spacing.x1),
+    ) {
+        if (checked) Box(Modifier.fillMaxSize().background(LightPoint))
     }
 }
 
@@ -266,27 +289,76 @@ private fun GuestConsentStep(state: LoginScreenState, onOpenPrivacy: () -> Unit,
 }
 
 /**
- * IdP 공식 로고 (KAN-224). 파일은 각 사 배포본에서 그대로 옮겼다 — 구글 G는 그라데이션·블러라 벡터 드로어블로
- * 옮길 수 없어 공식 SVG를 렌더링한 PNG다. 버튼 글자가 이미 제공자를 말하므로 스크린 리더에는 읽히지 않는다.
+ * IdP 버튼 한 개 (KAN-354, 시안 `.p1-brand`). 각 사 가이드 규격이라 공용 [AccenturyButton]을 쓰지 않는다 — 폭 전체·높이 48·
+ * 모서리 12·테두리와 그림자 없음·시스템 글꼴 15(Jua 라벨 규칙 제외)이고, 로고는 왼쪽에 고정, 문구는 버튼 가운데다.
+ *
+ * 눌림은 면 위에 검정 10%를 덮고, 비활성(방침 동의 전)은 버튼 전체를 40%로 흐린다 — 공용 비활성(그림자색 면)으로 바꾸면
+ * 각 사 면색이 사라진다. 눌리지 않는 것과 스크린 리더의 「사용 중지됨」은 clickable(enabled)가 맡는다.
  */
 @Composable
-private fun IdpLogo(provider: Provider) {
-    val res = when (provider) {
-        Provider.GOOGLE -> R.drawable.ic_idp_google
-        Provider.KAKAO -> R.drawable.ic_idp_kakao
-        Provider.NAVER -> R.drawable.ic_idp_naver
-        Provider.APPLE, Provider.GUEST -> return
+private fun IdpButton(provider: Provider, onClick: () -> Unit, enabled: Boolean) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val (fill, label) = idpColors(provider)
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(Dimens.controlHeightLg)
+            .alpha(if (enabled) 1f else IDP_DISABLED_ALPHA)
+            .clip(shape)
+            .background(fill)
+            .then(if (pressed && enabled) Modifier.background(IdpPressedOverlay) else Modifier)
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        // 시안: 로고 왼쪽 16(구글 12), 문구는 좌우 48을 비운 가운데
+        IdpLogo(provider, Modifier.align(Alignment.CenterStart).padding(start = if (provider == Provider.GOOGLE) Spacing.x3 else Spacing.x4))
+        Text(
+            providerLabel(provider),
+            style = TextStyle(fontFamily = FontFamily.Default, fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = 15.sp),
+            color = label,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 48.dp),
+        )
     }
-    // 구글 PNG는 nodpi라 크기를 박아 둔다. 카카오·네이버는 드로어블의 고유 크기(가이드 최소 이상)를 쓴다.
-    val size = if (provider == Provider.GOOGLE) Modifier.size(20.dp) else Modifier
-    Image(painterResource(res), contentDescription = null, modifier = size)
 }
 
-private fun providerLabel(provider: Provider): String = when (provider) {
-    Provider.GOOGLE -> "Google"
-    Provider.KAKAO -> "카카오"
-    Provider.NAVER -> "네이버"
-    Provider.APPLE -> "Apple"
+/** 각 사 가이드의 버튼 색 (면, 글자) — 브랜드 고정값이라 테마 토큰으로 올리지 않는다 */
+private fun idpColors(provider: Provider): Pair<Color, Color> = when (provider) {
+    Provider.GOOGLE -> Color(0xFFF2F2F2) to Color(0xFF1F1F1F) // Neutral 테마
+    Provider.KAKAO -> Color(0xFFFEE500) to Color.Black.copy(alpha = 0.85f)
+    Provider.NAVER -> Color(0xFF03C75A) to Color.White
+    // Android에는 애플 버튼이 없고(LOGIN_PROVIDERS) 게스트는 IdP가 아니다 — 애플 가이드의 검정 면만 채워 둔다
+    Provider.APPLE, Provider.GUEST -> Color.Black to Color.White
+}
+
+private val IdpPressedOverlay = Color.Black.copy(alpha = 0.1f)
+private const val IDP_DISABLED_ALPHA = 0.4f
+
+/**
+ * IdP 공식 로고 (KAN-224). 파일은 각 사 배포본에서 옮겼다 — 구글 G는 그라데이션·블러라 벡터 드로어블로
+ * 옮길 수 없어 공식 SVG를 렌더링한 PNG다. 버튼 글자가 이미 제공자를 말하므로 스크린 리더에는 읽히지 않는다.
+ * 크기는 시안 `.p1-brand img` 값이다(구글 20, 카카오 18×17, 네이버 16).
+ */
+@Composable
+private fun IdpLogo(provider: Provider, modifier: Modifier) {
+    val (res, size) = when (provider) {
+        Provider.GOOGLE -> R.drawable.ic_idp_google to Modifier.size(20.dp)
+        Provider.KAKAO -> R.drawable.ic_idp_kakao to Modifier.size(18.dp, 17.dp)
+        Provider.NAVER -> R.drawable.ic_idp_naver to Modifier.size(16.dp)
+        Provider.APPLE, Provider.GUEST -> return
+    }
+    Image(painterResource(res), contentDescription = null, modifier = modifier.then(size))
+}
+
+/** IdP 버튼 문구 — 각 사 가이드의 표기다 (KAN-354, 구글은 2026-11-16 결정) */
+internal fun providerLabel(provider: Provider): String = when (provider) {
+    Provider.GOOGLE -> "Google 계정으로 계속하기"
+    Provider.KAKAO -> "카카오 로그인"
+    Provider.NAVER -> "네이버 로그인"
+    // Android 로그인 화면에는 없다(LOGIN_PROVIDERS)
+    Provider.APPLE -> "Apple로 계속하기"
     Provider.GUEST -> "게스트"
 }
 
