@@ -75,6 +75,13 @@ final class LoginScreenStateTests: XCTestCase {
         XCTAssertEqual([], visibleProviders(configured: [], fakeIdp: false))
     }
 
+    func test로그인_버튼_문구는_각_사_가이드_문구다() {
+        XCTAssertEqual(
+            ["Google 계정으로 계속하기", "카카오 로그인", "네이버 로그인", "Apple로 계속하기"],
+            loginProviders.map(loginButtonLabel)
+        )
+    }
+
     func test설정_화면의_로그인_방식은_네_제공자_모두_한국어로_읽힌다() {
         // 로그인 버튼 넷만 본다 — GUEST(KAN-330)는 로그인 방식이 아니다.
         XCTAssertEqual(["구글", "카카오", "네이버", "애플"], loginProviders.map(providerName))

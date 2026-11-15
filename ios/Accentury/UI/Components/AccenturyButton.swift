@@ -89,9 +89,6 @@ struct AccenturyButton: View {
     var leadingIcon: String?
     /// 라벨 바로 뒤에 붙는 선화 (SF Symbol 이름, KAN-355). 시안의 「다음 →」·「계속」 화살표 자리다.
     var trailingIcon: String?
-    /// 라벨 왼쪽 끝에 붙는 그림 (KAN-224 IdP 로고). 라벨은 버튼 가운데 그대로다 — 안드로이드 `leading` 자리.
-    /// 버튼 본체(라벨) 안에 그려야 눌림을 로고도 같이 탄다.
-    var leading: AnyView?
     let action: () -> Void
 
     var body: some View {
@@ -113,8 +110,6 @@ struct AccenturyButton: View {
             // 주동작에만 가벼운 탭 (KAN-258 B안). 햅틱은 아껴 써야 뜻이 남아서 보조·위험·텍스트 버튼은 떨지 않는다.
             Button(action: variant == .primary ? { HapticPlayer.play(.tap); action() } : action) {
                 label(look, style: .button)
-                    .frame(maxWidth: leading == nil ? nil : .infinity)
-                    .overlay(alignment: .leading) { leading }
             }
             .buttonStyle(PapercutButtonStyle(
                 appearance: look,

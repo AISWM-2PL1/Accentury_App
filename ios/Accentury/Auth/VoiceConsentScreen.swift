@@ -46,7 +46,7 @@ struct VoiceConsentScreen: View {
                     .foregroundColor(Papercut.ink)
 
                 Button { checked.toggle() } label: {
-                    HStack(spacing: Papercut.space2) {
+                    HStack(spacing: Papercut.space3) {
                         ConsentCheckMark(checked: checked)
                         Text(voiceConsentCheckboxLabel)
                             .papercutType(.bodySmall)
