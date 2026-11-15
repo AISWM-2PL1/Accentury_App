@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, entryPath } from './entryUrl'
+import { LEARN_URL_SCREEN, buildIntroUrl, buildResultUrl, buildTabUrl, buildTestUrl, entryPath, isLearnScreen } from './entryUrl'
 
 /** 앱 진입(bridge·app)과 공유 링크 진입(c)이 한꺼번에 들어 있는 최악의 조합 */
 const ENTRY = '?bridge=1&app=1.0&c=kko_share'
@@ -76,32 +76,68 @@ describe('buildIntroUrl — 인트로 복귀', () => {
 })
 
 describe('buildTabUrl — 하단 탭 화면 (KAN-252)', () => {
-  it.each(['home', 'intonation', 'words', 'translate'] as const)(
-    '화면을 %s로 두고 레벨테스트 값만 지운다 — 앱 표식(bridge·app)과 유입 코드는 남는다',
-    (tab) => {
-      const next = paramsOf(buildTabUrl(`${ENTRY}&screen=result&sessionId=s_1&testVersion=gn-2026.08.1&voiceSet=3`, tab))
+  it.each([
+    ['home', 'home'],
+    ['learn', LEARN_URL_SCREEN],
+    ['translate', 'translate'],
+  ] as const)('화면을 %s로 두고 레벨테스트 값만 지운다 — 앱 표식(bridge·app)과 유입 코드는 남는다', (tab, screen) => {
+    const next = paramsOf(buildTabUrl(`${ENTRY}&screen=result&sessionId=s_1&testVersion=gn-2026.08.1&voiceSet=3`, tab))
 
-      expect(next.get('screen')).toBe(tab)
-      expect(next.get('sessionId')).toBeNull()
-      expect(next.get('testVersion')).toBeNull()
-      expect(next.get('voiceSet')).toBeNull()
-      expect(next.get('bridge')).toBe('1')
-      expect(next.get('app')).toBe('1.0')
-      expect(next.get('c')).toBe('kko_share')
-    },
-  )
+    expect(next.get('screen')).toBe(screen)
+    expect(next.get('sessionId')).toBeNull()
+    expect(next.get('testVersion')).toBeNull()
+    expect(next.get('voiceSet')).toBeNull()
+    expect(next.get('bridge')).toBe('1')
+    expect(next.get('app')).toBe('1.0')
+    expect(next.get('c')).toBe('kko_share')
+  })
 
   it('빈 쿼리에서도 화면 지정 하나는 남는다', () => {
-    expect(buildTabUrl('', 'words')).toBe('?screen=words')
+    expect(buildTabUrl('', 'translate')).toBe('?screen=translate')
   })
 
   it('광고 동의 재열기 플래그(adConsent)는 지운다 — 탭을 옮겨도 따라가지 않는다 (KAN-315)', () => {
-    const next = paramsOf(buildTabUrl(`${ENTRY}&screen=home&adConsent=open`, 'intonation'))
+    const next = paramsOf(buildTabUrl(`${ENTRY}&screen=home&adConsent=open`, 'learn'))
 
     expect(next.get('adConsent')).toBeNull()
     expect(next.get('bridge')).toBe('1')
     expect(next.get('c')).toBe('kko_share')
     expect(buildIntroUrl('?screen=home&adConsent=open')).toBe('')
+  })
+
+  it('홈 [이어가기]의 resume=1은 학습 탭에만 붙고, 다른 이동은 늘 지운다 (KAN-347 3-6)', () => {
+    expect(paramsOf(buildTabUrl(ENTRY, 'learn', { resume: true })).get('resume')).toBe('1')
+    expect(paramsOf(buildTabUrl(`${ENTRY}&resume=1`, 'learn')).get('resume')).toBeNull()
+    expect(paramsOf(buildTabUrl(`${ENTRY}&resume=1`, 'home')).get('resume')).toBeNull()
+    expect(paramsOf(buildTabUrl(ENTRY, 'home', { resume: true })).get('resume')).toBeNull()
+    expect(buildIntroUrl('?screen=intonation&resume=1')).toBe('')
+  })
+})
+
+describe('학습 탭 화면 값 (KAN-347 3-1, 확정된 결정 2026-11-16)', () => {
+  it('새 값 learn과 옛 값 intonation·words를 모두 학습 탭으로 받는다', () => {
+    for (const screen of ['learn', 'intonation', 'words']) expect(isLearnScreen(screen)).toBe(true)
+    for (const screen of ['home', 'translate', 'test', 'result', null, '']) expect(isLearnScreen(screen)).toBe(false)
+  })
+
+  /*
+   * 스토어 옛 앱 빌드(origin/Release b636648)가 웹의 현재 URL `screen`으로 정하는 표를 그대로 옮겼다:
+   * - Android `WebConfig.kt` `BACK_TO_HOME_SCREENS`, iOS `WebConfig.swift` `backToHomeScreens` — 뒤로가기를 홈으로 돌리는 값.
+   *   밖의 값이면 Android는 앱을 닫고 iOS는 왼쪽 스와이프를 무시한다. 광고 설정 행(`webAdConsentUrl`)도 이 표 + home이다.
+   * - `showsSettingsGear` — screen이 없거나 test일 때만 톱니를 세운다(탭 바 화면에 톱니가 겹치면 안 된다).
+   * 웹이 탭 이동으로 내보내는 URL은 전부 이 표 안이어야 한다. 학습 탭을 `learn`으로 실으면 여기서 깨진다.
+   */
+  const OLD_BUILD_BACK_TO_HOME = ['intonation', 'words', 'translate']
+  const oldBuildShowsGear = (screen: string | null) => screen === null || screen === 'test'
+
+  it.each(['learn', 'home', 'translate'] as const)('%s 탭 URL은 옛 빌드의 뒤로가기·광고 설정 표 안이고 톱니를 세우지 않는다', (tab) => {
+    for (const options of [{}, { resume: true }]) {
+      const screen = paramsOf(buildTabUrl(`${ENTRY}&screen=home`, tab, options)).get('screen')
+      expect(screen === 'home' || OLD_BUILD_BACK_TO_HOME.includes(screen!)).toBe(true)
+      expect(oldBuildShowsGear(screen)).toBe(false)
+      // 옛 빌드의 억양 녹음 ✕(`webTabUrl(..., "intonation")`)가 여는 값도 학습 탭이다
+      expect(isLearnScreen('intonation')).toBe(true)
+    }
   })
 })
 

@@ -1,7 +1,7 @@
 /**
- * 억양 학습 A-1·A-2(+ A-3 회신 자리)의 상태 (KAN-253 1단계). 구조는 [useWordLearning]의 거울이다 —
- * `?screen=intonation` 한 문서 안에서 `view`만 바꾸고, 실패는 `{ screen: 'error' }` 하나로 모아
- * 출구를 `errorExit`(단어 학습과 같은 함수)이 code로 가른다. 이탈은 시스템 뒤로가기만(2026-10-12 착수 결정).
+ * 억양 학습 A-2(+ A-3 회신 자리)~결과 목록의 상태 (KAN-253 1단계). 구조는 [useWordLearning]의 거울이다 — 코스 하나(스탬프 하나)를
+ * 받아 첫 카드부터 시작하고(코스 목록 A-1은 사투리 여행 지도로 대체, KAN-347 3단계), 학습 탭 문서 안에서 `view`만 바꾼다.
+ * 실패는 `{ screen: 'error' }` 하나로 모아 출구를 `errorExit`(단어 학습과 같은 함수)이 code로 가른다. 나가는 길(지도로)은 라우트가 쥔다.
  *
  * 녹음은 네이티브가 화면·업로드까지 끝내고 성공한 경우에만 `onIntonationRecorded`로 회신한다.
  * 회신이 없으면(업로드 전 뒤로가기) A-2 그대로다.
@@ -25,9 +25,7 @@ import { WordLearningError } from './wordApi'
 import {
   fetchIntonationAttempt,
   fetchIntonationCourse,
-  fetchIntonationCourses,
   type IntonationCourse,
-  type IntonationCourseSummary,
   type PitchFeedbackItem,
 } from './intonationApi'
 import { attemptOutcome } from './intonationFeedback'
@@ -57,7 +55,6 @@ export type CardResult =
 
 export type IntonationLearningView =
   | { screen: 'loading' }
-  | { screen: 'list'; courses: IntonationCourseSummary[] }
   /** revisit: 결과 목록에서 그 카드만 다시 녹음하러 온 복귀 모드 — 회신 뒤 다음 카드가 아니라 그 카드 상세로 간다 */
   | { screen: 'card'; course: IntonationCourse; index: number; revisit: boolean }
   /** 마지막 회신 뒤 A-4 — 분석 중인 카드가 다 끝나면 'summary'로 넘어간다 */
@@ -65,7 +62,6 @@ export type IntonationLearningView =
   | { screen: 'summary'; course: IntonationCourse }
   /** 결과 목록의 한 행. 무엇을 그릴지는 results[그 카드]가 정한다 */
   | { screen: 'detail'; course: IntonationCourse; index: number }
-  /** fromList: 목록 조회 실패 — 돌아갈 목록이 없으니 재시도 불가여도 [다시 시도]다 */
   | { screen: 'error'; error: WordLearningError; retry: () => void; fromList: boolean }
 
 function toError(error: unknown): WordLearningError {
@@ -73,7 +69,7 @@ function toError(error: unknown): WordLearningError {
   return new WordLearningError(error instanceof Error ? error.message : String(error), null, true)
 }
 
-export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
+export function useIntonationLearning(apiBase: string, courseId: string, deps: WordApiDeps = {}) {
   const [view, setView] = useState<IntonationLearningView>({ screen: 'loading' })
   const [results, setResults] = useState<Record<string, CardResult>>({})
   /** cardId → 그 카드 폴링 취소. 같은 카드를 다시 올리면 앞 시도 폴링을 끊는다 */
@@ -86,23 +82,15 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
   // 언마운트 때 남은 폴링을 전부 끊는다 — 늦게 온 응답은 cancelled로 버려진다
   useEffect(() => stopAllPolling, [])
 
-  const run = (task: () => Promise<IntonationLearningView>, fromList = false) => {
+  const run = (task: () => Promise<IntonationLearningView>) => {
     setView({ screen: 'loading' })
     task().then(setView, (error: unknown) =>
-      setView({ screen: 'error', error: toError(error), retry: () => run(task, fromList), fromList }),
+      setView({ screen: 'error', error: toError(error), retry: () => run(task), fromList: false }),
     )
   }
 
-  const backToList = () => {
-    stopAllPolling()
-    run(async () => ({ screen: 'list', courses: (await fetchIntonationCourses(apiBase, deps)).courses }), true)
-  }
-
-  // 진입 시 목록 한 번 (useWordLearning과 같은 이유로 StrictMode 이중 조회는 막지 않는다)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(backToList, [])
-
-  const openCourse = (courseId: string) => {
+  /** 코스를 처음부터 — 진입과, 폴링이 무너진 뒤의 [다시 시도] */
+  const openCourse = () => {
     stopAllPolling()
     setResults({})
     run(async () => {
@@ -111,6 +99,18 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
       return { screen: 'card', course, index: 0, revisit: false }
     })
   }
+
+  /*
+   * 진입 시 코스 한 번. 개발 빌드 StrictMode는 마운트 effect를 두 번 돌리는데, 코스 조회가 곧 녹음 화면 호출이라 두 번
+   * 돌면 네이티브 녹음이 두 번 열린다 — ref로 한 번만 연다(ref는 StrictMode의 재실행 사이에도 남는다)
+   */
+  const opened = useRef(false)
+  useEffect(() => {
+    if (opened.current) return
+    opened.current = true
+    openCourse()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /*
    * 카드 1건 폴링. 간격·60초 예산은 레벨테스트와 같은 `planNextPoll`이다(서버 pollAfterMs와 백오프의 max, 지터).
@@ -160,7 +160,7 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
         const e = toError(error)
         if (!e.retryable) {
           stopAllPolling()
-          setView({ screen: 'error', error: e, retry: backToList, fromList: false })
+          setView({ screen: 'error', error: e, retry: openCourse, fromList: false })
           return
         }
       }
@@ -232,5 +232,5 @@ export function useIntonationLearning(apiBase: string, deps: WordApiDeps = {}) {
     recordCard(view.course, view.index)
   }
 
-  return { view, results, backToList, openCourse, openDetail, backToSummary, retryPolling, rerecord }
+  return { view, results, openDetail, backToSummary, retryPolling, rerecord }
 }

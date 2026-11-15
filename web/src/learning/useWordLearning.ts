@@ -1,10 +1,11 @@
 /**
- * 단어 학습 W-1~W-5의 상태 (KAN-255 3단계).
+ * 단어 학습 W-2~W-5의 상태 (KAN-255 3단계). 세트 하나(스탬프 하나)를 받아 카드부터 시작한다 — 세트 목록(W-1)은
+ * 사투리 여행 지도(`TravelScreens`, KAN-347 3단계)로 대체됐다. 나가는 길(지도로)은 라우트가 쥔다.
  *
  * ## 한 문서 안의 상태 전환
  *
  * 레벨테스트는 화면마다 진입 쿼리를 바꿔 문서를 다시 로드하지만(`goToResult`), 단어 학습은
- * `?screen=words` 하나로 들어와 이 훅의 `view`만 바꾼다. 세트·시도 id가 메모리에 있어야 다음
+ * 학습 탭 문서 안에서 이 훅의 `view`만 바꾼다. 세트·시도 id가 메모리에 있어야 다음
  * 요청을 보낼 수 있고, 학습은 이탈 허용(IxD §8.3 초안)이라 중간 상태를 URL로 복원할 이유가 없다.
  *
  * ## 실패의 출구는 화면이 아니라 여기서 정한다
@@ -26,28 +27,27 @@ import {
   WordLearningError,
   completeWordAttempt,
   fetchWordSet,
-  fetchWordSets,
   startWordAttempt,
   submitWordAnswer,
   type WordAnswerResult,
   type WordApiDeps,
   type WordAttemptResult,
   type WordSet,
-  type WordSetSummary,
 } from './wordApi'
 
 export type WordLearningView =
   | { screen: 'loading' }
-  | { screen: 'list'; sets: WordSetSummary[] }
   | { screen: 'cards'; set: WordSet; index: number }
   /** result가 null이면 W-3(답 고르기), 있으면 W-4(정오·해설)다 */
   | { screen: 'quiz'; set: WordSet; attemptId: string; index: number; result: WordAnswerResult | null }
   | { screen: 'complete'; result: WordAttemptResult }
-  /** fromList: 목록 조회 실패 — 돌아갈 목록이 없으니 재시도 불가여도 [다시 시도]다 */
   | { screen: 'error'; error: WordLearningError; retry: () => void; fromList: boolean }
 
-/** 오류 화면의 출구. 'leave' = 버튼 없이 탭 바(로그인 안내, KAN-252), 'retry' = [다시 시도], 'list' = [세트 목록으로] */
-export type ErrorExit = 'leave' | 'retry' | 'list'
+/**
+ * 오류 화면의 출구. 'leave' = 버튼 없이 탭 바(로그인 안내, KAN-252), 'retry' = [다시 시도], 'map' = [지도로] (KAN-347 3단계,
+ * 예전 [세트 목록으로]). fromList는 사투리 여행 지도의 목록 조회 실패다 — 돌아갈 지도가 없으니 재시도 불가여도 [다시 시도]다
+ */
+export type ErrorExit = 'leave' | 'retry' | 'map'
 
 /** 게스트(KAN-330)도 로그인으로만 풀리므로 같은 출구다 — 화면은 `GuestLoginPrompt`를 그린다 */
 export function isSignInCode(code: string | null): boolean {
@@ -57,7 +57,7 @@ export function isSignInCode(code: string | null): boolean {
 export function errorExit(view: { error: WordLearningError; fromList: boolean }): ErrorExit {
   if (isSignInCode(view.error.code)) return 'leave'
   if (view.fromList || view.error.retryable) return 'retry'
-  return 'list'
+  return 'map'
 }
 
 function toError(error: unknown): WordLearningError {
@@ -65,25 +65,22 @@ function toError(error: unknown): WordLearningError {
   return new WordLearningError(error instanceof Error ? error.message : String(error), null, true)
 }
 
-export function useWordLearning(apiBase: string, deps: WordApiDeps = {}) {
+export function useWordLearning(apiBase: string, setId: string, deps: WordApiDeps = {}) {
   const [view, setView] = useState<WordLearningView>({ screen: 'loading' })
 
-  const run = (task: () => Promise<WordLearningView>, fromList = false) => {
+  const run = (task: () => Promise<WordLearningView>) => {
     setView({ screen: 'loading' })
     task().then(setView, (error: unknown) =>
-      setView({ screen: 'error', error: toError(error), retry: () => run(task, fromList), fromList }),
+      setView({ screen: 'error', error: toError(error), retry: () => run(task), fromList: false }),
     )
   }
 
-  const backToList = () =>
-    run(async () => ({ screen: 'list', sets: (await fetchWordSets(apiBase, deps)).sets }), true)
+  /** 세트를 처음부터 — 진입과, 시도가 무너진 뒤의 [다시 시도] */
+  const openSet = () => run(async () => ({ screen: 'cards', set: await fetchWordSet(apiBase, setId, deps), index: 0 }))
 
-  // 진입 시 목록 한 번. 개발 빌드 StrictMode의 이중 실행은 조회 두 번일 뿐이라 막지 않는다
+  // 진입 시 세트 한 번. 개발 빌드 StrictMode의 이중 실행은 조회 두 번일 뿐이라 막지 않는다
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(backToList, [])
-
-  const openSet = (setId: string) =>
-    run(async () => ({ screen: 'cards', set: await fetchWordSet(apiBase, setId, deps), index: 0 }))
+  useEffect(openSet, [])
 
   const nextCard = () =>
     setView((v) => (v.screen === 'cards' ? { ...v, index: Math.min(v.index + 1, v.set.cards.length - 1) } : v))
@@ -113,16 +110,16 @@ export function useWordLearning(apiBase: string, deps: WordApiDeps = {}) {
       )
       // 정오가 정해지는 순간 한 번 (KAN-258 — 결과가 정해지는 순간의 success·error)
       haptic(result.correct ? 'success' : 'error')
-      // 같은 시도·같은 문항일 때만 반영한다. 제출 중 ✕로 목록에 나갔다가 같은 세트를 다시 풀기 시작하면
+      // 같은 시도·같은 문항일 때만 반영한다. 제출 중 ✕로 지도에 나갔다가 같은 세트를 다시 풀기 시작하면
       // 화면은 quiz·index 0으로 같아 보여도 시도가 다르다 — 옛 시도의 늦은 정오가 새 문항에 붙으면 안 된다 (KAN-252)
       setView((v) => (v.screen === 'quiz' && v.attemptId === attemptId && v.index === index ? { ...v, result } : v))
     } catch (error: unknown) {
       const e = toError(error)
       if (isSignInCode(e.code) || (e.code ?? '').startsWith('LEARNING_ATTEMPT_')) {
-        // 이미 ✕로 이 시도를 떠났으면 목록을 오류로 덮지 않는다 (KAN-252)
+        // 이미 ✕로 이 시도를 떠났으면 오류로 덮지 않는다 (KAN-252)
         setView((v) =>
           v.screen === 'quiz' && v.attemptId === attemptId
-            ? { screen: 'error', error: e, retry: backToList, fromList: false }
+            ? { screen: 'error', error: e, retry: openSet, fromList: false }
             : v,
         )
         return
@@ -142,7 +139,7 @@ export function useWordLearning(apiBase: string, deps: WordApiDeps = {}) {
     run(async () => ({ screen: 'complete', result: await completeWordAttempt(apiBase, attemptId, deps) }))
   }
 
-  return { view, backToList, openSet, nextCard, startQuiz, submit, nextItem }
+  return { view, nextCard, startQuiz, submit, nextItem }
 }
 
 export type WordLearning = ReturnType<typeof useWordLearning>

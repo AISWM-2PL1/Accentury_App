@@ -44,6 +44,20 @@ export interface WordSetSummary {
   title: string
   cardCount: number
   itemCount: number
+  /*
+   * 진도(서버 KAN-268)와 별(KAN-359)은 선택 필드로 둔다 — 모양 검증이 이 키들을 요구하지 않는다(KAN-359 전 서버·옛 목 응답도
+   * 통과). 사투리 여행 지도(`travel.ts`)가 `completed === true`만 완료로 센다
+   */
+  /** 완료한 시도가 하나라도 있다 (KAN-268) */
+  completed?: boolean
+  /** 가장 최근 완료 시도의 정답률 (KAN-268). 세트 점수(`score`)와 다르다 */
+  latestAccuracyPercent?: number | null
+  /** 목록 안에서 많아야 하나 (KAN-268) */
+  recommended?: boolean
+  /** 세트 점수 = 완료 시도 정답률의 최댓값 (KAN-359). 완료 전이면 null */
+  score?: number | null
+  /** 세트 별 0~3, 최고 기록 (KAN-359). 완료 전이면 0 */
+  stars?: number
 }
 
 /** `GET /v0/learning/word-sets` — 세트는 seq 오름차순 */
@@ -143,16 +157,22 @@ export const UNAUTHENTICATED = 'UNAUTHENTICATED'
  */
 export const AUTH_GUEST_NOT_ALLOWED = 'AUTH_GUEST_NOT_ALLOWED'
 
-/** 봉투의 code·retryable을 실은 실패. code는 봉투를 못 읽었으면 null이다 (`VocabSubmitError`와 같은 구조) */
+/**
+ * 봉투의 code·retryable을 실은 실패. code는 봉투를 못 읽었으면 null이다 (`VocabSubmitError`와 같은 구조).
+ * status는 서버가 답한 HTTP 상태다 — 목록 오류 화면의 「오류 코드 N」(s-21, KAN-347 3-7). 응답이 없었으면(네트워크·
+ * 요청 전에 끊음) null이다
+ */
 export class WordLearningError extends Error {
   readonly code: string | null
   readonly retryable: boolean
+  readonly status: number | null
 
-  constructor(message: string, code: string | null, retryable: boolean) {
+  constructor(message: string, code: string | null, retryable: boolean, status: number | null = null) {
     super(message)
     this.name = 'WordLearningError'
     this.code = code
     this.retryable = retryable
+    this.status = status
   }
 }
 
@@ -301,11 +321,12 @@ export async function request(
   }
 
   const envelope = await readErrorEnvelope(response)
-  if (envelope !== null) throw new WordLearningError(envelope.message, envelope.code, envelope.retryable)
+  if (envelope !== null) throw new WordLearningError(envelope.message, envelope.code, envelope.retryable, response.status)
   throw new WordLearningError(
     `요청을 처리하지 못했어요 (HTTP ${response.status})`,
     null,
     isRetryableStatus(response.status),
+    response.status,
   )
 }
 

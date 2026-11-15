@@ -1,7 +1,7 @@
 /**
- * 억양 학습 A-1·A-2 (KAN-253 1·5단계)와 A-4 분석 대기·실패 출구 (KAN-254 2단계)·A-5 피드백 (3단계)·카드 연속 녹음과
+ * 억양 학습 A-2 (KAN-253 1·5단계, 코스 목록 A-1은 KAN-347 3단계에서 사투리 여행 지도로)와 A-4 분석 대기·실패 출구 (KAN-254 2단계)·A-5 피드백 (3단계)·카드 연속 녹음과
  * 결과 목록 (5단계). 상태별 출구, 카드 진입·회신 뒤 녹음 화면 호출이 정확히 1회인지(StrictMode 포함), 일시정지 A-2의
- * [다시 말해 보기]·[코스 목록으로], 카드별 뒤 폴링 → 결과 목록 → 상세·다시 녹음을 본다.
+ * [다시 말해 보기]·[지도로], 카드별 뒤 폴링 → 결과 목록 → 상세·다시 녹음을 본다.
  * 네트워크는 deps.fetchImpl로 갈아끼운다.
  */
 
@@ -21,16 +21,6 @@ import type { IntonationCourse, PitchFeedbackItem } from './intonationApi'
 import type { WordApiDeps } from './wordApi'
 
 const GUIDE = { unit: 'semitone', frameIntervalMs: 10, values: [0, 1, null, 2] }
-
-const course = (id: string, extra: Record<string, unknown> = {}) => ({
-  courseId: id, seq: 1, level: 1, topic: null, title: `코스 ${id}`, cardCount: 2, completedCardCount: 0,
-  completed: false, recommended: false, ...extra,
-})
-
-const LIST = {
-  contentVersion: 'v1',
-  courses: [course('k1', { recommended: true, topic: '인사' }), course('k2', { completedCardCount: 2, completed: true }), course('k3', { level: 2 })],
-}
 
 const COURSE: IntonationCourse = {
   contentVersion: 'v1',
@@ -70,10 +60,16 @@ function deps(fetchImpl: FetchLike, token: string | null = 'acc'): WordApiDeps {
   return { fetchImpl, getToken: () => token, refreshToken: async () => false }
 }
 
+const newExits = () => ({ toMap: vi.fn(), toNextStamp: vi.fn() })
+
 function renderRoute(routes: Record<string, Reply | Reply[]>, token: string | null = 'acc', strict = false) {
+  const exits = newExits()
   // 탭 바 자리 표시 — 어느 단계에서 그려지는지만 본다 (탭 바 자체는 `ui/TabBar.test.tsx`)
-  const route = <IntonationLearningRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(fakeServer(routes), token)} />
+  const route = (
+    <IntonationLearningRoute apiBase="http://api" courseId="k1" exits={exits} tabBar={<nav aria-label="탭 바" />} deps={deps(fakeServer(routes), token)} />
+  )
   render(strict ? <StrictMode>{route}</StrictMode> : route)
+  return { exits }
 }
 
 const tabBar = () => screen.queryByRole('navigation', { name: '탭 바' })
@@ -95,70 +91,33 @@ afterEach(() => {
   delete window.AccenturyWeb
 })
 
-// ── A-1 ─────────────────────────────────────────────────────────────────
+// ── 진입 (코스 하나) ─────────────────────────────────────────────────────
 
-describe('A-1 코스 목록', () => {
-  it('로딩 중엔 버튼이 없다', () => {
-    render(<IntonationLearningRoute apiBase="http://api" tabBar={<nav aria-label="탭 바" />} deps={deps(() => new Promise(() => {}))} />)
+describe('진입 — 받은 코스로 바로 들어간다 (KAN-347 3단계)', () => {
+  it('로딩 중엔 버튼도 탭 바도 없다', () => {
+    render(
+      <IntonationLearningRoute apiBase="http://api" courseId="k1" exits={newExits()} tabBar={<nav aria-label="탭 바" />} deps={deps(() => new Promise(() => {}))} />,
+    )
     expect(screen.getByText('불러오는 중이에요')).toBeInTheDocument()
     expect(buttonNames()).toEqual([])
     expect(tabBar()).toBeNull()
   })
 
-  it('레벨별로 묶고 추천은 1개만 강조, 완료 표시는 가볍게', async () => {
-    renderRoute({ '/intonation-courses': ok(LIST) })
-    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '레벨 1' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '레벨 2' })).toBeInTheDocument()
-
-    const recommended = document.querySelectorAll('.word-set-row--recommended')
-    expect(recommended).toHaveLength(1)
-    expect(recommended[0]).toHaveTextContent('코스 k1')
-    expect(recommended[0]).toHaveTextContent('추천')
-    expect(recommended[0]).toHaveTextContent('인사')
-    expect(screen.getByRole('button', { name: /코스 k1/ })).toHaveTextContent('0/2장')
-    expect(screen.getByRole('button', { name: /코스 k2/ })).toHaveTextContent('완료')
-    expect(tabBar()).not.toBeNull()
-  })
-
-  it('탭 바는 A-1 목록에서만 서고, 코스를 열어 카드(A-2)에 들어가면 사라진다 (KAN-252, KAN-147)', async () => {
-    renderRoute({ '/intonation-courses': ok(LIST), '/intonation-courses/k1': ok(COURSE) })
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
+  it('코스 목록을 부르지 않고 그 코스의 첫 카드(A-2)다, 탭 바는 없다 (KAN-147)', async () => {
+    renderRoute({ '/intonation-courses/k1': ok(COURSE) })
     expect(await screen.findByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
     expect(tabBar()).toBeNull()
   })
 
-  it('추천이 없으면 아무것도 강조하지 않는다 (임시 첫 코스 추천을 쓰지 않는다)', async () => {
-    renderRoute({ '/intonation-courses': ok({ contentVersion: 'v1', courses: [course('k1'), course('k2')] }) })
-    await screen.findByRole('heading', { name: '억양 학습' })
-    expect(document.querySelectorAll('.word-set-row--recommended')).toHaveLength(0)
-  })
-
-  it('빈 목록 → 「아직 준비 중인 코스예요」 + 탭 바, 화면 버튼은 없다 (KAN-252)', async () => {
-    renderRoute({ '/intonation-courses': ok({ contentVersion: 'v1', courses: [] }) })
-    expect(await screen.findByText('아직 준비 중인 코스예요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual([])
-    expect(tabBar()).not.toBeNull()
-  })
-
-  it('목록 실패 → [다시 시도] 하나, 누르면 다시 받는다', async () => {
-    renderRoute({ '/intonation-courses': [fail(500, 'INTERNAL', '잠시 후 다시 시도해 주세요', false), ok(LIST)] })
-    expect(await screen.findByText('잠시 후 다시 시도해 주세요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['다시 시도'])
-    expect(tabBar()).toBeNull() // 막다른 곳엔 유일한 버튼 (KAN-191)
-    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
-    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-  })
-
   it('로그인 없음(CLIENT_NOT_SIGNED_IN) → 안내 + 탭 바가 출구 (KAN-252)', async () => {
-    renderRoute({ '/intonation-courses': ok(LIST) }, null)
+    renderRoute({ '/intonation-courses/k1': ok(COURSE) }, null)
     expect(await screen.findByText('로그인하면 억양 학습을 할 수 있어요')).toBeInTheDocument()
     expect(buttonNames()).toEqual([])
     expect(tabBar()).not.toBeNull()
   })
 
   it('UNAUTHENTICATED(갱신 실패) → 문구 그대로 + 탭 바', async () => {
-    renderRoute({ '/intonation-courses': { status: 401, body: {} } })
+    renderRoute({ '/intonation-courses/k1': { status: 401, body: {} } })
     expect(await screen.findByText('로그인이 만료됐어요. 다시 로그인해 주세요')).toBeInTheDocument()
     expect(buttonNames()).toEqual([])
     expect(tabBar()).not.toBeNull()
@@ -170,26 +129,22 @@ describe('A-1 코스 목록', () => {
 describe('A-2 카드 로드 실패', () => {
   it('retryable 실패 → [다시 시도] 하나, 누르면 카드가 열린다', async () => {
     renderRoute({
-      '/intonation-courses': ok(LIST),
       '/intonation-courses/k1': [fail(503, 'SERVICE_UNAVAILABLE', '잠시 뒤에 다시 해 주세요', true), ok(COURSE)],
     })
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     expect(await screen.findByText('잠시 뒤에 다시 해 주세요')).toBeInTheDocument()
     expect(buttonNames()).toEqual(['다시 시도'])
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
     expect(await screen.findByRole('heading', { name: '안녕하능교' })).toBeInTheDocument()
   })
 
-  it('LEARNING_COURSE_NOT_FOUND → [코스 목록으로] 하나, 누르면 목록', async () => {
-    renderRoute({
-      '/intonation-courses': ok(LIST),
+  it('LEARNING_COURSE_NOT_FOUND → [지도로] 하나, 누르면 지도로 (KAN-347 3-8)', async () => {
+    const { exits } = renderRoute({
       '/intonation-courses/k1': fail(404, 'LEARNING_COURSE_NOT_FOUND', '없는 억양 코스입니다.', false),
     })
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     expect(await screen.findByText('없는 억양 코스입니다.')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['코스 목록으로'])
-    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
-    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
+    expect(buttonNames()).toEqual(['지도로'])
+    fireEvent.click(screen.getByRole('button', { name: '지도로' }))
+    expect(exits.toMap).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -209,7 +164,6 @@ async function reply(cardId: string, attemptId: string) {
 
 describe('카드 연속 녹음 (KAN-254 5단계)', () => {
   const ROUTES = {
-    '/intonation-courses': ok(LIST),
     '/intonation-courses/k1': ok(COURSE),
     '/intonation-attempts/la_1': completed('la_1'),
     '/intonation-attempts/la_2': completed('la_2', 72),
@@ -220,7 +174,6 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     const start = vi.fn()
     withBridge(start)
     renderRoute(ROUTES)
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     await screen.findByRole('heading', { name: '안녕하능교' })
     // 수신 지점은 A-2 진입 뒤 이펙트에서 설치된다 — 그 전에 쏘면 아래 무시 검사가 헛돈다
     await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
@@ -255,7 +208,7 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     await reply('c2', 'la_2')
     expect(await screen.findByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
     expect(screen.getByText('평균 76점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['1번 문항80점', '2번 문항72점', '코스 목록으로', '닫기'])
+    expect(buttonNames()).toEqual(['1번 문항80점', '2번 문항72점', '지도로', '닫기'])
     expect(start).toHaveBeenCalledTimes(2)
   })
 
@@ -263,7 +216,6 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     const start = vi.fn()
     withBridge(start)
     renderRoute(ROUTES, 'acc', true)
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     await screen.findByRole('heading', { name: '안녕하능교' })
     await waitFor(() => expect(window.AccenturyWeb?.onIntonationRecorded).toBeDefined())
     expect(start).toHaveBeenCalledTimes(1)
@@ -278,10 +230,8 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     const start = vi.fn()
     withBridge(start)
     renderRoute({
-      '/intonation-courses': ok(LIST),
       '/intonation-courses/k1': [fail(503, 'SERVICE_UNAVAILABLE', '잠시 뒤에 다시 해 주세요', true), ok(COURSE)],
     })
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     await screen.findByText('잠시 뒤에 다시 해 주세요')
     expect(start).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
@@ -289,25 +239,23 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
     expect(start).toHaveBeenCalledTimes(1)
   })
 
-  it('녹음 화면을 닫고 돌아온 A-2(일시정지): 버튼은 [다시 말해 보기]·[코스 목록으로] 둘, 다시 말해 보기는 같은 카드로 다시 연다', async () => {
+  it('녹음 화면을 닫고 돌아온 A-2(일시정지): 버튼은 [다시 말해 보기]·[지도로] 둘, 다시 말해 보기는 같은 카드로 다시 연다', async () => {
     const start = vi.fn()
     withBridge(start)
-    renderRoute(ROUTES)
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
+    const { exits } = renderRoute(ROUTES)
     await screen.findByRole('heading', { name: '안녕하능교' })
-    expect(buttonNames()).toEqual(['다시 말해 보기', '코스 목록으로', '닫기'])
+    expect(buttonNames()).toEqual(['다시 말해 보기', '지도로', '닫기'])
 
     fireEvent.click(screen.getByRole('button', { name: '다시 말해 보기' }))
     expect(start).toHaveBeenCalledTimes(2)
     expect(payload(start, 1)).toEqual(payload(start, 0))
 
-    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
-    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '지도로' }))
+    expect(exits.toMap).toHaveBeenCalledTimes(1)
   })
 
   it('브리지 없음(브라우저 단독): 카드는 그대로 열리고 [다시 말해 보기] 비활성', async () => {
     renderRoute(ROUTES)
-    fireEvent.click(await screen.findByRole('button', { name: /코스 k1/ }))
     await screen.findByRole('heading', { name: '안녕하능교' })
     expect(screen.getByRole('button', { name: '다시 말해 보기' })).toBeDisabled()
     expect(screen.getByText('앱에서 녹음할 수 있어요')).toBeInTheDocument()
@@ -318,7 +266,7 @@ describe('카드 연속 녹음 (KAN-254 5단계)', () => {
 
 describe('A-2 대사 카드', () => {
   const renderCard = (index: number) =>
-    render(<IntonationCardScreen course={COURSE} index={index} onBackToList={vi.fn()} />)
+    render(<IntonationCardScreen course={COURSE} index={index} onBack={vi.fn()} />)
 
   it('표준어·사투리·가이드 곡선 1단을 그린다', () => {
     withBridge(vi.fn())
@@ -335,11 +283,11 @@ describe('A-2 대사 카드', () => {
     expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
   })
 
-  it('브리지에 startIntonationRecording이 없으면 [다시 말해 보기] 비활성 + 「앱에서 녹음할 수 있어요」, [코스 목록으로]는 살아 있다', () => {
+  it('브리지에 startIntonationRecording이 없으면 [다시 말해 보기] 비활성 + 「앱에서 녹음할 수 있어요」, [지도로]는 살아 있다', () => {
     withBridge()
     renderCard(0)
     expect(screen.getByRole('button', { name: '다시 말해 보기' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '코스 목록으로' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '지도로' })).toBeEnabled()
     expect(screen.getByText('앱에서 녹음할 수 있어요')).toBeInTheDocument()
   })
 })
@@ -361,25 +309,22 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     vi.useFakeTimers()
     withBridge(start)
     const calls: string[] = []
-    const listCalls = vi.fn()
-    const routes: Record<string, Reply | Reply[]> = { '/intonation-courses': ok(LIST), '/intonation-courses/k1': ok(COURSE) }
+    const exits = newExits()
+    const routes: Record<string, Reply | Reply[]> = { '/intonation-courses/k1': ok(COURSE) }
     for (const [id, r] of Object.entries(attempts)) routes[`/intonation-attempts/${id}`] = r
     const server = fakeServer(routes)
     const fetchImpl: FetchLike = (input, init) => {
       const path = new URL(input).pathname
       if (path.includes('/intonation-attempts/')) calls.push(path)
-      if (path.endsWith('/intonation-courses')) listCalls()
       return hold?.(path) ?? server(input, init)
     }
-    const view = render(<IntonationLearningRoute apiBase="http://api" deps={deps(fetchImpl)} />)
-    await act(async () => {})
-    fireEvent.click(screen.getByRole('button', { name: /코스 k1/ }))
+    const view = render(<IntonationLearningRoute apiBase="http://api" courseId="k1" exits={exits} deps={deps(fetchImpl)} />)
     await act(async () => {})
     for (const [cardId, attemptId] of [['c1', 'la_1'], ['c2', 'la_2']].slice(0, cards)) {
       act(() => window.AccenturyWeb?.onIntonationRecorded?.(JSON.stringify({ cardId, attemptId })))
       await act(async () => {}) // 첫 조회 응답·다음 카드 수신기 설치까지
     }
-    return { calls, start, listCalls, unmount: view.unmount }
+    return { calls, start, exits, unmount: view.unmount }
   }
   const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
   const stageOf = (label: string) => screen.getByText(label).closest('.analysis-step')?.getAttribute('data-state')
@@ -589,20 +534,17 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(row('1번 문항')).toHaveTextContent('86점')
   })
 
-  it('[코스 목록으로] → 목록을 다시 받는다 (완료 저장 호출 없음)', async () => {
-    const { listCalls, calls } = await toEnd({ la_1: completed('la_1'), la_2: completed('la_2', 72) })
-    expect(listCalls).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
-    await act(async () => {})
-    expect(screen.getByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-    expect(listCalls).toHaveBeenCalledTimes(2)
+  it('결과 목록 [지도로] → 지도로 나간다 (완료 저장 호출 없음, 지도가 진행을 다시 받는다)', async () => {
+    const { exits, calls } = await toEnd({ la_1: completed('la_1'), la_2: completed('la_2', 72) })
+    fireEvent.click(screen.getByRole('button', { name: '지도로' }))
+    expect(exits.toMap).toHaveBeenCalledTimes(1)
     expect(calls).toHaveLength(2)
   })
 
-  it('403 → 기존 오류 화면, [코스 목록으로] 하나', async () => {
+  it('403 → 기존 오류 화면, [지도로] 하나', async () => {
     await toEnd({ la_1: fail(403, 'LEARNING_ATTEMPT_FORBIDDEN', '내 시도가 아니에요', false) }, vi.fn(), 1)
     expect(screen.getByText('내 시도가 아니에요')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['코스 목록으로'])
+    expect(buttonNames()).toEqual(['지도로'])
   })
 
   it('retryable 오류 1회 뒤에도 그 카드 폴링을 계속한다', async () => {
@@ -625,36 +567,23 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(calls).toHaveLength(2)
   })
 
-  it('코스 중간에 [코스 목록으로]로 나가면 뒤 폴링을 멈춘다', async () => {
-    const { calls } = await toEnd({ la_1: processing('la_1') }, vi.fn(), 1)
+  it('A-2 [지도로]·오른쪽 위 ✕ → 지도로 나간다 (KAN-252, 3-8) — 라우트가 내려가면 뒤 폴링이 멈춘다', async () => {
+    const { calls, exits, unmount } = await toEnd({ la_1: processing('la_1') }, vi.fn(), 1)
     expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '코스 목록으로' }))
-    await act(async () => {})
-    const before = calls.length
-    await advance(30_000)
-    expect(calls).toHaveLength(before)
-  })
-
-  it('A-2 오른쪽 위 ✕ → A-1 코스 목록, 뒤 폴링도 멈춘다 (KAN-252, 2026-10-13 사용자 결정)', async () => {
-    const { calls, listCalls } = await toEnd({ la_1: processing('la_1') }, vi.fn(), 1)
-    expect(screen.getByRole('heading', { name: '밥 뭇나' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '지도로' }))
     fireEvent.click(screen.getByRole('button', { name: '닫기' }))
-    await act(async () => {})
-    expect(screen.getByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '닫기' })).toBeNull()
-    expect(listCalls).toHaveBeenCalledTimes(2)
+    expect(exits.toMap).toHaveBeenCalledTimes(2)
+    unmount() // 사투리 여행 라우트가 지도로 바꾸며 이 흐름을 내린다
     const before = calls.length
     await advance(30_000)
     expect(calls).toHaveLength(before)
   })
 
-  it('결과 목록 오른쪽 위 ✕ → A-1 코스 목록 ([코스 목록으로]와 같은 곳, KAN-252)', async () => {
-    const { listCalls } = await toEnd({ la_1: completed('la_1'), la_2: completed('la_2', 72) })
+  it('결과 목록 오른쪽 위 ✕ → [지도로]와 같은 곳 (KAN-252)', async () => {
+    const { exits } = await toEnd({ la_1: completed('la_1'), la_2: completed('la_2', 72) })
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '닫기' }))
-    await act(async () => {})
-    expect(screen.getByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-    expect(listCalls).toHaveBeenCalledTimes(2)
+    expect(exits.toMap).toHaveBeenCalledTimes(1)
   })
 
   it('대기 화면은 제목 아래에 레벨 테스트 대기와 같은 억양 곡선 루프를 그린다 (KAN-302)', () => {
@@ -672,7 +601,7 @@ describe('결과 목록', () => {
   }
   const done = (score: number): CardResult => ({ attemptId: 'a', outcome: 'completed', score, feedback: [], previousScore: null })
 
-  it('heading·평균(완료만, 반올림)·행 상태 4종, 하단 [코스 목록으로]', () => {
+  it('heading·평균(완료만, 반올림)·행 상태 4종, 하단 [지도로]', () => {
     const onOpen = vi.fn()
     render(
       <IntonationSummaryScreen
@@ -685,12 +614,12 @@ describe('결과 목록', () => {
           c4: done(70),
         }}
         onOpen={onOpen}
-        onBackToList={vi.fn()}
+        onToMap={vi.fn()}
       />,
     )
     expect(screen.getByRole('heading', { name: '코스 k1 코스를 마쳤어요' })).toBeInTheDocument()
     expect(screen.getByText('평균 76점')).toBeInTheDocument()
-    expect(buttonNames()).toEqual(['1번 문항81점', '2번 문항분석 중', '3번 문항다시 녹음 필요', '4번 문항확인 필요', '5번 문항70점', '코스 목록으로'])
+    expect(buttonNames()).toEqual(['1번 문항81점', '2번 문항분석 중', '3번 문항다시 녹음 필요', '4번 문항확인 필요', '5번 문항70점', '지도로'])
     fireEvent.click(screen.getByRole('button', { name: /^4/ }))
     expect(onOpen).toHaveBeenCalledWith(3)
   })
@@ -701,7 +630,7 @@ describe('결과 목록', () => {
         course={COURSE}
         results={{ c1: { attemptId: 'a', outcome: 'failed' }, c2: { attemptId: 'b', outcome: 'misread' } }}
         onOpen={vi.fn()}
-        onBackToList={vi.fn()}
+        onToMap={vi.fn()}
       />,
     )
     expect(screen.queryByText(/평균/)).toBeNull()
@@ -792,16 +721,16 @@ describe('A-5 피드백', () => {
 
 describe('게스트 로그인 안내 (KAN-330)', () => {
   it('서버 403 AUTH_GUEST_NOT_ALLOWED는 오류 대신 로그인 안내와 탭 바다', async () => {
-    renderRoute({ '/intonation-courses': fail(403, 'AUTH_GUEST_NOT_ALLOWED', '로그인이 필요한 기능입니다.', false) })
+    renderRoute({ '/intonation-courses/k1': fail(403, 'AUTH_GUEST_NOT_ALLOWED', '로그인이 필요한 기능입니다.', false) })
     expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '로그인하기' })).toBeInTheDocument()
     expect(tabBar()).toBeInTheDocument()
   })
 
-  it('게스트를 아는 앱이면 코스 목록을 부르지 않는다', async () => {
+  it('게스트를 아는 앱이면 코스를 부르지 않는다', async () => {
     window.AccenturyBridge = { requestMicPermission: vi.fn(), startVoiceItem: vi.fn(), getContractVersion: () => 2, getAccountKind: () => 'guest' }
     const fetchImpl = vi.fn<FetchLike>()
-    render(<IntonationLearningRoute apiBase="http://api" deps={deps(fetchImpl)} />)
+    render(<IntonationLearningRoute apiBase="http://api" courseId="k1" exits={newExits()} deps={deps(fetchImpl)} />)
     expect(await screen.findByText('로그인하면 단어 학습과 억양 학습을 할 수 있어요')).toBeInTheDocument()
     expect(fetchImpl).not.toHaveBeenCalled()
   })

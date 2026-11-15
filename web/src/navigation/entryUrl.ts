@@ -51,23 +51,50 @@ export function buildResultUrl(search: string, sessionId: string): string {
   return toQuery(params)
 }
 
-/** 하단 탭 바의 탭 네 곳 (KAN-252). [설정]은 네이티브 화면이라 URL이 없다 */
-export type TabScreen = 'home' | 'intonation' | 'words' | 'translate'
+/**
+ * 하단 탭 바의 URL 탭 세 곳 (KAN-252 → KAN-347 3-1). 「단어 학습」「억양 학습」 두 탭이 「학습」 하나(`learn`, 사투리 여행
+ * 지도)로 합쳐졌다. [설정]은 네이티브 화면이라 URL이 없다
+ */
+export type TabScreen = 'learn' | 'home' | 'translate'
+
+/** 학습 탭으로 여는 `screen` 값 — 새 값 `learn`과 옛 값 `intonation`·`words` (확정된 결정 2026-11-16) */
+export function isLearnScreen(screen: string | null): boolean {
+  return screen === 'learn' || screen === 'intonation' || screen === 'words'
+}
 
 /**
- * 탭 화면 (`?screen=home|intonation|words|translate`, KAN-252). 단어 학습(KAN-255)·억양 학습(KAN-253) 진입도
- * 이것이다. 학습 화면 안의 이동(세트·코스·시도 id)은 URL에 싣지 않는다 — 화면 상태로 한다.
+ * 웹이 학습 탭으로 옮길 때 URL에 싣는 `screen` 값. 새 값 `learn`이 아니라 **옛 값 `intonation`**이다 (KAN-347 3-1 옛 앱 빌드 호환).
+ *
+ * 웹은 머지 즉시 배포되고 스토어의 옛 앱 빌드(origin/Release `b636648`)는 그대로다. 옛 빌드는 웹이 알려 준 현재 URL
+ * (`onLocationChanged`·문서 로드)의 `screen`으로 세 가지를 정한다 — 뒤로가기를 홈으로 돌릴지(Android `BACK_TO_HOME_SCREENS`,
+ * iOS `backToHomeScreens` = intonation·words·translate. 모르는 값이면 Android는 앱을 닫고 iOS는 스와이프를 무시한다), 설정
+ * 「맞춤형 광고 설정」 행을 열지(`webAdConsentUrl`, 같은 표), 설정 톱니를 세울지(`showsSettingsGear`, home·test·없음만 본다).
+ * `learn`을 실으면 옛 빌드의 학습 탭에서 뒤로가기가 앱 종료가 되고 광고 설정 행이 꺼진다. `intonation`이면 옛 빌드도 새
+ * 빌드(KAN-354·355, `learn`과 옛 값을 함께 받는다)도 학습 탭으로 안다.
+ *
+ * `learn`을 받는 앱 빌드가 스토어에 다 퍼진 뒤 이 값을 `'learn'`으로 바꾼다 — 바꾸는 자리는 이 상수 하나다.
+ */
+export const LEARN_URL_SCREEN = 'intonation'
+
+/**
+ * 탭 화면 (`?screen=home|intonation|translate`, KAN-252). 학습 탭은 [LEARN_URL_SCREEN]으로 싣는다. 학습 화면 안의 이동
+ * (코스·스탬프·시도 id)은 URL에 싣지 않는다 — 화면 상태로 한다.
  * 레벨테스트의 `sessionId`·`testVersion`·`voiceSet`은 지운다: 탭 화면은 그 값을 읽지 않고, 남겨 두면 끝난
  * 세션을 물고 다닌다 ([buildResultUrl]과 같은 이유).
+ *
+ * `resume`(홈 [이어가기], KAN-347 3-6)을 주면 학습 탭이 지도를 거치지 않고 지금 스탬프로 바로 들어간다. 한 번 쓰고 버리는
+ * 값이라 다른 탭 이동은 늘 지운다(`adConsent`와 같다).
  */
-export function buildTabUrl(search: string, screen: TabScreen): string {
+export function buildTabUrl(search: string, screen: TabScreen, options: { resume?: boolean } = {}): string {
   const params = new URLSearchParams(search)
-  params.set('screen', screen)
+  params.set('screen', screen === 'learn' ? LEARN_URL_SCREEN : screen)
   params.delete('sessionId')
   params.delete('testVersion')
   params.delete('voiceSet')
   // 광고 동의 재열기 플래그 (KAN-315) — 한 번 쓰고 버린다. 탭을 옮겨도 따라가면 홈에 돌아올 때 시트가 또 뜬다
   params.delete('adConsent')
+  params.delete('resume')
+  if (options.resume === true && screen === 'learn') params.set('resume', '1')
   return toQuery(params)
 }
 
@@ -79,6 +106,7 @@ export function buildIntroUrl(search: string): string {
   params.delete('testVersion')
   params.delete('voiceSet')
   params.delete('adConsent')
+  params.delete('resume')
   return toQuery(params)
 }
 

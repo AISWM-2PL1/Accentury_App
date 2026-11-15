@@ -21,12 +21,12 @@ const tabNames = () =>
     .map((b) => b.textContent)
 
 describe('TabBar — 하단 탭 바 (KAN-252)', () => {
-  it('순서는 단어 학습 · 억양 학습 · 홈 · 사투리 번역기 · 설정이고, 지금 탭만 aria-current="page"다', () => {
+  it('순서는 학습 · 홈 · 사투리 번역기 · 설정 네 칸이고, 지금 탭만 aria-current="page"다 (KAN-347 3-1)', () => {
     withBridge(vi.fn())
-    render(<TabBar current="words" onSelect={vi.fn()} />)
-    expect(tabNames()).toEqual(['단어 학습', '억양 학습', '홈', '사투리 번역기', '설정'])
-    expect(screen.getByRole('button', { name: '단어 학습' })).toHaveAttribute('aria-current', 'page')
-    for (const name of ['홈', '억양 학습', '사투리 번역기', '설정']) {
+    render(<TabBar current="learn" onSelect={vi.fn()} />)
+    expect(tabNames()).toEqual(['학습', '홈', '사투리 번역기', '설정'])
+    expect(screen.getByRole('button', { name: '학습' })).toHaveAttribute('aria-current', 'page')
+    for (const name of ['홈', '사투리 번역기', '설정']) {
       expect(screen.getByRole('button', { name })).not.toHaveAttribute('aria-current')
     }
   })
@@ -41,17 +41,17 @@ describe('TabBar — 하단 탭 바 (KAN-252)', () => {
     withBridge(openSettings)
     const onSelect = vi.fn()
     render(<TabBar current="home" onSelect={onSelect} />)
-    for (const name of ['홈', '억양 학습', '단어 학습', '사투리 번역기']) fireEvent.click(screen.getByRole('button', { name }))
-    expect(onSelect.mock.calls).toEqual([['home'], ['intonation'], ['words'], ['translate']])
+    for (const name of ['홈', '학습', '사투리 번역기']) fireEvent.click(screen.getByRole('button', { name }))
+    expect(onSelect.mock.calls).toEqual([['home'], ['learn'], ['translate']])
 
     fireEvent.click(screen.getByRole('button', { name: '설정' }))
     expect(openSettings).toHaveBeenCalledTimes(1)
-    expect(onSelect).toHaveBeenCalledTimes(4)
+    expect(onSelect).toHaveBeenCalledTimes(3)
   })
 
   it('canOpenSettings가 false면(메서드를 모르는 앱) 설정 탭을 그리지 않는다', () => {
     withBridge()
     render(<TabBar current="home" onSelect={vi.fn()} />)
-    expect(tabNames()).toEqual(['단어 학습', '억양 학습', '홈', '사투리 번역기'])
+    expect(tabNames()).toEqual(['학습', '홈', '사투리 번역기'])
   })
 })

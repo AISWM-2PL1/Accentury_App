@@ -716,6 +716,23 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 2026-10-13 사용자 결정으로 앱 진입이 **웹이 그리는 하단 탭 바 5칸**(홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정)으로
 바뀌었다(ux-ui.md 「앱 진입 구조 — 하단 탭 바」). 앞 넷은 웹 화면이라 URL로 옮기고, 설정만 네이티브 화면이라 이 메서드로 연다.
 
+### 학습 탭 화면 값 `learn`과 옛 값 (KAN-347 3단계, 웹 관점)
+
+KAN-347 3단계에서 탭 바가 **4칸**(학습 · 홈 · 사투리 번역기 · 설정)이 됐다. 「단어 학습」「억양 학습」이 학습 탭 「사투리 여행」
+하나로 합쳐졌고, 설정 칸은 위 `openSettings` 그대로다.
+
+- **웹이 받는 값**: `?screen=learn`(새 값)과 옛 값 `?screen=intonation`·`?screen=words`가 모두 학습 탭이다(`navigation/entryUrl`
+  `isLearnScreen`). 옛 빌드의 억양 녹음 ✕(`webTabUrl(current, "intonation")`)·옛 링크도 사투리 여행 지도로 열린다.
+- **웹이 내보내는 값**: 탭 이동·결과 [학습 시작]·홈 [이어가기]는 학습 탭 URL을 **옛 값 `intonation`**으로 싣는다
+  (`entryUrl` `LEARN_URL_SCREEN`). 웹은 머지 즉시 배포되고, 스토어의 옛 앱 빌드(origin/Release `b636648`)는 웹이 알려 준 현재
+  URL(`onLocationChanged`·문서 로드)의 `screen`이 `intonation`·`words`·`translate`일 때만 뒤로가기를 홈으로 돌리고
+  (`BACK_TO_HOME_SCREENS`/`backToHomeScreens`) 광고 설정 행을 연다(`webAdConsentUrl`). `learn`을 실으면 옛 빌드에서 학습 탭의
+  뒤로가기가 앱 종료(Android)·무반응(iOS)이 된다. 새 빌드(KAN-354·355)는 `learn`과 옛 값을 함께 받는다 — `learn`을 받는 빌드가
+  스토어에 다 퍼진 뒤 `LEARN_URL_SCREEN` 하나를 `'learn'`으로 바꾼다. 이 표는 `entryUrl.test.ts`의 「학습 탭 화면 값」 묶음이 지킨다.
+- **`resume=1`**: 홈 [이어가기]가 학습 탭 URL에 붙인다. 웹이 지금 스탬프로 바로 들어간 뒤 `history.replaceState`로 걷고
+  `onLocationChanged`로 알린다(광고 동의 `adConsent`와 같은 방법). 네이티브는 이 값을 읽지 않는다.
+- 설정 톱니 판정(`showsSettingsGear`)은 `screen`이 없거나 `test`일 때만이라 학습 탭 값과 무관하다.
+
 ### web → native: `openSettings()`
 
 | 항목 | 내용 |

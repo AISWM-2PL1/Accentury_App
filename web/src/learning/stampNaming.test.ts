@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { courseStamps, findStamp, stampName } from './stampNaming'
+import { STAMP_MINUTES, courseStamps, findStamp, stampName, stampUnit } from './stampNaming'
 
 const words = [1, 2, 3, 4, 5].map((seq) => ({ id: `ws-${seq}`, level: seq <= 4 ? 1 : 2, seq }))
 const intonations = [1, 2, 3, 4, 5, 6].map((seq) => ({ id: `ic-${seq}`, level: seq <= 5 ? 1 : 2, seq }))
@@ -24,6 +24,12 @@ describe('스탬프 이름·순서 (KAN-347 3-2)', () => {
     expect(findStamp(courses, 'intonation', 'ic-6')).toEqual({ kind: 'intonation', id: 'ic-6', course: 2, n: 1 })
     expect(findStamp(courses, 'word', 'ws-3')?.n).toBe(3)
     expect([...courses.keys()]).toEqual([1, 2])
+  })
+
+  it('단위 표기는 「3문항 · 약 1분」「대사 3개 · 약 3분」 — 「n장」·난이도 없음', () => {
+    expect(stampUnit('word')).toBe('3문항 · 약 1분')
+    expect(stampUnit('intonation')).toBe('대사 3개 · 약 3분')
+    expect(STAMP_MINUTES).toEqual({ word: '약 1분', intonation: '약 3분' })
   })
 
   it('종류가 다르거나 없는 id는 찾지 않는다', () => {

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { clearTestId } from './analytics/testId'
@@ -310,35 +310,66 @@ describe('App — 문항 진행 화면 진입 쿼리 (KAN-100: 네이티브가 �
   })
 })
 
-describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
-  it('?screen=words면 단어 학습 라우트가 세트 목록을 그린다', async () => {
-    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
+/** 사투리 여행 진행 응답 — 목록 두 개만, 구간 요약(KAN-359)·홈은 404 (배포 전 서버) */
+function stubTravelFetch() {
+  const fetchStub = vi.fn(async (url: unknown) => {
+    const path = new URL(String(url), 'http://x').pathname
+    const json = (body: unknown, status = 200) => ({ ok: status < 300, status, json: async () => body })
+    if (path === '/v0/learning/word-sets') {
+      return json({ contentVersion: 'v1', sets: [{ setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 2, itemCount: 2 }] })
+    }
+    if (path === '/v0/learning/intonation-courses') {
+      return json({
+        contentVersion: 'v1',
+        courses: [{ courseId: 'k1', seq: 1, level: 1, topic: null, title: '인사', cardCount: 3, completedCardCount: 0, completed: false, recommended: true }],
+      })
+    }
+    if (path === '/v0/learning/word-sets/s1') return json({ contentVersion: 'v1', setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cards: [{ cardId: 'c1', standard: '부추', dialect: '정구지' }], items: [] })
+    return json({ code: 'NOT_FOUND', message: '없음', retryable: false }, 404)
+  })
+  vi.stubGlobal('fetch', fetchStub)
+  return fetchStub
+}
+
+describe('App — 학습 탭 「사투리 여행」 진입 쿼리 (KAN-347 3-1)', () => {
+  beforeEach(() => {
     window.AccenturyBridge = {
       requestMicPermission: vi.fn(),
       startVoiceItem: vi.fn(),
       getContractVersion: () => REQUIRED_BRIDGE_VERSION,
       getAccessToken: () => 'acc',
     }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          contentVersion: 'v1',
-          sets: [{ setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 2, itemCount: 2 }],
-        }),
-      })),
-    )
+  })
+
+  it.each(['learn', 'intonation', 'words'])('?screen=%s면 사투리 여행 지도와 탭 바(학습 강조)가 선다 — 옛 값도 같은 탭이다', async (value) => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=${value}`)
+    stubTravelFetch()
     render(<App navigate={vi.fn()} />)
-    expect(await screen.findByRole('heading', { name: '단어 학습' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: '사투리 여행' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '학습' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('행정구역 경계: 통계청 SGIS(2013)')).toBeInTheDocument()
+    // KAN-359 전(구간 요약 404): 별 표시 없이 첫 스탬프가 지금 스탬프다
+    expect(screen.getByRole('heading', { level: 2, name: '단어 학습 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /^별 \d+개$/ })).toBeNull()
+  })
+
+  it('resume=1(홈 [이어가기])이면 지도를 거치지 않고 지금 스탬프로 들어가고, URL에서 resume을 걷는다 (3-6)', async () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation&resume=1`)
+    stubTravelFetch()
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByText('정구지')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: '사투리 여행' })).toBeNull()
+    const query = new URLSearchParams(window.location.search)
+    expect(query.get('resume')).toBeNull()
+    expect(query.get('screen')).toBe('intonation')
+    expect(query.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
   })
 
   it('로그인 안 됐으면 안내만 — 탭 바는 계정 로그인 상태에서만 선다 (KAN-252, PR #33 리뷰 P1)', async () => {
+    delete window.AccenturyBridge
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
     render(<App navigate={vi.fn()} />)
-    expect(await screen.findByText('로그인하면 단어 학습을 할 수 있어요')).toBeInTheDocument()
+    expect(await screen.findByText('로그인하면 학습을 이어갈 수 있어요')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '주 메뉴' })).toBeNull()
   })
 })
@@ -416,6 +447,21 @@ describe('App — 홈 테스트 전후·출석 배지 (KAN-287, KAN-347 2단계)
     expect(retest).toHaveClass('btn--text')
     fireEvent.click(retest)
     expect(requestMicPermission).toHaveBeenCalledTimes(1)
+  })
+
+  it('테스트 후 - 이어가기 카드가 지도의 지금 스탬프를 보이고, [이어가기]는 학습 탭을 resume으로 연다 (KAN-347 3-6)', async () => {
+    const travel = stubTravelFetch()
+    travel.mockImplementationOnce(async () => ({ ok: true, status: 200, json: async () => AFTER_TEST }))
+    const navigate = vi.fn()
+    render(<App navigate={navigate} />)
+    const card = await screen.findByRole('region', { name: '다음 스탬프' })
+    expect(card).toHaveTextContent('1코스 · 1번째 스탬프')
+    expect(within(card).getByRole('heading', { level: 2, name: '단어 학습 1' })).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('스탬프 0개') // KAN-359 전에는 모은 스탬프 수를 숨긴다
+    fireEvent.click(within(card).getByRole('button', { name: '이어가기' }))
+    const next = new URLSearchParams(String(navigate.mock.calls[0][0]).split('?')[1] ?? '')
+    expect(next.get('screen')).toBe('intonation')
+    expect(next.get('resume')).toBe('1')
   })
 
   it('배지를 누르면 출석 달력 시트가 열려 이번 달 출석을 조회하고, 닫으면 배지로 초점이 돌아온다', async () => {
@@ -653,13 +699,13 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     expect(next.get('c')).toBe('kko_share')
   })
 
-  it('탭 네 곳이 각 화면 쿼리로 보내고 bridge·app·c를 남긴다', () => {
+  it('탭 세 곳(학습·홈·번역기)이 각 화면 쿼리로 보내고 bridge·app·c를 남긴다 — 학습은 옛 빌드가 아는 intonation이다 (KAN-347 3-1)', () => {
     setSearch(`${APP}&screen=home&c=kko_share`)
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
-    for (const name of ['홈', '억양 학습', '단어 학습', '사투리 번역기']) fireEvent.click(screen.getByRole('button', { name }))
+    for (const name of ['홈', '학습', '사투리 번역기']) fireEvent.click(screen.getByRole('button', { name }))
     const nexts = navigate.mock.calls.map(([url]) => queryOf(url))
-    expect(nexts.map((n) => n.get('screen'))).toEqual(['home', 'intonation', 'words', 'translate'])
+    expect(nexts.map((n) => n.get('screen'))).toEqual(['home', 'intonation', 'translate'])
     for (const n of nexts) {
       expect(n.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
       expect(n.get('app')).toBe('1.0')
@@ -764,34 +810,6 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     render(<App navigate={vi.fn()} />)
     expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
     expect(tabBar()).toBeNull()
-  })
-})
-
-describe('App — 억양 학습 진입 쿼리 (KAN-253)', () => {
-  it('?screen=intonation이면 억양 학습 라우트가 코스 목록을 그린다', async () => {
-    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation`)
-    window.AccenturyBridge = {
-      requestMicPermission: vi.fn(),
-      startVoiceItem: vi.fn(),
-      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
-      getAccessToken: () => 'acc',
-    }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          contentVersion: 'v1',
-          courses: [
-            { courseId: 'k1', seq: 1, level: 1, topic: null, title: '인사', cardCount: 3, completedCardCount: 0, completed: false, recommended: true },
-          ],
-        }),
-      })),
-    )
-    render(<App navigate={vi.fn()} />)
-    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /인사/ })).toBeInTheDocument()
   })
 })
 
@@ -1666,7 +1684,7 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     expect(next.get('sessionId')).toBeNull()
   })
 
-  it('앱 안 결과 화면의 [학습 시작]은 앱 표식을 남긴 채 A-1로 보낸다 (KAN-252)', async () => {
+  it('앱 안 결과 화면의 [학습 시작]은 앱 표식을 남긴 채 학습 탭(사투리 여행 지도)으로 보낸다 (KAN-252, KAN-347 2-7)', async () => {
     setSearch(RESULT_SEARCH)
     stubBridgeWithToken('token-1', 'acc')
     stubResultFetch()

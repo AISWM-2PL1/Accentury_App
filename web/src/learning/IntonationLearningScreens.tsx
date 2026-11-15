@@ -1,5 +1,5 @@
 /**
- * 억양 학습 화면 A-1(코스 목록)·A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)·A-5(피드백, 3단계)·결과 목록(A-6 자리, 5단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
+ * 억양 학습 화면 A-2(대사 카드)·A-4(분석 대기·실패 출구, KAN-254 2단계)·A-5(피드백, 3단계)·결과 목록(A-6 자리, 5단계)와 라우트 (KAN-253 1단계). 상태는 [useIntonationLearning]이
  * 갖고 여기 화면들은 그리고 버튼을 잇기만 한다 — `WordLearningScreens.tsx`와 같은 나눔이다.
  *
  * 화면 규칙은 code wiki ux-ui.md 「억양 학습 화면 (KAN-253)」·「억양 학습 피드백 (KAN-254)」 절, 녹음 계약은 webview-bridge.md §12.
@@ -14,7 +14,8 @@ import { CheckSmallIcon, ClockIcon, CloudOffIcon, RefreshIcon, UserIcon } from '
 import { IntonationCurveLoop } from '../ui/IntonationCurveLoop'
 import { TextHero } from '../ui/TextHero'
 import { AUTH_GUEST_NOT_ALLOWED, CLIENT_NOT_SIGNED_IN, type WordApiDeps } from './wordApi'
-import type { IntonationCourse, IntonationCourseSummary, PitchFeedbackItem } from './intonationApi'
+import type { IntonationCourse, PitchFeedbackItem } from './intonationApi'
+import type { StampExits } from './travel'
 import { GuestLoginPrompt } from './GuestLoginPrompt'
 import { errorExit } from './useWordLearning'
 import { recordCard, useIntonationLearning, type CardResult, type IntonationLearningView } from './useIntonationLearning'
@@ -25,22 +26,27 @@ import { feedbackComment, formatDelta, scoreDelta, syllableMarks, type SyllableM
 
 export interface IntonationLearningRouteProps {
   apiBase: string
+  /** 스탬프 하나 = 억양 코스 하나. 사투리 여행 지도(`TravelScreens`)가 고른다 (KAN-347 3단계) */
+  courseId: string
   /**
-   * 하단 탭 바 (KAN-252). App이 앱 안에서만 넘긴다. 목록 단계(목록·빈 목록·로그인 안내)에서만 그린다 —
-   * 카드·대기·결과처럼 코스 안 화면에는 탭 바를 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가
-   * 유일한 출구다 (예전 [학습 종류로] 자리). 코스 안 화면의 공통 출구는 오른쪽 위 ✕(코스 목록으로)다 — 네이티브
-   * 녹음 화면 ✕와 같은 뜻이고, 화면 안 [코스 목록으로]·[결과 목록으로]는 그대로 둔다 (2026-10-13 사용자 결정)
+   * 나가는 길 (KAN-347 3-8). 코스 안 화면의 공통 출구는 오른쪽 위 ✕(지도로)다 — 네이티브 녹음 화면 ✕와 같은 뜻이고
+   * (2026-10-13 사용자 결정), 화면 안 [지도로]·[결과 목록으로]는 그대로 둔다. `toNextStamp`은 5단계 성적표가 쓴다
+   */
+  exits: StampExits
+  /**
+   * 하단 탭 바 (KAN-252). App이 앱 안에서만 넘긴다. 로그인 안내(오류 출구 'leave')에서만 그린다 — 카드·대기·결과처럼
+   * 코스 안 화면에는 탭 바를 두지 않는다(KAN-147). 로그인 안내에서는 이 탭 바가 유일한 출구다
    */
   tabBar?: ReactNode
   /** 테스트 주입용 (fetch·토큰 대체) */
   deps?: WordApiDeps
 }
 
-export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLearningRouteProps) {
-  const learning = useIntonationLearning(apiBase, deps)
+export function IntonationLearningRoute({ apiBase, courseId, exits, tabBar, deps }: IntonationLearningRouteProps) {
+  const learning = useIntonationLearning(apiBase, courseId, deps)
   const { view } = learning
-  // backToList가 폴링·deadline 타이머를 전부 끊고 목록을 다시 받는다 — 화면 안 [코스 목록으로]와 같은 경로라 늦은 채점 응답은 버려진다
-  const close = <CloseButton onClick={learning.backToList} />
+  // 지도로 나가면 이 라우트가 내려가며 폴링·deadline 타이머를 전부 끊는다(훅의 언마운트 정리) — 늦은 채점 응답은 버려진다
+  const close = <CloseButton onClick={exits.toMap} />
 
   switch (view.screen) {
     case 'loading':
@@ -53,15 +59,8 @@ export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLea
     case 'error':
       return (
         <>
-          <IntonationErrorScreen view={view} onBackToList={learning.backToList} />
+          <IntonationErrorScreen view={view} onToMap={exits.toMap} />
           {errorExit(view) === 'leave' && tabBar}
-        </>
-      )
-    case 'list':
-      return (
-        <>
-          <IntonationCourseListScreen courses={view.courses} onOpen={learning.openCourse} />
-          {tabBar}
         </>
       )
     case 'card':
@@ -71,8 +70,8 @@ export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLea
             key={view.index}
             course={view.course}
             index={view.index}
-            onBackToList={view.revisit ? learning.backToSummary : learning.backToList}
-            backLabel={view.revisit ? '결과 목록으로' : '코스 목록으로'}
+            onBack={view.revisit ? learning.backToSummary : exits.toMap}
+            backLabel={view.revisit ? '결과 목록으로' : '지도로'}
           />
           {close}
         </>
@@ -92,7 +91,7 @@ export function IntonationLearningRoute({ apiBase, tabBar, deps }: IntonationLea
             course={view.course}
             results={learning.results}
             onOpen={learning.openDetail}
-            onBackToList={learning.backToList}
+            onToMap={exits.toMap}
           />
           {close}
         </>
@@ -145,10 +144,10 @@ const SIGN_IN_MESSAGE = '로그인하면 억양 학습을 할 수 있어요'
 
 function IntonationErrorScreen({
   view,
-  onBackToList,
+  onToMap,
 }: {
   view: Extract<IntonationLearningView, { screen: 'error' }>
-  onBackToList: () => void
+  onToMap: () => void
 }) {
   const exit = errorExit(view)
   const message = view.error.code === CLIENT_NOT_SIGNED_IN ? SIGN_IN_MESSAGE : view.error.message
@@ -160,7 +159,7 @@ function IntonationErrorScreen({
         다시 시도
       </Button>
     ) : (
-      <Button onClick={onBackToList}>코스 목록으로</Button>
+      <Button onClick={onToMap}>지도로</Button>
     )
   return (
     <main className="screen">
@@ -180,82 +179,19 @@ function IntonationErrorScreen({
   )
 }
 
-// ── A-1 코스 목록 ────────────────────────────────────────────────────────
-
-export function IntonationCourseListScreen({
-  courses,
-  onOpen,
-}: {
-  courses: IntonationCourseSummary[]
-  onOpen: (courseId: string) => void
-}) {
-  if (courses.length === 0) {
-    // 출구는 라우트가 세우는 탭 바다 (KAN-252, 예전 [학습 종류로] 자리)
-    return (
-      <main className="screen">
-        <StatusBlock tone="waiting" message="아직 준비 중인 코스예요" />
-      </main>
-    )
-  }
-
-  // 서버가 seq 오름차순으로 주므로 레벨 묶음도 처음 나온 순서를 따른다 (W-1과 같은 규칙)
-  const byLevel = new Map<number, IntonationCourseSummary[]>()
-  for (const course of courses) byLevel.set(course.level, [...(byLevel.get(course.level) ?? []), course])
-
-  return (
-    <main className="item-screen">
-      <h1 className="type-title tab-title">억양 학습</h1>
-      {[...byLevel].map(([level, levelCourses]) => (
-        <section key={level} className="word-level" aria-labelledby={`intonation-level-${level}`}>
-          <h2 id={`intonation-level-${level}`} className="type-label word-level__title">
-            레벨 {level}
-          </h2>
-          {levelCourses.map((course) => (
-            // 추천 강조는 단어 학습 행 스타일을 그대로 쓴다. 추천은 서버 필드(KAN-268)라 많아야 1개다
-            <button
-              key={course.courseId}
-              type="button"
-              className={`word-set-row${course.recommended ? ' word-set-row--recommended' : ''}`}
-              onClick={() => onOpen(course.courseId)}
-            >
-              {/* 디자인 3 (KAN-288, 시안 `.course`): 번호 · 제목+주제+메타 · ↗ (단어 학습 세트 행과 같은 틀) */}
-              <span className="word-set-row__number" aria-hidden="true">
-                {String(course.seq).padStart(2, '0')}
-              </span>
-              <span className="word-set-row__body">
-                <span className="intonation-row__text">
-                  <span className="word-set-row__title">{course.title}</span>
-                  {course.topic !== null && <span className="type-caption intonation-row__topic">{course.topic}</span>}
-                </span>
-                <span className="type-caption word-set-row__meta">
-                  {course.recommended && <span className="word-set-row__badge">추천</span>}
-                  {course.completed ? '완료' : `${course.completedCardCount}/${course.cardCount}장`}
-                </span>
-              </span>
-              <span className="word-set-row__arrow" aria-hidden="true">
-                ↗
-              </span>
-            </button>
-          ))}
-        </section>
-      ))}
-    </main>
-  )
-}
-
 // ── A-2 대사 카드 = 일시정지 화면 ───────────────────────────────────────────
 // 카드 진입 때 녹음 화면이 자동으로 열리므로(5단계) 이 화면은 녹음 화면을 뒤로가기로 닫았을 때 보인다
 
 export function IntonationCardScreen({
   course,
   index,
-  onBackToList,
-  backLabel = '코스 목록으로',
+  onBack,
+  backLabel = '지도로',
 }: {
   course: IntonationCourse
   index: number
   /** 복귀 모드(결과 목록에서 다시 녹음)면 [결과 목록으로]로 바뀐다 — 회신 없이 닫아도 막히지 않게 */
-  onBackToList: () => void
+  onBack: () => void
   backLabel?: string
 }) {
   const card = course.cards[index]
@@ -268,7 +204,7 @@ export function IntonationCardScreen({
     // 카드 0장 코스 — 발행 검증이 막겠지만 화면이 깨지지 않게 막다른 곳의 유일한 출구를 둔다
     return (
       <main className="screen">
-        <StatusBlock tone="waiting" message="아직 준비 중인 코스예요" action={<Button onClick={onBackToList}>코스 목록으로</Button>} />
+        <StatusBlock tone="waiting" message="아직 준비 중인 코스예요" action={<Button onClick={onBack}>{backLabel}</Button>} />
       </main>
     )
   }
@@ -305,7 +241,7 @@ export function IntonationCardScreen({
         <Button disabled={!canRecord} onClick={() => recordCard(course, index)} style={{ width: '100%' }}>
           다시 말해 보기
         </Button>
-        <Button variant="text" onClick={onBackToList} style={{ width: '100%' }}>
+        <Button variant="text" onClick={onBack} style={{ width: '100%' }}>
           {backLabel}
         </Button>
       </div>
@@ -533,8 +469,8 @@ export function IntonationFeedbackScreen({
 }
 
 // ── 결과 목록 (A-6 자리, KAN-254 5단계) ─────────────────────────────────────
-// 완료 저장 호출은 없다. [코스 목록으로]가 목록을 다시 받으면 서버(KAN-268)가 completed를 계산해 준다.
-// 행은 A-1 코스 행(.word-set-row)과 같은 종이 행이다
+// 완료 저장 호출은 없다. [지도로]가 진행을 다시 받으면 서버(KAN-268)가 completed를 계산해 준다(KAN-347 3단계).
+// 행은 종이 행(.word-set-row, 옛 목록 행의 서식)이다
 
 const ROW_STATUS: Record<Exclude<CardResult['outcome'], 'completed'>, string> = {
   processing: '분석 중',
@@ -548,12 +484,12 @@ export function IntonationSummaryScreen({
   course,
   results,
   onOpen,
-  onBackToList,
+  onToMap,
 }: {
   course: IntonationCourse
   results: Record<string, CardResult>
   onOpen: (index: number) => void
-  onBackToList: () => void
+  onToMap: () => void
 }) {
   const scores = course.cards.flatMap((c) => {
     const r = results[c.cardId]
@@ -581,8 +517,9 @@ export function IntonationSummaryScreen({
         })}
       </div>
       <div className="item-screen__footer">
-        <Button className="intonation-footer__retry" onClick={onBackToList} style={{ width: '100%' }}>
-          코스 목록으로
+        {/* 성적표 개편([다음 스탬프]·글자 버튼 「지도로」)은 5단계 몫이다 — 3단계는 목적지만 지도로 바꿨다 (3-8) */}
+        <Button className="intonation-footer__retry" onClick={onToMap} style={{ width: '100%' }}>
+          지도로
         </Button>
       </div>
     </main>
