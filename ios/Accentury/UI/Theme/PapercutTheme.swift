@@ -93,6 +93,12 @@ enum Papercut {
     static let dialogWidth: CGFloat = 320
     static let dialogPadding: CGFloat = 20
     static let dialogParagraphSpacing: CGFloat = 10
+    /// 확인 대화상자 버튼 좌우 안쪽 여백 (KAN-355). 상자 안 폭 280에 버튼 둘·간격 12라 한 버튼이 134다 — 시안 `.btn`의 24로는
+    /// 선화 20 + 간격 8 + Jua 17 네 글자([로그아웃])가 들어가지 않는다. 시안은 `word-break: keep-all`로 라벨이 여백 위로 넘쳐
+    /// 그려지는데, 그 그려진 모양(라벨 양옆 약 19)에 가까운 16을 쓴다.
+    static let dialogButtonPaddingX: CGFloat = 16
+    /// 버튼 라벨이 한 줄을 지키려고 줄어드는 하한 (KAN-355). [탈퇴하는 중]+휴지통이 대화상자 버튼 폭에서 약 0.9배가 된다.
+    static let buttonLabelMinScale: CGFloat = 0.8
     /// 확인 대화상자 덮개 불투명도 (KAN-355). 덮개 색은 ``paperShadow`` 단색이다.
     static let dialogScrimOpacity: Double = 0.6
     /// 설정 목록 (KAN-355, 시안 s-11-settings): 머리 높이 56, 행 높이 56(터치 영역 48 이상), 행 안 선화·라벨 간격 10.

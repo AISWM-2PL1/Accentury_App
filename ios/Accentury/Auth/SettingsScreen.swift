@@ -300,6 +300,8 @@ private struct SettingsRow: View {
             }
             if let trailingIcon { SettingsIcon(name: trailingIcon, size: 14) }
         }
+        // 위아래 16 — 한 줄 행은 높이 56 안에 들어 그대로이고, 문의처 두 줄이 붙는 광고 신고 행만 구분선에서 같은 거리만큼 떨어진다.
+        .padding(.vertical, Papercut.space4)
         .frame(maxWidth: .infinity, minHeight: Papercut.settingsRowHeight)
     }
 }

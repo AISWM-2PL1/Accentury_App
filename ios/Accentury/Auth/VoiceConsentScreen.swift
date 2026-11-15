@@ -92,7 +92,8 @@ struct VoiceConsentScreen: View {
                     .papercutType(.caption)
                     .foregroundColor(Papercut.muted)
 
-                    AccenturyButton(text: "개인정보처리방침", variant: .text, action: onOpenPrivacy)
+                    // 시안 `.p4-policy-link`: 본문 왼쪽 선에 붙고(왼쪽 여백 0) 평소 밑줄은 없다.
+                    AccenturyButton(text: "개인정보처리방침", variant: .text, flush: true, action: onOpenPrivacy)
 
                     if failed { StatusBlock(tone: .error, message: "잠시 후 다시 시도해 주세요") }
                 }

@@ -62,4 +62,14 @@ final class ButtonAppearanceTests: XCTestCase {
         XCTAssertEqual(0.6, Papercut.Motion.reveal)
         XCTAssertEqual(320, Papercut.dialogWidth)
     }
+
+    /// 확인 대화상자 버튼에 [로그아웃](선화 20 + 간격 8 + Jua 17 네 글자)이 한 줄로 든다 — 버튼 폭 (320 − 20×2 − 12) / 2 = 134에서
+    /// 좌우 여백을 빼고도 라벨 자리가 남아야 한다. 시안 `.btn`의 24로는 86만 남아 「로그아 / 웃」으로 꺾였다(육안 확인 P1).
+    func testDialogButtonFitsIconAndFourGlyphs() {
+        let buttonWidth = (Papercut.dialogWidth - Papercut.dialogPadding * 2 - Papercut.space3) / 2
+        let room = buttonWidth - Papercut.dialogButtonPaddingX * 2 - Papercut.buttonIconSize - Papercut.space2
+        XCTAssertEqual(16, Papercut.dialogButtonPaddingX)
+        XCTAssertGreaterThanOrEqual(room, Papercut.TextStyle.button.size * 4)
+        XCTAssertEqual(0.8, Papercut.buttonLabelMinScale)
+    }
 }
