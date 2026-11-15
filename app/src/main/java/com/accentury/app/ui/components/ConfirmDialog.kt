@@ -80,7 +80,12 @@ fun ConfirmDialog(
     val shown = remember { Animatable(if (reducedMotion) 1f else 0f) }
     LaunchedEffect(Unit) { shown.animateTo(1f, tween(Motion.FAST, easing = Motion.easeOut)) }
 
-    Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // decorFitsSystemWindows = false: 창이 상태 바·내비게이션 바 뒤까지 펴져 덮개가 화면 전체를 덮는다 — 아니면 위아래에
+    // 밝은 띠가 남는다(리뷰 P2-4). 종이는 세로 가운데라 시스템 바와 겹치지 않는다.
+    Dialog(
+        onDismissRequest = dismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
         // 시스템 dim을 끄고 덮개를 직접 칠한다 — 둘 다 두면 덮개가 두 겹이 된다.
         (LocalView.current.parent as? DialogWindowProvider)?.window?.let { window ->
             SideEffect { window.setDimAmount(0f) }

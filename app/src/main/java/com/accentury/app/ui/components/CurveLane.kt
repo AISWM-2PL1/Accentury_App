@@ -53,6 +53,8 @@ internal enum class CurveLaneVariant { Guide, User }
  * 곡선 레인을 담는 상자 (KAN-161 2단계, 모양은 KAN-354 시안 `.p2-lanes`). 레인 하나든 둘이든 테두리와 모서리는 이 상자가
  * 갖고 레인 자신은 갖지 않는다 — 레인마다 테두리를 두르면 상자 안에 상자가 겹쳐 선이 두 겹으로 보인다.
  * paper 면·잉크 1dp 테두리·반경 10이라 대사 카드와 같은 종이로 읽힌다(그림자는 대사 카드만 갖는다).
+ * 오른쪽을 그림자 폭만큼 비운다 — [paperShadow]가 대사 카드 본체를 그만큼 안으로 들이므로, 비우지 않으면 두 카드의
+ * 오른쪽 끝이 어긋난다(시안은 그림자가 레이아웃 밖이라 두 카드 끝이 같다, 리뷰 P2-3).
  */
 @Composable
 internal fun CurveLaneGroup(
@@ -63,6 +65,7 @@ internal fun CurveLaneGroup(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .padding(end = Dimens.paperShadowX)
             .clip(shape)
             .background(LightPaper)
             .border(GROUP_BORDER, MaterialTheme.colorScheme.onBackground, shape),

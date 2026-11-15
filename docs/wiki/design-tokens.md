@@ -619,7 +619,7 @@ Android `ui/components/ConfirmDialog.kt` (시안 s-11-confirm-logout·s-11-confi
 화면은 좌우 16을 남기고 준다)·모서리 `radius-sheet` 16·`paper` 면·잉크 1 테두리·그림자 없음·안쪽 20, 제목 Jua 26, 본문,
 바닥에 버튼 둘을 12 사이로 나란히 — 왼쪽 보조(머무는 쪽), 오른쪽 확인. 확인 버튼은 [그만두기]·[탈퇴]가 Destructive,
 [로그아웃]이 Primary다(`confirmVariant`). 덮개는 `primary-dim` `#cfc5aa` 불투명도 0.6 — 토큰이 아니라 이 자리에만 쓰는
-값이다. 창 바깥·시스템 뒤로가기는 왼쪽 버튼과 같고, 진행 중(`busy`)이면 두 버튼과 바깥·뒤로가기가 모두 막힌다.
+값이다. 덮개는 상태 바·내비게이션 바 뒤까지 화면 전체를 덮는다(`DialogProperties(decorFitsSystemWindows = false)`). 창 바깥·시스템 뒤로가기는 왼쪽 버튼과 같고, 진행 중(`busy`)이면 두 버튼과 바깥·뒤로가기가 모두 막힌다.
 덮개와 종이는 `duration-fast` 150ms에 함께 나타나고 움직임 줄이기면 처음부터 다 보인다.
 본문 글자는 창이 기본값으로 준다(`ProvideTextStyle`, 시안 `.quit-dialog p` 본문 13/1.8 흐린 잉크) — 그만두기·로그아웃·탈퇴 창이 같은 값이다.
 

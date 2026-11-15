@@ -123,7 +123,8 @@ fun RegionSelectScreen(
             modifier = Modifier.padding(top = Spacing.x3).fillMaxWidth().height(MAP_HEIGHT),
         )
 
-        // 고르기 전에도 한 줄 자리를 잡아 둔다 — 고를 때 아래 버튼이 들썩이지 않게.
+        // 고르기 전에도 한 줄 자리를 잡아 둔다 — 고를 때 아래 출처 표기가 들썩이지 않게. 줄 높이 28만으로는 칩마다 결과 줄 높이가
+        // 달라(에뮬레이터 경남 55px·강원 47px, 「·」가 든 줄이 컸다) 최소 높이 36으로 자리를 고정한다(리뷰 P2-5).
         Text(
             selected?.let(::regionSelectionLine).orEmpty(),
             style = TextStyle(fontFamily = Jua, fontSize = 18.sp, lineHeight = 28.sp),
@@ -131,6 +132,7 @@ fun RegionSelectScreen(
             modifier = Modifier
                 .padding(top = Spacing.x4)
                 .fillMaxWidth()
+                .heightIn(min = 36.dp)
                 .semantics { liveRegion = LiveRegionMode.Polite },
         )
         // 경계 데이터 출처 (KAN-347·354 공통 표기). 시안에 자리가 없어 결과 줄 아래 오른쪽 작은 글씨로 둔다.
