@@ -233,6 +233,18 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.goto('/?bridge=2&app=1.0&screen=translate')
     await expect(page.getByLabel('표준어 문장')).toBeVisible()
   },
+  // 결과 카드 아래쪽(「오늘 n번 남았어요」·복사·공유)과 신고 링크가 큰 글자에서 넘치지 않는지 (KAN-347 6단계)
+  '번역기 결과': async (page) => {
+    await asApp(page)
+    await page.route(
+      (url) => url.pathname === '/v0/translations',
+      (route) => route.fulfill({ json: { direction: 'toDialect', dialect: '밥 뭇나?', remaining: 4 } }),
+    )
+    await page.goto('/?bridge=2&app=1.0&screen=translate')
+    await page.getByLabel('표준어 문장').fill('밥 먹었니?')
+    await page.getByRole('button', { name: '번역하기', exact: true }).click()
+    await expect(page.getByText('오늘 4번 남았어요')).toBeVisible()
+  },
   '녹음 중': async (page) => {
     await SCREENS['음성 문항'](page)
     await page.getByRole('button', { name: '녹음', exact: true }).click()
