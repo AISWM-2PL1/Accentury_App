@@ -195,7 +195,7 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
   홈: async (page) => {
     await asApp(page)
     await page.goto('/?bridge=2&app=1.0&screen=home')
-    await expect(page.locator('.home-streak')).toBeVisible()
+    await expect(page.locator('.home-hero h1')).toBeVisible()
   },
   '음성 문항': async (page) => {
     await webSession(page, 's_voice', 'gn-voice')
@@ -328,22 +328,23 @@ for (const { scales, ...viewport } of VIEWPORTS) {
 /*
  * 320 폭 기본 글자 배치 (Codex 교차 검증 2026-11-09). 큰 글자용 재배치가 칸 폭만 보고 켜지면 320 폭에서는 100%에서도
  * 걸린다 — 홈 등급 카드의 글자가 그림 아래로 내려가고(카드 200→314px) 탭 라벨이 줄을 바꿨다(탭 바 65→77px).
- * 기준 스냅샷 대신 두 가지만 단정한다: 등급 글자가 그림과 같은 행, 탭 라벨이 한 줄.
+ * 기준 스냅샷 대신 두 가지만 단정한다: 홈 등급 이름이 한 줄로 본문 안(KAN-347 2단계에서 카드가 없어졌다), 탭 라벨이 한 줄.
  */
 test.describe('폭 320 기본 글자', () => {
   test.use({ viewport: { width: 320, height: 915 } })
 
-  test('홈 등급 카드는 그림과 글자가 같은 행이고 탭 라벨은 한 줄이다', async ({ page }) => {
+  test('홈 등급 이름은 한 줄로 본문 안에 들고 탭 라벨은 한 줄이다', async ({ page }) => {
     await stubServer(page)
     await SCREENS['홈'](page)
     await page.evaluate(() => document.fonts.ready)
 
-    const art = await page.locator('.home-tier .illustration--home').boundingBox()
-    const text = await page.locator('.home-tier__text').boundingBox()
-    expect(art && text, '등급 카드 그림·글자').toBeTruthy()
-    // 같은 행: 글자 칸이 그림 오른쪽에서 시작하고 세로로 그림과 겹친다
-    expect(text!.x).toBeGreaterThanOrEqual(art!.x + art!.width)
-    expect(text!.y).toBeLessThan(art!.y + art!.height)
+    const name = page.locator('.home-hero h1')
+    const box = (await name.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(24 - 0.5)
+    expect(box.x + box.width).toBeLessThanOrEqual(320 - 24 + 0.5)
+    // 한 줄 = line-height 1.3 × 글자 크기
+    const lines = await name.evaluate((el) => el.getBoundingClientRect().height / (parseFloat(getComputedStyle(el).fontSize) * 1.3))
+    expect(Math.round(lines)).toBe(1)
 
     const labels = page.locator('.tab-bar__label')
     expect(await labels.count()).toBeGreaterThan(0)

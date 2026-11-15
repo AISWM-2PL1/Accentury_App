@@ -31,7 +31,7 @@ import { sendFeedback, type FeedbackInput } from '../feedback/sendFeedback'
 import { newIdempotencyKey } from '../net/idempotencyKey'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import { Button, ScoreDonut, StatusBlock } from '../ui'
-import { ShareIcon } from '../ui/icons'
+import { ShareIcon, ToneLineIcon } from '../ui/icons'
 import { fetchResult, ResultFetchError } from './fetchResult'
 import { RetestAction } from './RetestAction'
 import { TIER_IMAGE_HEIGHT, TIER_IMAGE_WIDTH, tierImageFor } from './tierAssets'
@@ -76,7 +76,7 @@ export interface ResultScreenProps {
    */
   onDownloadClick?: () => void
   /**
-   * [이 등급에 맞는 억양 학습 시작] (KAN-252). **값이 있으면 앱 안 WebView다** — `storePlatform`과 같은
+   * [학습 시작] (KAN-252, 문구는 KAN-347 2-7). **값이 있으면 앱 안 WebView다** — `storePlatform`과 같은
    * 방식으로 판정은 부모가 하고, 없으면(웹 단독) 버튼 자체를 그리지 않는다. 학습은 로그인 필수라
    * 웹에서는 갈 곳이 없다 (2026-10-13 사용자 결정: 스토어 URL이 나오면 후속에서 잇는다).
    */
@@ -279,7 +279,8 @@ export function ResultScreen({
         */}
         <TierCharacter code={tier.code} name={tier.name} />
 
-        <div>
+        {/* 점수 원 count-up(600ms)이 끝난 뒤 등급 이름이 300ms로 나타난다 (KAN-347 움직임 타일 6, `.result-tier`) */}
+        <div className="result-tier">
           {/*
             등급 이름이 이 화면에서 가장 큰 글자다 (KAN-161 3단계, 아트보드 `Result.dc.html`).
             예전에는 종합 점수 도넛이 제일 컸는데, 사용자가 공유하고 기억하는 것은 숫자가
@@ -300,7 +301,7 @@ export function ResultScreen({
           한쪽이 다른 쪽의 가중 평균이라 한 상자에 있는 편이 관계를 말한다.
         */}
         <div className="card result-card">
-          <ScoreDonut score={scores.overall} label="종합 점수" />
+          <ScoreDonut score={scores.overall} label="종합 점수" countUp />
           <div className="result-scores">
             <ScoreRow label="억양" score={scores.intonation} />
             <ScoreRow label="단어" score={scores.vocabulary} />
@@ -348,7 +349,8 @@ export function ResultScreen({
         */}
         {onStartLearning !== undefined && (
           <Button variant="text" className="result-feedback__open" onClick={onStartLearning}>
-            이 등급에 맞는 억양 학습 시작
+            <ToneLineIcon />
+            학습 시작
           </Button>
         )}
         {/*

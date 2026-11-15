@@ -247,3 +247,13 @@ export function ChevronLeftIcon({ size }: { size?: number }) {
 export function RetryIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M4 9a8 8 0 1 1 0 6M4 4v5h5" />
 }
+
+/** 책 — 단어 학습 (시안 s-02-b 출석 상세 행, 탭 바 「단어 학습」과 같은 그림) */
+export function WordLineIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M5 4 H17 A2 2 0 0 1 19 6 V20 H7 A2 2 0 0 1 5 18 Z M5 18 A2 2 0 0 1 7 16 H19" />
+}
+
+/** 물결 — 억양 학습 (시안 s-02-b 출석 상세 행·s-10 [학습 시작], 탭 바 「억양 학습」과 같은 그림) */
+export function ToneLineIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M3 14 C6 6 8 6 10 12 S14 18 16 10 S19 8 21 12" />
+}
