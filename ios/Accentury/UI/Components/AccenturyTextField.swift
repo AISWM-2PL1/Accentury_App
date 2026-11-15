@@ -28,12 +28,21 @@ struct AccenturyTextField: View {
 
             Group {
                 if let onTap {
+                    // 시안 s-02-profile `.p4-date-picker`: 앞에 달력 선화 20·간격 8, 비었을 때 안내는 Jua 17 흐린 잉크(`.btn` 라벨 글꼴).
+                    // 고른 날짜는 다른 칸과 같은 본문 글꼴이다.
                     Button(action: onTap) {
-                        Text(text.isEmpty ? (placeholder ?? "") : text)
-                            .papercutType(.body)
-                            .foregroundColor(text.isEmpty ? Papercut.muted : Papercut.ink)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                        HStack(spacing: Papercut.space2) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: Papercut.buttonIconSize - 3, weight: .regular))
+                                .frame(width: Papercut.buttonIconSize, height: Papercut.buttonIconSize)
+                                .foregroundColor(text.isEmpty ? Papercut.muted : Papercut.ink)
+                                .accessibilityHidden(true)
+                            Text(text.isEmpty ? (placeholder ?? "") : text)
+                                .papercutType(text.isEmpty ? .button : .body)
+                                .foregroundColor(text.isEmpty ? Papercut.muted : Papercut.ink)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(label)

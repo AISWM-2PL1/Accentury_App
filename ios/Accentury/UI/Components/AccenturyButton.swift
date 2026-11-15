@@ -89,6 +89,13 @@ struct AccenturyButton: View {
     var leadingIcon: String?
     /// 라벨 바로 뒤에 붙는 선화 (SF Symbol 이름, KAN-355). 시안의 「다음 →」·「계속」 화살표 자리다.
     var trailingIcon: String?
+    /// 면 버튼의 좌우 안쪽 여백. 기본은 시안 `.btn`의 24이고, 폭이 134 남짓인 확인 대화상자 버튼은 ``Papercut/dialogButtonPaddingX``다.
+    var horizontalPadding: CGFloat = Papercut.space6
+    /// 글자 버튼을 본문 선에 붙일지 (시안 `.p4-policy-link`·`.p1-required .btn`의 좌우 여백 0). 좌우 여백을 빼고 폭은 터치 최소 44를 지킨다.
+    /// 왼쪽 정렬 링크·오른쪽 끝 「보기」 자리이고, 가운데 정렬 글자 버튼은 여백 12 그대로다.
+    var flush: Bool = false
+    /// 글자 버튼 라벨에 늘 밑줄 (시안 `.p1-guest`의 둘러보기 [돌아가기]). 기본은 눌렀을 때만 밑줄이다.
+    var underlined: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -98,11 +105,11 @@ struct AccenturyButton: View {
             Button(action: action) {
                 label(look, style: .textButton)
                     .frame(maxWidth: fillsWidth ? .infinity : nil)
-                    .frame(minHeight: Papercut.touchTargetMin)
-                    .padding(.horizontal, Papercut.space3)
+                    .frame(minWidth: flush ? Papercut.touchTargetMin : nil, minHeight: Papercut.touchTargetMin)
+                    .padding(.horizontal, flush ? 0 : Papercut.space3)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PaperTextButtonStyle(underline: look.label))
+            .buttonStyle(PaperTextButtonStyle(underline: underlined ? nil : look.label, inset: flush ? 0 : Papercut.space3))
             .disabled(!enabled)
             .opacity(enabled ? 1 : Papercut.opacityDisabled)
 
@@ -114,17 +121,23 @@ struct AccenturyButton: View {
             .buttonStyle(PapercutButtonStyle(
                 appearance: look,
                 minHeight: variant == .primary ? Papercut.controlHeightLarge : Papercut.touchTargetMin,
-                fillsWidth: fillsWidth
+                fillsWidth: fillsWidth,
+                horizontalPadding: horizontalPadding
             ))
             .disabled(!enabled)
         }
     }
 
     /// 앞 선화 · 라벨 · 뒤 선화 (시안 `.btn`의 `gap: 8`). 선화는 라벨과 같은 색이고 라벨이 이미 말하므로 읽지 않는다.
+    ///
+    /// 라벨은 어떤 폭에서도 한 줄이다 — 좁으면 글자 중간에서 꺾이지 않고 ``Papercut/buttonLabelMinScale``까지 줄어든다.
+    /// 글꼴이 고정 크기라(``Papercut/TextStyle/font``) Dynamic Type으로 라벨이 자라지 않는다.
     private func label(_ look: PaperButtonAppearance, style: Papercut.TextStyle) -> some View {
         HStack(spacing: Papercut.space2) {
             if let leadingIcon { icon(leadingIcon) }
-            Text(text).papercutType(style)
+            Text(text).underline(underlined).papercutType(style)
+                .lineLimit(1)
+                .minimumScaleFactor(Papercut.buttonLabelMinScale)
             if let trailingIcon { icon(trailingIcon) }
         }
         .foregroundColor(look.label)
@@ -145,6 +158,7 @@ struct PapercutButtonStyle: ButtonStyle {
     let appearance: PaperButtonAppearance
     var minHeight: CGFloat = Papercut.controlHeightLarge
     var fillsWidth: Bool = false
+    var horizontalPadding: CGFloat = Papercut.space6
 
     func makeBody(configuration: Configuration) -> some View {
         PaperButtonBody(
@@ -152,7 +166,8 @@ struct PapercutButtonStyle: ButtonStyle {
             isPressed: configuration.isPressed,
             appearance: appearance,
             minHeight: minHeight,
-            fillsWidth: fillsWidth
+            fillsWidth: fillsWidth,
+            horizontalPadding: horizontalPadding
         )
     }
 }
@@ -165,6 +180,7 @@ private struct PaperButtonBody: View {
     let appearance: PaperButtonAppearance
     let minHeight: CGFloat
     let fillsWidth: Bool
+    let horizontalPadding: CGFloat
 
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -177,7 +193,7 @@ private struct PaperButtonBody: View {
         let sink: CGFloat = isPressed && isEnabled && !reduceMotion ? 1 : 0
 
         return label
-            .padding(.horizontal, Papercut.space6)
+            .padding(.horizontal, horizontalPadding)
             .frame(maxWidth: fillsWidth ? .infinity : nil)
             // 라벨이 짧아도 손가락이 닿을 만큼은 넓게 잡는다.
             .frame(minWidth: 120, minHeight: minHeight)
@@ -191,18 +207,21 @@ private struct PaperButtonBody: View {
 }
 
 /// 글자 버튼의 눌림 (KAN-355, 시안 `.btn--text:active`): 내려가지 않고 라벨 아래에 밑줄이 선다. 평소에는 밑줄이 없다.
+/// 라벨에 늘 밑줄이 있는 버튼은 `underline`이 nil이다 — 밑줄이 두 겹이 되지 않게 눌림 밑줄을 그리지 않는다.
 private struct PaperTextButtonStyle: ButtonStyle {
 
-    let underline: Color
+    let underline: Color?
+    /// 라벨 상자 좌우 여백 (``AccenturyButton/flush``면 0)
+    let inset: CGFloat
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.overlay(alignment: .bottom) {
-            if configuration.isPressed {
+            if configuration.isPressed, let underline {
                 // 라벨 상자(48) 아래 끝에서 12 올린 자리 — 한 줄 라벨의 글자 바로 아래다.
                 Rectangle()
                     .fill(underline)
                     .frame(height: Papercut.borderHairline)
-                    .padding(.horizontal, Papercut.space3)
+                    .padding(.horizontal, inset)
                     .offset(y: -Papercut.space3)
             }
         }

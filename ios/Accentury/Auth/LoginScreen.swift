@@ -99,7 +99,8 @@ struct LoginScreen: View {
                 Task { await state.startGuest(onStartGuest) }
             }
             .padding(.top, 10)
-            AccenturyButton(text: "돌아가기", variant: .text, enabled: !state.inFlight, fillsWidth: true) { guestStep = false }
+            // 시안 `.p1-guest`: 가운데 정렬·늘 밑줄
+            AccenturyButton(text: "돌아가기", variant: .text, enabled: !state.inFlight, fillsWidth: true, underlined: true) { guestStep = false }
         }
     }
 
@@ -185,7 +186,8 @@ private struct ConsentRow: View {
     var body: some View {
         HStack(spacing: 0) {
             CheckRow(checked: $checked, label: "개인정보 수집·이용 동의 (필수)")
-            AccenturyButton(text: "보기", variant: .text, action: onOpenPrivacy)
+            // 시안 `.p1-required .btn`: 좌우 여백 0·최소 폭 44 — 오른쪽 끝이 본문 오른쪽 선에 닿는다.
+            AccenturyButton(text: "보기", variant: .text, flush: true, action: onOpenPrivacy)
         }
     }
 }

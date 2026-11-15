@@ -86,6 +86,7 @@ struct ConfirmDialog<Footer: View>: View {
             fillsWidth: true,
             leadingIcon: button.leadingIcon,
             trailingIcon: button.trailingIcon,
+            horizontalPadding: Papercut.dialogButtonPaddingX,
             action: button.action
         )
     }
