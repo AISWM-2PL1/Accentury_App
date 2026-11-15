@@ -140,9 +140,12 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
   참이면 `retestRegionPending`을 세워 결과 화면 위에 지역 화면을 덮는다. [다음]을 누르면 지역을 저장하고 멈췄던
   재응시를 이어 간다. 광고는 그 앞에서 이미 끝났으므로 다시 보지 않는다. 웹 결과 화면은 광고 때와 같이 pending으로
   기다린다(시간 기반 해제가 없다). 지역 화면이 떠 있는 동안 톱니는 숨긴다(`nativeCovering`).
-- **지역 화면** `AnonymousRegionScreen`: 질문은 `ProfileScreen` 지역 칸과 같은 「어느 지역 말씨가 몸에 배어
-  있나요?」, 부제·캡션·[다음] 규칙은 웹 `RegionSelectScreen`과 같다(기본 선택 없음, 건너뛰기 없음, 고른 뒤 활성).
-  나열은 웹 `DISPLAY_ORDER`(`REGION_DISPLAY_ORDER`) 2열이다.
+- **지역 화면** Android `auth/RegionSelectScreen.kt` (KAN-354 3단계부터, 그 전은 2열 칩 `AnonymousRegionScreen`): 회원의
+  프로필 다음 화면과 같은 지도 화면이다(시안 s-13-region-select-maponly). 질문 「어느 지역 말씨가 몸에 배어 있나요?」,
+  기본 선택 없음, 건너뛰기 없음, 고른 뒤 [다음] 활성은 웹 `RegionSelectScreen`과 같다. 칩 10개가 라디오 그룹이고 지도 면은
+  스크린 리더에서 숨긴다. 경계는 정본 `docs/assets/region-map.svg`의 바이트 동일 사본 `app/src/main/assets/region-map.svg`를
+  실행 때 읽어 `data-region`별 path로 나누고(`auth/RegionMap.kt` `parseRegionMap`), `PathParser`로 그린다. 사본이 정본과
+  같은지는 `RegionMapTest`가 본다 — 정본을 바꾸면 사본도 `cp`로 다시 둔다.
 - **본문 `region`**: 저장된 지역이 있으면 동의와 무관하게 싣는다 (KAN-274, `AnonymousVoiceConsentStore.region()`).
   없으면 키째 빠진다. 첫 응시와 재응시 둘 다. 계정 모드는 보내지 않는다(서버가 프로필 지역을 쓴다). 서버는 코드 10개만 받고
   그 밖은 400이다.
@@ -155,7 +158,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | 동의 저장 | 서버 계정 (`PUT\|DELETE /v0/users/me/voice-consent`) | 기기 로컬 prefs |
 | 묻는 때 | 로그인 뒤 TestFlow 위 오버레이, 계정당 한 번 | 시작 게이트 권한 뒤, 설치당 한 번 |
 | 세션 본문 `voiceConsentVersion` | 보내지 않음 (서버가 계정 값 사용) | 동의면 `VOICE_CONSENT_VERSION` |
-| 출신 지역 | 추가 정보 화면(프로필), 본문에 안 실음 | 모든 사용자에게 동의 다음 칸에서 설치당 한 번, 본문 `region` |
+| 출신 지역 | 추가 정보 프로필 다음 지역 화면(KAN-354, Android), 본문에 안 실음 | 모든 사용자에게 동의 다음 칸에서 설치당 한 번, 본문 `region` |
 | 버전 출처 | 서버 `currentVersion` | 앱 상수 (400이면 폴백) |
 | 설정 화면 | 계정·개인정보·로그아웃 | 개인정보만 |
 
@@ -173,7 +176,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`·`region`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`·`.region`, `@MainActor ObservableObject`) |
 | `anonymousVoiceConsentVersion(consented)` | `anonymousVoiceConsentVersion(consented:)` (같은 파일) |
 | `needsAnonymousRegion(region)`·`saveRegion` (7단계, KAN-274에서 동의 조건 제거) | `needsAnonymousRegion(region:)`·`saveRegion(_:)` (같은 파일) |
-| `auth/AnonymousRegionScreen.kt`·`REGION_DISPLAY_ORDER` | `Accentury/Auth/AnonymousRegionScreen.swift`·`regionDisplayOrder` (`ChoiceButton` 재사용) |
+| `auth/RegionSelectScreen.kt`(KAN-354 지도 화면, 옛 `AnonymousRegionScreen.kt`·`REGION_DISPLAY_ORDER`) | `Accentury/Auth/AnonymousRegionScreen.swift`·`regionDisplayOrder` (`ChoiceButton` 재사용) |
 | `VOICE_CONSENT_VERSION`·`VOICE_CONSENT_DETAILS_ANONYMOUS`·`VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS` | `voiceConsentVersion`·`voiceConsentDetailsAnonymous`·`voiceConsentSettingCaptionAnonymous` (`VoiceConsentText.swift`) |
 | `SessionClient.create(..., voiceConsentVersion, region)`·`createWithConsentFallback(..., region)`·`CODE_VALIDATION_FAILED` | 프로토콜 요구사항 5인자 `create`(7단계에 `region` 추가), 확장 `createWithConsentFallback`, `codeValidationFailed` (`Session/SessionClient.swift`). 4인자 이하 `create`는 확장 오버로드 |
 | TestFlow `anonymousConsent` 인자, when 체인 동의·지역 단계 | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`·`needsAnonymousRegion`, `TestFlowView` overlay 사슬의 권한과 점검 사이(동의 → 지역) |

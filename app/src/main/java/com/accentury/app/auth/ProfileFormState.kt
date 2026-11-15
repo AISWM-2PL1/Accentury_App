@@ -23,7 +23,9 @@ fun utcMillisOf(birthDate: String): Long? = runCatching {
 }.getOrNull()
 
 /**
- * 추가 정보 화면의 입력 (KAN-224, §3.10). 성별을 뺀 네 칸이 다 차야 [완료]가 켜진다 — 건너뛰기는 없다.
+ * 추가 정보의 입력 (KAN-224, §3.10). 프로필 화면과 출신 지역 화면(KAN-354 3단계)이 한 상태를 나눠 쓴다 — 프로필은
+ * 성별을 뺀 세 칸([isComplete])이 차야 [다음]이 켜지고, 지역 화면 [다음]이 두 화면 값을 모아 [toInput] 한 번으로 저장한다
+ * (`PUT /v0/users/me/profile`은 지역이 필수다). 건너뛰기는 없다.
  * 성별은 선택이다 (KAN-330, 서버 KAN-328 — 애플 5.1.1(v): 기능에 필요 없는 개인 정보를 필수로 받지 말 것).
  *
  * 서버가 이미 아는 값은 미리 채운다: IdP가 준 이메일·이름, 그리고 다른 기기에서 입력했다가 서버가
@@ -45,15 +47,17 @@ class ProfileFormState(
     var gender: Gender? by mutableStateOf(gender)
     var region: Region? by mutableStateOf(region)
 
-    /** 제출이 나가 있다 — [완료]를 다시 누를 수 없다. */
+    /** 제출이 나가 있다 — 지역 화면 [다음]을 다시 누를 수 없다. */
     var submitting: Boolean by mutableStateOf(false)
 
-    /** 이메일 검증은 '@'가 있는지까지만 본다. 형식의 정본은 서버 검증(400 `VALIDATION_FAILED`)이다. */
+    /**
+     * 프로필 화면 칸이 다 찼다 — 지역은 다음 화면이 묻는다(KAN-354 3단계). 이메일 검증은 '@'가 있는지까지만 본다.
+     * 형식의 정본은 서버 검증(400 `VALIDATION_FAILED`)이다.
+     */
     val isComplete: Boolean
-        get() = email.trim().let { it.isNotEmpty() && '@' in it } &&
-            name.isNotBlank() && birthDate != null && region != null
+        get() = email.trim().let { it.isNotEmpty() && '@' in it } && name.isNotBlank() && birthDate != null
 
-    /** [isComplete]일 때만 부른다. 앞뒤 공백은 서버로 보내지 않는다. */
+    /** [isComplete]이고 지역을 골랐을 때만 부른다. 앞뒤 공백은 서버로 보내지 않는다. */
     fun toInput(): ProfileInput = ProfileInput(
         email = email.trim(),
         name = name.trim(),

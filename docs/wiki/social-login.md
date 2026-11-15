@@ -37,7 +37,7 @@ stateDiagram-v2
 | `Checking` | 스플래시(안드로이드 `setKeepOnScreenCondition`) / 런치 화면 얼굴(iOS `AuthCheckScreen`) | `AuthGateController.bootstrap()` |
 | `CheckFailed` | 대기·오류 블록 + [다시 시도] | 망이 끊긴 사용자를 로그아웃시키지 않으려는 상태다 |
 | `SignedOut` | 로그인 (`auth/LoginScreen.kt` · `Auth/LoginScreen.swift`) | |
-| `NeedsProfile` | 추가 정보 (`auth/ProfileScreen.kt` · `Auth/ProfileScreen.swift`) | |
+| `NeedsProfile` | 추가 정보 (`auth/ProfileScreen.kt` → 출신 지역 `auth/RegionSelectScreen.kt`, 지역 화면 [다음]에서 한 번 저장 — KAN-354 · `Auth/ProfileScreen.swift`) | |
 | `SignedIn` | 기존 테스트 흐름(WebView 인트로) | 안드로이드 `MainActivity`의 `AuthGate`, iOS `AuthGateView` |
 | `Guest` (KAN-330) | 테스트 흐름(WebView 홈). 웹이 번역기·레벨 테스트 말고는 로그인 안내를 그린다 | Android `AuthGateState.Guest`, iOS `AuthGateState.guest` — 「게스트 둘러보기」 |
 

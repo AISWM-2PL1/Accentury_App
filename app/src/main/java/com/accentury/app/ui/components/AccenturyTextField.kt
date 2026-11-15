@@ -28,11 +28,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPaper
 import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 
 /**
- * 입력 칸 (KAN-224 추가 정보 화면, 모양은 KAN-288 디자인 3). 시안 `.field` — 흐린 잉크 1dp 테두리, 크림 면, 반경 6.
+ * 입력 칸 (KAN-224 추가 정보 화면, 모양은 KAN-288 디자인 3). 시안 `.field` — 흐린 잉크 1dp 테두리, paper 면(KAN-354 — 토큰 정의상 입력 칸 면), 반경 6.
  * 그림자는 없다: 떠 있는 종이는 주 버튼 하나여야 한다 (AccenturyButton KDoc). 포커스는 테두리가 2dp로
  * 굵어지는 것으로만 보인다 — 두께가 "지금 이것"을 뜻하는 유일한 자리라는 §8 규칙이다.
  *
@@ -60,7 +61,7 @@ fun AccenturyTextField(
         .fillMaxWidth()
         .defaultMinSize(minHeight = Dimens.touchTargetMin)
         .clip(shape)
-        .background(MaterialTheme.colorScheme.surface)
+        .background(LightPaper)
         .border(
             width = if (focused) FOCUSED_BORDER else FIELD_BORDER,
             color = if (focused) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
