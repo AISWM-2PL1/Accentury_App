@@ -361,6 +361,30 @@ describe('지도로 돌아올 때의 움직임 (타일 1·5)', () => {
   })
 })
 
+describe('별이 모자라 멈춘 상태 (PR #76 리뷰)', () => {
+  it('지도: 지금 스탬프가 없어도 멈춘 코스로 「지금 코스」 카드를 그리고 열림 안내, [코스 지도로]는 그 코스 지도를 연다', async () => {
+    renderRoute(routesOf(['w1', 'k1', 'w2', 'k2', 'w3', 'k3', 'w4', 'k4', 'k5'], levels(19, false, 9)))
+    await mapHeading()
+    const card = screen.getByRole('region', { name: '지금 코스' })
+    expect(card).toHaveTextContent('1코스 9 / 9')
+    expect(card).toHaveTextContent('별 21개를 모으면 2코스가 열려요')
+    expect(within(card).queryByRole('button', { name: /시작/ })).toBeNull()
+    fireEvent.click(within(card).getByRole('button', { name: '코스 지도로' }))
+    expect(await screen.findByRole('heading', { level: 1, name: '1코스' })).toBeInTheDocument()
+  })
+
+  it('홈: 이어가기 카드가 사라지지 않고 멈춘 코스와 같은 안내를 보인다, [이어가기]는 onResume', async () => {
+    const onResume = vi.fn()
+    const server = fakeServer(routesOf(['w1', 'k1', 'w2', 'k2', 'w3', 'k3', 'w4', 'k4', 'k5'], levels(19, false, 9)))
+    render(<ContinueCard apiBase="http://api" onResume={onResume} deps={deps(server.fetchImpl)} />)
+    const card = await screen.findByRole('region', { name: '다음 스탬프' })
+    expect(card).toHaveTextContent('1코스')
+    expect(card).toHaveTextContent('별 21개를 모으면 2코스가 열려요')
+    fireEvent.click(within(card).getByRole('button', { name: '이어가기' }))
+    expect(onResume).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('홈 이어가기 카드 (s-02, 3-6)', () => {
   it('지금 스탬프의 「n코스 · m번째 스탬프」·이름, KAN-359 있으면 「스탬프 n개」, [이어가기]', async () => {
     const onResume = vi.fn()

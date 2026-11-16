@@ -23,6 +23,7 @@ import { STAMP_MINUTES, stampName, stampUnit, type StampKind } from './stampNami
 import {
   celebrationFor,
   loadTravel,
+  unlockNote,
   type Celebration,
   type StampExits,
   type Travel,
@@ -300,8 +301,10 @@ export function TravelMapScreen({
   onStart: (stamp: TravelStamp) => void
   onOpenCourse: (course: number) => void
 }) {
-  const { current, stars } = travel
-  const currentCourse = current === null ? undefined : travel.courses.find((c) => c.course === current.course)
+  const { current, stars, stalled } = travel
+  // 지금 스탬프가 없으면 별이 모자라 멈춘 코스로 카드를 그린다 — [코스 지도로]가 그 코스 지도를 연다
+  const cardCourseNo = current?.course ?? stalled?.course
+  const currentCourse = cardCourseNo === undefined ? undefined : travel.courses.find((c) => c.course === cardCourseNo)
 
   return (
     <main className="item-screen travel">
@@ -338,13 +341,13 @@ export function TravelMapScreen({
         </p>
       )}
 
-      {current !== null && currentCourse !== undefined && (
+      {currentCourse !== undefined && (
         <CurrentCourseCard
           course={currentCourse}
           stamp={current}
           stamped={celebration?.stamp === true}
           hasNext={travel.courses.some((c) => c.course === currentCourse.course + 1)}
-          onStart={() => onStart(current)}
+          onStart={() => (current === null ? onOpenCourse(currentCourse.course) : onStart(current))}
         />
       )}
       <MapMemo />
@@ -486,7 +489,8 @@ function CurrentCourseCard({
   onStart,
 }: {
   course: TravelCourse
-  stamp: TravelStamp
+  /** null이면 별이 모자라 멈춘 코스다 — 스탬프 줄 대신 열림 안내, 버튼은 [코스 지도로] */
+  stamp: TravelStamp | null
   /** 방금 마친 스탬프의 도장이 찍힌다 (타일 1, 600ms) */
   stamped: boolean
   /** 다음 코스가 있는지. 없으면 별 라벨에서 「다음 코스에 필요한」을 뺀다 */
@@ -516,21 +520,25 @@ function CurrentCourseCard({
       >
         <span style={{ width: `${total === 0 ? 0 : (course.completedCount / total) * 100}%` }} />
       </div>
-      <div className="travel-card__lesson">
-        <KindIcon kind={stamp.kind} size={32} />
-        <div>
-          <h2>{stampName(stamp.kind, stamp.n)}</h2>
-          <p className="travel-card__meta">
-            <span>{stamp.order}번째 스탬프</span>
-            <span className="travel-card__time">
-              <ClockIcon size={16} />
-              {STAMP_MINUTES[stamp.kind]}
-            </span>
-          </p>
+      {stamp === null ? (
+        course.stars !== null && <p className="travel-card__meta">{unlockNote(course.course, course.stars.required)}</p>
+      ) : (
+        <div className="travel-card__lesson">
+          <KindIcon kind={stamp.kind} size={32} />
+          <div>
+            <h2>{stampName(stamp.kind, stamp.n)}</h2>
+            <p className="travel-card__meta">
+              <span>{stamp.order}번째 스탬프</span>
+              <span className="travel-card__time">
+                <ClockIcon size={16} />
+                {STAMP_MINUTES[stamp.kind]}
+              </span>
+            </p>
+          </div>
         </div>
-      </div>
+      )}
       <Button onClick={onStart} style={{ width: '100%' }}>
-        시작
+        {stamp === null ? '코스 지도로' : '시작'}
         <ArrowRightIcon />
       </Button>
       {stamped && <PassportStamp course={course.course} className="travel-card__stamp" />}
@@ -624,7 +632,7 @@ export function CourseMapScreen({
       <h1 className="sr-only">{course.course}코스</h1>
       {stars !== null && hasNext && stars.collected < stars.required && (
         <p className="travel-course-note">
-          별 {stars.required}개를 모으면 {course.course + 1}코스가 열려요
+          {unlockNote(course.course, stars.required)}
         </p>
       )}
 
@@ -732,7 +740,8 @@ function StampCard({ stamp, onOpen }: { stamp: TravelStamp; onOpen: () => void }
 /**
  * 테스트 후 홈의 「이어가기」 카드. 지도와 같은 진행 모델([loadTravel])의 `current`로 간다 — [이어가기]는 학습 탭을 일회성 표식
  * (`resumeFlag`)과 함께 열고, 그 라우트가 같은 `current`로 바로 들어간다(지도 [시작]과 같은 스탬프). 「스탬프 n개」는 KAN-359 값이 있을 때만.
- * 진행을 못 받았거나 열린 스탬프를 다 끝냈으면 카드를 그리지 않는다 — 홈의 덧붙인 정보라 오류 문구를 두지 않는다
+ * 진행을 못 받았거나 열린 스탬프를 다 끝냈으면 카드를 그리지 않는다 — 홈의 덧붙인 정보라 오류 문구를 두지 않는다.
+ * 단 별이 모자라 멈춘 상태(`travel.stalled`)면 그 코스와 열림 안내를 보이고, [이어가기]는 지금 스탬프가 없어 지도를 연다
  */
 export function ContinueCard({ apiBase, onResume, deps }: { apiBase: string; onResume: () => void; deps?: WordApiDeps }) {
   const [travel, setTravel] = useState<Travel | null>(null)
@@ -751,7 +760,23 @@ export function ContinueCard({ apiBase, onResume, deps }: { apiBase: string; onR
   }, [apiBase])
 
   const stamp = travel?.current
-  if (travel === null || stamp == null) return null
+  if (travel === null) return null
+  // 별이 모자라 멈춘 상태 — 카드를 지우지 않고 열림 안내를 보인다. [이어가기]는 같은 동작이고, 지금 스탬프가 없어 라우트가 지도를 연다
+  if (stamp == null) {
+    if (travel.stalled === null) return null
+    return (
+      <section className="card travel-continue" aria-label="다음 스탬프">
+        <div>
+          <p className="travel-continue__where">{travel.stalled.course}코스</p>
+          <p className="travel-continue__title">{unlockNote(travel.stalled.course, travel.stalled.required)}</p>
+        </div>
+        <Button onClick={onResume}>
+          이어가기
+          <ArrowRightIcon />
+        </Button>
+      </section>
+    )
+  }
   return (
     <section className="card travel-continue" aria-label="다음 스탬프">
       <div>
