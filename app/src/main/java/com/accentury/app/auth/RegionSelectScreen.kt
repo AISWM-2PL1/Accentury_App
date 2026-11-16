@@ -22,7 +22,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -92,6 +94,8 @@ fun RegionSelectScreen(
     PaperScreen(
         modifier = modifier,
         footer = {
+            // 저장 실패 안내는 [다음] 바로 위 — 지도 아래에 두면 작은 기기에서 첫 화면 밖으로 밀린다(PR #74 리뷰).
+            if (error != null) AuthFailureBlock(error, verb = "저장")
             AccenturyButton(
                 text = "다음",
                 onClick = onNext,
@@ -143,8 +147,6 @@ fun RegionSelectScreen(
             textAlign = TextAlign.End,
             modifier = Modifier.padding(top = Spacing.x1).fillMaxWidth(),
         )
-
-        if (error != null) AuthFailureBlock(error, verb = "저장", modifier = Modifier.padding(top = Spacing.x4))
     }
 }
 
@@ -222,6 +224,8 @@ private fun RegionMap(selected: Region?, onSelect: (Region) -> Unit, enabled: Bo
         view.performHaptic(Haptic.Tap)
         onSelect(it)
     }
+    // 지도 면 탭은 pointerInput이 키가 바뀔 때만 다시 서므로 최신 pick을 거쳐 부른다 — 첫 컴포지션의 onSelect를 붙잡지 않게.
+    val latestPick by rememberUpdatedState(pick)
 
     val duration = motionDuration(Motion.FAST)
     val fillOf: Map<Region, State<Color>> = Region.entries.associateWith { region ->
@@ -243,7 +247,7 @@ private fun RegionMap(selected: Region?, onSelect: (Region) -> Unit, enabled: Bo
                 .pointerInput(shapes, enabled) {
                     if (!enabled) return@pointerInput
                     detectTapGestures { at ->
-                        shapes.hit(at.x / size.width, at.y / size.height)?.let(pick)
+                        shapes.hit(at.x / size.width, at.y / size.height)?.let(latestPick)
                     }
                 }
                 .drawWithCache {

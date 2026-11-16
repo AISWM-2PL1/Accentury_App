@@ -80,6 +80,7 @@ import com.accentury.app.audio.defaultPcmSource
 import com.accentury.app.auth.AnonymousSettingsScreen
 import com.accentury.app.auth.AnonymousVoiceConsentStore
 import com.accentury.app.auth.AuthCheckScreen
+import com.accentury.app.auth.AuthFailureReason
 import com.accentury.app.auth.AuthGateController
 import com.accentury.app.auth.AuthGateState
 import com.accentury.app.auth.AuthResult
@@ -325,7 +326,8 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             var pickingRegion by rememberSaveable(state.user.id) { mutableStateOf(false) }
             val scope = rememberCoroutineScope()
             if (pickingRegion) {
-                BackHandler(enabled = !form.submitting) { pickingRegion = false }
+                // 저장 중 뒤로가기는 삼킨다 — 흘려보내면 Android 10·11에서 Activity가 끝나며 PUT이 취소된다(PR #74 리뷰).
+                BackHandler { if (!form.submitting) pickingRegion = false }
                 RegionSelectScreen(
                     selected = form.region,
                     onSelect = { form.region = it },
@@ -335,19 +337,26 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
                         scope.launch {
                             try {
                                 gate.submitProfile(form.toInput())
+                                // 만 14세 미만 거절은 생년월일 칸과 [다른 계정으로 로그인]이 있는 프로필 화면에서 보인다(PR #74 리뷰).
+                                // state.error를 보는 effect로 하지 않는다 — 같은 거절이 거듭 오면 값이 같아(submitProfile은
+                                // error를 지우고 시작하지 않는다) effect가 다시 돌지 않는다. 그래서 저장이 끝난 자리에서 판정한다.
+                                val after = gate.state.value as? AuthGateState.NeedsProfile
+                                if (after?.error?.reason == AuthFailureReason.UnderAge) pickingRegion = false
                             } finally {
                                 form.submitting = false
                             }
                         }
                     },
                     busy = form.submitting,
-                    error = state.error,
+                    // 재시도성 실패(망·요청 과다)만 여기 남는다. 프로필에서 값을 고쳐 다시 와도 옛 UnderAge 안내는 그리지 않는다.
+                    error = state.error?.takeIf { it.reason != AuthFailureReason.UnderAge },
                     modifier = modifier,
                 )
             } else {
                 ProfileScreen(
                     form = form,
                     onNext = { pickingRegion = true },
+                    error = state.error?.takeIf { it.reason == AuthFailureReason.UnderAge },
                     onSwitchAccount = { gate.logout { IdpLogout.all(context) } },
                     modifier = modifier,
                 )

@@ -670,7 +670,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
   - [재시도]는 무제한. 단 `503 ANALYSIS_UNAVAILABLE`은 서버가 그 키의 시도를 실패로 기록했을 수 있어(같은 키 재전송이 실패 시도를 202로 돌려준다 — 서버 코드로 확인, 아래 「Android 구현」) **재시도 때 새 키**를 쓴다. 400·413·415·422처럼 봉투 `retryable:false`면 재시도 대신 다시 녹음을 안내한다(오디오가 같으면 결과도 같다).
   - 202 응답 `{attemptId, contentVersion, cardId, status, pollAfterMs}` 중 `attemptId`만 웹으로 넘긴다. 폴링은 웹(KAN-254)이 한다.
 - **뒤로가기 = 회신 없이 일시정지 A-2 복귀.** 업로드 진행 중이면 요청을 버린다(같은 키로 서버에 이미 닿았더라도 웹은 그 시도를 모른다 — 다음 녹음은 새 키라 별개 시도다).
-- **화면 오른쪽 위 ✕ 닫기** (KAN-252, 2026-10-13 사용자 결정) — ✕ = `close` 후 억양 탭 문서(A-1)로, 뒤로가기·제스처는 카드(A-2)로 (2026-10-13 사용자 결정). A-1은 `?screen=intonation` 문서의 첫 상태라 문서를 다시 열면 목록이 뜬다 — URL은 `webTabUrl(currentUrl, "intonation")`(`webBackTarget`과 같은 쿼리 규칙, 문서를 모르면 닫기만). Android는 KAN-354 5단계부터 학습 탭 첫 화면(사투리 여행 지도)으로 가는 `webTabUrl(currentUrl, LEARN_SCREEN)`(`screen=learn`)이다 — 웹은 KAN-347 3단계에서 억양·단어 탭이 학습 탭 `learn`으로 바뀐다. 권한 화면 포함, 제출 중에도 선다. 시스템 뒤로·가장자리 스와이프를 몰라도 나갈 수 있게. 모양은 설정 톱니와 같다(Android `learning/IntonationRecordingOverlay.kt` `IntonationCloseButton`, iOS `IntonationCloseChrome`). 레벨 테스트 VOICE 녹음 화면에는 두지 않는다(KAN-147).
+- **화면 오른쪽 위 ✕ 닫기** (KAN-252, 2026-10-13 사용자 결정) — ✕ = `close` 후 억양 탭 문서(A-1)로, 뒤로가기·제스처는 카드(A-2)로 (2026-10-13 사용자 결정). A-1은 `?screen=intonation` 문서의 첫 상태라 문서를 다시 열면 목록이 뜬다 — URL은 `webTabUrl(currentUrl, "intonation")`(`webBackTarget`과 같은 쿼리 규칙, 문서를 모르면 닫기만). Android는 KAN-354 5단계부터 학습 탭 첫 화면(사투리 여행 지도)으로 가는 `webTabUrl(currentUrl, LEARN_SCREEN)`(`screen=learn`)이다 — 웹은 KAN-347 3단계부터 `learn`·`intonation`·`words`를 모두 학습 탭으로 받고, 내보내는 값은 옛 앱 빌드 호환 때문에 당분간 `intonation`이다(2026-11-16 결정, `web/src/navigation/entryUrl.ts`의 `LEARN_URL_SCREEN`). 권한 화면 포함, 제출 중에도 선다. 시스템 뒤로·가장자리 스와이프를 몰라도 나갈 수 있게. 모양은 설정 톱니와 같다(Android `learning/IntonationRecordingOverlay.kt` `IntonationCloseButton`, iOS `IntonationCloseChrome`). 레벨 테스트 VOICE 녹음 화면에는 두지 않는다(KAN-147).
 - origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
 
 #### Android 구현 (KAN-253 2단계)
@@ -752,7 +752,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | `web/WebViewHost.kt` | `onOpenSettings` 전달, `onPageStarted(url)`로 현재 문서 URL을 상위에 알림(뒤로가기·톱니 판정용) |
 | `MainActivity.kt` `TestFlow(tabBarEntry)` | 로그인 빌드(AuthGate SignedIn)만 `true` — 홈 시작·톱니는 인트로·테스트 진행에만(녹음 오버레이 위 제외)·탭 뒤로가기. 익명 빌드(AnonymousFlow)는 `false`라 인트로 시작·톱니 유지 |
 | `MainActivity.kt` 설정 화면 | 기존 `onOpenSettings`(settingsOpen = true) 그대로 — SignedIn은 `SettingsScreen`, 익명은 `AnonymousSettingsScreen` |
-| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)`(홈으로 가는 `BACK_TO_HOME_SCREENS` = `learn`·`intonation`·`words`·`translate` — KAN-354 5단계가 학습 탭 `learn`을 더하고 옛 두 값을 남겼다. 웹은 KAN-347 3단계에서 `learn`으로 바뀐다), 톱니 판정 `showsSettingsGear(url)`(`screen` 없음·`test`면 true) |
+| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)`(홈으로 가는 `BACK_TO_HOME_SCREENS` = `learn`·`intonation`·`words`·`translate` — KAN-354 5단계가 학습 탭 `learn`을 더하고 옛 두 값을 남겼다. 웹은 KAN-347 3단계부터 `learn`·`intonation`·`words`를 모두 학습 탭으로 받고, 내보내는 값은 옛 앱 빌드 호환 때문에 당분간 `intonation`이다 — 2026-11-16 결정, `web/src/navigation/entryUrl.ts`의 `LEARN_URL_SCREEN`), 톱니 판정 `showsSettingsGear(url)`(`screen` 없음·`test`면 true) |
 
 **시작 URL 상태.** `home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLink != null)`(`web/WebConfig.kt`). 재응시
 성공(`RetestOutcome.Replaced`)이 `introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다).
@@ -817,7 +817,7 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 - **같은 URL 재이동도 재마운트** — `AppRoot`의 키는 쿼리 문자열이 아니라 이동 횟수다. 키가 `search`였을 때 `replaceState`로 걷은 뒤 같은 URL로 두 번째 재열기 이동이 오면 상태가 같아 재마운트를 건너뛰어 시트가 안 떴다(두 번째 재열기 회귀, 2026-11-03 iOS 실기기).
 - **플래그는 따라가지 않는다** — 웹 `buildTabUrl`·`buildIntroUrl`(`web/src/navigation/entryUrl.ts`)과 네이티브 `webTabUrl`이
   `adConsent`를 지운다. 탭을 옮겼다 홈으로 돌아와도 시트가 다시 뜨지 않는다.
-  Android `webTabUrl`은 홈 [이어가기]의 `resume`(KAN-347 3단계 `screen=intonation&resume=1`)도 지운다(KAN-354) — 녹음 ✕·뒤로가기·광고 동의 URL에 따라가지 않는다.
+  Android `webTabUrl`은 `resume`도 지운다(KAN-354). 웹은 이제 URL에 `resume`을 싣지 않는다(KAN-347 PR #76, 홈 [이어가기]는 sessionStorage 일회성 표식 `web/src/learning/resumeFlag.ts`) — 옛 문서·딥링크에 남은 값이 따라가지 않게 웹 `buildTabUrl`과 같은 규칙으로 지운다.
 - **구버전 실행** — 브리지에 `getAdConsent`가 없어 `consent === null`이면 플래그가 있어도 시트를 열지 않는다(기존 규칙).
 
 ## 14. 업로드 재전송 (KAN-288 6단계)
