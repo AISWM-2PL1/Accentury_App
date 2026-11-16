@@ -227,11 +227,6 @@ export function MicLineIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM6 11v1a6 6 0 0 0 12 0v-1M12 18v4m-4 0h8" />
 }
 
-/** 마이크 — 녹음 원 버튼 안 34 (s-06-recording-idle·s-17·s-05-voicecheck-web-listening). 버튼 안 20의 `MicLineIcon`과 시안 그림이 다르다 */
-export function RecordMicIcon({ size }: { size?: number }) {
-  return <LineIcon size={size} d="M8 10V6a4 4 0 0 1 8 0v4a4 4 0 0 1-8 0ZM5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
-}
-
 /** 달력 — 홈 출석 배지 (s-01·s-02) */
 export function CalendarIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M4 5h16v16H4ZM4 9h16M8 3v4m8-4v4M8 13h2m4 0h2m-8 4h2" />
