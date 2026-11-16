@@ -72,10 +72,17 @@ fun buildWebUrl(
 private const val HOME_SCREEN = "home"
 
 /**
- * 학습 탭의 `screen` 값 (KAN-354 5단계). 웹 탭 바가 4칸이 되며(KAN-347 3단계) 억양·단어 학습이 이 한 탭으로 합쳐졌다.
- * 억양 학습 녹음 ✕의 목적지(사투리 여행 지도, 학습 탭의 첫 화면)이기도 하다.
+ * 학습 탭으로 받는 `screen` 값 (KAN-354 5단계). 웹 탭 바가 4칸이 되며(KAN-347 3단계) 억양·단어 학습이 이 한 탭으로 합쳐졌다.
+ * 뒤로가기 판정([BACK_TO_HOME_SCREENS])이 받는 값이다. 앱이 학습 탭을 열 때 보내는 값은 [LEARN_ENTRY_SCREEN]이다.
  */
 const val LEARN_SCREEN = "learn"
+
+/**
+ * 앱이 학습 탭을 열 때 웹에 보내는 `screen` 값 — 억양 학습 녹음 ✕의 목적지(사투리 여행 지도, 학습 탭의 첫 화면).
+ * 지금 배포된 웹(origin/Dev `web/src/App.tsx`)은 `learn`을 몰라 레벨 테스트 인트로로 떨어진다. 웹이 `LEARN_URL_SCREEN`
+ * (`web/src/navigation/entryUrl.ts`)을 `learn`으로 바꿀 때 함께 바꾼다(2026-11-16 결정, PR #74 리뷰).
+ */
+const val LEARN_ENTRY_SCREEN = "intonation"
 
 /**
  * 뒤로가기가 홈으로 돌리는 탭 화면 (KAN-252). 홈 자신은 빠진다 — 홈에서의 뒤로는 앱 종료다.
@@ -134,7 +141,7 @@ fun webBackTarget(currentUrl: String?, startRequested: Boolean): String? {
  * 현재 문서를 탭 [screen] 문서로 옮긴 URL (KAN-252). 웹 탭 이동(`buildTabUrl`)과 같은 쿼리 규칙이다 — `screen`만 바꾸고
  * 레벨테스트 값과 광고 동의 플래그(`adConsent`, KAN-315)·이어가기 플래그(`resume`, KAN-347)를 지우며 나머지(`bridge`·`app`·`c`)는
  * 보존하고 fragment는 뗀다.
- * [webBackTarget](홈)과 억양 녹음 ✕ ([LEARN_SCREEN], KAN-354 — 2026-10-13 사용자 결정의 억양 탭이 학습 탭으로 합쳐졌다)가 같이 쓴다. 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
+ * [webBackTarget](홈)과 억양 녹음 ✕ ([LEARN_ENTRY_SCREEN], KAN-354 — 2026-10-13 사용자 결정의 억양 탭이 학습 탭으로 합쳐졌다)가 같이 쓴다. 문서를 아직 모르면(null) null — 호출자는 옮기지 않는다.
  */
 fun webTabUrl(currentUrl: String?, screen: String): String? {
     if (currentUrl == null) return null
