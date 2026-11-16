@@ -511,8 +511,10 @@ test('실채점 - 카드를 연속으로 올리면 성적표의 점수·별이 �
   await expect(page.getByRole('heading', { level: 1, name: '억양 학습 1 결과' })).toBeVisible({ timeout: 90_000 })
   const scores = await waitServerCompleted(request, token, attemptIds)
   await expectReport(page, scores)
-  // 가짜 엔진은 코멘트가 없다 — 최저점 대사에 코멘트가 없으면 「다시 연습할 대사」를 생략한다
-  await expect(page.getByRole('region', { name: '다시 연습할 대사' })).toHaveCount(0)
+  // 가짜 엔진은 코멘트가 없다 — 「다시 연습할 대사」 카드는 서고 조언 줄(①)만 없다 (PR #76 리뷰)
+  const practice = page.getByRole('region', { name: '다시 연습할 대사' })
+  await expect(practice).toHaveCount(1)
+  await expect(practice.locator('.intonation-practice__tip')).toHaveCount(0)
 
   // 「지도로」 → 지도. 완료 저장 호출은 없고 서버가 시도 기록으로 계산한다 (KAN-268) — 방금 마친 스탬프에 도장이 찍히고
   // 지금 스탬프는 다음(단어 학습 2)이다. 코스 지도에서 억양 학습 1 카드가 「완료」다

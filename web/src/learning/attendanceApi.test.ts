@@ -29,6 +29,8 @@ describe('GET /v0/learning/attendance (KAN-347 2-3)', () => {
     ['모르는 kind', { ...BODY, days: [{ date: '2026-11-12', items: [{ ...BODY.days[0].items[0], kind: 'QUIZ' }] }] }],
     ['streak 없음', { ...BODY, streak: undefined }],
     ['today 없음', { ...BODY, today: undefined }],
+    ['streak.currentDays 음수', { ...BODY, streak: { ...BODY.streak, currentDays: -1 } }],
+    ['streak.currentDays 소수', { ...BODY, streak: { ...BODY.streak, currentDays: 1.5 } }],
   ])('계약과 다른 응답(%s)은 재시도 없는 오류', async (_name, body) => {
     const error = await fetchMonthlyAttendance('http://api', 2026, 11, deps(async () => json(body))).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(WordLearningError)

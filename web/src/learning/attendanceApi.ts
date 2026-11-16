@@ -60,6 +60,9 @@ function isMonthlyAttendance(v: unknown): v is MonthlyAttendance {
   return (
     hasFields(v, { year: 'number', month: 'number', monthCount: 'number', lastMonthCount: 'number', today: 'string' }) &&
     hasFields(v.streak, { currentDays: 'number', attendedToday: 'boolean' }) &&
+    // 0 이상 정수만 — homeApi `isLearningHome`과 같은 검사 (PR #76 리뷰)
+    Number.isSafeInteger(v.streak.currentDays) &&
+    (v.streak.currentDays as number) >= 0 &&
     isArrayOf(v.days, { date: 'string' }, (day) =>
       isArrayOf(day.items, { kind: 'string', key: 'string', id: 'string', title: 'string', done: 'number', total: 'number' }, (item) =>
         KINDS.includes(item.kind as string),

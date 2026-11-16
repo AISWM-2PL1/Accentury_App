@@ -288,6 +288,10 @@ describe('오류 상태', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('로그인하면 사투리 번역기를 쓸 수 있어요')
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+    // 입력 오류가 아니다 — 결과 카드 자리에 서고 입력칸은 invalid가 아니다 (PR #76 리뷰)
+    expect(screen.getByRole('alert')).toHaveClass('translator-card__empty')
+    expect(document.getElementById('translator-input')).not.toHaveAttribute('aria-invalid')
+    expect(document.getElementById('translator-input-error')).toBeNull()
   })
 
   it('UNAUTHENTICATED(401·갱신 실패) → 오류 문구 그대로', async () => {
@@ -297,6 +301,8 @@ describe('오류 상태', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 만료됐어요. 다시 로그인해 주세요')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+    expect(screen.getByRole('alert')).toHaveClass('translator-card__empty')
+    expect(document.getElementById('translator-input')).not.toHaveAttribute('aria-invalid')
   })
 })
 

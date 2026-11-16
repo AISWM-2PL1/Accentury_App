@@ -655,7 +655,7 @@ describe('시간 초과 문항 — 라우트 한 바퀴 (KAN-360 계약)', () =>
 
 describe('WordReportScreen', () => {
   const RESULT_STARS = { ...RESULT, stars: 2 }
-  const COURSE: CourseStarsChange = { course: 1, before: 5, after: 7, required: 21, unlocked: null }
+  const COURSE: CourseStarsChange = { course: 1, before: 5, after: 7, required: 21, unlocked: null, hasNext: true }
 
   function renderReport(result: typeof RESULT & { stars?: number }, course: CourseStarsChange | null) {
     const onNextStamp = vi.fn()
@@ -717,10 +717,24 @@ describe('WordReportScreen', () => {
   })
 
   it('이번 결과로 코스 별이 필요 별에 처음 닿으면 「다음 코스까지」 자리에 「n코스가 열렸어요」', () => {
-    renderReport(RESULT_STARS, { course: 1, before: 20, after: 22, required: 21, unlocked: 2 })
+    renderReport(RESULT_STARS, { course: 1, before: 20, after: 22, required: 21, unlocked: 2, hasNext: true })
     expect(screen.getByRole('status')).toHaveTextContent('2코스가 열렸어요')
     expect(screen.queryByText(/다음 코스까지/)).toBeNull()
     expect(screen.getByRole('progressbar', { name: '코스 별' })).toHaveAttribute('aria-valuenow', '21')
+  })
+
+  it('마지막 코스(hasNext false)면 별이 모자라도 「다음 코스까지 별 n개」가 없고 이름에서도 「다음 코스까지」를 뺀다 (PR #76 리뷰)', () => {
+    renderReport(RESULT_STARS, { ...COURSE, hasNext: false })
+    const course = screen.getByRole('region', { name: '코스 별 5개에서 7개로, 필요한 별 21개' })
+    expect(course).toHaveTextContent('이번 스탬프 +2')
+    expect(course).not.toHaveTextContent('다음 코스까지')
+  })
+
+  it('필요 별이 0이면 막대 폭이 NaN이 아니라 0%다 (PR #76 리뷰)', () => {
+    renderReport(RESULT_STARS, { ...COURSE, before: 0, after: 0, required: 0 })
+    const course = screen.getByRole('region', { name: /코스 별/ })
+    expect(course.querySelector<HTMLElement>('.stamp-reward__bar-earned')!.style.width).toBe('0%')
+    expect(course.querySelector('.stamp-reward__bar-added')).toBeNull()
   })
 
   it('KAN-359 전(완료 응답에 stars 없음)이면 별·코스 별 줄 없이 점수 원과 문항별 결과만 그린다 (4-5)', () => {

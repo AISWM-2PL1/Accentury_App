@@ -37,13 +37,13 @@ export function StampReward({ score, stars, course }: StampRewardProps) {
 }
 
 function CourseStarsLine({ course }: { course: CourseStarsChange }) {
-  const { before, after, required, unlocked } = course
-  const percent = (stars: number) => (Math.min(Math.max(stars, 0), required) / required) * 100
+  const { before, after, required, unlocked, hasNext } = course
+  const percent = (stars: number) => (required > 0 ? (Math.min(Math.max(stars, 0), required) / required) * 100 : 0)
   const remaining = Math.max(required - after, 0)
   return (
     <section
       className="stamp-reward__course"
-      aria-label={`코스 별 ${before}개에서 ${after}개로, 다음 코스까지 필요한 별 ${required}개`}
+      aria-label={`코스 별 ${before}개에서 ${after}개로, ${hasNext ? '다음 코스까지 ' : ''}필요한 별 ${required}개`}
     >
       <div className="stamp-reward__course-head">
         <span className="type-caption stamp-reward__muted">코스 별</span>
@@ -77,7 +77,7 @@ function CourseStarsLine({ course }: { course: CourseStarsChange }) {
             {unlocked}코스가 열렸어요
           </span>
         ) : (
-          remaining > 0 && <span>다음 코스까지 별 {remaining}개</span>
+          remaining > 0 && hasNext && <span>다음 코스까지 별 {remaining}개</span>
         )}
       </div>
     </section>

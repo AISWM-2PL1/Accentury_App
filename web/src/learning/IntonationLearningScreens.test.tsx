@@ -162,7 +162,7 @@ describe('A-2 카드 로드 실패', () => {
 const attempt = (attemptId: string, status: string, extra: Record<string, unknown> = {}) => ({
   attemptId, contentVersion: 'v1', cardId: 'c1', status, pollAfterMs: 1000, ...extra,
 })
-/** 코멘트 하나(「밥」 올리기) — 「다시 연습할 대사」 카드는 코멘트가 있는 대사만 세운다 */
+/** 코멘트 하나(「밥」 올리기) — 「다시 연습할 대사」 카드의 조언 줄(①)은 코멘트가 있을 때만 선다 */
 const FB: PitchFeedbackItem[] = [{ word: '밥', raise: '밥', lower: null, split: false }]
 const completed = (attemptId: string, score = 80, previousScore: number | null = null, pitchFeedback: PitchFeedbackItem[] = FB) =>
   ok(attempt(attemptId, 'COMPLETED', { score, pitchFeedback, previousScore }))
@@ -417,10 +417,11 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(exits.toMap).toHaveBeenCalledTimes(1)
   })
 
-  it('최저점이 동점이면 앞 대사, 그 대사에 코멘트가 없으면 카드를 생략한다', async () => {
+  it('최저점이 동점이면 앞 대사, 그 대사에 코멘트가 없어도 카드는 서고 조언 줄(①)만 없다 (PR #76 리뷰)', async () => {
     await toEnd({ la_1: completed('la_1', 70, null, []), la_2: completed('la_2', 70) })
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: '다시 연습할 대사' })).toBeNull()
+    expect(practiceCard().querySelector('.score-donut')).toHaveTextContent('70점')
+    expect(practiceCard().querySelector('.intonation-practice__tip')).toBeNull()
   })
 
   it('성적표 › → 결과 상세 (s-08): 위 「← 결과 목록으로」·카드 한 장·주 버튼 [다시 말해 보기], ✕ 없음 → 성적표로', async () => {
@@ -752,6 +753,14 @@ describe('성적표 (s-07-A)', () => {
     expect(screen.getByRole('img', { name: '나, 낮추기, 1번' })).toHaveClass('intonation-mark--lower')
     fireEvent.click(card)
     expect(onOpen).toHaveBeenCalledWith(1)
+  })
+
+  it('피드백이 빈 완료 결과여도 카드는 서고 조언 줄(①)은 없다 (PR #76 리뷰)', () => {
+    renderReport({ c0: done(90), c1: done(40), c2: done(80) })
+    const card = practiceCard()
+    expect(card).toHaveTextContent('나 나')
+    expect(card.querySelector('.intonation-practice__tip')).toBeNull()
+    expect(card).not.toHaveTextContent('①')
   })
 
   it('첫 시도 대사의 카드는 증감 대신 「첫 기록」', () => {

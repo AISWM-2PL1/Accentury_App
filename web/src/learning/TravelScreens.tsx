@@ -343,6 +343,7 @@ export function TravelMapScreen({
           course={currentCourse}
           stamp={current}
           stamped={celebration?.stamp === true}
+          hasNext={travel.courses.some((c) => c.course === currentCourse.course + 1)}
           onStart={() => onStart(current)}
         />
       )}
@@ -481,12 +482,15 @@ function CurrentCourseCard({
   course,
   stamp,
   stamped,
+  hasNext,
   onStart,
 }: {
   course: TravelCourse
   stamp: TravelStamp
   /** 방금 마친 스탬프의 도장이 찍힌다 (타일 1, 600ms) */
   stamped: boolean
+  /** 다음 코스가 있는지. 없으면 별 라벨에서 「다음 코스에 필요한」을 뺀다 */
+  hasNext: boolean
   onStart: () => void
 }) {
   const total = course.stamps.length
@@ -497,7 +501,7 @@ function CurrentCourseCard({
           {course.course}코스 {course.completedCount} / {total}
         </span>
         {course.stars !== null && (
-          <StarCount label={`별 ${course.stars.collected}개, 다음 코스에 필요한 별 ${course.stars.required}개`}>
+          <StarCount label={`별 ${course.stars.collected}개, ${hasNext ? '다음 코스에 ' : ''}필요한 별 ${course.stars.required}개`}>
             {course.stars.collected} / {course.stars.required}
           </StarCount>
         )}

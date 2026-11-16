@@ -23,8 +23,9 @@
  * 주면 「지금은 표준어로 바꾸기를 쓸 수 없어요」, 재시도 없음(`translationApi` 주석).
  *
  * KAN-347 6단계: 「표준어 ⇄ 경남 사투리」 가운데 원형 ⇄ 버튼, 입력 카드와 결과 카드 사이 원형 ↓ 번역 버튼.
- * 오류는 둘로 갈린다 — 다시 보내면 될 수 있는 것(503·네트워크 등 retryable)은 가운데 대화상자, 입력을 고쳐야 하는 것
- * (422·100자 초과·구서버 방향)은 입력 카드 아래 한 줄. 하루 한도(429, 또는 응답 `remaining` 0)는 결과 카드 자리를
+ * 오류는 셋으로 갈린다 — 다시 보내면 될 수 있는 것(503·네트워크 등 retryable)은 가운데 대화상자, 입력을 고쳐야 하는 것
+ * (422·100자 초과·구서버 방향)은 입력 카드 아래 한 줄(`aria-invalid`), 그 밖의 재시도 불가(로그인 없음·401·응답 모양 오류)는
+ * 결과 카드 자리에 문구만([다시 시도] 없음). 하루 한도(429, 또는 응답 `remaining` 0)는 결과 카드 자리를
  * 「이용 안내」 카드로 바꾸고 ↓를 잠근다. 한도는 이 화면 안에서만 기억한다(다음 날 판단은 서버 몫).
  * 상태가 바뀌어도 제목·입력 카드의 윗선은 그대로다(7장 공통 틀 6-1-1) — 상태마다 바뀌는 것은 카드 높이뿐이다.
  */
@@ -41,6 +42,7 @@ import { readTranslatorConsent, writeTranslatorConsent } from './translatorConse
 import { TRANSLATOR_NOTICE } from './translatorConsentText'
 import {
   TRANSLATION_DAILY_LIMIT_EXCEEDED,
+  TRANSLATION_DIRECTION_UNSUPPORTED,
   TRANSLATION_REJECTED,
   TRANSLATION_TOO_LONG,
   VALIDATION_FAILED,
@@ -56,6 +58,8 @@ const TOO_LONG_MESSAGE = '100자까지 쓸 수 있어요'
 const SIGN_IN_MESSAGE = '로그인하면 사투리 번역기를 쓸 수 있어요'
 const STANDARD = '표준어'
 const DIALECT = '경남 사투리'
+/** 입력을 고치면 풀리는 재시도 불가 오류. 이것만 입력 카드 아래 줄과 `aria-invalid`로 간다 */
+const INPUT_ERROR_CODES = new Set<string>([TRANSLATION_REJECTED, TRANSLATION_TOO_LONG, TRANSLATION_DIRECTION_UNSUPPORTED])
 
 /*
  * 공유 카드 자산. 링크는 서버가 결과 공유에 주는 `web-test-url` 기본값(`Accentury_Server`
@@ -74,6 +78,8 @@ type Status =
   | { kind: 'done'; id: number; source: string; result: string; direction: TranslationDirection; remaining: number | null }
   /** 입력을 고쳐야 하는 실패 — 입력 카드 아래 한 줄 */
   | { kind: 'inputError'; message: string }
+  /** 입력 탓이 아닌 재시도 불가 실패(로그인 없음·401·응답 모양 등) — 결과 카드 자리에 문구만, [다시 시도] 없음 */
+  | { kind: 'blocked'; message: string }
   /** 다시 보내면 될 수 있는 실패 — 가운데 대화상자 */
   | { kind: 'failed'; retryText: string }
 
@@ -142,7 +148,8 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
         // 400은 빈 입력과 같은 처리다 (ux-ui 상태 표) — FE 검증을 지나 왔다면 보일 것이 없다. 429 한도는 한도 카드가 말한다
         if (e.code === VALIDATION_FAILED || e.code === TRANSLATION_DAILY_LIMIT_EXCEEDED) setStatus({ kind: 'idle' })
         else if (e.retryable) setStatus({ kind: 'failed', retryText: input })
-        else setStatus({ kind: 'inputError', message: errorMessage(e) })
+        else if (INPUT_ERROR_CODES.has(e.code ?? '')) setStatus({ kind: 'inputError', message: errorMessage(e) })
+        else setStatus({ kind: 'blocked', message: errorMessage(e) })
       },
     )
   }
@@ -264,6 +271,10 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
                     번역 중이에요
                   </p>
                 </>
+              ) : status.kind === 'blocked' ? (
+                <p className="translator-card__empty" role="alert">
+                  {status.message}
+                </p>
               ) : (
                 <p className="translator-card__empty" role="status">
                   번역한 문장이 여기 나와요

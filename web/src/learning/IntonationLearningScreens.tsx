@@ -531,7 +531,7 @@ const ROW_STATUS: Record<Exclude<CardResult['outcome'], 'completed'>, string> = 
 /**
  * 억양 성적표. 점수 = 이번에 녹음한 대사 전부의 채점 점수 평균 반올림, 「이번 스탬프」 별 = 그 점수 + `starThresholds`(없으면 30·70).
  * 점수가 없는 대사가 하나라도 있으면 점수 원·별·「코스 별」 줄과 「스탬프 완료」를 그리지 않는다 — 그 대사들은 목록 행으로 보인다.
- * 「다시 연습할 대사」는 최저점 대사 한 장(동점이면 앞), 그 대사에 코멘트가 없으면 생략한다.
+ * 「다시 연습할 대사」는 최저점 대사 한 장(동점이면 앞), 그 대사에 코멘트가 없어도 카드는 서고 조언 줄(①)만 뺀다 — 서버는 저장된 피드백이 없으면 빈 목록을 준다(PR #76 리뷰).
  */
 export function IntonationReportScreen({
   course,
@@ -563,7 +563,7 @@ export function IntonationReportScreen({
   const pick = practiceIndex(scores)
   const pickCard = pick === null ? undefined : course.cards[pick]
   const pickResult = pickCard === undefined ? undefined : results[pickCard.cardId]
-  const practice = pickResult?.outcome === 'completed' && pickResult.feedback.length > 0 ? pickResult : null
+  const practice = pickResult?.outcome === 'completed' ? pickResult : null
 
   return (
     <>
@@ -609,12 +609,14 @@ export function IntonationReportScreen({
                 <ScoreDonut score={practice.score} size={48} />
                 <ChevronRightIcon />
               </span>
-              <span className="intonation-practice__tip">
-                <span className="intonation-practice__no" aria-hidden="true">
-                  ①
+              {practice.feedback.length > 0 && (
+                <span className="intonation-practice__tip">
+                  <span className="intonation-practice__no" aria-hidden="true">
+                    ①
+                  </span>
+                  {feedbackAdvice(practice.feedback[0])}
                 </span>
-                {feedbackAdvice(practice.feedback[0])}
-              </span>
+              )}
             </button>
           </section>
         )}
