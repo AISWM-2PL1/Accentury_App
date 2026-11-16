@@ -73,6 +73,32 @@ describe('사투리 여행 진행 모델 (KAN-347 3-3·3-4)', () => {
     expect(travel.courses[0].stamps[1]).toMatchObject({ score: 80, stars: 3 })
   })
 
+  it('별이 모자라 멈춘 상태: 열린 코스를 다 끝냈는데 별이 모자라 다음 코스가 잠겼으면 stalled에 그 코스와 필요 별', () => {
+    const { words, intonations } = lists(COURSE1, true)
+    const travel = buildTravel(words, intonations, levels(19, false, 9))
+    expect(travel.current).toBeNull()
+    expect(travel.stalled).toEqual({ course: 1, required: 21 })
+  })
+
+  it('stalled는 별이 충분하거나(다음 코스 열림) KAN-359 전이면 null', () => {
+    const { words, intonations } = lists(COURSE1, true)
+    expect(buildTravel(words, intonations, levels(21, true, 9)).stalled).toBeNull()
+    expect(buildTravel(words, intonations, null).stalled).toBeNull()
+    // 지금 스탬프가 있으면(1코스 진행 중) 멈춘 것이 아니다
+    const partial = lists(['w1', 'k1'], true)
+    expect(buildTravel(partial.words, partial.intonations, levels(5, false, 2)).stalled).toBeNull()
+  })
+
+  it('마지막 코스까지 다 끝냈으면(다음 코스 없음) 별이 모자라도 stalled는 null', () => {
+    const all = [...COURSE1, 'w5', 'w6', 'w7', 'w8', 'k6', 'k7', 'k8', 'k9', 'k10']
+    const { words, intonations } = lists(all, true)
+    const summary = levels(21, true, 9)
+    summary.levels[1] = { ...summary.levels[1], completedSetCount: 9, collectedStars: 10 }
+    const travel = buildTravel(words, intonations, summary)
+    expect(travel.current).toBeNull()
+    expect(travel.stalled).toBeNull()
+  })
+
   it('목록에 별 필드가 있어도 구간 요약이 없으면 별을 그리지 않는다 (KAN-359 판정은 요약 하나)', () => {
     const { words, intonations } = lists(['w1'], true)
     const travel = buildTravel(words, intonations, null)

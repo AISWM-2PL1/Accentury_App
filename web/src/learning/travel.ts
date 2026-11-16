@@ -110,6 +110,16 @@ export interface Travel {
   stars: { total: number; goal: number } | null
   /** 모은 스탬프 수 — 홈 「스탬프 n개」(구간 요약 `completedSetCount`의 합). KAN-359 전이면 null */
   completedSetCount: number | null
+  /**
+   * 별이 모자라 멈춘 코스 — `current`가 없는데 열린 코스의 스탬프를 다 끝냈고 그 코스 별이 필요 별보다 적어 다음 코스가 잠겨 있다.
+   * 그런 코스가 여럿이면 번호가 가장 큰 것. 지도 카드·홈 카드가 「별 n개를 모으면 n코스가 열려요」로 안내한다. KAN-359 전이면 늘 null
+   */
+  stalled: { course: number; required: number } | null
+}
+
+/** 코스 지도·지도 카드·홈 카드가 같이 쓰는 열림 안내 문장 */
+export function unlockNote(course: number, required: number): string {
+  return `별 ${required}개를 모으면 ${course + 1}코스가 열려요`
 }
 
 /** 별을 실은 목록 요약 (KAN-359 Requirements 3). 키가 없으면 KAN-359 전 서버다 */
@@ -165,9 +175,23 @@ export function buildTravel(
     }
   })
 
+  const current = courses.flatMap((c) => c.stamps).find((s) => s.state === 'current') ?? null
+  const stalledCourse =
+    levels === null || current !== null
+      ? undefined
+      : [...courses].reverse().find(
+          (c) =>
+            c.unlocked &&
+            c.completedCount === c.stamps.length &&
+            c.stars !== null &&
+            c.stars.collected < c.stars.required &&
+            courses.find((n) => n.course === c.course + 1)?.unlocked === false,
+        )
+
   return {
     courses,
-    current: courses.flatMap((c) => c.stamps).find((s) => s.state === 'current') ?? null,
+    current,
+    stalled: stalledCourse?.stars == null ? null : { course: stalledCourse.course, required: stalledCourse.stars.required },
     stars:
       levels === null
         ? null
