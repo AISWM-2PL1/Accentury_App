@@ -41,7 +41,7 @@ import {
   userCurveWindowMs,
 } from '../recording/userCurve'
 import { Button, StatusBlock } from '../ui'
-import { ArrowRightIcon, MicLineIcon, RefreshIcon, RetryIcon, StopIcon } from '../ui/icons'
+import { ArrowRightIcon, RecordMicIcon, RefreshIcon, RetryIcon, StopIcon } from '../ui/icons'
 import { voiceCheckRms } from '../voicecheck/voiceCheckController'
 import { FULL_SCALE, QUIET_RMS_THRESHOLD } from '../audio/quality'
 import { isSessionExitCode } from './sessionExit'
@@ -434,7 +434,7 @@ export function WebVoiceRecorder({
           disabled={starting}
           onClick={beginRecording}
         >
-          <MicLineIcon size={34} />
+          <RecordMicIcon size={34} />
         </button>
         <p className="record-hint">{starting ? '준비 중…' : '버튼을 눌러 녹음'}</p>
       </div>

@@ -119,13 +119,13 @@ export function MicIcon({ size = 56 }: { size?: number }) {
  * 선 아이콘 한 벌 (KAN-347 1단계, 시안 v11 아이콘 세트). viewBox 24, 획 1.5. 예외 화면 아이콘 원(112) 안에서는 CSS가
  * 56으로 키우고(`.exception__icon svg`), 버튼 안에서는 20으로 선다.
  */
-function LineIcon({ d, size = 20 }: { d: string; size?: number }) {
+function LineIcon({ d, size = 20, fill = 'none' }: { d: string; size?: number; fill?: string }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={fill}
       stroke="currentColor"
       strokeWidth="1.5"
       strokeLinecap="round"
@@ -227,6 +227,11 @@ export function MicLineIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM6 11v1a6 6 0 0 0 12 0v-1M12 18v4m-4 0h8" />
 }
 
+/** 마이크 — 녹음 원 버튼 안 34 (s-06-recording-idle·s-17·s-05-voicecheck-web-listening). 버튼 안 20의 `MicLineIcon`과 시안 그림이 다르다 */
+export function RecordMicIcon({ size }: { size?: number }) {
+  return <LineIcon size={size} d="M8 10V6a4 4 0 0 1 8 0v4a4 4 0 0 1-8 0ZM5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
+}
+
 /** 달력 — 홈 출석 배지 (s-01·s-02) */
 export function CalendarIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M4 5h16v16H4ZM4 9h16M8 3v4m8-4v4M8 13h2m4 0h2m-8 4h2" />
@@ -252,9 +257,9 @@ export function WarningIcon({ size }: { size?: number }) {
   return <LineIcon size={size} d="M12 3 2 21h20L12 3Z M12 9v5 M12 17v.1" />
 }
 
-/** 정지 — 녹음 중 (s-06-recording) */
+/** 정지 — 녹음 중 (s-06-recording). 선 아이콘 중 유일하게 속을 채운다 — 시안은 녹음 버튼 CSS가 채웠는데, 같은 클래스를 쓰는 마이크까지 채워져 아이콘이 스스로 갖는다 */
 export function StopIcon({ size }: { size?: number }) {
-  return <LineIcon size={size} d="M6 6h12v12H6Z" />
+  return <LineIcon size={size} d="M6 6h12v12H6Z" fill="currentColor" />
 }
 
 /** › — 다시 연습할 대사 카드·목록 행 (시안 `chevron-right`) */
