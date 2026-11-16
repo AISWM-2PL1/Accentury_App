@@ -25,7 +25,10 @@ describe('RegionSelectScreen — 제목과 지도 (KAN-347 7단계)', () => {
 
     const title = screen.getByRole('heading', { level: 1, name: TITLE })
     expect(title).toHaveClass('type-headline')
-    expect(screen.getByText('본인이 쓴다고 생각하는 억양의 지역을 골라 주세요')).toBeInTheDocument()
+    // 부제 두 줄 — 기준(KAN-347 7-3)과 결과에 영향 없음(2026-09-11 팀장 확정, PR #76 리뷰로 복원)
+    const lead = document.querySelector('.region-screen__lead')!
+    expect(lead).toHaveTextContent(/^본인이 쓴다고 생각하는 억양의 지역을 골라 주세요\s*결과에는 영향이 없어요$/)
+    expect(lead.querySelector('br')).not.toBeNull()
     expect(screen.getByText('이 정보는 억양 분석 모델을 다듬는 데만 써요')).toBeInTheDocument()
   })
 

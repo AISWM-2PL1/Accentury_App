@@ -10,7 +10,8 @@
  * 켜진 번들(staging)에만 있던 화면인데 KAN-274가 스위치를 걷어내 두 환경 모두 늘 선다 (`regions.ts` 헤더).
  *
  * 묻는 것은 **출신 지역**이다. 라벨의 뜻이 "이 녹음의 화자가 어느 사투리 화자인가"라서, 부제가
- * "본인이 쓴다고 생각하는 억양의 지역"으로 그 기준을 한 줄로 못 박는다 (문안은 KAN-347 7단계 티켓).
+ * "본인이 쓴다고 생각하는 억양의 지역"으로 그 기준을 한 줄로 못 박는다 (앞 문장은 KAN-347 7-3 문안). 다음 줄에
+ * 결과에 영향이 없다는 말을 둔다 — 없으면 "유리한 지역"을 고르려는 사람이 생긴다(뒤 문장은 2026-09-11 팀장 확정 문안 유지).
  *
  * ## 왜 점검 앞인가
  *
@@ -101,7 +102,11 @@ export function RegionSelectScreen({ onDone }: RegionSelectScreenProps) {
         <h1 id="region-title" className="type-headline">
           어느 지역 말씨가 몸에 배어 있나요?
         </h1>
-        <p className="type-label region-screen__lead">본인이 쓴다고 생각하는 억양의 지역을 골라 주세요</p>
+        <p className="type-label region-screen__lead">
+          본인이 쓴다고 생각하는 억양의 지역을 골라 주세요
+          <br />
+          결과에는 영향이 없어요
+        </p>
       </div>
 
       <div className="item-screen__body region-screen__body">

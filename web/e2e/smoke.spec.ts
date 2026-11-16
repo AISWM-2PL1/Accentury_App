@@ -123,4 +123,25 @@ test('출신 지역 지도 - 방향키로 칩을 옮기고, 고른 지역이 벽
       expect(overlap, `칩 ${i}·${j} 겹침`).toBe(false)
     }
   }
+
+  // 부제 두 줄(「결과에는 영향이 없어요」 복원, PR #76 리뷰)이 목록·지도를 밀어 넘치지 않는다 — 큰 글자 목록, 360 폭 지도 둘 다
+  const lead = page.locator('.region-screen__lead')
+  await expect(lead).toHaveText(/결과에는 영향이 없어요$/)
+  const noOverflow = async (below: string) => {
+    const { leadBottom, belowTop, scrollX } = await page.evaluate((sel) => ({
+      leadBottom: document.querySelector('.region-screen__lead')!.getBoundingClientRect().bottom,
+      belowTop: document.querySelector(sel)!.getBoundingClientRect().top,
+      scrollX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }), below)
+    expect(leadBottom).toBeLessThanOrEqual(belowTop + 0.5)
+    expect(scrollX).toBeLessThanOrEqual(0)
+  }
+  await page.setViewportSize({ width: 360, height: 780 })
+  await noOverflow('.region-chip')
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = ''
+    window.dispatchEvent(new Event('resize'))
+  })
+  await expect(page.locator('.region-map__geography')).toBeVisible()
+  await noOverflow('.region-map')
 })
