@@ -670,7 +670,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
   - [재시도]는 무제한. 단 `503 ANALYSIS_UNAVAILABLE`은 서버가 그 키의 시도를 실패로 기록했을 수 있어(같은 키 재전송이 실패 시도를 202로 돌려준다 — 서버 코드로 확인, 아래 「Android 구현」) **재시도 때 새 키**를 쓴다. 400·413·415·422처럼 봉투 `retryable:false`면 재시도 대신 다시 녹음을 안내한다(오디오가 같으면 결과도 같다).
   - 202 응답 `{attemptId, contentVersion, cardId, status, pollAfterMs}` 중 `attemptId`만 웹으로 넘긴다. 폴링은 웹(KAN-254)이 한다.
 - **뒤로가기 = 회신 없이 일시정지 A-2 복귀.** 업로드 진행 중이면 요청을 버린다(같은 키로 서버에 이미 닿았더라도 웹은 그 시도를 모른다 — 다음 녹음은 새 키라 별개 시도다).
-- **화면 오른쪽 위 ✕ 닫기** (KAN-252, 2026-10-13 사용자 결정) — ✕ = `close` 후 억양 탭 문서(A-1)로, 뒤로가기·제스처는 카드(A-2)로 (2026-10-13 사용자 결정). A-1은 `?screen=intonation` 문서의 첫 상태라 문서를 다시 열면 목록이 뜬다 — URL은 `webTabUrl(currentUrl, "intonation")`(`webBackTarget`과 같은 쿼리 규칙, 문서를 모르면 닫기만). Android는 KAN-354 5단계부터 학습 탭 첫 화면(사투리 여행 지도)으로 가는 `webTabUrl(currentUrl, LEARN_ENTRY_SCREEN)`(`screen=intonation`, PR #74 리뷰)이다 — 웹은 KAN-347 3단계부터 `learn`·`intonation`·`words`를 모두 학습 탭으로 받고, 내보내는 값은 옛 앱 빌드 호환 때문에 당분간 `intonation`이다(2026-11-16 결정, `web/src/navigation/entryUrl.ts`의 `LEARN_URL_SCREEN`). 권한 화면 포함, 제출 중에도 선다. 시스템 뒤로·가장자리 스와이프를 몰라도 나갈 수 있게. 모양은 설정 톱니와 같다(Android `learning/IntonationRecordingOverlay.kt` `IntonationCloseButton`, iOS `IntonationCloseChrome`). 레벨 테스트 VOICE 녹음 화면에는 두지 않는다(KAN-147).
+- **화면 오른쪽 위 ✕ 닫기** (KAN-252, 2026-10-13 사용자 결정) — ✕ = `close` 후 억양 탭 문서(A-1)로, 뒤로가기·제스처는 카드(A-2)로 (2026-10-13 사용자 결정). A-1은 `?screen=intonation` 문서의 첫 상태라 문서를 다시 열면 목록이 뜬다 — URL은 `webTabUrl(currentUrl, "intonation")`(`webBackTarget`과 같은 쿼리 규칙, 문서를 모르면 닫기만). Android는 KAN-354 5단계부터 학습 탭 첫 화면(사투리 여행 지도)으로 가는 `webTabUrl(currentUrl, LEARN_ENTRY_SCREEN)`(`screen=intonation`, PR #74 리뷰)이다 — 웹은 KAN-347 3단계부터 `learn`·`intonation`·`words`를 모두 학습 탭으로 받고, 내보내는 값은 옛 앱 빌드 호환 때문에 당분간 `intonation`이다(2026-11-16 결정, `web/src/navigation/entryUrl.ts`의 `LEARN_URL_SCREEN`). iOS도 KAN-355부터 같은 값을 보낸다 — `webTabUrl(currentUrl, learnEntryScreen)`(`screen=intonation`). 권한 화면 포함, 제출 중에도 선다. 시스템 뒤로·가장자리 스와이프를 몰라도 나갈 수 있게. 모양은 설정 톱니와 같다(Android `learning/IntonationRecordingOverlay.kt` `IntonationCloseButton`, iOS `IntonationCloseChrome`). 레벨 테스트 VOICE 녹음 화면에는 두지 않는다(KAN-147).
 - origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
 
 #### Android 구현 (KAN-253 2단계)
@@ -701,7 +701,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | 멱등 키 | Android와 같다 — 제출 1건마다 `li_<소문자 UUID>`, [재시도]는 같은 키, `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키, 다시 녹음은 새 키 |
 | 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요. 다시 로그인해 주세요」 |
 | 회신·닫기 | `uploadState`가 `.accepted` → `onIntonationRecorded({cardId, attemptId})` 한 번 → `close()`(상태가 idle로 돌아가 두 번 회신하지 않는다). 업로드 중·202 뒤에는 하단이 「제출 중…」. 닫기·다시 녹음 뒤 늦게 온 202는 세대 번호로 버린다 |
-| 뒤로가기 | iOS에는 시스템 뒤로가기가 없어 `IntonationCloseChrome`이 왼쪽 위 닫기(xmark)와 왼쪽 가장자리 스와이프를 둔다 — 둘 다 `close()`: 진행 중 업로드 Task 취소(URLSession까지 내려간다), 보관 음성 참조 폐기, 회신 없음. 권한 화면에서도 같다. 닫은 뒤 웹 문서는 KAN-355부터 학습 탭 `webTabUrl(currentUrl, learnScreen)`(`screen=learn`, 사투리 여행 지도)이고, 뒤로가기 표에도 `learn`을 더했다(옛 `intonation`·`words` 유지) |
+| 뒤로가기 | iOS에는 시스템 뒤로가기가 없어 `IntonationCloseChrome`이 왼쪽 위 닫기(xmark)와 왼쪽 가장자리 스와이프를 둔다 — 둘 다 `close()`: 진행 중 업로드 Task 취소(URLSession까지 내려간다), 보관 음성 참조 폐기, 회신 없음. 권한 화면에서도 같다. 닫은 뒤 웹 문서는 KAN-355부터 학습 탭 `webTabUrl(currentUrl, learnEntryScreen)`(`screen=intonation`, 사투리 여행 지도)이다. 웹이 `learn`을 받기 전 빌드와도 맞도록 보내는 값은 `intonation`이다(안드로이드 `LEARN_ENTRY_SCREEN`과 같다). 뒤로가기 표는 `learn`도 받는다(옛 `intonation`·`words` 유지) |
 | 음성 바이트 | 디스크에 닿지 않는다(레벨테스트와 같이 메모리 PCM → `WavWriter` 메모리 WAV, `RecordingFileLifecycleTests`의 규칙). Swift `Data`는 값 타입이라 Android처럼 0으로 덮지 않고, `UploadManager`와 같이 접수·다시 녹음·닫기에서 참조를 놓는다(`retainsAudio`로 테스트) |
 | 마이크 권한 | 열 때마다 `MicPermission.currentStatus()`로 확인하고, 없으면 `PermissionGateView`를 먼저 띄운다. 그동안 톱니는 숨긴다 |
 | [내 녹음 듣기] | `AVAudioPlayer(data:fileTypeHint: .wav)`로 메모리 WAV를 재생(파일 URL 없음 — FR-DP-02). 녹음 세션이 `.record`라 재생 직전 `.playback`으로 바꾸고 정지 때 비활성화한다(다음 녹음은 `AudioRecorder`가 `.record`로 다시 잡는다). 재생 중 다시 누르면 정지. [재녹음]·확인 단계 이탈·[다음]·화면 이탈 때 정지 |
@@ -728,7 +728,7 @@ KAN-347 3단계에서 탭 바가 **4칸**(학습 · 홈 · 사투리 번역기 �
   URL(`onLocationChanged`·문서 로드)의 `screen`이 `intonation`·`words`·`translate`일 때만 뒤로가기를 홈으로 돌리고
   (`BACK_TO_HOME_SCREENS`/`backToHomeScreens`) 광고 설정 행을 연다(`webAdConsentUrl`). `learn`을 실으면 옛 빌드에서 학습 탭의
   뒤로가기가 앱 종료(Android)·무반응(iOS)이 된다. 새 빌드(KAN-354·355)는 `learn`과 옛 값을 함께 받는다 — `learn`을 받는 빌드가
-  스토어에 다 퍼진 뒤 `LEARN_URL_SCREEN` 하나를 `'learn'`으로 바꾼다. 그때 앱이 학습 탭을 열 때 보내는 값(Android `WebConfig.kt` `LEARN_ENTRY_SCREEN` = `intonation` — 억양 녹음 ✕ 목적지)도 함께 `learn`으로 바꾼다. 이 표는 `entryUrl.test.ts`의 「학습 탭 화면 값」 묶음이 지킨다.
+  스토어에 다 퍼진 뒤 `LEARN_URL_SCREEN` 하나를 `'learn'`으로 바꾼다. 그때 앱이 학습 탭을 열 때 보내는 값(Android `WebConfig.kt` `LEARN_ENTRY_SCREEN` = `intonation` — 억양 녹음 ✕ 목적지)도 함께 `learn`으로 바꾼다. iOS는 `AccenturyCore/Web/WebConfig.swift`의 `learnEntryScreen`(KAN-355)이 같은 자리라 함께 바꾼다. 이 표는 `entryUrl.test.ts`의 「학습 탭 화면 값」 묶음이 지킨다.
 - **홈 [이어가기]는 URL에 싣지 않는다**: 「지금 스탬프로 바로」는 WebView의 sessionStorage 일회성 표식(`learning/resumeFlag`)으로
   건네고, 학습 탭이 읽는 즉시 지운다. 스토어의 옛 빌드와 새 빌드 모두 `webTabUrl`이 현재 URL의 모르는 쿼리를 보존하므로, URL에
   `resume=1`을 실으면 웹이 걷기 전에 네이티브가 들고 있던 그 URL로 녹음 ✕·뒤로가기가 다시 열어 지도 대신 스탬프로 들어간다.

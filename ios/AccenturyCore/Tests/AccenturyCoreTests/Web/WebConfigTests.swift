@@ -335,11 +335,11 @@ final class WebConfigTests: XCTestCase {
     func testTabMovesDropResume() {
         let current = "https://web.example.com/?bridge=1&c=abc&screen=intonation&resume=1"
         let targets = [
-            webTabUrl(currentUrl: current, screen: learnScreen),
+            webTabUrl(currentUrl: current, screen: learnEntryScreen),
             webBackTarget(currentUrl: current, startRequested: false),
             webAdConsentUrl(currentUrl: current, startRequested: false),
         ]
-        XCTAssertEqual("https://web.example.com/?bridge=1&c=abc&screen=learn", targets[0])
+        XCTAssertEqual("https://web.example.com/?bridge=1&c=abc&screen=intonation", targets[0])
         XCTAssertEqual("https://web.example.com/?bridge=1&c=abc&screen=home", targets[1])
         XCTAssertEqual("https://web.example.com/?bridge=1&c=abc&screen=home&adConsent=open", targets[2])
         for target in targets {
@@ -354,15 +354,16 @@ final class WebConfigTests: XCTestCase {
 
     // MARK: - webTabUrl: 탭 문서 조립 — 억양 녹음 ✕의 목적지 (KAN-252, 2026-10-13 · KAN-355 학습 탭)
 
-    /// 억양 녹음 ✕의 목적지는 학습 탭(`learn`, 사투리 여행 지도) 문서다 (KAN-355). 옛 억양 탭에 있었어도 `learn`으로 옮기고,
+    /// 억양 녹음 ✕의 목적지는 학습 탭 문서다 (KAN-355). 보내는 값은 `intonation`(``learnEntryScreen``, 안드로이드와 같다) —
+    /// `learn`을 모르는 옛 웹도 학습 탭으로 받는다. 새 학습 탭(`learn`)에 있었어도 `intonation`으로 옮기고,
     /// 레벨테스트 값·광고 동의 플래그·fragment를 지우며 계측 코드는 남긴다.
     func testIntonationCloseTargetIsLearnTab() {
-        XCTAssertEqual("learn", learnScreen)
-        XCTAssertEqual("\(app)&screen=learn", webTabUrl(currentUrl: "\(app)&screen=learn", screen: learnScreen))
-        XCTAssertEqual("\(app)&screen=learn", webTabUrl(currentUrl: "\(app)&screen=intonation", screen: learnScreen))
+        XCTAssertEqual("intonation", learnEntryScreen)
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: "\(app)&screen=learn", screen: learnEntryScreen))
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: "\(app)&screen=intonation", screen: learnEntryScreen))
         XCTAssertEqual(
-            "\(app)&c=abc&screen=learn",
-            webTabUrl(currentUrl: "\(app)&screen=words&c=abc&adConsent=open#card-3", screen: learnScreen)
+            "\(app)&c=abc&screen=intonation",
+            webTabUrl(currentUrl: "\(app)&screen=words&c=abc&adConsent=open#card-3", screen: learnEntryScreen)
         )
     }
 

@@ -83,9 +83,14 @@ public func buildWebUrl(
 /// 홈 탭의 `screen` 값 (KAN-252). 웹 `TabScreen`의 'home'과 같다.
 private let homeScreen = "home"
 
-/// 학습 탭의 `screen` 값 (KAN-355, 2026-11-16 결정). 웹 탭 바가 4칸(학습·홈·사투리 번역기·설정)이 되며 「억양 학습」·「단어 학습」이
-/// 「학습」으로 합쳐졌다(KAN-347 3단계). 첫 화면이 사투리 여행 지도라 억양 녹음 ✕의 목적지이기도 하다(`TestFlowView`).
+/// 학습 탭의 `screen` 값 — **받는 값** (KAN-355, 2026-11-16 결정). 웹 탭 바가 4칸(학습·홈·사투리 번역기·설정)이 되며 「억양 학습」·
+/// 「단어 학습」이 「학습」으로 합쳐졌다(KAN-347 3단계). 아래 뒤로가기 표가 이 값의 문서도 학습 탭으로 알아본다.
 public let learnScreen = "learn"
+
+/// 학습 탭으로 옮길 때 **보내는 값** — 억양 녹음 ✕의 목적지(`TestFlowView`). 안드로이드 `LEARN_ENTRY_SCREEN`과 같다
+/// (2026-11-16 사용자 결정). `learn`을 모르는 옛 웹(origin/Dev)과 KAN-347 웹이 둘 다 `intonation`을 학습 탭으로 받는다.
+/// 웹이 `learn`을 내보내기 시작하면(웹 `LEARN_URL_SCREEN` 전환) 이 상수 하나를 `learn`으로 바꾼다.
+public let learnEntryScreen = "intonation"
 
 /// 뒤로가기가 홈으로 돌리는 탭 화면 (KAN-252). 홈 자신은 빠진다 — 홈에서의 뒤로는 아무 일도 없다.
 /// 옛 값 `intonation`·`words`는 남긴다 — 웹이 옛 값도 받으므로(KAN-347) 옛 링크·복원 문서로 그 화면에 있을 수 있다 (KAN-355).
@@ -135,7 +140,7 @@ public func startsAtHome(tabBarEntry: Bool, introRequested: Bool, appLinkEntered
 /// 현재 문서를 탭 `screen` 문서로 옮긴 URL (KAN-252). 안드로이드 `webTabUrl`의 이식본이다. 웹 탭 이동(`buildTabUrl`)과 같은
 /// 쿼리 규칙이다 — `screen`만 바꾸고 레벨테스트 값·`adConsent`·`resume`(웹 `buildTabUrl`과 같은 목록, 지금은 실리는 경로가 없는 방어)을 지우며
 /// 나머지(`bridge`·`app`·`c`)는 보존하고 fragment는 뗀다.
-/// ``webBackTarget(currentUrl:startRequested:)``(홈)과 억양 녹음 ✕(학습 탭 ``learnScreen``, 2026-10-13 사용자 결정·KAN-355)가 같이 쓴다.
+/// ``webBackTarget(currentUrl:startRequested:)``(홈)과 억양 녹음 ✕(학습 탭 ``learnEntryScreen``, 2026-10-13 사용자 결정·KAN-355)가 같이 쓴다.
 /// 문서를 아직 모르면(nil) nil — 호출자는 옮기지 않는다.
 public func webTabUrl(currentUrl: String?, screen: String) -> String? {
     guard let currentUrl else { return nil }
