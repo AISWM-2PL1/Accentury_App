@@ -19,6 +19,12 @@ describe('선 아이콘', () => {
     expect(svg.querySelector('path')!.getAttribute('d')).not.toBe('')
   })
 
+  // 녹음 버튼 CSS가 마이크까지 칠한 적이 있어 채움을 아이콘 속성으로 옮겼다 (KAN-347 7단계 보완). CSS 쪽은 E2E가 본다
+  it('정지만 속을 채우고 마이크는 선으로 둔다', () => {
+    expect(render(<icons.StopIcon />).container.querySelector('svg')).toHaveAttribute('fill', 'currentColor')
+    expect(render(<icons.MicLineIcon />).container.querySelector('svg')).toHaveAttribute('fill', 'none')
+  })
+
   it('크기를 받는다', () => {
     const { container } = render(<icons.CalendarIcon size={16} />)
     expect(container.querySelector('svg')).toHaveAttribute('height', '16')

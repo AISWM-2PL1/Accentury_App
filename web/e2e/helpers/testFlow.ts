@@ -231,7 +231,13 @@ export async function answerVoiceItem(page: Page): Promise<void> {
    * 녹음이 잘리지는 않지만, 그러면 [정지]를 거치지 않는 다른 경로를 타게 된다.
    */
   await expect(page.getByText(RECORD_ELAPSED_MARK)).toBeVisible({ timeout: 10_000 })
-  await page.getByRole('button', { name: '정지', exact: true }).click()
+  /*
+   * 녹음 중 정지 네모는 속이 채워져 있어야 한다 (시안 s-06-recording, KAN-347 7단계 보완). 문항 순서는 계약이 아니라([awaitItem])
+   * 특정 스펙이 아니라 음성 문항을 지나는 이 헬퍼에서 본다. computed style은 jsdom이 못 보는 자리다
+   */
+  const stop = page.getByRole('button', { name: '정지', exact: true })
+  expect(await stop.locator('path').evaluate((path) => getComputedStyle(path).fill)).not.toBe('none')
+  await stop.click()
 
   /*
    * 확인 단계. [다음]이 보인다는 것은 품질 게이트(FR-AD-08)를 통과했다는 뜻이다 — 짧거나
