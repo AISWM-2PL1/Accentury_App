@@ -467,6 +467,27 @@ async function stubTravel(page: Page, state: () => { done: string[]; levels: obj
   )
 }
 
+/**
+ * 「지금 코스」 표시(.travel-atlas__here)가 그 코스 구역 안에 있고 어느 칩과도 겹치지 않는다. 구역 상자가 아니라 실제 경계로 재려고
+ * 표시 바깥 원(r=10)의 중심과 상하좌우 끝이 지금 코스 구역 path 안인지 `isPointInFill`로 본다
+ */
+async function expectMarkerInCurrentRegion(page: Page): Promise<void> {
+  const result = await page.evaluate(() => {
+    const ring = document.querySelector<SVGCircleElement>('.travel-atlas__here circle')!
+    const region = document.querySelector<SVGPathElement>('.travel-land.is-current .travel-land__region')!
+    const [cx, cy, r] = [ring.cx.baseVal.value, ring.cy.baseVal.value, ring.r.baseVal.value]
+    const points = [[cx, cy], [cx - r, cy], [cx + r, cy], [cx, cy - r], [cx, cy + r]]
+    const inside = points.every(([x, y]) => region.isPointInFill(new DOMPoint(x, y)))
+    const m = document.querySelector('.travel-atlas__here')!.getBoundingClientRect()
+    const overlaps = [...document.querySelectorAll('.travel-chip')].filter((chip) => {
+      const c = chip.getBoundingClientRect()
+      return m.left < c.right && c.left < m.right && m.top < c.bottom && c.top < m.bottom
+    }).length
+    return { inside, overlaps }
+  })
+  expect(result).toEqual({ inside: true, overlaps: 0 })
+}
+
 test('KAN-359 전 - 구간 요약이 404면 별·잠금 없이 모든 코스가 열리고, 완료는 completed대로 보인다 (3-5)', async ({ page }) => {
   await stubTravel(page, () => ({ done: ['w1', 'k1'], levels: null }))
   await asApp(page)
@@ -480,6 +501,8 @@ test('KAN-359 전 - 구간 요약이 404면 별·잠금 없이 모든 코스가 
   const card = page.getByRole('region', { name: '지금 코스' })
   await expect(card).toContainText('1코스 2 / 9')
   await expect(card.getByRole('heading', { level: 2, name: '단어 학습 2' })).toBeVisible()
+  // 지금 코스(1코스) 표시가 1코스 구역 안이고 칩과 겹치지 않는다 (칩 한 줄)
+  await expectMarkerInCurrentRegion(page)
 
   // 잠금이 없으니 2코스 구역도 눌러 열린다. 코스 지도의 완료 카드는 별·점수 원 없이 「완료」만
   await page.getByRole('button', { name: '1코스 · 진행 중' }).click()
@@ -503,6 +526,8 @@ test('KAN-359 있음 - 별 합계·코스 칩 「★ 모은 별 / 필요 별」�
   const locked = page.getByRole('img', { name: '2코스, 잠김, 별 0개, 필요 별 21개' })
   await expect(locked.locator('.lock')).toBeVisible()
   await expect(page.getByRole('button', { name: /^2코스/ })).toHaveCount(0)
+  // 별 줄이 있는 두 줄 칩에서도 표시가 1코스 구역 안이고 칩과 겹치지 않는다
+  await expectMarkerInCurrentRegion(page)
 
   await page.getByRole('button', { name: '1코스 · 진행 중' }).click()
   await expect(page.getByText('별 21개를 모으면 2코스가 열려요', { exact: true })).toBeVisible()

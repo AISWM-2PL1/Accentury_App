@@ -30,7 +30,7 @@ import {
   type TravelCourse,
   type TravelStamp,
 } from './travel'
-import { COURSE_NODES, COURSE_REGION_BOXES, COURSE_REGIONS, GYEONGNAM_OUTLINE } from './travelMapPaths'
+import { COURSE_MARKERS, COURSE_NODES, COURSE_REGION_BOXES, COURSE_REGIONS, GYEONGNAM_OUTLINE } from './travelMapPaths'
 import { errorExit } from './useWordLearning'
 import { AUTH_GUEST_NOT_ALLOWED, WordLearningError, type WordApiDeps } from './wordApi'
 import { WordLearningRoute } from './WordLearningScreens'
@@ -280,7 +280,7 @@ function PassportStamp({ course, className, style }: { course: number; className
 // ── 사투리 여행 지도 (s-11) ───────────────────────────────────────────────
 
 /** 코스 칩 자리(지도 상자에 대한 %, 시안 s-11). 인덱스 0이 1코스다 */
-const CHIP_POSITIONS: readonly (readonly [number, number])[] = [
+export const CHIP_POSITIONS: readonly (readonly [number, number])[] = [
   [76, 23],
   [51, 31],
   [38, 49],
@@ -366,7 +366,7 @@ function Atlas({
   onOpenCourse: (course: number) => void
 }) {
   const currentCourse = travel.current?.course
-  const marker = currentCourse === undefined ? undefined : CHIP_POSITIONS[currentCourse - 1]
+  const marker = currentCourse === undefined ? undefined : COURSE_MARKERS[currentCourse - 1]
   // 시안 순서대로 그린다 — 지금 코스가 맨 위에 오도록 마지막에
   const ordered = [...travel.courses].sort((a, b) => Number(a.course === currentCourse) - Number(b.course === currentCourse))
   return (
@@ -406,10 +406,10 @@ function Atlas({
           )
         })}
         {marker !== undefined && (
-          // 지금 코스 표시 — 칩 왼쪽 위 (시안 3코스 칩 (38%, 49%) ↔ 표시 (160, 164))
+          // 지금 코스 표시 — 코스마다 구역 안·칩과 겹치지 않는 미리 계산한 자리 (`COURSE_MARKERS`)
           <g className="travel-atlas__here" aria-hidden="true">
-            <circle cx={(marker[0] / 100) * 390 + 12} cy={(marker[1] / 100) * 380 - 22} r="10" fill="none" />
-            <circle cx={(marker[0] / 100) * 390 + 12} cy={(marker[1] / 100) * 380 - 22} r="5" />
+            <circle cx={marker[0]} cy={marker[1]} r="10" fill="none" />
+            <circle cx={marker[0]} cy={marker[1]} r="5" />
           </g>
         )}
       </svg>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { tapeOffset, zoomFrame } from './TravelScreens'
-import { COURSE_NODES, COURSE_REGION_BOXES, COURSE_REGIONS } from './travelMapPaths'
+import { CHIP_POSITIONS, tapeOffset, zoomFrame } from './TravelScreens'
+import { COURSE_MARKERS, COURSE_NODES, COURSE_REGION_BOXES, COURSE_REGIONS } from './travelMapPaths'
 
 type Point = readonly [number, number]
 
@@ -78,5 +78,44 @@ describe('코스 지도 번호 원 자리', () => {
         expect(Math.hypot(dx, dy)).toBeGreaterThanOrEqual(16)
       })
     })
+  })
+})
+
+/** 경계를 확대 없이 지도 viewBox(390×380) 좌표 그대로 */
+function atlasRings(course: number): Point[][] {
+  return COURSE_REGIONS[course - 1]
+    .split('M')
+    .filter(Boolean)
+    .map((ring) =>
+      ring
+        .replace(/Z/g, '')
+        .split('L')
+        .map((p) => p.trim().split(/\s+/).map(Number) as unknown as Point),
+    )
+}
+
+describe('사투리 여행 지도 「지금 코스」 표시 자리 (s-11)', () => {
+  it.each([1, 2, 3, 4, 5])('%i코스: 표시 중심이 구역 안이고 경계까지 12 이상(바깥 원 r=10)', (course) => {
+    const rs = atlasRings(course)
+    const p = COURSE_MARKERS[course - 1]
+    expect(inside(rs, p)).toBe(true)
+    expect(edgeDistance(rs, p)).toBeGreaterThanOrEqual(12)
+  })
+
+  /*
+   * 칩은 HTML 오버레이(왼쪽 위 = CHIP_POSITIONS %, 폭 70px, 별 줄까지 두 줄 높이 40px)이고 지도는 preserveAspectRatio="none"에
+   * aspect-ratio 342/267이라 viewBox 단위와 px 비율이 가로·세로가 다르다. 지도 폭마다 칩을 viewBox로 환산해 표시 바깥 원 상자와 견준다
+   */
+  it.each([312, 339, 364, 400])('지도 폭 %ipx: 어느 코스의 표시도 어느 칩과 겹치지 않는다', (width) => {
+    const height = (width * 267) / 342
+    const sx = 390 / width
+    const sy = 380 / height
+    for (const [mx, my] of COURSE_MARKERS)
+      for (const [left, top] of CHIP_POSITIONS) {
+        const x0 = (left / 100) * 390
+        const y0 = (top / 100) * 380
+        const overlap = mx + 10 > x0 && mx - 10 < x0 + 70 * sx && my + 10 > y0 && my - 10 < y0 + 40 * sy
+        expect(overlap).toBe(false)
+      }
   })
 })
