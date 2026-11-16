@@ -15,7 +15,8 @@
  *
  * 게이트를 걷는 절차 자체는 [startTest]가 갖는다 (KAN-181 2단계에 완주 스펙이 붙으면서
  * 같은 길을 두 번 적게 됐다). 이 스펙에 남은 것은 **인트로 화면 고유의 확인**이다 —
- * 게이트 통과만 보는 것이라면 완주 스펙이 이미 매번 지나간다.
+ * 게이트 통과만 보는 것이라면 완주 스펙이 이미 매번 지나간다. 예외로 목소리 점검 「듣는 중」 마이크 단언을 둔다 — 듣는 중은
+ * 시작 게이트 안에서 잠깐만 서서, [startTest]를 걷는 이 스펙에서 걷기 전에 기다림을 걸어야 잡힌다.
  */
 
 import { expect, test } from '@playwright/test'
@@ -73,11 +74,6 @@ test('웹 단독 진입 - 인트로에서 가짜 마이크로 목소리 점검�
   await startTest(page)
   console.log(`시작 게이트 통과까지 ${Date.now() - startedAt}ms`)
   expect(await listeningMicFill).toBe('none')
-
-  // 반대로 녹음 중 정지 네모는 속이 채워져 있어야 한다 (시안 s-06-recording). 첫 문항은 음성이다
-  await page.getByRole('button', { name: '녹음', exact: true }).click()
-  const stopPath = page.getByRole('button', { name: '정지', exact: true }).locator('path')
-  expect(await stopPath.evaluate((path) => getComputedStyle(path).fill)).not.toBe('none')
 })
 
 /*

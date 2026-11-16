@@ -20,7 +20,7 @@ import { fetchIntonationCourses, type IntonationCourseSummary } from './intonati
 import { courseStamps, type Stamp, type StampKind } from './stampNaming'
 import { fetchWordSets, hasFields, isArrayOf, request, shapeError, type WordApiDeps, type WordSetSummary } from './wordApi'
 
-// ── KAN-359 구간 요약 (서버 `LearningLevelsResponse`, Dev에 머지됨·prod 배포 전) ──────────────────
+// ── KAN-359 구간 요약 (서버 `LearningLevelsResponse`) ──────────────────
 
 /** `levels[]` 한 칸 — 구간(코스) 하나 */
 export interface LevelSummary {
