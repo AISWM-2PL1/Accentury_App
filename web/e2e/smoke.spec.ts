@@ -60,9 +60,24 @@ test('웹 단독 진입 - 인트로에서 가짜 마이크로 목소리 점검�
   ).toBeVisible()
   await expect(page.getByText(`약 ${ESTIMATED_MINUTES}분`)).toBeVisible()
 
+  /*
+   * 「듣는 중」 마이크는 선으로 남아야 한다 — 녹음 버튼의 채움이 같은 클래스(`record-button--active`)를 타고 마이크까지 칠해
+   * 뭉개진 적이 있다 (KAN-347 7단계 보완). 듣는 중은 게이트 안에서 잠깐만 서므로 걷기 전에 기다림을 걸어 둔다.
+   * computed style은 jsdom이 못 보는 자리라 여기서 본다
+   */
+  const listeningMicFill = page
+    .locator('.voice-check__foot .record-button--active path')
+    .evaluate((path) => getComputedStyle(path).fill)
+
   const startedAt = Date.now()
   await startTest(page)
   console.log(`시작 게이트 통과까지 ${Date.now() - startedAt}ms`)
+  expect(await listeningMicFill).toBe('none')
+
+  // 반대로 녹음 중 정지 네모는 속이 채워져 있어야 한다 (시안 s-06-recording). 첫 문항은 음성이다
+  await page.getByRole('button', { name: '녹음', exact: true }).click()
+  const stopPath = page.getByRole('button', { name: '정지', exact: true }).locator('path')
+  expect(await stopPath.evaluate((path) => getComputedStyle(path).fill)).not.toBe('none')
 })
 
 /*

@@ -31,7 +31,7 @@ import { FULL_SCALE, QUIET_RMS_THRESHOLD } from '../audio/quality'
 import { CurveLane } from '../recording/CurveLane'
 import { userCurveDisplayPoints } from '../recording/userCurve'
 import { Button } from '../ui'
-import { ArrowRightIcon, MicLineIcon, RefreshIcon } from '../ui/icons'
+import { ArrowRightIcon, RecordMicIcon, RefreshIcon } from '../ui/icons'
 import '../progress/WebVoiceRecorder.css'
 import './VoiceCheckScreen.css'
 import {
@@ -212,7 +212,7 @@ export function VoiceCheckScreen({ onDone, startFailure = null, capture, now }: 
           <>
             {/* 듣는 중의 마이크 원은 누르는 것이 아니다 — 지금 할 일은 말하는 것 하나뿐이라 버튼으로 두지 않는다 */}
             <div className="record-button record-button--active" aria-hidden="true">
-              <MicLineIcon size={34} />
+              <RecordMicIcon size={34} />
             </div>
             {/* 조각마다 바뀌는 자리라 읽어 주면 소음이 된다 — role 없이 둔다 */}
             <p className="voice-check__status voice-check__status--muted">듣는 중 · {hintMessage(state.hint)}</p>

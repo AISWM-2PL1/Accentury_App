@@ -71,10 +71,6 @@
   box-shadow: none;
 }
 
-.record-button--active svg path {
-  fill: currentColor;
-}
-
 /* 녹음 중 소리 원 (움직임 타일 2). 정지 버튼 고리 바깥에서 입력 크기만큼 커진다 — `--record-level` 0..1 */
 .record-button__wrap {
   position: relative;
