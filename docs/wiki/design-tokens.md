@@ -56,7 +56,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `background` | `#f3ecd9` | 화면 배경 |
 | `foreground` | `#1c1a17` | 본문 텍스트 |
 | `card` | `#f3ecd9` | 카드 표면. 배경과 같은 색이고 테두리·그림자로 갈린다 |
-| `paper` | `#f8f3e6` | 크림 위에 한 장 더 얹은 밝은 종이 — 선택지·바텀 시트·대화상자 면 (KAN-347 1단계, 웹 `--color-paper`. 네이티브는 KAN-354·KAN-355) |
+| `paper` | `#f8f3e6` | 크림 위에 한 장 더 얹은 밝은 종이. 크림과 1.06:1이라 면만으로 갈리지 않고 잉크 테두리가 경계를 맡는다. Android는 카드·입력 칸·확인 창 면(`LightPaper`, KAN-354), 웹은 선택지·바텀 시트·대화상자 면(`--color-paper`, KAN-347 1단계) |
 | `card-foreground` | `#1c1a17` | 카드 위 텍스트 |
 | `secondary` | `#f3ecd9` | 보조 면 |
 | `secondary-foreground` | `#1c1a17` | 보조 면 위 텍스트 |
@@ -88,7 +88,6 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `curve-lane-border` | `#1c1a17` | 곡선 레인 테두리 |
 | `point` | `#a8503a` | **포인트 컬러.** 인트로 제목 아치, 녹음 화면 내 억양 곡선, 결과 점수 도넛 호·막대. 화면당 한 자리 규칙과 화면별 표는 §7 |
 | `point-foreground` | `#f3ecd9` | point 면 위 텍스트. **지금 쓰는 곳이 없다** — 색이 면이 아니라 선으로만 서 있다 (§7) |
-| `paper` | `#f8f3e6` | 카드·입력 칸·확인 창 면. 크림과 1.06:1이라 면만으로 갈리지 않고 잉크 테두리가 경계를 맡는다. Android `LightPaper` (KAN-354) |
 
 ### 다크
 
