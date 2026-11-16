@@ -48,6 +48,8 @@ private const val OLDEST_BIRTH_YEAR = 1900
  *
  * @param form 두 화면이 나눠 쓰는 입력. 호출자(AuthGate)가 계정 id별로 들고 있어 지역 화면에서 돌아와도 남는다
  * @param onNext [다음] — 지역 화면으로
+ * @param error 지역 화면 저장이 만 14세 미만으로 거절된 안내([AuthFailureReason.UnderAge]). 생년월일을 고칠 수 있는 이 화면에서
+ *   [다음] 위에 보인다(PR #74 리뷰). 재시도성 실패는 지역 화면이 그린다
  * @param onSwitchAccount [다른 계정으로 로그인] — 로그아웃해 로그인 화면으로 ([AuthGateController.logout]). 만 14세 미만
  *   거절을 받았거나 계정을 잘못 고른 사용자가 이 화면에 갇히지 않게 하는 유일한 출구다(설정 화면은 KAN-247).
  */
@@ -57,6 +59,7 @@ fun ProfileScreen(
     onNext: () -> Unit,
     onSwitchAccount: suspend () -> Unit,
     modifier: Modifier = Modifier,
+    error: AuthFailure? = null,
 ) {
     val scope = rememberCoroutineScope()
     var pickingDate by rememberSaveable { mutableStateOf(false) }
@@ -68,6 +71,8 @@ fun ProfileScreen(
     PaperScreen(
         modifier = modifier,
         footer = {
+            if (error != null) AuthFailureBlock(error, verb = "저장")
+
             AccenturyButton(
                 text = "다음",
                 onClick = onNext,

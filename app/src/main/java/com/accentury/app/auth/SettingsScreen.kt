@@ -242,6 +242,8 @@ fun SettingsScreen(
             confirmLabel = "로그아웃",
             // 로그아웃은 되돌릴 수 있는 확인이라 시안대로 벽돌 채움 주 버튼이다 (KAN-354, s-11-confirm-logout)
             confirmVariant = ButtonVariant.Primary,
+            // 시안 확인 버튼에 문 화살표가 있다 (s-11-confirm-logout, PR #74 리뷰)
+            confirmLeading = { ButtonIcon(R.drawable.ic_logout_24) },
             onConfirm = {
                 scope.launch {
                     leaving = true

@@ -90,8 +90,8 @@ private val TEST_QUERY_KEYS = setOf("sessionId", "testVersion", "voiceSet")
 private const val AD_CONSENT_KEY = "adConsent"
 
 /**
- * 홈 [이어가기]가 학습 탭에 「하던 곳부터」를 알리는 일회성 플래그 키 (KAN-347 3단계, `screen=intonation&resume=1`).
- * 웹 `buildTabUrl`처럼 [webTabUrl]이 지운다 — 녹음 ✕·뒤로가기·광고 동의 URL에 따라가면 그 문서가 다시 이어가기로 열린다.
+ * 옛 이어가기 플래그 키. 웹은 이제 URL에 `resume`을 싣지 않는다(KAN-347 PR #76, 홈 [이어가기]는 sessionStorage 일회성
+ * 표식 `web/src/learning/resumeFlag.ts`로 바뀌었다). 옛 문서·딥링크에 남은 값이 따라가지 않게 웹 `buildTabUrl`과 같은 규칙으로 [webTabUrl]이 지운다.
  */
 private const val RESUME_KEY = "resume"
 
