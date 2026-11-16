@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import com.accentury.app.ui.theme.ButtonLabel
@@ -75,6 +76,9 @@ enum class ButtonVariant { Primary, Secondary, Text, Destructive }
  * @param trailing 라벨 뒤 그림 (시안 「다음 →」·「계속」 화살표). [leading]과 같은 규칙이다
  *
  * 그림의 색은 라벨 색을 따른다 — `Icon`은 [LocalContentColor]를 tint로 읽는다. 크기는 시안 20dp를 호출자가 준다.
+ *
+ * @param horizontalPadding 라벨 좌우 여백 (시안 `.btn` 24). 폭이 정해진 좁은 버튼(확인 창 두 칸)만 줄인다 — 라벨은 가운데라
+ *   글자가 남는 폭에 들어가는 한 모양은 같고, 넘칠 때 줄바꿈되는 폭만 달라진다
  */
 @Composable
 fun AccenturyButton(
@@ -85,6 +89,7 @@ fun AccenturyButton(
     enabled: Boolean = true,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    horizontalPadding: Dp = Spacing.x6,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -156,7 +161,7 @@ fun AccenturyButton(
                 shape = shape,
             )
             .clickableButton(enabled, interaction, click)
-            .padding(horizontal = Spacing.x6),
+            .padding(horizontal = horizontalPadding),
         contentAlignment = Alignment.Center,
     ) {
         // 앞뒤 그림도 본체 안에 그려야 눌림을 함께 탄다.

@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accentury.app.R
@@ -273,7 +274,7 @@ private fun GuestConsentStep(state: LoginScreenState, onOpenPrivacy: () -> Unit,
 }
 
 /**
- * IdP 버튼 한 개 (KAN-354, 시안 `.p1-brand`). 각 사 가이드 규격이라 공용 [AccenturyButton]을 쓰지 않는다 — 폭 전체·높이 48·
+ * IdP 버튼 한 개 (KAN-354, 시안 `.p1-brand`). 각 사 가이드 규격이라 공용 [AccenturyButton]을 쓰지 않는다 — 폭 전체·최소 높이 48·
  * 모서리 12·테두리와 그림자 없음·시스템 글꼴 15(Jua 라벨 규칙 제외)이고, 로고는 왼쪽에 고정, 문구는 버튼 가운데다.
  *
  * 눌림은 면 위에 검정 10%를 덮고, 비활성(방침 동의 전)은 버튼 전체를 40%로 흐린다 — 공용 비활성(그림자색 면)으로 바꾸면
@@ -288,7 +289,8 @@ private fun IdpButton(provider: Provider, onClick: () -> Unit, enabled: Boolean)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(Dimens.controlHeightLg)
+            // 높이는 최소 48 — 글꼴 2.0에서 「Google 계정으로 계속하기」가 두 줄이 되면 버튼이 자란다(에뮬레이터 4차, 고정 48에 잘렸다)
+            .heightIn(min = Dimens.controlHeightLg)
             .alpha(if (enabled) 1f else IDP_DISABLED_ALPHA)
             .clip(shape)
             .background(fill)
@@ -300,10 +302,13 @@ private fun IdpButton(provider: Provider, onClick: () -> Unit, enabled: Boolean)
         IdpLogo(provider, Modifier.align(Alignment.CenterStart).padding(start = if (provider == Provider.GOOGLE) Spacing.x3 else Spacing.x4))
         Text(
             providerLabel(provider),
-            style = TextStyle(fontFamily = FontFamily.Default, fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = 15.sp),
+            // 줄 높이를 글자 크기와 같게 두면 큰 글꼴에서 글자 아래가 잘렸다 — 20으로 둔다(한 줄이면 가운데라 모양은 같다).
+            style = TextStyle(fontFamily = FontFamily.Default, fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = 20.sp),
             color = label,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 48.dp),
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 48.dp, vertical = Spacing.x2),
         )
     }
 }

@@ -116,6 +116,8 @@ fun ConfirmDialog(
                 // 본문 기본 글자는 시안 `.quit-dialog p` 13/1.8 흐린 잉크다 — 그만두기·로그아웃·탈퇴 창이 같은 값을 받는다 (KAN-354)
                 ProvideTextStyle(BODY_STYLE.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)) { body() }
                 Spacer(Modifier.height(Spacing.x6))
+                // 두 칸은 각 약 130dp다. 기본 좌우 여백 24로는 [로그아웃](그림 20 + 간격 8 + 라벨 55)이 82dp 안에 들지 않아 두 줄로
+                // 꺾였다(에뮬레이터 4차). 여백 8이면 라벨 자리 114dp — 글꼴 1.3(라벨 72)에서도 한 줄이다.
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.x3)) {
                     AccenturyButton(
                         text = dismissLabel,
@@ -123,6 +125,7 @@ fun ConfirmDialog(
                         modifier = Modifier.weight(1f),
                         variant = ButtonVariant.Secondary,
                         enabled = !busy,
+                        horizontalPadding = Spacing.x2,
                     )
                     AccenturyButton(
                         text = confirmLabel,
@@ -131,6 +134,7 @@ fun ConfirmDialog(
                         variant = confirmVariant,
                         enabled = !busy,
                         leading = confirmLeading,
+                        horizontalPadding = Spacing.x2,
                     )
                 }
             }
