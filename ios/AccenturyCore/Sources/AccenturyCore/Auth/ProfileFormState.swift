@@ -117,3 +117,13 @@ public final class ProfileFormState: ObservableObject {
         )
     }
 }
+
+/// 원인이 프로필 화면 칸이라 지역 화면에서는 고칠 수 없는 저장 실패인가 (KAN-355). 만 14세 미만(`AUTH_UNDER_AGE`)과 재시도
+/// 불가 거절(``AuthFailureReason/unsupported``: `VALIDATION_FAILED`·`AUTH_CONSENT_REQUIRED` 등)이다 — 둘 다 다시 눌러도
+/// 같고, 출구([다른 계정으로 로그인])는 프로필 화면에만 있다. 네트워크·잠시 뒤·요청 몰림은 지역 화면에서 다시 누르면 된다.
+public func profileFieldFailure(_ failure: AuthFailure?) -> Bool {
+    switch failure?.reason {
+    case .underAge, .unsupported: return true
+    default: return false
+    }
+}

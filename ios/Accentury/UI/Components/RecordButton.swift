@@ -45,7 +45,8 @@ struct RecordButton: View {
             }
         }
         .buttonStyle(RecordButtonStyle(
-            ringScale: recording && !reduceMotion ? soundRingScale(level: soundRingLevel(rms: rms)) : nil
+            ringScale: recording && !reduceMotion ? soundRingScale(level: soundRingLevel(rms: rms)) : nil,
+            reduceMotion: reduceMotion
         ))
         .accessibilityLabel(accessibilityLabel)
     }
@@ -56,9 +57,11 @@ private struct RecordButtonStyle: ButtonStyle {
 
     /// 소리 원의 배율. nil이면 원을 그리지 않는다(대기·움직임 줄이기).
     let ringScale: Double?
+    /// 동작 줄이기면 눌림 이동이 없다 (``PaperButtonBody``와 같다).
+    let reduceMotion: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        let sink: CGFloat = configuration.isPressed ? 1 : 0
+        let sink: CGFloat = configuration.isPressed && !reduceMotion ? 1 : 0
 
         return configuration.label
             .frame(width: Papercut.recordButtonSize, height: Papercut.recordButtonSize)
@@ -70,7 +73,7 @@ private struct RecordButtonStyle: ButtonStyle {
             .contentShape(Circle())
             .offset(x: sink * Papercut.paperShadowX, y: sink * Papercut.paperShadowY)
             .paperCircleShadow()
-            .animation(.easeOut(duration: Papercut.Motion.press), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: Papercut.Motion.press), value: configuration.isPressed)
     }
 }
 

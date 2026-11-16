@@ -117,4 +117,14 @@ final class ProfileFormStateTests: XCTestCase {
         XCTAssertEqual(["서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"], Region.allCases.map(\.label))
         XCTAssertEqual(["MALE", "FEMALE"], Gender.allCases.map(\.rawValue))
     }
+
+    // 프로필 칸이 원인인 실패만 프로필 화면으로 되돌린다 (KAN-355 리뷰).
+    func test만14세_거절과_재시도불가는_프로필로_되돌리고_다시_누르면_되는_실패는_머문다() {
+        XCTAssertTrue(profileFieldFailure(AuthFailure(.underAge)))
+        XCTAssertTrue(profileFieldFailure(AuthFailure(.unsupported)))
+        XCTAssertFalse(profileFieldFailure(AuthFailure(.retry)))
+        XCTAssertFalse(profileFieldFailure(AuthFailure(.retryLater)))
+        XCTAssertFalse(profileFieldFailure(AuthFailure(.rateLimited, retryAfterSeconds: 3)))
+        XCTAssertFalse(profileFieldFailure(nil))
+    }
 }
