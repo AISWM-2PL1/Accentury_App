@@ -192,13 +192,18 @@ describe('courseStarsChange — 성적표 「코스 별」 (4-4)', () => {
   })
 
   it('전 값은 들어가기 전 코스 별, 뒤 값·필요 별은 다시 받은 구간 요약이다', () => {
-    expect(courseStarsChange(1, { collected: 5 }, levels(7))).toEqual({ course: 1, before: 5, after: 7, required: 21, unlocked: null })
+    expect(courseStarsChange(1, { collected: 5 }, levels(7))).toEqual({ course: 1, before: 5, after: 7, required: 21, unlocked: null, hasNext: true })
   })
 
   it('필요 별에 처음 닿으면 다음 코스 번호, 이미 넘겼거나 다음 코스가 없으면 null', () => {
     expect(courseStarsChange(1, { collected: 20 }, levels(21))?.unlocked).toBe(2)
     expect(courseStarsChange(1, { collected: 21 }, levels(23))?.unlocked).toBeNull()
     expect(courseStarsChange(1, { collected: 20 }, levels(21, false))?.unlocked).toBeNull()
+  })
+
+  it('hasNext — 다음 코스가 있으면 true, 마지막 코스면 false', () => {
+    expect(courseStarsChange(1, { collected: 5 }, levels(7))?.hasNext).toBe(true)
+    expect(courseStarsChange(1, { collected: 5 }, levels(7, false))?.hasNext).toBe(false)
   })
 
   it('KAN-359 전(전 값 없음·요약 없음·그 구간 없음)이면 null — 줄을 숨긴다', () => {

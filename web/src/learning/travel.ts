@@ -244,6 +244,8 @@ export interface CourseStarsChange {
   after: number
   required: number
   unlocked: number | null
+  /** 다음 코스가 있는지. 마지막 코스면 false — 「다음 코스까지」 문구를 그리지 않는다 */
+  hasNext: boolean
 }
 
 /** 들어가기 전 코스 별(`TravelCourse.stars`)과 끝난 뒤 다시 받은 구간 요약을 견준다. 어느 쪽이든 없으면(KAN-359 전) null — 줄을 숨긴다 */
@@ -262,5 +264,6 @@ export function courseStarsChange(
     after: level.collectedStars,
     required: level.requiredStars,
     unlocked: reached && next ? course + 1 : null,
+    hasNext: next,
   }
 }

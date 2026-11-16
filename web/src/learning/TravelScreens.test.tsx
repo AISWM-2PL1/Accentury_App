@@ -138,6 +138,14 @@ describe('사투리 여행 지도 (s-11)', () => {
     expect(within(card).getByRole('img', { name: '별 5개, 다음 코스에 필요한 별 21개' })).toHaveTextContent('5 / 21')
   })
 
+  it('마지막 코스의 카드 별 이름에는 「다음 코스에」가 없다 (PR #76 리뷰)', async () => {
+    renderRoute(routesOf(['w1', 'w2', 'w3', 'w4', 'k1', 'k2', 'k3', 'k4', 'k5'], levels(21, true, 9)))
+    await mapHeading()
+    const card = screen.getByRole('region', { name: '지금 코스' })
+    expect(card).toHaveTextContent('2코스')
+    expect(within(card).getByRole('img', { name: '별 0개, 필요한 별 21개' })).toHaveTextContent('0 / 21')
+  })
+
   it('[시작]은 지금 스탬프로 바로 들어가고, 스탬프 안에는 탭 바가 없다', async () => {
     const { calls } = renderRoute({ ...routesOf(['w1', 'k1'], null), '/v0/learning/word-sets/w2': WORD_SET('w2') })
     await mapHeading()

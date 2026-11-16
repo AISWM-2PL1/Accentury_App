@@ -190,7 +190,7 @@ Playwright가 `webServer.env`를 부모 환경 **위에** 얹으므로 셸의 �
 
 ## 음성 저장 동의 화면은 늘 지난다 (KAN-270, 2026-10-06)
 
-웹 단독 시작 게이트가 [내 억양 테스트하기] → 권한 → **음성 저장 선택 동의** → 지역 →
+웹 단독 시작 게이트가 [레벨 테스트 시작] → 권한 → **음성 저장 선택 동의** → 지역 →
 점검 → 세션 생성이 됐다 (`web/src/legal/VoiceConsentScreen.tsx`, 설계는 [voice-consent.md](voice-consent.md)).
 광고 시트와 달리 늘 뜨는 화면이라 **유무를 보지 않고** 제목을 기다린다 — 안 뜨면 그 자체가
 결함이다. `startTest(page, { voiceConsent })`의 기본은 체크하지 않은 [다음]이고, 본문 단언에
