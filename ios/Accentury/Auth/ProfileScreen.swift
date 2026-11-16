@@ -8,6 +8,9 @@ import SwiftUI
 /// 출신 지역은 KAN-355부터 다음 화면(``RegionSelectScreen``, 지도)이다. [다음]은 저장하지 않고 지역 화면으로 넘어가고, 저장은 지역
 /// 화면의 [다음]에서 두 화면 값을 모아 한 번 한다 — `PUT /v0/users/me/profile`이 지역을 필수로 받는다. 두 화면이 같은 ``form``을
 /// 보고 이 뷰가 둘을 갈아 끼우므로, 지역 화면에서 왼쪽 가장자리 스와이프로 돌아와도 입력값이 남는다. 지역 화면의 지역 값도 남는다.
+///
+/// 저장이 프로필 칸 때문에 거절되면(만 14세 미만 등, ``AccenturyCore/profileFieldFailure(_:)``) 제출이 끝날 때 프로필 화면으로
+/// 되돌린다 — 생년월일 수정과 [다른 계정으로 로그인]이 거기에만 있다. 이런 실패는 지역 화면 안내로 넘기지 않는다.
 struct ProfileScreen: View {
 
     /// 방금 실패한 제출의 안내 (``AccenturyCore/AuthGateState/needsProfile(_:error:)``)
@@ -40,12 +43,19 @@ struct ProfileScreen: View {
     }
 
     var body: some View {
+        // 같은 거절이 연달아 와도 되돌리도록 error 값이 아니라 제출 종료 시점을 본다.
+        screen.onChange(of: form.submitting) { submitting in
+            if !submitting, profileFieldFailure(error) { choosingRegion = false }
+        }
+    }
+
+    @ViewBuilder private var screen: some View {
         if choosingRegion {
             RegionSelectScreen(
                 selected: form.region,
                 onSelect: { form.region = $0 },
                 busy: form.submitting,
-                failure: error,
+                failure: profileFieldFailure(error) ? nil : error,
                 onBack: { choosingRegion = false },
                 onNext: submit
             )

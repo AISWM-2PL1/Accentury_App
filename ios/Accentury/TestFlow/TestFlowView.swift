@@ -149,6 +149,9 @@ struct TestFlowView: View {
     @State private var currentWebUrl: String?
     /// WebView 로드 실패 화면이 서 있다 (KAN-355). 그 화면이 자기 톱니를 세우므로 아래 ``gearVisible``이 톱니를 숨긴다.
     @State private var webLoadFailed = false
+    /// 녹음 화면의 그만두기 확인 창이 떠 있다 (KAN-355 리뷰). 공용 대화상자는 오버레이 안에 그려지므로 익명 빌드의 톱니가
+    /// 그 위에 눌리지 않게 ``gearVisible``이 숨긴다.
+    @State private var confirmingQuit = false
 
     /// 지금 화면에 서 있는 오버레이 페이즈. 페이즈가 바뀔 때 녹음을 되감을지 정하는 데 쓴다
     /// (안드로이드 `DisposableEffect(phase) { onDispose { ... } }`의 자리).
@@ -627,7 +630,8 @@ struct TestFlowView: View {
                     guard model.onTestQuit() else { return }
                     recording.reset()
                     uploads.teardown()
-                }
+                },
+                confirmingQuit: $confirmingQuit
             )
         }
     }
@@ -647,7 +651,7 @@ struct TestFlowView: View {
     /// 톱니를 세울 화면인가 (KAN-252). 로그인 빌드는 문서 판정(``AccenturyCore/showsSettingsGear(_:)``)에 더해 녹음 오버레이
     /// (레벨 테스트 VOICE 녹음·제출, 억양 학습) 위에서 숨긴다. 익명 빌드는 예전 그대로다. ``nativeCovering``은 따로 본다.
     private var gearVisible: Bool {
-        if webLoadFailed { return false }
+        if webLoadFailed || confirmingQuit { return false }
         guard tabBarEntry else { return true }
         return showsSettingsGear(currentWebUrl) && overlayStart == nil && intonation.start == nil
     }
@@ -986,7 +990,8 @@ private struct RecordingOverlay: View {
     /// 확인 창에서 [그만두기]를 골랐다 (KAN-288). 정리는 호출자가 한다
     let onQuit: () -> Void
 
-    @State private var confirmingQuit = false
+    /// 확인 창이 떠 있는가. 톱니를 숨기려고 ``TestFlowView``가 들고 있다.
+    @Binding var confirmingQuit: Bool
 
     var body: some View {
         RecordingScreen(
@@ -1021,7 +1026,11 @@ private struct RecordingOverlay: View {
         // 화면이 걷히면 마이크를 놓는다. 되감기 판정(`continuesFrom`)은 상위가 하지만, 오버레이
         // 자체가 사라지는 경우(웹으로 돌아감)는 여기서도 한 번 더 막는다 — 상위의 페이즈 변화가
         // 오지 않는 경로(뷰 재구성)에서도 마이크는 반드시 닫혀야 한다.
-        .onDisappear { recording.reset() }
+        // 창을 연 채 화면이 걷혀도(세션 실패 등) 다음 화면의 톱니가 숨은 채 남지 않게 닫는다.
+        .onDisappear {
+            recording.reset()
+            confirmingQuit = false
+        }
     }
 }
 
