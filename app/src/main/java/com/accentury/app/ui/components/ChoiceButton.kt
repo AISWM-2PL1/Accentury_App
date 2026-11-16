@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.accentury.app.ui.theme.ButtonLabel
 import com.accentury.app.ui.theme.Dimens
@@ -38,6 +39,8 @@ import com.accentury.app.ui.theme.accenturyColors
  *
  * 스크린 리더에는 라디오 버튼으로 읽힌다. 묶음을 하나의 그룹으로 읽히게 하는 것(`selectableGroup`)은
  * 부모가 한다 — 한 묶음이 한 행일 수도, 격자일 수도 있어서다.
+ *
+ * @param horizontalPadding 라벨 좌우 여백. 라벨은 가운데라 넘치지 않는 한 모양은 같다 — 좁은 칸(성별 세 칸)만 줄인다
  */
 @Composable
 fun ChoiceButton(
@@ -46,6 +49,7 @@ fun ChoiceButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    horizontalPadding: Dp = Spacing.x3,
 ) {
     val shape = RoundedCornerShape(Radius.md)
     val view = LocalView.current
@@ -66,7 +70,7 @@ fun ChoiceButton(
                 view.performHaptic(Haptic.Tap)
                 onClick()
             }
-            .padding(horizontal = Spacing.x3),
+            .padding(horizontal = horizontalPadding),
         contentAlignment = Alignment.Center,
     ) {
         Text(

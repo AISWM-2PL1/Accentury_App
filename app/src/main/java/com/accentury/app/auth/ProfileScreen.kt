@@ -124,6 +124,7 @@ fun ProfileScreen(
             )
 
             ChoiceGroup(title = "성별 (선택)") {
+                // 폭 360dp에서 칸은 96dp다. 기본 여백 12로는 「✓ 선택 안 함」(약 80dp)이 72dp에 잘렸다(에뮬레이터 4차) — 여백 4로 88dp.
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.x3)) {
                     Gender.entries.forEach { gender ->
                         ChoiceButton(
@@ -131,6 +132,7 @@ fun ProfileScreen(
                             selected = form.gender == gender,
                             onClick = { form.gender = gender },
                             modifier = Modifier.weight(1f),
+                            horizontalPadding = Spacing.x1,
                         )
                     }
                     // 성별은 선택 항목이다 (KAN-330, 서버 KAN-328). null과 같은 값이라 처음부터·서버 값이 없을 때 이것이 골라져 있다.
@@ -139,6 +141,7 @@ fun ProfileScreen(
                         selected = form.gender == null,
                         onClick = { form.gender = null },
                         modifier = Modifier.weight(1f),
+                        horizontalPadding = Spacing.x1,
                     )
                 }
             }
