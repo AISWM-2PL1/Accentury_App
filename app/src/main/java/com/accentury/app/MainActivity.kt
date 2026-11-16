@@ -150,7 +150,7 @@ import com.accentury.app.upload.UploadState
 import com.accentury.app.upload.UploadViewModel
 import com.accentury.app.web.AppLinkEntry
 import com.accentury.app.web.ExternalBrowser
-import com.accentury.app.web.LEARN_SCREEN
+import com.accentury.app.web.LEARN_ENTRY_SCREEN
 import com.accentury.app.web.TestEntry
 import com.accentury.app.web.WebViewHost
 import com.accentury.app.web.appLinkOrigins
@@ -1253,12 +1253,13 @@ private fun TestFlow(
                 intonationStart != null -> {
                     BackHandler(onBack = intonation::close)
                     // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close 다음 학습 탭 문서를 다시 열어
-                    // 사투리 여행 지도(학습 탭의 첫 화면)로 간다 (KAN-354 5단계 — 억양 탭이 학습 탭 `learn`으로 합쳐졌다).
+                    // 사투리 여행 지도(학습 탭의 첫 화면)로 간다 (KAN-354 5단계 — 억양 탭이 학습 탭으로 합쳐졌다). 보내는 값은
+                    // 배포된 웹이 아는 `intonation`이다([LEARN_ENTRY_SCREEN], 2026-11-16 결정).
                     // 오버레이만 닫으면 대사 카드가 남아 한 번 더 눌러야 했다. 뒤로가기는 그대로 카드로 간다. 권한 화면에서도 같다.
                     // 녹음 화면에서는 레벨 테스트와 같은 앱바 ✕로 선다 (KAN-354 시안 s-17).
                     val closeIntonation: () -> Unit = {
                         intonation.close()
-                        webTabUrl(webUrl, LEARN_SCREEN)?.let { webView?.navigateInApp(it, allowedOrigins) }
+                        webTabUrl(webUrl, LEARN_ENTRY_SCREEN)?.let { webView?.navigateInApp(it, allowedOrigins) }
                     }
                     if (!intonationMicOk) {
                         PermissionGate(onGranted = { intonationMicOk = true })

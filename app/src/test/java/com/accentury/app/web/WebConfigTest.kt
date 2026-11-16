@@ -344,14 +344,15 @@ class WebConfigTest {
     }
 
     @Test
-    fun `억양 녹음 ✕의 목적지는 현재 문서의 screen만 learn으로 바꾼 학습 탭 문서다`() {
-        assertEquals("learn", LEARN_SCREEN)
+    fun `억양 녹음 ✕의 목적지는 현재 문서의 screen만 intonation으로 바꾼 학습 탭 문서다`() {
+        // 배포된 웹이 learn을 몰라 당분간 intonation을 보낸다 (2026-11-16 결정, PR #74 리뷰)
+        assertEquals("intonation", LEARN_ENTRY_SCREEN)
         listOf("$app&screen=learn", "$app&screen=intonation", home).forEach { from ->
-            assertEquals(from, "$app&screen=learn", webTabUrl(from, LEARN_SCREEN))
+            assertEquals(from, "$app&screen=intonation", webTabUrl(from, LEARN_ENTRY_SCREEN))
         }
         assertEquals(
-            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=learn",
-            webTabUrl("$app&screen=intonation&adConsent=open&c=abc#x", LEARN_SCREEN),
+            "https://web.example.com/?bridge=2&app=1.0&c=abc&screen=intonation",
+            webTabUrl("$app&screen=learn&adConsent=open&c=abc#x", LEARN_ENTRY_SCREEN),
         )
     }
 
@@ -377,7 +378,7 @@ class WebConfigTest {
     fun `홈 이어가기의 resume 플래그는 뒤로가기·억양 ✕·광고 동의 URL에 따라가지 않는다`() {
         val resumed = "$app&screen=intonation&resume=1&c=abc"
         assertEquals("$app&c=abc&screen=home", webBackTarget(resumed, startRequested = false))
-        assertEquals("$app&c=abc&screen=learn", webTabUrl(resumed, LEARN_SCREEN))
+        assertEquals("$app&c=abc&screen=intonation", webTabUrl(resumed, LEARN_ENTRY_SCREEN))
         assertEquals("$app&c=abc&screen=home&adConsent=open", webAdConsentUrl(resumed, startRequested = false))
     }
 
