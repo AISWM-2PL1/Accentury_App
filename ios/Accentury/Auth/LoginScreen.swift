@@ -282,11 +282,11 @@ struct ConsentCheckMark: View {
 /// IdP 버튼 값 (KAN-355 2단계, 시안 s-01-login `.p1-brand`). 면·글자 색은 각 사 가이드 값이라 Papercut 팔레트에 두지 않고
 /// 여기 한곳에 모은다(출처는 docs/wiki/social-login-logos.md).
 private enum IdpBrand {
-    static let height: CGFloat = 48
+    static let height: CGFloat = 44
     static let cornerRadius: CGFloat = 12
     static let buttonSpacing: CGFloat = 10
-    /// 시스템 글꼴 19 Medium — 시스템 Apple 버튼(높이 48)이 그리는 글자와 같은 크기로 맞춘다(2026-11-17, 캡처 실측 15×1.26). 시안 15에서 올렸다. Jua 라벨 규칙은 받지 않는다.
-    static let labelSize: CGFloat = 19
+    /// 시스템 글꼴 17 Medium — 시스템 Apple 버튼(높이 44)이 그리는 글자와 같은 크기로 맞춘다(2026-11-17 캡처 실측). Apple 글자는 높이에 비례해 정해진다(48이면 19). Jua 라벨 규칙은 받지 않는다.
+    static let labelSize: CGFloat = 17
     /// 로고+라벨 묶음 양옆 최소 여백.
     static let labelInset: CGFloat = 16
     /// 로고와 라벨 사이 — 로고는 라벨 바로 앞에 붙어 함께 가운데에 선다(시스템 Apple 버튼과 같은 배치, 2026-11-17).
