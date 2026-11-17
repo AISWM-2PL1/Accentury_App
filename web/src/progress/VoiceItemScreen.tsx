@@ -206,6 +206,8 @@ export function VoiceItemScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const cue = emotionCue(item.emotion)
+
   return (
     <>
       {/*
@@ -219,10 +221,14 @@ export function VoiceItemScreen({
           같은 말을 카드 위아래에서 두 번 하고 있었고, 아래 줄이 대사와 곡선 사이를 갈라
           "읽을 문장"과 "그 문장의 억양"이 한 덩어리로 보이지 않았다.
         */}
-        <span className="type-caption prompt-card__badge">
-          {itemCaption('VOICE', itemNumber, totalItems)}
-        </span>
+        {cue === null && (
+          <span className="type-caption prompt-card__badge">
+            {itemCaption('VOICE', itemNumber, totalItems)}
+          </span>
+        )}
         <h1 className="type-headline">{item.prompt}</h1>
+        {/* 감정 칩 (KAN-283). 네이티브 녹음 화면(Android `emotionCue`·iOS `PromptCard`)과 같은 규칙 — 칩이 서면 캡션 줄이 빠진다 */}
+        {cue !== null && <span className="prompt-card__cue">{cue}</span>}
       </div>
       {bridgeAccepted === false ? (
         /*
@@ -305,4 +311,10 @@ export function VoiceItemScreen({
       )}
     </>
   )
+}
+
+/** 감정 칩 문구 (KAN-283). Android `RecordingScreen.emotionCue`와 같은 문구 — 값이 없거나 비면 null */
+export function emotionCue(emotion: string | undefined): string | null {
+  const value = emotion?.trim()
+  return value ? `${value} 느낌으로 말해 주세요` : null
 }
