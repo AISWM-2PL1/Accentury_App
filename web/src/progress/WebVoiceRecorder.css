@@ -52,8 +52,14 @@
   font-size: var(--text-body-sm);
 }
 
-/* 패널 위 여백 16→8. 공용 .item-screen__footer는 그대로 두고 녹음 패널이 든 자리만 */
-.item-screen__footer:has(> .record-foot) {
+/* 마지막 2초 남은 시간 캡슐(32)도 경과 시간 줄과 같은 높이로 — 바뀔 때 패널이 자라 레인을 다시 덮지 않게 (PR #85 리뷰) */
+.record-foot .record-countdown {
+  min-height: 1.125rem;
+  font-size: var(--text-body-sm);
+}
+
+/* 패널 위 여백 16→8. 공용 .item-screen__footer는 그대로 두고 녹음 패널 자리만 — 상태 블록(보내는 중·실패)으로 바뀌어도 같은 값이라 윗선이 움직이지 않는다 */
+.web-recorder__footer {
   padding-top: var(--space-2);
 }
 
