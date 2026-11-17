@@ -764,6 +764,18 @@
   color: var(--color-prompt-card-muted);
 }
 
+/* 감정 칩 (KAN-283) — 네이티브 `PromptCard` 칩과 같은 규격: 잉크 면·크림 글자 12/18·모서리 sm·여백 4 8. 긴 문구는 칩 안에서 줄을 바꾼다 */
+.prompt-card__cue {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-background);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
 
 /* ── 선택지 ── */
 

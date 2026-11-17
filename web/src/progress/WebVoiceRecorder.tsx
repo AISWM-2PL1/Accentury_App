@@ -412,7 +412,7 @@ export function WebVoiceRecorder({
             {/* 소리 원 — 입력 크기에 따라 커지고 작아진다 (타일 2) */}
             <span ref={ringRef} className="record-button__ring" aria-hidden="true" />
             <button type="button" className="record-button record-button--active" aria-label="정지" onClick={() => void stop()}>
-              <StopIcon size={34} />
+              <StopIcon size={28} />
             </button>
           </span>
           <p className="record-hint">녹음 중 · 탭해서 멈추기</p>
@@ -434,7 +434,7 @@ export function WebVoiceRecorder({
           disabled={starting}
           onClick={beginRecording}
         >
-          <MicLineIcon size={34} />
+          <MicLineIcon size={28} />
         </button>
         <p className="record-hint">{starting ? '준비 중…' : '버튼을 눌러 녹음'}</p>
       </div>
@@ -449,7 +449,7 @@ export function WebVoiceRecorder({
         남는다. 단계마다 넣었다 뺐다 하면 그때마다 아래 조작부가 120px씩 오르내린다.
       */}
       <div className="item-screen__body web-recorder__curves">{curveCard}</div>
-      <div className="item-screen__footer">{controls()}</div>
+      <div className="item-screen__footer web-recorder__footer">{controls()}</div>
     </>
   )
 }

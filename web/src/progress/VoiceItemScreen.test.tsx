@@ -307,3 +307,17 @@ describe('대기 푸터의 전송 실패 · [다시 보내기] (KAN-288 6단계)
     expect(screen.getByText('잠시만요…')).toBeInTheDocument()
   })
 })
+
+describe('감정 칩 (KAN-283, 웹 단독 녹음)', () => {
+  it('감정이 있으면 대사 아래 칩을 띄우고 캡션 줄은 빠진다 — 네이티브 PromptCard와 같은 규칙', () => {
+    renderScreen({ item: voiceItem({ emotion: ' 반가운 ' }) })
+    expect(screen.getByText('반가운 느낌으로 말해 주세요')).toHaveClass('prompt-card__cue')
+    expect(document.querySelector('.prompt-card__badge')).toBeNull()
+  })
+
+  it('감정이 없거나 비면 칩 없이 캡션 줄만', () => {
+    renderScreen({ item: voiceItem({ emotion: '  ' }) })
+    expect(document.querySelector('.prompt-card__cue')).toBeNull()
+    expect(document.querySelector('.prompt-card__badge')).not.toBeNull()
+  })
+})

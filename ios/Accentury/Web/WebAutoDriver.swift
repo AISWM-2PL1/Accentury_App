@@ -163,7 +163,8 @@ final class WebAutoDriver {
               return "vocab:" + (p ? textOf(p) : "?");
             }
             if (name === "voice") {
-              var badge = document.querySelector(".prompt-card__badge");
+              /* 감정 문항(KAN-283)은 배지 대신 칩이 서서 배지가 없다 — 그때는 대사로 가른다 */
+              var badge = document.querySelector(".prompt-card__badge") || document.querySelector(".prompt-card h1");
               return "voice:" + (badge ? textOf(badge) : "?");
             }
             if (name === "status") {

@@ -20,8 +20,47 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   text-align: center;
+}
+
+/*
+ * 녹음 패널의 원 버튼·경과 시간을 줄인다 (2026-11-17). iPhone 14 Pro Safari(393×659)에서 녹음을 시작하면 경과 시간 줄이
+ * 생겨 바닥에 붙은 패널이 「내 억양」 레인을 48px 덮었다. 버튼 80→64(터치 하한 48 위), 바깥 고리 14→8, 경과 시간 20→15, 패널 위 여백 16→8.
+ * 목소리 점검 화면의 같은 버튼(`.record-foot` 밖)은 그대로다
+ */
+.record-foot .record-button {
+  width: 64px;
+  height: 64px;
+}
+
+.record-foot .record-button--active {
+  outline-width: 2px;
+  outline-offset: 4px;
+}
+
+/* 바깥 고리(8)·윤곽(2+4)은 자리를 차지하지 않고 위아래 간격(8) 안에 그려진다 */
+.record-foot .record-button__wrap {
+  margin: 0;
+}
+
+.record-foot .record-button__ring {
+  inset: -8px;
+}
+
+.record-foot .record-elapsed {
+  font-size: var(--text-body-sm);
+}
+
+/* 마지막 2초 남은 시간 캡슐(32)도 경과 시간 줄과 같은 높이로 — 바뀔 때 패널이 자라 레인을 다시 덮지 않게 (PR #85 리뷰) */
+.record-foot .record-countdown {
+  min-height: 1.125rem;
+  font-size: var(--text-body-sm);
+}
+
+/* 패널 위 여백 16→8. 공용 .item-screen__footer는 그대로 두고 녹음 패널 자리만 — 상태 블록(보내는 중·실패)으로 바뀌어도 같은 값이라 윗선이 움직이지 않는다 */
+.web-recorder__footer {
+  padding-top: var(--space-2);
 }
 
 .record-foot--review {
