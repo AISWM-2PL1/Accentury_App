@@ -308,7 +308,7 @@
 .stamp-done-badge {
   position: fixed;
   top: calc((var(--app-bar-height) - var(--touch-target-min)) / 2 + env(safe-area-inset-top));
-  right: var(--screen-padding-x);
+  right: calc(var(--app-gutter) + var(--screen-padding-x));
   z-index: 1;
   display: flex;
   align-items: center;
