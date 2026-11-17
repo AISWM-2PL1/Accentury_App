@@ -45,10 +45,11 @@ jobs:
               - 'fixtures/**'
               - '.github/workflows/test.yml'
             # 디자인 토큰 대조 (KAN-148, KAN-361). 두 스크립트가 읽는 파일만 넣는다 - 정본, 네이티브
-            # Color.kt와 Type.kt, 웹 tokens.css. 한쪽만 고친 PR이 여기서 걸린다.
+            # Color.kt와 Type.kt, iOS PapercutTheme.swift, 웹 tokens.css. 한쪽만 고친 PR이 여기서 걸린다.
             tokens:
               - 'docs/wiki/design-tokens.md'
               - 'app/src/main/java/com/accentury/app/ui/theme/**'
+              - 'ios/Accentury/UI/Theme/**'
               - 'web/src/tokens.css'
               - 'tools/check_*.py'
               - '.github/workflows/test.yml'
@@ -176,7 +177,7 @@ jobs:
       # tsc --noEmit + vite build - 타입 오류와 번들 실패를 PR에서 잡는다
       - run: npm run build
 
-  # 정본(docs/wiki/design-tokens.md)과 두 사본(네이티브 theme, 웹 tokens.css)의 대조 (KAN-361).
+  # 정본(docs/wiki/design-tokens.md)과 사본(Android theme, iOS PapercutTheme.swift, 웹 tokens.css)의 대조 (KAN-361).
   # 레포 분리(KAN-221) 뒤 스크립트가 Accentury_Server에 남아 읽을 파일이 없었고 CI에도 없었다 -
   # 그 사이 정본 표 형식이 바뀌어(KAN-313 웹 rem 열) 타이포 대조가 꺼져 있었다. 표준 라이브러리만 쓴다.
   tokens-check:

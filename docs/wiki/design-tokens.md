@@ -18,10 +18,10 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `app/src/main/java/com/accentury/app/ui/theme/Type.kt` | 사본 — 타이포 |
 | `app/src/main/java/com/accentury/app/ui/theme/Dimens.kt` | 사본 — 간격·반경·터치 타겟·모션 |
 | `web/src/tokens.css` | 사본 — 전체 (CSS 커스텀 프로퍼티) |
-| `tools/check_tokens.py` | 정본과 두 사본의 색 값, 타이포 크기(sp와 웹 rem)와 굵기가 일치하는지 검사 |
-| `tools/check_contrast.py` | §6 대비 표를 생성(`--write`)하고, 문서가 낡았는지 검사 |
+| `tools/check_tokens.py` | 정본과 두 사본의 색 값, 타이포 크기(sp와 웹 rem)와 굵기가 일치하는지 검사. iOS `PapercutTheme.swift`의 팔레트 여섯 색과 타이포 슬롯(크기, 굵기, Jua 여부)도 대조한다 |
+| `tools/check_contrast.py` | §2 표의 값으로 §6 대비 표를 생성(`--write`)하고, 문서가 낡았는지 검사 |
 
-두 스크립트는 PR에서 `test.yml`의 `tokens-check` job이 돈다(이 문서, 네이티브 theme 폴더, `tokens.css`, 스크립트가 바뀐 PR만). 레포 분리(KAN-221) 뒤 Accentury_Server에 남아 있다가 KAN-361에서 이 레포로 옮겼다. `Dimens.kt`의 간격과 반경은 아직 기계 대조가 없다.
+두 스크립트는 PR에서 `test.yml`의 `tokens-check` job이 돈다(이 문서, Android theme 폴더, iOS Theme 폴더, `tokens.css`, 스크립트가 바뀐 PR만). 대비 검사는 §2 표를 직접 읽으므로, 정본과 사본을 함께 바꾸면 대비 회귀도 같은 PR에서 걸린다. 레포 분리(KAN-221) 뒤 Accentury_Server에 남아 있다가 KAN-361에서 이 레포로 옮겼다. `Dimens.kt`의 간격과 반경은 아직 기계 대조가 없다.
 
 ### 갱신 절차
 
@@ -271,7 +271,7 @@ JS로 돌리고, 동작 줄이기면 끝 값을 바로 그린다.
 
 <!-- check_contrast:begin -->
 WCAG 2.1 AA 일반 텍스트 기준 4.5:1. `python3 tools/check_contrast.py --write`가 쓴 표이고,
-39건 전부 기준을 넘는다 — 감수한 자리는 없다.
+48건 전부 기준을 넘는다. 감수한 자리는 없다.
 
 | 조합 | 비율 | |
 |---|---|---|
@@ -305,6 +305,12 @@ WCAG 2.1 AA 일반 텍스트 기준 4.5:1. `python3 tools/check_contrast.py --wr
 | `prompt-card-muted` / `prompt-card-end` (다크) | 4.96 |  |
 | `point-foreground` / `point` (다크) | 4.60 |  |
 | `point` / `background` (다크) | 4.60 |  |
+| `foreground` / `paper` (라이트) | 15.67 |  |
+| `muted-foreground` / `paper` (라이트) | 5.28 |  |
+| `point` / `paper` (라이트) | 4.89 |  |
+| `foreground` / `paper` (다크) | 15.67 |  |
+| `muted-foreground` / `paper` (다크) | 5.28 |  |
+| `point` / `paper` (다크) | 4.89 |  |
 
 ### 그래픽 오브젝트 (3:1)
 
@@ -321,6 +327,9 @@ F0 곡선·컨트롤 경계는 텍스트가 아니라 WCAG 2.1 **1.4.11 비텍�
 | `control-border` / `card` (라이트) | 14.73 |  |
 | `control-border` / `background` (다크) | 14.73 |  |
 | `control-border` / `card` (다크) | 14.73 |  |
+| `control-border` / `paper` (라이트) | 15.67 |  |
+| `muted-foreground` / `paper` 선택지 테두리 (라이트) | 5.28 |  |
+| `control-border` / `paper` (다크) | 15.67 |  |
 
 ### 기준 대상이 아닌 장식 면
 
