@@ -405,7 +405,7 @@ test('remaining 0 - 결과는 「오늘 0번 남았어요」로 보이고, 다�
   expect(requests).toHaveLength(1)
 })
 
-test('429 TRANSLATION_DAILY_LIMIT_EXCEEDED - 결과 카드 자리에 「이용 안내」 + 제목 + 서버 문구, ↓ 비활성, 다시 시도 없음', async ({ page }) => {
+test('429 TRANSLATION_DAILY_LIMIT_EXCEEDED - 결과 카드 자리에 「이용 안내」 + 두 줄, ↓ 비활성, 다시 시도 없음', async ({ page }) => {
   await asApp(page)
   await consented(page)
   await stubTranslations(page, (route) => route.fulfill({ status: 429, json: envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false) }))
@@ -416,20 +416,20 @@ test('429 TRANSLATION_DAILY_LIMIT_EXCEEDED - 결과 카드 자리에 「이용 �
   const card = page.locator('.translator-card--limit')
   await expect(card.getByText('이용 안내', { exact: true })).toBeVisible()
   await expect(card.getByText(LIMIT_TITLE, { exact: true })).toBeVisible()
-  // 본문은 서버 문구다 (KAN-361) - 같은 코드로 성공 5건 소진과 LLM 호출 20번 소진이 오고 문구만 다르다
-  await expect(card.getByText('TRANSLATION_DAILY_LIMIT_EXCEEDED (e2e)', { exact: true })).toBeVisible()
-  await expect(card.getByText(LIMIT_BODY, { exact: true })).toHaveCount(0)
+  // 한도 종류를 읽을 수 없는 문구(`… (e2e)`)라 기본 본문이다 (KAN-361 limitBody)
+  await expect(card.getByText(LIMIT_BODY, { exact: true })).toBeVisible()
   await expect(submit(page)).toBeDisabled()
   await expect(page.getByRole('button', { name: '다시 시도', exact: true })).toHaveCount(0)
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByText('번역한 문장이 여기 나와요', { exact: true })).toHaveCount(0)
 })
 
-test('429 문구가 비었으면 한도 카드 본문은 기본 문구 「번역은 하루 5번까지예요.」다 (KAN-361)', async ({ page }) => {
+test('429 LLM 호출 20번 소진 - 서버 문구에서 한도를 읽어 「번역 요청은 하루 20번까지예요.」, 「5번」이 아니다 (KAN-361)', async ({ page }) => {
   await asApp(page)
   await consented(page)
+  const callLimit = '오늘 번역 요청 횟수(20회)를 다 썼습니다. 내일 다시 시도해 주세요.'
   await stubTranslations(page, (route) =>
-    route.fulfill({ status: 429, json: { ...envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false), message: '' } }),
+    route.fulfill({ status: 429, json: { ...envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false), message: callLimit } }),
   )
   await page.goto(TRANSLATE_URL)
 
@@ -437,7 +437,8 @@ test('429 문구가 비었으면 한도 카드 본문은 기본 문구 「번역
   await submit(page).click()
   const card = page.locator('.translator-card--limit')
   await expect(card.getByText(LIMIT_TITLE, { exact: true })).toBeVisible()
-  await expect(card.getByText(LIMIT_BODY, { exact: true })).toBeVisible()
+  await expect(card.getByText('번역 요청은 하루 20번까지예요.', { exact: true })).toBeVisible()
+  await expect(card.getByText(LIMIT_BODY, { exact: true })).toHaveCount(0)
 })
 
 test('7장 공통 틀 (6-1-1) - 입력·동의 시트·대기·결과·오류 대화상자·입력 오류·한도에서 제목과 입력 카드 윗선·좌우가 같다', async ({ page }) => {

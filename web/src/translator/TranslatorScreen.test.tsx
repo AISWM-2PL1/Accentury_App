@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { WordApiDeps } from '../learning/wordApi'
 import { shareResult } from '../share/shareResult'
-import { TranslatorScreen } from './TranslatorScreen'
+import { TranslatorScreen, limitBody } from './TranslatorScreen'
+
+/** 서버 429 문구 원문 (Accentury_Server `ErrorCode.TRANSLATION_DAILY_LIMIT_EXCEEDED`, `TranslationService.CALL_LIMIT_MESSAGE`). 서버가 바꾸면 같이 바꾼다 */
+const SERVER_DAILY_LIMIT = '오늘 번역 횟수(5회)를 다 썼습니다. 내일 다시 시도해 주세요.'
+const SERVER_CALL_LIMIT = '오늘 번역 요청 횟수(20회)를 다 썼습니다. 내일 다시 시도해 주세요.'
 import { resetTranslatorConsentMemory, TRANSLATOR_CONSENT_KEY, writeTranslatorConsent } from './translatorConsentStore'
 
 vi.mock('../share/shareResult', () => ({ shareResult: vi.fn(() => 'bridge') }))
@@ -345,8 +349,8 @@ describe('남은 횟수와 하루 한도 (KAN-347 6-4·6-6)', () => {
     submit()
     await vi.waitFor(() => expect(limitCard()).not.toBeNull())
     expect(within(limitCard() as HTMLElement).getByRole('heading', { name: '하루 한도를 다 사용했어요.' })).toBeInTheDocument()
-    expect(limitCard()).toHaveTextContent('이용 안내')
-    expect(limitCard()).toHaveTextContent('서버 문구')
+    // 한도 종류를 읽을 수 없는 문구('서버 문구')면 기본 본문이다 (KAN-361)
+    for (const text of LIMIT) expect(limitCard()).toHaveTextContent(text)
     expect(limitCard()).toHaveAttribute('role', 'status')
     expect(goButton()).toBeDisabled()
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -354,31 +358,26 @@ describe('남은 횟수와 하루 한도 (KAN-347 6-4·6-6)', () => {
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
   })
 
-  it('429 본문은 서버 문구다 - 같은 코드로 오는 LLM 호출 20번 소진에 「5번」이라고 하지 않는다 (KAN-361)', async () => {
-    const callLimit = '오늘 번역 요청 횟수(20회)를 다 썼습니다. 내일 다시 시도해 주세요.'
+  it('LLM 호출 20번 소진(같은 429 코드, 서버 문구만 다름)은 「번역 요청은 하루 20번까지예요.」 - 「5번」이라고 하지 않는다 (KAN-361)', async () => {
     setup(
       vi.fn<FetchLike>(async () =>
-        jsonResponse(429, { ...envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false), message: callLimit }),
+        jsonResponse(429, { ...envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false), message: SERVER_CALL_LIMIT }),
       ),
     )
     type('밥 먹었어?')
     submit()
     await vi.waitFor(() => expect(limitCard()).not.toBeNull())
-    expect(limitCard()).toHaveTextContent(callLimit)
+    expect(limitCard()).toHaveTextContent('번역 요청은 하루 20번까지예요.')
     expect(limitCard()).not.toHaveTextContent('번역은 하루 5번까지예요.')
-    expect(goButton()).toHaveAccessibleDescription(`이용 안내 하루 한도를 다 사용했어요. ${callLimit}`)
+    expect(limitCard()).not.toHaveTextContent('습니다')
+    expect(goButton()).toHaveAccessibleDescription('이용 안내 하루 한도를 다 사용했어요. 번역 요청은 하루 20번까지예요.')
   })
 
-  it('429 문구가 비었으면 기본 본문 「번역은 하루 5번까지예요.」로 떨어진다', async () => {
-    setup(
-      vi.fn<FetchLike>(async () =>
-        jsonResponse(429, { ...envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false), message: '  ' }),
-      ),
-    )
-    type('밥 먹었어?')
-    submit()
-    await vi.waitFor(() => expect(limitCard()).not.toBeNull())
-    for (const text of LIMIT) expect(limitCard()).toHaveTextContent(text)
+  it('한도 카드 본문은 서버 문구에서 한도 종류와 숫자만 읽어 해요체로 쓴다 (limitBody, KAN-361)', () => {
+    expect(limitBody(SERVER_DAILY_LIMIT)).toBe('번역은 하루 5번까지예요.')
+    expect(limitBody(SERVER_CALL_LIMIT)).toBe('번역 요청은 하루 20번까지예요.')
+    expect(limitBody('')).toBe('번역은 하루 5번까지예요.')
+    expect(limitBody('서버 문구')).toBe('번역은 하루 5번까지예요.')
   })
 
   it('한도는 이 화면 안에서만 기억한다 — 다시 열면 ↓가 다시 활성', async () => {

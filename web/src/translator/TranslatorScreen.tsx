@@ -56,8 +56,22 @@ export const MAX_CHARS = 100
 
 const TOO_LONG_MESSAGE = '100자까지 쓸 수 있어요'
 const SIGN_IN_MESSAGE = '로그인하면 사투리 번역기를 쓸 수 있어요'
-/** 한도 카드 기본 본문 - 응답 `remaining` 0으로 닫혔거나 429에 문구가 없을 때 (KAN-347 6-6) */
+/** 한도 카드 기본 본문 - 응답 `remaining` 0으로 닫혔거나 429 문구에서 한도 종류를 못 읽었을 때 (KAN-347 6-6) */
 const LIMIT_BODY = '번역은 하루 5번까지예요.'
+
+/**
+ * 429 `TRANSLATION_DAILY_LIMIT_EXCEEDED`의 한도 카드 본문 (KAN-361). 서버는 같은 코드로 두 한도를 보내고 문구만 다르다 -
+ * 성공 5건 소진은 「오늘 번역 횟수(5회)를 …」, LLM 호출 20번 소진은 「오늘 번역 요청 횟수(20회)를 …」(KAN-322). 서버 오류
+ * 문구는 합쇼체라 카드 제목(해요체)과 한 카드에 섞이므로, 문구에서 한도 종류와 숫자만 읽어 해요체로 다시 쓴다. 읽지 못하면
+ * 기본 본문이다 - 서버 문구를 바꾸면 이 판별과 `TranslatorScreen.test.tsx`의 서버 문구 상수를 같이 바꾼다.
+ */
+export function limitBody(serverMessage: string): string {
+  const calls = /요청 횟수\((\d+)회\)/.exec(serverMessage)
+  if (calls) return `번역 요청은 하루 ${calls[1]}번까지예요.`
+  const translations = /번역 횟수\((\d+)회\)/.exec(serverMessage)
+  if (translations) return `번역은 하루 ${translations[1]}번까지예요.`
+  return LIMIT_BODY
+}
 const STANDARD = '표준어'
 const DIALECT = '경남 사투리'
 /** 입력을 고치면 풀리는 재시도 불가 오류. 이것만 입력 카드 아래 줄과 `aria-invalid`로 간다 */
@@ -101,7 +115,7 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
   const [consentPending, setConsentPending] = useState<string | null>(null)
   /**
    * 오늘 한도를 다 썼을 때 한도 카드 본문(429 또는 응답 `remaining` 0). null이면 한도 전이다. 화면을 다시 열면 잊는다 - 다음 날
-   * 판단은 서버가 한다. 429는 서버 문구를 쓴다(KAN-361) - 같은 코드로 성공 5건 소진과 LLM 호출 20번 소진이 오고 문구만 다르다
+   * 판단은 서버가 한다. 429는 서버 문구에서 한도 종류를 읽는다(`limitBody`, KAN-361)
    */
   const [limitMessage, setLimitMessage] = useState<string | null>(null)
   const limitReached = limitMessage !== null
@@ -150,7 +164,7 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
       (error: unknown) => {
         if (requestId.current !== id) return
         const e = error instanceof WordLearningError ? error : new WordLearningError(String(error), null, true)
-        if (e.code === TRANSLATION_DAILY_LIMIT_EXCEEDED) setLimitMessage(e.message.trim() || LIMIT_BODY)
+        if (e.code === TRANSLATION_DAILY_LIMIT_EXCEEDED) setLimitMessage(limitBody(e.message))
         // 400은 빈 입력과 같은 처리다 (ux-ui 상태 표) — FE 검증을 지나 왔다면 보일 것이 없다. 429 한도는 한도 카드가 말한다
         if (e.code === VALIDATION_FAILED || e.code === TRANSLATION_DAILY_LIMIT_EXCEEDED) setStatus({ kind: 'idle' })
         else if (e.retryable) setStatus({ kind: 'failed', retryText: input })

@@ -230,7 +230,8 @@ export interface WordAnswerSubmission {
 
 /**
  * 답안 제출과 채점 (W-4). `ITEM_ALREADY_ANSWERED`(409)도 오류로 던진다 — 머리 주석. 시간 초과 답안(`choiceId: null`)은
- * KAN-360 서버만 받는다(전에는 400) — 그래서 5초 제한은 설정값으로 꺼 둔다(`wordTimer.ts`).
+ * KAN-360 서버만 받는다(전에는 400). 5초 제한은 늘 켜져 있으므로(`wordTimer.ts`, KAN-361) prod에는 KAN-360 서버 Release가
+ * 웹보다 먼저 나가야 한다.
  * 그 밖의 코드: 400 `VALIDATION_FAILED`, 403 `LEARNING_ATTEMPT_FORBIDDEN`, 404
  * `LEARNING_ATTEMPT_NOT_FOUND`, 409 `LEARNING_ATTEMPT_COMPLETED`, 422 `ITEM_NOT_IN_VERSION`, 429.
  */
