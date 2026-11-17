@@ -13,6 +13,7 @@ jobs:
       app: ${{ steps.filter.outputs.app }}
       ios: ${{ steps.filter.outputs.ios }}
       web: ${{ steps.filter.outputs.web }}
+      tokens: ${{ steps.filter.outputs.tokens }}
     steps:
       # pull_request 이벤트에서는 checkout 없이 GitHub API로 변경 파일을 조회한다
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -42,6 +43,14 @@ jobs:
             web:
               - 'web/**'
               - 'fixtures/**'
+              - '.github/workflows/test.yml'
+            # 디자인 토큰 대조 (KAN-148, KAN-361). 두 스크립트가 읽는 파일만 넣는다 - 정본, 네이티브
+            # Color.kt와 Type.kt, 웹 tokens.css. 한쪽만 고친 PR이 여기서 걸린다.
+            tokens:
+              - 'docs/wiki/design-tokens.md'
+              - 'app/src/main/java/com/accentury/app/ui/theme/**'
+              - 'web/src/tokens.css'
+              - 'tools/check_*.py'
               - '.github/workflows/test.yml'
 
   app-test:
@@ -166,6 +175,19 @@ jobs:
       - run: npm test
       # tsc --noEmit + vite build - 타입 오류와 번들 실패를 PR에서 잡는다
       - run: npm run build
+
+  # 정본(docs/wiki/design-tokens.md)과 두 사본(네이티브 theme, 웹 tokens.css)의 대조 (KAN-361).
+  # 레포 분리(KAN-221) 뒤 스크립트가 Accentury_Server에 남아 읽을 파일이 없었고 CI에도 없었다 -
+  # 그 사이 정본 표 형식이 바뀌어(KAN-313 웹 rem 열) 타이포 대조가 꺼져 있었다. 표준 라이브러리만 쓴다.
+  tokens-check:
+    needs: changes
+    if: needs.changes.outputs.tokens == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 tools/check_tokens.py
+      # 인자 없이 돌리면 §6 대비 표가 팔레트와 어긋났는지만 본다 (고칠 때는 --write)
+      - run: python3 tools/check_contrast.py
 
   # 브라우저 E2E (KAN-181)는 2026-09-05에 CI에서 내렸다 (KAN-22). 그 job은 로컬 풀스택
   # (DB + AI + BE, 지금은 Accentury_Server 루트 compose) 위에서 돌았는데, AI 서버의 베이스가 채점

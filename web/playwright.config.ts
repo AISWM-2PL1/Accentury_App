@@ -147,12 +147,6 @@ export default defineConfig({
            * `web/.env.local`에 이 값이 켜져 있으면 끈 판이 그 기계에서 영영 돌지 않는다.
            */
           VITE_STORE_LISTING_READY: process.env.VITE_STORE_LISTING_READY ?? '',
-          /*
-           * 단어 문항 5초 제한(KAN-347 4-2). 배포 기본은 꺼짐(서버 KAN-360 전)이지만 E2E는 켠 판을 본다 — 시간 초과 스펙
-           * (`word-learning.spec.ts` 맨 아래)이 이 막대를 기다린다. 꺼진 판은 단위 테스트(`WordLearningScreens.test.tsx`)가 고정한다.
-           * `E2E_BASE_URL`로 직접 띄운 서버를 겨눌 때는 그 서버에 `VITE_WORD_TIME_LIMIT=true`를 같이 준다
-           */
-          VITE_WORD_TIME_LIMIT: process.env.VITE_WORD_TIME_LIMIT ?? 'true',
         },
       },
 })

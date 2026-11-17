@@ -128,6 +128,7 @@ val DarkAccent = Color(0xFF1C1A17)
 val DarkAccentForeground = Color(0xFFF3ECD9)
 val DarkPoint = Color(0xFFA8503A)
 val DarkPointForeground = Color(0xFFF3ECD9)
+val DarkPaper = Color(0xFFF8F3E6)
 
 val DarkSuccess = Color(0xFF1C1A17)
 val DarkSuccessForeground = Color(0xFFF3ECD9)

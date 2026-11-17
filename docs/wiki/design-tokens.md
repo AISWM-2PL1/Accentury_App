@@ -18,14 +18,16 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `app/src/main/java/com/accentury/app/ui/theme/Type.kt` | 사본 — 타이포 |
 | `app/src/main/java/com/accentury/app/ui/theme/Dimens.kt` | 사본 — 간격·반경·터치 타겟·모션 |
 | `web/src/tokens.css` | 사본 — 전체 (CSS 커스텀 프로퍼티) |
-| `tools/check_tokens.py` | 정본과 두 사본의 색 값이 일치하는지 검사 |
+| `tools/check_tokens.py` | 정본과 두 사본의 색 값, 타이포 크기(sp와 웹 rem)와 굵기가 일치하는지 검사 |
 | `tools/check_contrast.py` | §6 대비 표를 생성(`--write`)하고, 문서가 낡았는지 검사 |
+
+두 스크립트는 PR에서 `test.yml`의 `tokens-check` job이 돈다(이 문서, 네이티브 theme 폴더, `tokens.css`, 스크립트가 바뀐 PR만). 레포 분리(KAN-221) 뒤 Accentury_Server에 남아 있다가 KAN-361에서 이 레포로 옮겼다. `Dimens.kt`의 간격과 반경은 아직 기계 대조가 없다.
 
 ### 갱신 절차
 
 1. 이 문서의 값 표(§2 색, §3 타이포, §4 간격)를 고친다. §6 대비 표는 손대지 않는다 — 4번이 대신 쓴다.
 2. 같은 커밋에서 `Color.kt`·`Type.kt`·`Dimens.kt`·`tokens.css`를 함께 고친다. **한쪽만 고친 커밋은 리뷰에서 반려한다** — 네이티브와 웹이 한 테스트 안에서 번갈아 나오므로 값이 갈라지면 화면 경계에서 색이 튄다.
-3. `python3 tools/check_tokens.py`로 정본과 두 사본의 색 값이 일치하는지 확인한다. 한쪽만 고쳤으면 여기서 걸린다.
+3. `python3 tools/check_tokens.py`로 정본과 두 사본의 색 값과 타이포가 일치하는지 확인한다. 한쪽만 고쳤으면 여기서 걸린다. PR에서는 CI가 같은 검사를 돈다.
 4. 색을 새로 추가하거나 바꿨으면 `tools/check_contrast.py`의 `PAIRS`를 같이 고치고 `python3 tools/check_contrast.py --write`를 돌린다. **§6 표는 손으로 고치지 않는다** — 스크립트가 쓰고, 인자 없이 돌리면 문서가 낡았는지까지 검사해 종료 코드 1로 떨어진다.
 5. 팔레트를 다시 손봤으면 §7 "결정 기록"에 근거를 남긴다.
 
@@ -133,6 +135,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `curve-lane-border` | `#1c1a17` |
 | `point` | `#a8503a` |
 | `point-foreground` | `#f3ecd9` |
+| `paper` | `#f8f3e6` |
 
 ## 3. 타이포
 

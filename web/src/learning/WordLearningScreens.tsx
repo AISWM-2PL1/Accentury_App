@@ -16,7 +16,7 @@ import { stampName, type Stamp } from './stampNaming'
 import { StampDoneBadge, StampReward } from './StampReward'
 import { GuestLoginPrompt } from './GuestLoginPrompt'
 import { errorExit, useWordLearning, type WordLearningView } from './useWordLearning'
-import { WORD_TIME_WARNING_MS, useWordCountdown, wordTimeLimitMs } from './wordTimer'
+import { WORD_TIME_LIMIT_MS, WORD_TIME_WARNING_MS, useWordCountdown } from './wordTimer'
 
 // ── 라우트 ──────────────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ export interface WordLearningRouteProps {
   tabBar?: ReactNode
   /** 테스트 주입용 (fetch·토큰 대체) */
   deps?: WordApiDeps
-  /** 문항 제한 시간(ms), null이면 끔. 기본은 설정값(`wordTimeLimitMs`, KAN-360 전 꺼짐). 테스트가 갈아 끼운다 */
+  /** 문항 제한 시간(ms), null이면 끔. 기본은 5초(늘 켜짐, KAN-361). 테스트가 갈아 끼운다 */
   timeLimitMs?: number | null
 }
 
@@ -49,7 +49,7 @@ export function WordLearningRoute({
   exits,
   tabBar,
   deps,
-  timeLimitMs = wordTimeLimitMs(),
+  timeLimitMs = WORD_TIME_LIMIT_MS,
 }: WordLearningRouteProps) {
   const learning = useWordLearning(apiBase, stamp.id, deps, { course: stamp.course, stars: courseStars })
   const { view } = learning
