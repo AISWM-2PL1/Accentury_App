@@ -549,7 +549,7 @@
 .streak-badge {
   position: fixed;
   top: calc((var(--app-bar-height) - var(--touch-target-min)) / 2 + env(safe-area-inset-top));
-  right: var(--screen-padding-x);
+  right: calc(var(--app-gutter) + var(--screen-padding-x));
   z-index: 1;
   display: flex;
   align-items: center;
@@ -1825,7 +1825,7 @@ a.btn {
  */
 .sheet {
   position: fixed;
-  inset: 0;
+  inset: 0 var(--app-gutter);
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -1889,7 +1889,7 @@ a.btn {
  */
 .dialog {
   position: fixed;
-  inset: 0;
+  inset: 0 var(--app-gutter);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -2270,8 +2270,8 @@ a.btn {
  */
 .tab-bar {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: var(--app-gutter);
+  right: var(--app-gutter);
   bottom: 0;
   display: flex;
   padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom));
@@ -2372,8 +2372,8 @@ body:has(.tab-bar) main {
 .app-bar {
   position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
+  left: var(--app-gutter);
+  right: var(--app-gutter);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -2397,7 +2397,7 @@ body:has(.tab-bar) main {
 .close-button {
   position: fixed;
   top: calc((var(--app-bar-height) - var(--touch-target-min)) / 2 + env(safe-area-inset-top));
-  right: var(--space-3);
+  right: calc(var(--app-gutter) + var(--space-3));
   z-index: 1;
   display: flex;
   align-items: center;
