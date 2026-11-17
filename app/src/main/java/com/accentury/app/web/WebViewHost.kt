@@ -18,6 +18,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import com.accentury.app.R
 import com.accentury.app.BuildConfig
 import com.accentury.app.ads.AdConsent
 import com.accentury.app.analytics.CrashReports
@@ -28,7 +31,9 @@ import com.accentury.app.bridge.VoiceItemStart
 import com.accentury.app.ui.components.PaperFailureScreen
 import com.accentury.app.ui.components.PaperWaitingScreen
 import com.accentury.app.ui.components.performHaptic
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.min
 import kotlinx.coroutines.delay
 
 /** 원격 웹 로드의 세 상태. Failed로 가는 길은 명시 오류 콜백과 자체 타임아웃 두 갈래다. */
@@ -71,6 +76,7 @@ sealed interface WebLoadState {
  * @param onRequestLogin 브리지 `requestLogin` (KAN-330). 메인 스레드로 온다
  * @param onWebViewCreated 결과를 웹으로 주입하려면(evaluateJavascript) 상위가 인스턴스를 알아야 한다
  * @param onWebViewReleased 해제된 인스턴스. 상위가 들고 있는 참조를 놓을 자리다
+ * @param onLoadFailedChanged 연결 실패 화면이 섰다(true)·내려갔다(false) (KAN-354). 상위가 그 화면에 설정 톱니를 세운다
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -101,11 +107,14 @@ fun WebViewHost(
     timeoutMs: Long = LOAD_TIMEOUT_MS,
     onWebViewCreated: (WebView) -> Unit = {},
     onWebViewReleased: (WebView) -> Unit = {},
+    onLoadFailedChanged: (Boolean) -> Unit = {},
 ) {
     // 상태 전이 규칙은 WebLoadController에 모여 있다(JVM 테스트 대상). 여기는 결선만 한다.
     val controller = remember { WebLoadController() }
+    val loadFailed = controller.state == WebLoadState.Failed
+    LaunchedEffect(loadFailed) { onLoadFailedChanged(loadFailed) }
 
-    if (controller.state == WebLoadState.Failed) {
+    if (loadFailed) {
         LoadFailureScreen(onRetry = controller::retry, modifier = modifier)
         return
     }
@@ -142,6 +151,26 @@ fun WebViewHost(
                         settings.allowFileAccess = false
                         settings.allowContentAccess = false
                         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                        // OS 글꼴 배율은 textZoom이 아니라 루트 px 주입으로 반영한다 (KAN-332, PR #72 리뷰). textZoom은 모든 글자의
+                        // computed font-size에만 배율을 곱하고 rem 폭·간격·행간은 16px 기준 그대로 둬서(TextZoomMeasureTest 실측:
+                        // textZoom 200에서 10rem 폭 160px, 16px 글자 32px) iOS 주입·KAN-313 E2E의 루트 모델과 결과가 갈린다.
+                        // 기본값도 fontScale을 따르므로(Chromium AwSettings) 100으로 고정해야 주입과 이중 확대되지 않는다.
+                        settings.textZoom = 100
+                        // 루트 px는 문서 시작 스크립트로 첫 렌더 전에 심는다 — 웹은 첫 렌더 전 syncLargeText()가 루트 computed를
+                        // 읽어 큰 글자 표식을 단다. 미지원 WebView는 onPageFinished에서 늦게 심고 resize로 다시 재게 한다.
+                        // 실행 중 배율 변경은 MainActivity에 configChanges가 없어 Activity째 다시 서고 이 factory가 새 배율로 다시 돈다.
+                        val rootFontScript = webRootFontScript(webRootFontPx(context.resources.configuration.fontScale))
+                        val documentStartSupported =
+                            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
+                        if (documentStartSupported) {
+                            // allowedOriginRules 형식은 SCHEME://HOST[:PORT]로 webOrigin()의 값과 같아 그대로 넘긴다.
+                            // https://developer.android.com/reference/androidx/webkit/WebViewCompat#addWebMessageListener
+                            WebViewCompat.addDocumentStartJavaScript(
+                                this,
+                                webDocumentStartScript(rootFontScript),
+                                allowedOrigins,
+                            )
+                        }
                         // 릴리스 빌드에서 원격 디버깅 차단
                         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
@@ -163,6 +192,7 @@ fun WebViewHost(
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
+                                if (!documentStartSupported) view.evaluateJavascript(rootFontScript, null)
                                 controller.onPageFinished()
                             }
 
@@ -258,7 +288,10 @@ private fun LoadingScreen(modifier: Modifier = Modifier) {
     PaperWaitingScreen(title = "사투리 억양 테스트", modifier = modifier)
 }
 
-/** 네이티브 오류 화면 (§6) — 비난 없는 카피 + [다시 시도]. 시안 06b 배치(KAN-288). */
+/**
+ * 네이티브 오류 화면 (§6) — 비난 없는 카피 + [다시 시도]. 예외 화면 서식(KAN-354, 시안 s-15-webview-failed).
+ * 앱바 오른쪽 설정 톱니는 상위(`TestFlow`)가 [WebViewHost]의 `onLoadFailedChanged`를 보고 세운다.
+ */
 @Composable
 private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     PaperFailureScreen(
@@ -267,8 +300,38 @@ private fun LoadFailureScreen(onRetry: () -> Unit, modifier: Modifier = Modifier
         buttonLabel = "다시 시도",
         onButtonClick = onRetry,
         modifier = modifier,
+        icon = R.drawable.ic_offline_24,
+        buttonIcon = R.drawable.ic_refresh_24,
     )
 }
+
+/**
+ * OS 글꼴 배율 → 웹 루트 글자 px (KAN-332). 16 × 배율, 상한 2.0(32px, WCAG 1.4.4 기준), 하한은 두지 않고 OS 값을 따른다.
+ * iOS `webRootFontPx(scale:)`(AccenturyCore `WebTextScale.swift`)와 같은 식·상한이다.
+ */
+internal fun webRootFontPx(fontScale: Float): Double = 16.0 * min(fontScale.toDouble(), 2.0)
+
+/**
+ * 루트 글자 크기를 심고 `resize`를 보내는 스크립트 (KAN-332). iOS `webRootFontScript(px:)`와 **같은 문자열**이다 — 웹 `main.tsx`가
+ * `resize`마다 `syncLargeText()`로 루트 크기를 다시 잰다. px는 소수 4자리에서 자르고 끝의 0을 지운다(17.6 → "17.6px",
+ * 32 → "32px"). `Locale.ROOT`라 기기 로케일이 소수점을 쉼표로 바꾸지 않는다.
+ */
+internal fun webRootFontScript(px: Double): String {
+    val text = String.format(Locale.ROOT, "%.4f", px).trimEnd('0').trimEnd('.')
+    return "document.documentElement.style.fontSize='${text}px';window.dispatchEvent(new Event('resize'));"
+}
+
+/**
+ * [script]를 문서 시작 시점에 안전하게 돌리는 포장 (KAN-332). androidx.webkit 문서상 문서 시작 스크립트는 "DOM tree might not be
+ * ready"라 `document.documentElement`가 아직 없을 수 있다(TextZoomMeasureTest가 실측해 로그로 남긴다). 있으면 바로, 없으면
+ * `html` 요소가 붙는 순간(MutationObserver, 다음 파서 스크립트 실행 전 마이크로태스크)에 돌린다. 하는 일은 iOS 스크립트와 같다 —
+ * iOS `.atDocumentStart`는 WebKit이 문서 요소를 만든 뒤 돌려 포장이 필요 없다.
+ * https://developer.android.com/reference/androidx/webkit/WebViewCompat#addDocumentStartJavaScript(android.webkit.WebView,java.lang.String,java.util.Set%3Cjava.lang.String%3E)
+ */
+internal fun webDocumentStartScript(script: String): String =
+    "(function(){function a(){$script}if(document.documentElement){a();return;}" +
+        "new MutationObserver(function(m,o){if(document.documentElement){o.disconnect();a();}})" +
+        ".observe(document,{childList:true});})();"
 
 /**
  * 앱 안 이동 (KAN-290). 웹 SPA 라우터([spaNavigateJs])가 처리하면 문서를 다시 읽지 않고, 아니면(구버전 웹 등) loadUrl로 폴백한다.

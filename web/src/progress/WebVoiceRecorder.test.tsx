@@ -67,6 +67,15 @@ function renderRecorder(
   return { capture, upload, onUploaded }
 }
 
+/** 소리 원처럼 DOM을 직접 짚는 케이스용 — [renderRecorder]와 같은 기본값에 container를 더 준다 */
+function renderRecorderWithContainer() {
+  const capture = createFakeCapture()
+  const view = render(
+    <WebVoiceRecorder item={voiceItem()} itemNumber={3} upload={okUpload()} onUploaded={vi.fn()} capture={capture.factory} />,
+  )
+  return { capture, container: view.container }
+}
+
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
 
 /** GA4 태그 자리의 대역 (KAN-33). 도착한 이벤트를 순서대로 모은다 */
@@ -99,8 +108,13 @@ describe('녹음 단계 (§5.7)', () => {
   it('처음에는 안내와 [녹음]만 보인다', () => {
     renderRecorder()
 
-    expect(screen.getByText('버튼을 누르고 문장을 읽어 주세요')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '녹음' })).toBeInTheDocument()
+    // 대기 (시안 s-06-recording-idle): 가이드·내 억양 곡선 카드 + 마이크 원 버튼 + 「버튼을 눌러 녹음」
+    expect(screen.getByText('버튼을 눌러 녹음')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '녹음' })).toHaveClass('record-button')
+    expect(screen.getByLabelText('가이드 억양 곡선')).toBeInTheDocument()
+    expect(screen.getByLabelText('내 억양 곡선')).toBeInTheDocument()
+    // 브라우저 녹음 화면에는 나가기 ×가 없다 — ×와 확인 창은 네이티브 녹음 화면에만 있다 (KAN-147, 티켓 7-5)
+    expect(screen.queryByRole('button', { name: /닫기|그만/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다음' })).not.toBeInTheDocument()
   })
 
@@ -126,6 +140,31 @@ describe('녹음 단계 (§5.7)', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '정지' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '녹음' })).not.toBeInTheDocument()
+    expect(screen.getByText('녹음 중 · 탭해서 멈추기')).toBeInTheDocument()
+  })
+
+  it('녹음 중 소리 원이 입력 크기에 반응한다 — 크게 말하면 커지고 조용하면 0이다 (움직임 타일 2)', async () => {
+    const { capture, container } = renderRecorderWithContainer()
+
+    click('녹음')
+    await act(async () => {})
+    const ring = () => container.querySelector<HTMLElement>('.record-button__ring')!
+    await act(async () => {
+      capture.emit(sineChunk(300, { sampleRate: capture.sampleRate, amplitude: 0.5 }))
+    })
+    const loud = Number(ring().style.getPropertyValue('--record-level'))
+    expect(loud).toBeGreaterThan(0)
+
+    await act(async () => {
+      capture.emit(sineChunk(300, { sampleRate: capture.sampleRate, amplitude: 0.02 }))
+    })
+    const soft = Number(ring().style.getPropertyValue('--record-level'))
+    expect(soft).toBeLessThan(loud)
+
+    await act(async () => {
+      capture.emit(new Float32Array(capture.sampleRate / 4))
+    })
+    expect(Number(ring().style.getPropertyValue('--record-level'))).toBe(0)
   })
 
   it('정지하면 [재녹음]/[다음]이 나온다 — 재생은 없다', async () => {
@@ -135,7 +174,10 @@ describe('녹음 단계 (§5.7)', () => {
 
     expect(screen.getByRole('button', { name: '재녹음' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다음' })).toBeInTheDocument()
-    expect(screen.getByText('녹음이 끝났어요. 다시 녹음하거나 다음으로 넘어가세요')).toBeInTheDocument()
+    // 다시 듣기 (시안 s-06-recording-review): 「녹음 상태가 좋아요」「녹음 길이 2.0초」 + [재녹음] [다음 →]
+    expect(screen.getByText('녹음 상태가 좋아요')).toBeInTheDocument()
+    expect(screen.getByText('녹음 길이 2.0초')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '재녹음' })).toHaveClass('btn--secondary')
     // 들어보라고 말하지 않는다 — 재생 기능 자체가 계약에 없다
     expect(screen.queryByRole('button', { name: '재생' })).not.toBeInTheDocument()
   })
@@ -590,7 +632,7 @@ describe('억양 곡선 (KAN-56 Stage 5)', () => {
 
     expect(container.querySelector('.item-screen__body .curve-card')).not.toBeNull()
     expect(container.querySelector('.item-screen__footer .curve-card')).toBeNull()
-    expect(container.querySelector('.item-screen__footer .btn')).not.toBeNull()
+    expect(container.querySelector('.item-screen__footer button')).not.toBeNull()
   })
 })
 

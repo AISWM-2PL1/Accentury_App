@@ -105,7 +105,7 @@ allowlist를 통과한 문서뿐이고, `force`는 그 문을 열지 못한다. 
 | 웹 → 네이티브 | `onLocationChanged(url)` | `BridgeDispatcher`가 문자열이고 allowlist 판정(`BridgeDispatcher.isUrlAllowed`, KAN-324)을 지난 값만 `onPageStarted`와 같은 콜백으로 넘긴다. `TestFlowView.currentWebUrl`이 갱신된다 |
 | 네이티브 → 웹 | `window.accenturyNavigate(url)` | `WKWebView.navigateInApp(to:)`가 `spaNavigateJs`(AccenturyCore)를 평가한다. 결과가 `true`가 아니면(구버전 웹·예외·nil) `load(URLRequest)`로 폴백한다 |
 
-쓰는 자리는 왼쪽 가장자리 스와이프 뒤로와 억양 녹음 ✕(억양 탭 진입) 둘이다. 첫 진입(`WebViewHost.updateUIView`)과 `?screen=test` 시작은 문서 로드로 남는다.
+쓰는 자리는 왼쪽 가장자리 스와이프 뒤로와 억양 녹음 ✕(학습 탭 `learn` 진입, KAN-355 전엔 억양 탭) 둘이다. 첫 진입(`WebViewHost.updateUIView`)과 `?screen=test` 시작은 문서 로드로 남는다.
 
 ## 3. 단계별로 안드로이드와 갈린 것
 
@@ -168,14 +168,16 @@ iOS는 5b단계부터 이 값들을 `UserDefaults`에 적어 그 구분이 없�
 | 슬롯 | 크기 | 글꼴 | 쓰는 자리 |
 |---|---|---|---|
 | `display` | 40 | Jua | 결과 등급 |
-| `headline` | 26 | Jua | 대사 카드·목소리 점검 제목·권한 게이트 제목 |
-| `titleLarge` | 30 | Jua | 인트로 제목 |
-| `title` | 20 | Jua | 주 CTA 라벨(자간 0.4)·로딩 화면 제목·세션 준비 제목 |
+| `headline` | 26 | Jua | 대사 카드, 입력·동의·설정 화면 제목, 시트·확인 대화상자 제목 (KAN-355) |
+| `titleLarge` | 30 | Jua | 인트로·안내·예외·대기 화면 제목 (KAN-355) |
+| `title` | 20 | Jua | 워드마크·작은 제목 |
+| `button` | 17 | Jua | 주·보조·위험 버튼 라벨 (자간 0.01em, KAN-355 — 2026-11-12 결정) |
+| `textButton` | 16 | Jua | 글자 버튼 라벨 (자간 0.01em, KAN-355) |
 | `timer` | 16 | Jua | 녹음 타이머·8초 경고 캡슐 (자간 0.04em) |
 | `body`·`bodySmall`·`label`·`caption` | 16·15·14·13 | 시스템 | 본문·보조 문구·진행 표기·레인 라벨 |
 
 굵기는 Jua 슬롯 전부 400이다 (안드로이드 KAN-161 2단계와 같은 이유 — 번들 폰트에 굵기가 하나뿐이라
-그 위를 요청하면 합성 볼드가 나오고 곡선이 뭉개진다). 주 CTA만 자간 0.4로 무게를 대신한다.
+그 위를 요청하면 합성 볼드가 나오고 곡선이 뭉개진다). 버튼 라벨은 KAN-355부터 시안 `.btn`의 자간 0.01em이다(이전 주 CTA Jua 20·자간 0.4).
 
 **행간은 여전히 근사다.** SwiftUI에 줄 높이를 직접 주는 API가 없어 `lineSpacing`(줄 사이에 더하는
 값)으로 맞추는데, KAN-108의 `lineHeight - size` 대신 이제 `lineHeight - UIFont.lineHeight`를 쓴다 —
@@ -390,7 +392,7 @@ nil로 들고, 그러면 문항 결과 주입(`deliverResults`)이 매번 "받�
 | 어디 | 무엇 | 왜 |
 | --- | --- | --- |
 | `AccenturyCore/Auth/` | `AuthApi`·`AuthTokens`·`TokenRefresher`·`AuthorizedSession`·`AuthClients`·`AuthGateController`·`LoginScreenState`·`ProfileFormState`·`AppleNonce`, `VoiceConsentPrompt`·`VoiceConsentText`(KAN-270 음성 저장 동의 판정·표시 기록·문안), `AnonymousVoiceConsentStore`(KAN-270 6단계, 로그인 끈 빌드의 설치당 1회 동의, 7단계 출신 지역 `region`·`needsAnonymousRegion`) | 상태 기계·갱신 줄 세우기·401 재시도·nonce는 SDK 없이 정해진다. 안드로이드 인증 테스트를 이식해 `swift test`로 돈다(동시 401 다섯 건에 갱신 한 번 포함) |
-| `Accentury/Auth/` | `KeychainTokenStore`, `IdpSdks`(구글·카카오·네이버·애플 SDK 호출과 URL 복귀, `IdpLogout`), `AuthHub`, `AuthGateView`, `LoginScreen`·`ProfileScreen`·`SettingsScreen`(KAN-247, 톱니 버튼 포함, KAN-270 음성 저장 동의 토글)·`VoiceConsentScreen`(KAN-270), `AnonymousFlowView`·`AnonymousSettingsScreen`(KAN-270 6단계, 로그인 끈 빌드의 최상위와 「개인정보」만 있는 설정), `AnonymousRegionScreen`(KAN-270 7단계, 동의한 익명 사용자의 출신 지역) | 키체인은 앱 번들의 entitlement에, IdP SDK는 UIKit·번들 설정에 매여 있어 Core에 들어갈 수 없다 |
+| `Accentury/Auth/` | `KeychainTokenStore`, `IdpSdks`(구글·카카오·네이버·애플 SDK 호출과 URL 복귀, `IdpLogout`), `AuthHub`, `AuthGateView`, `LoginScreen`·`ProfileScreen`·`SettingsScreen`(KAN-247, 톱니 버튼 포함, KAN-270 음성 저장 동의 토글)·`VoiceConsentScreen`(KAN-270), `AnonymousFlowView`·`AnonymousSettingsScreen`(KAN-270 6단계, 로그인 끈 빌드의 최상위와 「광고」(신고)·「개인정보」만 있는 설정), `AnonymousRegionScreen`(KAN-270 7단계, 동의한 익명 사용자의 출신 지역) | 키체인은 앱 번들의 entitlement에, IdP SDK는 UIKit·번들 설정에 매여 있어 Core에 들어갈 수 없다 |
 | `Accentury/AppConfig.swift` | 로그인 키 여섯과 `fakeIdp`, `loginEnabled`(KAN-270 6단계) | xcconfig → `Info-*.plist` → `AppConfig` 사슬(§1의 `WEB_URL`과 같다). `fakeIdp`는 `#if DEBUG`라 Release에서는 늘 false. `loginEnabled`는 두 plist에 다 있고 기본 NO(익명 모드) |
 | `Accentury/TestFlow/` | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`·`needsAnonymousRegion`, `TestFlowView` 시작 게이트의 동의·지역 단계(KAN-270 6·7단계) | 로그인 끈 빌드는 권한 → 동의(설치당 1회) → 지역(없을 때, 동의와 무관, 설치당 1회) → 점검 → 세션이고, 세션 생성은 plain 클라이언트 + `createWithConsentFallback`(`region`은 동의와 무관하게 싣고, 폴백 재시도에서는 동의 버전만 뺀다, KAN-274)이다(`voice-consent.md` 「iOS 대응」) |
 

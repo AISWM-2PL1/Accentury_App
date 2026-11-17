@@ -7,6 +7,7 @@ import { requestMicPermission } from '../bridge/bridge'
 import { PrivacyNotice } from '../legal/PrivacyNotice'
 import { SupportNotice } from '../legal/SupportNotice'
 import { Button } from '../ui'
+import { MicLineIcon } from '../ui/icons'
 import { TextHero } from '../ui/TextHero'
 import {
   ESTIMATED_MINUTES,
@@ -15,6 +16,7 @@ import {
   VOICE_ITEM_COUNT,
 } from './introText'
 import { MicBlockedScreen } from './MicBlockedScreen'
+import './intro.css'
 
 export interface IntroScreenProps {
   /**
@@ -161,27 +163,28 @@ export function IntroScreen({
               <path d="M 4 3.5 Q 100 13.5 196 3.5" vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
-          <p className="type-body-sm intro-subtitle">내 목소리로 확인하는 사투리 억양</p>
+          <p className="type-body-sm intro-subtitle">내 목소리로 확인하는 경남 사투리 억양</p>
         </div>
 
         {/*
           숫자를 문장에 섞지 않고 칸으로 세운다 - 인트로에서 사용자가 실제로 재는 건
           "얼마나 걸리나"와 "몇 개나 하나" 둘뿐이라, 그 둘만 크게 보이는 편이 낫다.
 
-          "총 문제"·"예상 시간" 라벨을 뗐다 (아트보드). `7문항`과 `~3분`은 그 자체로 무엇인지
+          "총 문제"·"예상 시간" 라벨을 뗐다 (아트보드). `7문항`과 `약 3분`은 그 자체로 무엇인지
           말하는 값이라, 라벨을 붙이면 카드 한 장에 글자 줄이 넷이 되어 숫자가 묻힌다.
+          표기는 KAN-347 7단계 시안 s-05: 「약 3분」「억양 3 · 단어 4」, 카드는 종이(paper) 면(`intro.css`).
         */}
         <div className="card">
           <div className="card__stats">
             <p className="type-headline card__stat card__stat-value">{totalItems}문항</p>
-            <p className="type-headline card__stat card__stat-value">~{ESTIMATED_MINUTES}분</p>
+            <p className="type-headline card__stat card__stat-value">약 {ESTIMATED_MINUTES}분</p>
           </div>
           {/* 문항 구성. 이모지(🎤📝)를 뺀 이유는 위 일러스트와 같다 */}
           <p className="type-label card__footnote">
-            음성 {VOICE_ITEM_COUNT} + 단어 {VOCABULARY_ITEM_COUNT}
+            억양 {VOICE_ITEM_COUNT} · 단어 {VOCABULARY_ITEM_COUNT}
           </p>
         </div>
-        <p className="type-body-sm intro-prompt">사투리 좀 치는지, 지금 확인해봐요.</p>
+        <p className="type-body-sm intro-prompt">사투리 좀 치는지, 지금 확인해 봐요.</p>
       </div>
 
       <div className="screen__footer">
@@ -204,7 +207,9 @@ export function IntroScreen({
             '마이크 확인 중…'
           ) : (
             <>
-              내 억양 테스트하기 <span aria-hidden>→</span>
+              {/* 시안 s-05: 마이크 선 아이콘 + 「레벨 테스트 시작」 (KAN-347 7단계) */}
+              <MicLineIcon />
+              레벨 테스트 시작
             </>
           )}
         </Button>

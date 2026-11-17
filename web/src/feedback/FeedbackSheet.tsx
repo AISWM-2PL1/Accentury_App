@@ -34,7 +34,7 @@
 
 import { useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { PrivacyPolicyLink } from '../legal/PrivacyPolicyLink'
-import { Button } from '../ui'
+import { BottomSheet, Button } from '../ui'
 import {
   FEEDBACK_ALREADY,
   FEEDBACK_BODY_PLACEHOLDER,
@@ -162,155 +162,156 @@ export function FeedbackSheet({ open, onClose, submit, onSubmitted, initialState
   }
 
   return (
-    <div className="feedback-sheet" onClick={handleBackdropClick} onKeyDown={handleKeyDown}>
+    // 서식·움직임은 공용 바텀 시트 (KAN-347 1단계, 시안 s-23). 패널이 폼이라 `as="form"`
+    <BottomSheet
+      as="form"
+      labelledBy={TITLE_ID}
+      overlayClassName="feedback-sheet"
+      className="feedback-panel"
+      onOverlayClick={handleBackdropClick}
+      onOverlayKeyDown={handleKeyDown}
+      noValidate
+      onSubmit={handleSubmit}
+    >
       {/*
         `noValidate`로 브라우저 기본 풍선을 끈다. `required`·`type="email"`은 의미론으로
         남겨 두되 판정은 우리 것 하나로 한다 — 같은 규칙을 브라우저 문구와 우리 문구가 서로
         다르게 말하면 사용자는 둘 중 무엇을 고쳐야 하는지 알 수 없다.
       */}
-      <form
-        className="feedback-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={TITLE_ID}
-        noValidate
-        onSubmit={handleSubmit}
-      >
-        {/* h1이 아니라 h2인 이유는 AdConsentSheet와 같다 — 결과 화면의 h1(등급명)이 화면
-            이름이고 이 시트는 그 위에 덮인 것이다 */}
-        <h2 id={TITLE_ID} className="type-title-sm feedback-title">
-          {state.status === 'sent' ? FEEDBACK_DONE_TITLE : FEEDBACK_TITLE}
-        </h2>
+      {/* h1이 아니라 h2인 이유는 AdConsentSheet와 같다 — 결과 화면의 h1(등급명)이 화면
+          이름이고 이 시트는 그 위에 덮인 것이다 */}
+      <h2 id={TITLE_ID} className="type-headline feedback-title">
+        {state.status === 'sent' ? FEEDBACK_DONE_TITLE : FEEDBACK_TITLE}
+      </h2>
 
-        {finished ? (
+      {finished ? (
+        <div className="type-body-sm feedback-body">
+          {/* 끝난 소식은 스스로 읽어 준다 — 시트가 이미 떠 있는 채로 내용만 바뀌는 자리라
+              초점 이동이 없고, 그러면 화면을 보지 않는 사람에게는 아무 일도 안 일어난 것이다 */}
+          <p role="alert">
+            {state.status === 'sent' && FEEDBACK_DONE_BODY}
+            {state.status === 'already' && FEEDBACK_ALREADY}
+            {state.status === 'expired' && FEEDBACK_EXPIRED}
+          </p>
+        </div>
+      ) : (
+        <>
           <div className="type-body-sm feedback-body">
-            {/* 끝난 소식은 스스로 읽어 준다 — 시트가 이미 떠 있는 채로 내용만 바뀌는 자리라
-                초점 이동이 없고, 그러면 화면을 보지 않는 사람에게는 아무 일도 안 일어난 것이다 */}
-            <p role="alert">
-              {state.status === 'sent' && FEEDBACK_DONE_BODY}
-              {state.status === 'already' && FEEDBACK_ALREADY}
-              {state.status === 'expired' && FEEDBACK_EXPIRED}
+            <p id={GUIDE_ID}>{FEEDBACK_GUIDE}</p>
+          </div>
+
+          <div className="feedback-field">
+            {/*
+              이름표를 따로 적지 않고 위 안내 문장을 `aria-labelledby`로 잇는다 — 그 문장이
+              이미 "무엇을 적는 칸인지"를 말하고 있어서, 라벨을 하나 더 두면 같은 말이 두 번
+              읽힌다. 시트가 뜨는 순간 초점이 여기 선다 (파일 헤더의 접근성).
+            */}
+            <textarea
+              autoFocus
+              className="feedback-textarea"
+              aria-labelledby={GUIDE_ID}
+              placeholder={FEEDBACK_BODY_PLACEHOLDER}
+              maxLength={FEEDBACK_BODY_MAX}
+              required
+              rows={4}
+              value={body}
+              disabled={sending}
+              onChange={(event) => setBody(event.target.value)}
+            />
+            {/* 남은 글자가 아니라 쓴 글자를 센다 — 상한이 압박이 아니라 눈금으로 읽히게 */}
+            <p className="type-caption feedback-counter">{`${body.length}/${FEEDBACK_BODY_MAX}`}</p>
+          </div>
+
+          {/* 디자인 3 (KAN-288, 시안 28): 쓰는 칸이 먼저, 별점은 그 아래 선택 항목이다 */}
+          {/* 별점은 라디오 그룹이다 — 화살표 키 이동과 "5개 중 3번째" 안내를 브라우저가 그냥
+              준다. ★는 눈에만 보이고(`aria-hidden`), 소리로는 "3점"이 읽힌다 */}
+          <fieldset className="feedback-field" disabled={sending}>
+            <legend className="type-label">{FEEDBACK_RATING_LABEL}</legend>
+            <div className="feedback-rating">
+              {RATINGS.map((value) => (
+                <label key={value} className="feedback-rating__star">
+                  <input
+                    className="sr-only"
+                    type="radio"
+                    name="rating"
+                    value={value}
+                    checked={rating === value}
+                    onChange={() => setRating(value)}
+                  />
+                  <span aria-hidden="true">{rating !== null && value <= rating ? '★' : '☆'}</span>
+                  <span className="sr-only">{value}점</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <div className="feedback-field">
+            <label className="type-label" htmlFor="feedback-email">
+              {FEEDBACK_EMAIL_LABEL}
+            </label>
+            <input
+              id="feedback-email"
+              className="feedback-input"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              aria-describedby={EMAIL_HINT_ID}
+              maxLength={FEEDBACK_EMAIL_MAX}
+              value={email}
+              disabled={sending}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            {/* 무엇에 쓰는 값인지 적는 것이 수집 고지다 — 칸 옆에서 말해야 적기 전에 읽힌다 */}
+            <p id={EMAIL_HINT_ID} className="type-caption feedback-hint">
+              {FEEDBACK_EMAIL_HINT}
             </p>
           </div>
-        ) : (
-          <>
-            <div className="type-body-sm feedback-body">
-              <p id={GUIDE_ID}>{FEEDBACK_GUIDE}</p>
-            </div>
 
-            <div className="feedback-field">
-              {/*
-                이름표를 따로 적지 않고 위 안내 문장을 `aria-labelledby`로 잇는다 — 그 문장이
-                이미 "무엇을 적는 칸인지"를 말하고 있어서, 라벨을 하나 더 두면 같은 말이 두 번
-                읽힌다. 시트가 뜨는 순간 초점이 여기 선다 (파일 헤더의 접근성).
-              */}
-              <textarea
-                autoFocus
-                className="feedback-textarea"
-                aria-labelledby={GUIDE_ID}
-                placeholder={FEEDBACK_BODY_PLACEHOLDER}
-                maxLength={FEEDBACK_BODY_MAX}
-                required
-                rows={4}
-                value={body}
-                disabled={sending}
-                onChange={(event) => setBody(event.target.value)}
-              />
-              {/* 남은 글자가 아니라 쓴 글자를 센다 — 상한이 압박이 아니라 눈금으로 읽히게 */}
-              <p className="type-caption feedback-counter">{`${body.length}/${FEEDBACK_BODY_MAX}`}</p>
-            </div>
+          <div className="type-body-sm feedback-body">
+            <p>
+              {FEEDBACK_DETAIL_LEAD} <PrivacyPolicyLink />
+              {FEEDBACK_DETAIL_TAIL}
+            </p>
+          </div>
 
-            {/* 디자인 3 (KAN-288, 시안 28): 쓰는 칸이 먼저, 별점은 그 아래 선택 항목이다 */}
-            {/* 별점은 라디오 그룹이다 — 화살표 키 이동과 "5개 중 3번째" 안내를 브라우저가 그냥
-                준다. ★는 눈에만 보이고(`aria-hidden`), 소리로는 "3점"이 읽힌다 */}
-            <fieldset className="feedback-field" disabled={sending}>
-              <legend className="type-label">{FEEDBACK_RATING_LABEL}</legend>
-              <div className="feedback-rating">
-                {RATINGS.map((value) => (
-                  <label key={value} className="feedback-rating__star">
-                    <input
-                      className="sr-only"
-                      type="radio"
-                      name="rating"
-                      value={value}
-                      checked={rating === value}
-                      onChange={() => setRating(value)}
-                    />
-                    <span aria-hidden="true">{rating !== null && value <= rating ? '★' : '☆'}</span>
-                    <span className="sr-only">{value}점</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+          {/* 아직 보내지 않은 상태의 안내라 live 영역에 두지 않는다 — 글자를 지우고 쓰는
+              동안 같은 문장이 매번 읽히면 입력을 방해한다 */}
+          {invalid !== null && touched && <p className="type-caption feedback-message">{invalid}</p>}
+        </>
+      )}
 
-            <div className="feedback-field">
-              <label className="type-label" htmlFor="feedback-email">
-                {FEEDBACK_EMAIL_LABEL}
-              </label>
-              <input
-                id="feedback-email"
-                className="feedback-input"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                aria-describedby={EMAIL_HINT_ID}
-                maxLength={FEEDBACK_EMAIL_MAX}
-                value={email}
-                disabled={sending}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              {/* 무엇에 쓰는 값인지 적는 것이 수집 고지다 — 칸 옆에서 말해야 적기 전에 읽힌다 */}
-              <p id={EMAIL_HINT_ID} className="type-caption feedback-hint">
-                {FEEDBACK_EMAIL_HINT}
-              </p>
-            </div>
+      {/*
+        실패 문구는 스스로 읽어 준다 (RetestAction과 같은 이유) — 이미 떠 있는 시트에 나중에
+        나타나는 실패라, 읽어 주지 않으면 버튼을 눌렀는데 왜 아무 일도 없었는지 알 길이 없다.
+      */}
+      {state.status === 'failed' && (
+        <p className="type-caption feedback-message" role="alert">
+          {state.message}
+        </p>
+      )}
+      {state.status === 'failed' && state.retryAfterMs !== null && (
+        /*
+          429 대기 안내. 초를 세어 내리지 않는다 — 여기에는 스케줄러가 없고, 매초 바뀌는
+          숫자는 위 실패 문구를 덮어 읽는다 (`RetestAction`의 같은 판단).
+        */
+        <p className="type-caption feedback-hint">{feedbackWaitNotice(Math.ceil(state.retryAfterMs / 1000))}</p>
+      )}
 
-            <div className="type-body-sm feedback-body">
-              <p>
-                {FEEDBACK_DETAIL_LEAD} <PrivacyPolicyLink />
-                {FEEDBACK_DETAIL_TAIL}
-              </p>
-            </div>
-
-            {/* 아직 보내지 않은 상태의 안내라 live 영역에 두지 않는다 — 글자를 지우고 쓰는
-                동안 같은 문장이 매번 읽히면 입력을 방해한다 */}
-            {invalid !== null && touched && <p className="type-caption feedback-message">{invalid}</p>}
-          </>
-        )}
-
-        {/*
-          실패 문구는 스스로 읽어 준다 (RetestAction과 같은 이유) — 이미 떠 있는 시트에 나중에
-          나타나는 실패라, 읽어 주지 않으면 버튼을 눌렀는데 왜 아무 일도 없었는지 알 길이 없다.
-        */}
-        {state.status === 'failed' && (
-          <p className="type-caption feedback-message" role="alert">
-            {state.message}
-          </p>
-        )}
-        {state.status === 'failed' && state.retryAfterMs !== null && (
-          /*
-            429 대기 안내. 초를 세어 내리지 않는다 — 여기에는 스케줄러가 없고, 매초 바뀌는
-            숫자는 위 실패 문구를 덮어 읽는다 (`RetestAction`의 같은 판단).
-          */
-          <p className="type-caption feedback-hint">{feedbackWaitNotice(Math.ceil(state.retryAfterMs / 1000))}</p>
-        )}
-
-        {/*
-          버튼을 세로로 쌓는 것도 `.ad-consent-actions`와 같은 이유다 — 가로로 나누면 각 버튼이
-          반 폭이 되고, 엄지가 먼저 닿는 위쪽이 주동작 자리다.
-        */}
-        <div className="feedback-actions">
-          {!finished && !(state.status === 'failed' && !state.retryable) && (
-            <Button type="submit" disabled={sending || invalid !== null}>
-              {sending ? FEEDBACK_SENDING : state.status === 'failed' ? FEEDBACK_RETRY : FEEDBACK_SUBMIT}
-            </Button>
-          )}
-          <Button variant="secondary" disabled={sending} onClick={requestClose}>
-            {FEEDBACK_CLOSE}
+      {/*
+        버튼을 세로로 쌓는 것도 `.ad-consent-actions`와 같은 이유다 — 가로로 나누면 각 버튼이
+        반 폭이 되고, 엄지가 먼저 닿는 위쪽이 주동작 자리다.
+      */}
+      <div className="feedback-actions">
+        {!finished && !(state.status === 'failed' && !state.retryable) && (
+          <Button type="submit" disabled={sending || invalid !== null}>
+            {sending ? FEEDBACK_SENDING : state.status === 'failed' ? FEEDBACK_RETRY : FEEDBACK_SUBMIT}
           </Button>
-        </div>
-      </form>
-    </div>
+        )}
+        <Button variant="secondary" disabled={sending} onClick={requestClose}>
+          {FEEDBACK_CLOSE}
+        </Button>
+      </div>
+    </BottomSheet>
   )
 }
 

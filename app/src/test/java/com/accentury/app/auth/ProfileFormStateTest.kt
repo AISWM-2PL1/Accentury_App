@@ -17,12 +17,19 @@ class ProfileFormStateTest {
     )
 
     @Test
-    fun `성별을 뺀 네 칸이 다 차야 완료할 수 있다`() {
+    fun `프로필 화면은 성별을 뺀 세 칸이 다 차야 다음으로 간다 - 지역은 묻지 않는다 KAN-354`() {
         assertTrue(complete().isComplete)
+        assertTrue(complete().apply { region = null }.isComplete)
         assertFalse(complete().apply { email = "" }.isComplete)
         assertFalse(complete().apply { name = "" }.isComplete)
         assertFalse(complete().apply { birthDate = null }.isComplete)
-        assertFalse(complete().apply { region = null }.isComplete)
+    }
+
+    @Test
+    fun `지역 화면에서 고른 지역이 프로필 칸과 함께 한 본문으로 나간다 - KAN-354`() {
+        val form = complete().apply { region = null }
+        form.region = Region.GYEONGNAM
+        assertEquals(ProfileInput("a@b.co", "이름", "2000-01-02", "FEMALE", "GYEONGNAM"), form.toInput())
     }
 
     @Test
@@ -62,6 +69,7 @@ class ProfileFormStateTest {
         assertEquals("홍길동", form.name)
         assertEquals(Region.GYEONGNAM, form.region)
         assertEquals(null, form.gender)
+        // 생년월일이 아직 없다
         assertFalse(form.isComplete)
     }
 

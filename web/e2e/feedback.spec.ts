@@ -171,6 +171,9 @@ test('KAN-211 - 결과 화면에서 후기를 실패·재시도로 보내고, �
    * 선택지와 같은 규칙이라 `force`로 넘긴다. 접근성 이름은 ★가 아니라 「4점」이다: 별은
    * `aria-hidden`이고 소리로 읽히는 것은 옆의 `.sr-only` 텍스트다.
    */
+  // 시트는 아래에서 300ms로 올라온다(KAN-347 1단계 움직임 타일 4). `force`는 그 이동이 끝나기를 기다리지 않으므로
+  // 다 올라온 뒤에 누른다 — 올라오는 중에는 별점 칸이 아직 화면 아래에 있다
+  await sheet.evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)))
   await sheet.getByRole('radio', { name: `${RATING}점`, exact: true }).check({ force: true })
 
   /*

@@ -89,7 +89,7 @@ public enum RecordingPurpose: Equatable, Sendable {
     case levelTest(itemNumber: Int, totalItems: Int, emotion: String? = nil)
 
     /// 억양 학습 카드 (KAN-253, webview-bridge.md §12). 표준어 줄은 nil이면 생략.
-    /// 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「카드 진행률」)를 그린다.
+    /// 5단계부터 녹음 대기 화면이 A-2 카드 역할을 하므로 레벨테스트와 같은 진행 표기(「억양 · n / N」, KAN-355)를 그린다.
     case intonationLearning(standard: String?, itemNumber: Int, totalItems: Int)
 
     /// 확인 단계에 [내 녹음 듣기]를 두는가 — 학습에만 (2026-10-12 착수 결정).

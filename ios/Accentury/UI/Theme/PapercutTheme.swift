@@ -12,9 +12,10 @@ import UIKit
 /// 늘면서 (녹음·목소리 점검·세션 게이트·업로드 상태 바) 사본이 파일마다 생길 자리라
 /// 안드로이드처럼 테마 파일로 떼어냈다.
 ///
-/// **팔레트는 넷뿐이다** — 잉크 `#1c1a17`, 크림 `#f3ecd9`, 종이 그림자 `#cfc5aa`,
-/// 흐린 잉크 `#6b6459`. 반투명(알파) 값은 하나도 없다: 종이를 오려 붙인 그림에는
-/// 비쳐 보이는 면이 없다. 상태를 색으로 알리지 않는다 (정본 §7) — 오류도 잉크 문구다.
+/// **팔레트는 여섯이다** (KAN-355) — 잉크 `#1c1a17`, 크림 `#f3ecd9`, 종이 `#f8f3e6`, 종이 그림자 `#cfc5aa`,
+/// 흐린 잉크 `#6b6459`, 벽돌 `#a8503a`(``point``). 반투명(알파) 값은 확인 대화상자 덮개
+/// (``dialogScrimOpacity``) 하나뿐이다: 종이를 오려 붙인 그림에는 비쳐 보이는 면이 없고, 덮개는 종이가 아니라
+/// 아래 화면을 잠시 물리는 막이다. 상태를 색으로 알리지 않는다 (정본 §7) — 오류도 잉크 문구다.
 ///
 /// ## 서체 (KAN-178)
 /// 안드로이드와 같은 두 벌이다 — 제목·대사·등급·타이머는 Jua, 본문·캡션은 시스템 서체다
@@ -30,15 +31,18 @@ enum Papercut {
     static let ink = Color(red: 0x1c / 255, green: 0x1a / 255, blue: 0x17 / 255)
     /// 크림. 배경이자 카드 면이다 — 카드를 세우는 것은 색이 아니라 테두리와 그늘이다.
     static let cream = Color(red: 0xf3 / 255, green: 0xec / 255, blue: 0xd9 / 255)
+    /// 종이 (KAN-355). 크림보다 한 단 밝은 면이다 — 카드·입력 칸·확인 대화상자처럼 배경 위에 한 장 더 얹은 종이가 쓴다.
+    static let paper = Color(red: 0xf8 / 255, green: 0xf3 / 255, blue: 0xe6 / 255)
     /// 오프셋 종이 그림자(`4 5 0`). 번지지 않는 단색 면이라 알파를 주지 않는다.
     ///
     /// 크림 위 1.46:1이라 **상태를 이 색으로 알리면 안 된다** — 그늘과 "없는 것"에만 쓴다.
     static let paperShadow = Color(red: 0xcf / 255, green: 0xc5 / 255, blue: 0xaa / 255)
     /// 흐린 잉크. 캡션·부연·레인 라벨이 쓴다.
     static let muted = Color(red: 0x6b / 255, green: 0x64 / 255, blue: 0x59 / 255)
-    /// 포인트 컬러 — 종이에 얹은 두 번째 잉크다 (정본 §2 `point`, 안드로이드 `LightPoint`). 인트로 히어로 밑줄처럼
+    /// 포인트 컬러(벽돌) — 종이에 얹은 두 번째 잉크다 (정본 §2 `point`, 안드로이드 `LightPoint`). 인트로 히어로 밑줄처럼
     /// 지금 여기를 짚는 자리에만 쓰고 상태(오류·정오답)에는 쓰지 않는다 (정본 §7). 네이티브 첫 사용처는 로그인
-    /// 화면의 히어로 밑줄이고 (KAN-224), 녹음 화면의 내 억양 곡선(선·망점)도 이 색이다 (KAN-288).
+    /// 화면의 히어로 밑줄이고 (KAN-224), 녹음 화면의 내 억양 곡선(선·망점)도 이 색이다 (KAN-288). 주 버튼 면과
+    /// 위험한 확인 버튼(Destructive)의 테두리·글자도 이 색이다 (KAN-355).
     static let point = Color(red: 0xa8 / 255, green: 0x50 / 255, blue: 0x3a / 255)
 
     // MARK: - 간격 (정본 §4)
@@ -52,12 +56,14 @@ enum Papercut {
 
     // MARK: - 반경
 
-    /// 반경 4/6/10 세 단계 (KAN-288 디자인 3, 안드로이드 `Radius`와 같은 값). 오려 낸 종이라 모서리를 크게 굴리지 않는다 —
-    /// 시안 `--radius-sm/md/lg`. ``radiusXL``은 대사 카드·카드가 쓰던 이름이라 남기고 ``radiusLG``와 같은 10이다.
+    /// 반경 칩 4 · 버튼 6 · 카드 10 · 시트 16 네 단계 (KAN-288 디자인 3, 시트는 KAN-355). 오려 낸 종이라 모서리를 크게
+    /// 굴리지 않는다 — 시안 `--radius-sm/md/lg`. ``radiusXL``은 대사 카드·카드가 쓰던 이름이라 남기고 ``radiusLG``와 같은 10이다.
     static let radiusSM: CGFloat = 4
     static let radiusMD: CGFloat = 6
     static let radiusLG: CGFloat = 10
     static let radiusXL: CGFloat = 10
+    /// 시트·확인 대화상자 (KAN-355). 화면 위에 따로 얹는 종이라 카드보다 한 단 둥글다.
+    static let radiusSheet: CGFloat = 16
     /// 완전한 원. 배지·캡슐·원형 버튼처럼 모서리를 끝까지 굴리는 자리.
     static let radiusFull: CGFloat = 9999
 
@@ -65,17 +71,40 @@ enum Papercut {
 
     /// 탭 가능한 요소의 최소 높이 (`ux-ui.md` §5).
     static let touchTargetMin: CGFloat = 48
-    /// 화면의 주 컨트롤 높이 — 주 버튼이 쓴다. 보조는 ``touchTargetMin`` 그대로다.
-    static let controlHeightLarge: CGFloat = 56
+    /// 화면의 주 컨트롤 높이 — 주 버튼이 쓴다 (정본 48, KAN-355에서 56 → 48). 보조는 ``touchTargetMin``이고 값이 같다 —
+    /// 위계는 높이가 아니라 면 색(벽돌/크림)이 말한다.
+    static let controlHeightLarge: CGFloat = 48
     /// 대사 카드 최소 높이. 문항 길이가 달라도 카드가 들썩이지 않게 고정한다.
     static let promptCardMinHeight: CGFloat = 152
-    static let promptCardPadding: CGFloat = 22
     /// 곡선 레인 하나의 높이.
     static let curveLaneHeight: CGFloat = 120
     /// 원형 녹음 버튼 지름.
     static let recordButtonSize: CGFloat = 80
-    /// 화면을 여는 원형 히어로 아이콘 지름.
+    /// 화면을 여는 원형 히어로 아이콘 지름. 예외 화면의 아이콘 원도 이 값이다 (KAN-355).
     static let heroIconSize: CGFloat = 112
+    /// 히어로·예외 화면 원 안 선화 크기 (지름의 절반).
+    static let heroIconGlyphSize: CGFloat = 56
+    /// 버튼 라벨 앞뒤 아이콘 크기 (KAN-355, 시안 `.btn .icon` 20).
+    static let buttonIconSize: CGFloat = 20
+    /// 예외 화면에서 앱바 아래부터 아이콘 원 윗선까지 (KAN-355, 시안 `.p3-status-area` 위 여백 144). 앱바 56과 더해
+    /// 원 윗선이 안전 영역 위에서 y=200에 선다.
+    static let exceptionContentTop: CGFloat = 144
+    /// 확인 대화상자 (KAN-355, 시안 s-11-confirm-logout `.sheet`): 폭 320, 안쪽 여백 20, 본문 문단 사이 10.
+    static let dialogWidth: CGFloat = 320
+    static let dialogPadding: CGFloat = 20
+    static let dialogParagraphSpacing: CGFloat = 10
+    /// 확인 대화상자 버튼 좌우 안쪽 여백 (KAN-355). 상자 안 폭 280에 버튼 둘·간격 12라 한 버튼이 134다 — 시안 `.btn`의 24로는
+    /// 선화 20 + 간격 8 + Jua 17 네 글자([로그아웃])가 들어가지 않는다. 시안은 `word-break: keep-all`로 라벨이 여백 위로 넘쳐
+    /// 그려지는데, 그 그려진 모양(라벨 양옆 약 19)에 가까운 16을 쓴다.
+    static let dialogButtonPaddingX: CGFloat = 16
+    /// 버튼 라벨이 한 줄을 지키려고 줄어드는 하한 (KAN-355). [탈퇴하는 중]+휴지통이 대화상자 버튼 폭에서 약 0.9배가 된다.
+    static let buttonLabelMinScale: CGFloat = 0.8
+    /// 확인 대화상자 덮개 불투명도 (KAN-355). 덮개 색은 ``paperShadow`` 단색이다.
+    static let dialogScrimOpacity: Double = 0.6
+    /// 설정 목록 (KAN-355, 시안 s-11-settings): 머리 높이 56, 행 높이 56(터치 영역 48 이상), 행 안 선화·라벨 간격 10.
+    static let settingsHeaderHeight: CGFloat = 56
+    static let settingsRowHeight: CGFloat = 56
+    static let settingsRowSpacing: CGFloat = 10
     /// 막대 두께. 입력 레벨 바가 쓴다.
     static let progressBarHeight: CGFloat = 8
     /// 진행 도트 하나의 두께. 막대와 같은 값이지만 뜻이 다르다 — 저쪽은 그릇, 이쪽은 칸 하나다.
@@ -90,12 +119,13 @@ enum Papercut {
     static let paperShadowX: CGFloat = 4
     static let paperShadowY: CGFloat = 5
 
-    /// 비활성 불투명도. 회색으로 칠하는 대신 원래 색을 흐리게 해 대비가 함께 준다.
+    /// 비활성 불투명도. 면이 없는 컨트롤(앱바 ✕·글자 버튼)만 쓴다 — 면이 있는 버튼은 KAN-355부터 불투명도가 아니라
+    /// 종이 그림자 면 + 흐린 잉크 글자·테두리로 비활성을 그린다 (``ButtonVariant/appearance(enabled:)``).
     static let opacityDisabled: Double = 0.6
 
     // MARK: - 선 굵기
 
-    /// 주 CTA와 선택 상태만 2, 나머지는 1.5다 (시안 규칙).
+    /// 선택 상태만 2, 위험 버튼 테두리와 나머지는 1.5, 주·보조 버튼 테두리는 1이다 (KAN-355 시안 규칙).
     static let borderStrong: CGFloat = 2
     static let borderRegular: CGFloat = 1.5
     static let borderHairline: CGFloat = 1
@@ -106,6 +136,8 @@ enum Papercut {
         static let press: Double = 0.075
         static let fast: Double = 0.15
         static let base: Double = 0.3
+        /// 결과 리빌 (정본 §5 `duration-reveal`, KAN-355). 움직임 시간은 이 네 값만 쓴다.
+        static let reveal: Double = 0.6
     }
 
     // MARK: - 타이포 (정본 §3)
@@ -121,27 +153,26 @@ enum Papercut {
     /// 떨어져서 화면은 뜨는데 글꼴만 다르다.
     static let juaFamily = "Jua-Regular"
 
-    /// 주 CTA 라벨의 자간 (안드로이드 `AccenturyButton.PRIMARY_LETTER_SPACING`, 정본 §5 표).
-    /// 굵기를 못 올리는 폰트라 자간이 라벨의 무게를 대신한다 — 라벨을 굵게 만들 수 없으니
-    /// 글자 사이를 벌려 같은 일을 시킨다.
-    static let primaryLabelTracking: CGFloat = 0.4
-
     /// 정본 §3의 스케일. 이름은 정본의 토큰 이름이고, 안드로이드가 M3 슬롯에 얹은 것과
     /// 같은 값이다 — 화면 코드는 크기를 직접 적지 않고 이 열거형만 쓴다.
     enum TextStyle {
         /// 40 — 결과 등급
         case display
-        /// 26 — 대사 카드. `ux-ui.md` §5의 "대사 카드 24 이상"이 여기 걸린다.
+        /// 26 — 대사 카드, 입력·동의·설정 화면 제목, 시트·대화상자 제목 (KAN-355). `ux-ui.md` §5의 "대사 카드 24 이상"이 여기 걸린다.
         case headline
-        /// 30 — 인트로·화면 제목(큰 쪽)
+        /// 30 — 인트로·안내·예외·대기 화면 제목 (KAN-355)
         case titleLarge
-        /// 20 — 주 CTA 라벨·화면 제목
+        /// 20 — 워드마크·작은 제목
         case title
+        /// 17 — 주·보조·위험 버튼 라벨 (KAN-355, 2026-11-12 결정)
+        case button
+        /// 16 — 글자 버튼 라벨 (KAN-355)
+        case textButton
         /// 16 — 녹음 타이머·8초 경고 캡슐. 자간을 주는 슬롯은 여기 하나다
         case timer
         /// 16 — 본문
         case body
-        /// 15 — 보조 버튼 라벨·선택지
+        /// 15 — 선택지
         case bodySmall
         /// 14 — 부가 설명
         case label
@@ -154,6 +185,8 @@ enum Papercut {
             case .headline: return 26
             case .titleLarge: return 30
             case .title: return 20
+            case .button: return 17
+            case .textButton: return 16
             case .timer: return 16
             case .body: return 16
             case .bodySmall: return 15
@@ -170,6 +203,8 @@ enum Papercut {
             case .headline: return 30
             case .titleLarge: return 35
             case .title: return 23
+            case .button: return 22
+            case .textButton: return 21
             case .timer: return 18
             case .body: return 24
             case .bodySmall: return 22
@@ -185,8 +220,8 @@ enum Papercut {
             }
         }
 
-        /// Jua를 쓰는 슬롯인가 (KAN-178). 안드로이드 `Type.kt`가 `fontFamily = Jua`를 준
-        /// 다섯 슬롯과 같다 — 제목·대사·등급·주 CTA 라벨·타이머다.
+        /// Jua를 쓰는 슬롯인가 (KAN-178). 제목·대사·등급·타이머와 버튼 라벨이다 — 버튼 라벨은 KAN-355(2026-11-12 결정)부터
+        /// 주·보조·글자 버튼 모두 Jua다.
         ///
         /// 본문 쪽(``body``·``bodySmall``·``label``·``caption``)은 시스템 서체로 남는다.
         /// 안드로이드가 `FontFamily.Default`를 두는 것과 같은 이유인데, 그쪽 시스템 산세리프도
@@ -195,7 +230,7 @@ enum Papercut {
         /// 어느 쪽이든 "본문은 그 OS의 본문 글꼴"이라는 규칙 하나로 설명된다.
         var usesJua: Bool {
             switch self {
-            case .display, .headline, .titleLarge, .title, .timer: return true
+            case .display, .headline, .titleLarge, .title, .button, .textButton, .timer: return true
             case .body, .bodySmall, .label, .caption: return false
             }
         }
@@ -225,9 +260,13 @@ enum Papercut {
         }
 
         /// 자리가 고정된 숫자라 자간을 벌리지 않으면 `00:04`의 두 자리가 서로 붙어 보인다.
-        /// 웹 `.type-timer`와 같은 값(0.04em)이다.
+        /// 웹 `.type-timer`와 같은 값(0.04em)이다. 버튼 라벨은 시안 `.btn`의 0.01em이다 (KAN-355).
         var tracking: CGFloat {
-            self == .timer ? size * 0.04 : 0
+            switch self {
+            case .timer: return size * 0.04
+            case .button, .textButton: return size * 0.01
+            default: return 0
+            }
         }
     }
 }
@@ -258,8 +297,6 @@ extension View {
     /// 정본 §3의 한 슬롯을 통째로 적용한다.
     ///
     /// - Parameter tracking: 슬롯 기본 자간(``Papercut/TextStyle/tracking``)을 덮을 값.
-    ///   주 CTA 라벨 하나가 쓴다 — 안드로이드 `AccenturyButton`의 `PRIMARY_LETTER_SPACING`
-    ///   자리이고, 굵기를 못 올리는 Jua에서 자간이 라벨의 무게를 대신한다.
     func papercutType(_ style: Papercut.TextStyle, tracking: CGFloat? = nil) -> some View {
         self
             .font(style.font)

@@ -1,0 +1,202 @@
+/*
+ * 출신 지역 지도 화면 (KAN-347 7단계, 시안 s-13-region-select-web-map·-full-map). 전부 `.region-screen` 아래로 묶는다 —
+ * 사투리 여행 지도(3단계)와 이름이 겹쳐도 서로 번지지 않게.
+ */
+
+.region-screen {
+  gap: var(--space-3);
+}
+
+/* 제목 26 — 낱말 가운데서 줄을 바꾸지 않는다 (시안 .p3-region-title) */
+.region-screen h1 {
+  line-height: 1.3;
+  letter-spacing: -0.5px;
+  word-break: keep-all;
+}
+
+/* 부제 13 흐린 잉크 (시안 .p3-region-description). 제목은 .type-headline 26 그대로 */
+.region-screen__lead {
+  margin-top: 0.625rem;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-normal);
+  word-break: keep-all;
+}
+
+.region-screen__body {
+  gap: 0;
+}
+
+/*
+ * 지도 상자 342 × 420 (시안 .region-map). 폭이 달라도 비율을 지켜 칩 좌표(퍼센트)가 면 위에 그대로 앉는다.
+ */
+.region-screen .region-map {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 342 / 420;
+}
+
+.region-screen .region-map__geography,
+.region-screen .region-map__connector {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.region-screen .region-map__geography {
+  filter: drop-shadow(3px 4px 0 var(--color-primary-dim));
+}
+
+.region-screen .region-map__geography path {
+  fill: var(--color-paper);
+  cursor: pointer;
+  transition: fill var(--duration-fast) var(--ease-out);
+}
+
+/* 고른 지역 면은 벽돌 (티켓 7-3) */
+.region-screen .region-map__geography path.is-selected {
+  fill: var(--color-point);
+}
+
+.region-screen .region-map__metro-lines path {
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-width: 0.75px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.region-screen .region-map__connector {
+  pointer-events: none;
+}
+
+.region-screen .region-map__connector path {
+  fill: none;
+  stroke: var(--color-muted-foreground);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/*
+ * 칩. 보이는 이름표는 높이 28이고, 누르는 자리는 48(터치 하한, 시안은 44)로 그 둘레를 감싼다.
+ */
+.region-screen .region-chip {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  min-height: var(--touch-target-min);
+  cursor: pointer;
+}
+
+/* 라디오 표식은 눈에서만 지운다 — 의미론·방향키 이동은 그대로 (`.choice__radio`와 같은 방식) */
+.region-screen .region-chip__radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.region-screen .region-chip__name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-foreground);
+  font-family: var(--font-display);
+  font-size: var(--text-label);
+  line-height: 1;
+  white-space: nowrap;
+  /* 칩 선택은 150ms 색 전환만 (티켓 7단계 움직임) */
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+/* 고른 칩은 반전 — 벽돌 면 · 잉크 테두리 · 종이색 글자 (시안 maponly-fix) */
+.region-screen .region-chip:has(.region-chip__radio:checked) .region-chip__name {
+  background: var(--color-point);
+  color: var(--color-paper);
+}
+
+.region-screen .region-chip:has(.region-chip__radio:focus-visible) .region-chip__name {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* 출처 표기. 지도 오른쪽 아래 12 흐린 잉크 */
+.region-screen .region-map__source {
+  margin: var(--space-1) 0 0;
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+/* 고른 지역 설명 한 줄 — Jua 18 (시안 .region-selection). 고르기 전에는 본문 글꼴 흐린 잉크 */
+.region-screen .region-selection {
+  margin: var(--space-4) 0 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.region-screen .region-selection--empty {
+  color: var(--color-muted-foreground);
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+}
+
+.region-screen__note {
+  margin-top: var(--space-4);
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/*
+ * 큰 글자 — 칩이 겹치므로 지도를 걷고 같은 칩을 2열 목록으로 편다 (확정된 결정 2026-11-16). 순서는 DOM 순서(`REGIONS`)라
+ * Tab·방향키 순서와 눈에 보이는 순서(왼쪽→오른쪽, 위→아래)가 같다.
+ */
+html[data-large-text] .region-screen .region-map {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  aspect-ratio: auto;
+}
+
+html[data-large-text] .region-screen .region-map__geography,
+html[data-large-text] .region-screen .region-map__connector,
+html[data-large-text] .region-screen .region-map__source {
+  display: none;
+}
+
+html[data-large-text] .region-screen .region-chip {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  min-width: 0;
+}
+
+html[data-large-text] .region-screen .region-chip__name {
+  width: 100%;
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-choice);
+}

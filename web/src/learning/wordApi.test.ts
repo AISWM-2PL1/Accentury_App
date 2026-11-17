@@ -115,6 +115,30 @@ describe('요청 형태 — 다섯 경로', () => {
     expect(JSON.parse(init?.body as string)).toEqual({ choiceId: 'i1b' })
   })
 
+  it('시간 초과 답안: choiceId 없이 { timedOut: true } 본문 (KAN-360)', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, ANSWER))
+
+    await submitWordAnswer(API, { attemptId: 'a1', itemId: 'i1', choiceId: null, idempotencyKey: 'key-t' }, deps(fetchImpl))
+
+    const [, init] = fetchImpl.mock.calls[0]
+    expect(init?.headers).toMatchObject({ 'Idempotency-Key': 'key-t' })
+    expect(JSON.parse(init?.body as string)).toEqual({ timedOut: true })
+  })
+
+  it('완료: 시간 초과 오답(chosenChoiceId·chosenText null, timedOut true)과 이번 시도 stars를 받는다 (KAN-359·360)', async () => {
+    const timedOut = { ...RESULT.wrongItems[0], chosenChoiceId: null, chosenText: null, timedOut: true }
+    const body = { ...RESULT, wrongItems: [timedOut], stars: 2 }
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, body))
+
+    expect(await completeWordAttempt(API, 'a1', deps(fetchImpl))).toEqual(body)
+  })
+
+  it('완료: stars가 숫자가 아니면 모양 오류다', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, { ...RESULT, stars: '2' }))
+
+    expect((await caught(completeWordAttempt(API, 'a1', deps(fetchImpl)))).message).toBe('학습 정보를 해석할 수 없어요')
+  })
+
   it('완료: POST .../complete, 본문 없음', async () => {
     const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, RESULT))
 
@@ -284,6 +308,7 @@ describe('오류 해석', () => {
 
     expect(error.code).toBe('LEARNING_SET_NOT_FOUND')
     expect(error.retryable).toBe(false)
+    expect(error.status).toBe(404) // 목록 오류의 「오류 코드 N」 (KAN-347 3-7)
   })
 
   it('네트워크 거부는 retryable true', async () => {
@@ -295,6 +320,7 @@ describe('오류 해석', () => {
 
     expect(error.code).toBeNull()
     expect(error.retryable).toBe(true)
+    expect(error.status).toBeNull() // 응답이 없었다 — 오류 코드 줄을 그리지 않는다
   })
 
   it('봉투가 없으면 상태 코드로 판정한다 (503 재시도 가능, 403 불가)', async () => {
@@ -305,6 +331,7 @@ describe('오류 해석', () => {
 
     expect(retryable.code).toBeNull()
     expect(retryable.retryable).toBe(true)
+    expect(retryable.status).toBe(503)
     expect(fatal.retryable).toBe(false)
   })
 

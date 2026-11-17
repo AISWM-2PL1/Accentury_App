@@ -2,6 +2,7 @@ package com.accentury.app.ui
 
 import com.accentury.app.ui.components.ProgressDotState
 import com.accentury.app.ui.components.dotState
+import com.accentury.app.ui.components.progressDescription
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -41,5 +42,11 @@ class ProgressDotStateTest {
         (1..7).forEach { position ->
             assertEquals(ProgressDotState.Done, dotState(position = position, current = 8))
         }
+    }
+
+    @Test
+    fun `스크린 리더 문장은 라벨·분모·번째를 한 줄로 말한다 (KAN-354 시안 aria-label)`() {
+        assertEquals("억양 · 7문항 중 1번째", progressDescription("억양", 1, "7문항"))
+        assertEquals("억양 · 대사 3개 중 2번째", progressDescription("억양", 2, "대사 3개"))
     }
 }

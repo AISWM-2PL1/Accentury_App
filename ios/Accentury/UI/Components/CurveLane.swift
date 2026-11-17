@@ -10,17 +10,17 @@ enum CurveLaneVariant {
 
 /// 곡선 레인을 담는 상자 (KAN-161 2단계). 안드로이드 `CurveLaneGroup`의 이식본이다.
 /// 레인 하나든 둘이든 테두리와 모서리는 이 상자가 갖고 레인 자신은 갖지 않는다 — 레인마다
-/// 테두리를 두르면 상자 안에 상자가 겹쳐 선이 두 겹으로 보인다. 웹 `.curve-card`와 같은 규격.
+/// 테두리를 두르면 상자 안에 상자가 겹쳐 선이 두 겹으로 보인다. 면·선은 KAN-355 시안 `.p2-lanes`(paper 면·잉크 1·모서리 10)다.
 struct CurveLaneGroup<Content: View>: View {
 
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Papercut.radiusMD, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous)
         return VStack(spacing: 0) { content() }
             .frame(maxWidth: .infinity)
-            .background(shape.fill(Papercut.cream))
-            .overlay(shape.stroke(Papercut.ink, lineWidth: Papercut.borderRegular))
+            .background(shape.fill(Papercut.paper))
+            .overlay(shape.strokeBorder(Papercut.ink, lineWidth: Papercut.borderHairline))
             .clipShape(shape)
     }
 }
@@ -77,6 +77,9 @@ struct CurveLaneView: View {
     /// 호출부 시그니처가 갈리면 릴리스 빌드만 깨지는 종류의 실수가 생긴다.
     var renderedFrameCount: Int = 0
 
+    /// 레인 높이. 목소리 점검은 가이드 없이 레인 하나라 두 칸 높이를 한 레인이 쓴다 (KAN-355 시안 s-05).
+    var height: CGFloat = Papercut.curveLaneHeight
+
     /// 곡선이 자라도 다시 만들지 않는 것들. 뷰 값이 다시 만들어져도 같은 인스턴스로 남는다.
     @State private var shapeCache = CurveShapeCache()
     @State private var halftone = HalftoneGrid()
@@ -96,10 +99,10 @@ struct CurveLaneView: View {
             .padding(.top, Papercut.space4)
             .padding(.bottom, Papercut.space1)
 
-            // 레인 사이 구분선. 상자 테두리보다 얇고 흐리다 — 나누는 선이 두르는 선만큼
+            // 레인 사이 구분선. 상자 테두리보다 흐린 종이 그림자 색이다 (시안 `.p2-lane + .p2-lane`) — 나누는 선이 두르는 선만큼
             // 진하면 레인 둘이 따로 놓인 상자로 보인다.
             if topDivider {
-                Papercut.muted
+                Papercut.paperShadow
                     .frame(height: Papercut.borderHairline)
                     .frame(maxWidth: .infinity, alignment: .top)
             }
@@ -112,7 +115,7 @@ struct CurveLaneView: View {
                 .padding(.top, Papercut.space1)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(height: Papercut.curveLaneHeight)
+        .frame(height: height)
         // 곡선이 시시각각 바뀌는 그림이라 값을 읽어 주지 않는다 — 뜻만 남긴다.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label) 곡선")

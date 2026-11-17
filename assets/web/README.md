@@ -16,7 +16,7 @@
 | `apple-touch-icon-v3.png` | 180×180 RGB, 크림 꽉 참 | iOS Safari "홈 화면에 추가" |
 | `icon-192-v3.png` · `icon-512-v3.png` | RGB, 크림 꽉 참 | manifest `icons` |
 | `og-card-v3.png` | 1200×630 RGB, 400KB 이하 | `og:image` · `twitter:image` |
-| `manifest-v3.webmanifest` | JSON | `<link rel="manifest">` |
+| `manifest-v4.webmanifest` | JSON, `start_url`은 `/test` | `<link rel="manifest">` |
 
 `web/index.html`이 이 파일들을 절대 URL·절대 경로로 가리킨다. 그 참조가 실제 파일과 어긋나면
 `web/src/webAppMeta.test.ts`가 깨진다.

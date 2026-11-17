@@ -92,33 +92,18 @@ struct RecordingScreen: View {
             ScrollView {
                 VStack(spacing: Papercut.space6) {
                     /*
-                     * 웹 진행바와 같은 컴포넌트, 같은 값, 같은 폭이다. `note`가 "음성"인 것도
-                     * 같은 이유다 — 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를 빼면 같은
-                     * 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
+                     * 진행 표시 (KAN-355 시안). 왼쪽 「억양」·오른쪽 「n / N」 한 줄과 알약 칸이다. 레벨 테스트는 7문항 전체 번호
+                     * (서버 setLayout VVWVWWW, 음성 문항은 1·2·4번)이고, 억양 학습은 이 화면이 A-2 카드 역할이라 대사 n/N이다 (KAN-253).
                      */
                     switch purpose {
                     case let .levelTest(itemNumber, totalItems, _):
-                        ProgressIndicator(current: itemNumber, total: totalItems, note: "음성")
-                    // 억양 학습은 이 화면이 A-2 카드 역할이라 n/N을 여기서 그린다 (KAN-253 5단계). 라벨·종류 표기는
-                    // 웹 A-2(일시정지 화면)의 「카드 진행률」·note 없음과 맞춘다 — 뒤로가기로 오갈 때 줄이 튀지 않게.
+                        ProgressIndicator(current: itemNumber, total: totalItems, unit: .items)
                     case let .intonationLearning(_, itemNumber, totalItems):
-                        ProgressIndicator(current: itemNumber, total: totalItems, label: "카드 진행률")
+                        ProgressIndicator(current: itemNumber, total: totalItems, unit: .lines)
                     }
 
-                    /*
-                     * 대사 카드. 배지·이모지·부연을 걷고 캡션 한 줄 + 대사만 남겼다 (아트보드 ②).
-                     * "평소 말하듯 자연스럽게 읽어주세요"가 사라진 것은 문구를 줄이려는 게 아니라
-                     * 자리를 옮긴 것이다 — 카드는 읽을 문장을 내밀고, 어떻게 하라는 말은 버튼 밑
-                     * 캡션이 한다.
-                     */
-                    PromptCard(
-                        caption: promptCardCaption,
-                        prompt: questionText,
-                        // 억양 학습의 표준어 원문 (KAN-253). nil이면 그 줄을 그리지 않는다 (§12).
-                        supporting: promptCardSupporting,
-                        // 레벨테스트 감정 칩 (KAN-283). 억양 학습은 emotion이 없어 칩도 없다.
-                        cue: promptCardCue
-                    )
+                    // 대사 카드 (KAN-355 시안). 레벨 테스트는 대사 + 감정 칩, 억양 학습은 「표준어 · …」 + 대사 + 따라 말하기 칩이다.
+                    PromptCard(caption: promptCardCaption, prompt: questionText, cue: promptCardCue)
 
                     curveCard
                 }
@@ -207,23 +192,23 @@ struct RecordingScreen: View {
 
     // MARK: - 하단
 
-    private var promptCardCaption: String {
+    /// 대사 위 흐린 한 줄. 억양 학습은 표준어 원문(KAN-253, 없으면 그리지 않는다 §12), 레벨 테스트는 감정 칩이 없는 문항만
+    /// 읽기 안내(번호 없이, 번호는 진행 표시가 맡는다)가 칩 자리를 대신한다 — 감정이 있는 문항은 시안대로 대사와 칩뿐이다.
+    private var promptCardCaption: String? {
         switch purpose {
-        case let .levelTest(itemNumber, totalItems, _):
-            return promptCaption(questionIndex: itemNumber, totalQuestions: totalItems)
-        case .intonationLearning:
-            return promptCaption(questionIndex: 0, totalQuestions: 0)
+        case let .levelTest(_, _, emotion):
+            return emotionCue(emotion) == nil ? promptCaption : nil
+        case let .intonationLearning(standard, _, _):
+            return standard.map { "표준어 · \($0)" }
         }
     }
 
-    private var promptCardSupporting: String? {
-        guard case let .intonationLearning(standard, _, _) = purpose, let standard else { return nil }
-        return "표준어 · \(standard)"
-    }
-
+    /// 대사 아래 칩. 레벨 테스트는 감정 칩(KAN-283), 억양 학습은 따라 말하기 안내다 (KAN-355 시안 s-17).
     private var promptCardCue: String? {
-        guard case let .levelTest(_, _, emotion) = purpose else { return nil }
-        return emotionCue(emotion)
+        switch purpose {
+        case let .levelTest(_, _, emotion): return emotionCue(emotion)
+        case .intonationLearning: return "사투리로 따라 말해 보세요"
+        }
     }
 
     @ViewBuilder
@@ -295,7 +280,7 @@ struct RecordingScreen: View {
             .frame(height: countdownCapsuleHeight)
             .animation(.easeOut(duration: Papercut.Motion.base), value: warning)
 
-            RecordButton(accessibilityLabel: "녹음 정지", recording: true) { model.stop() }
+            RecordButton(accessibilityLabel: "녹음 정지", recording: true, rms: recording.rms) { model.stop() }
 
             // 자동 종료를 미리 알린다 — 갑자기 멈추면 사용자는 자기가 뭘 잘못 눌렀다고 생각한다.
             caption(warning ? "10초가 되면 자동으로 멈춰요" : "녹음 중 · 탭해서 멈추기")
@@ -338,22 +323,22 @@ struct RecordingScreen: View {
                 .multilineTextAlignment(.center)
             caption(String(format: "녹음 길이 %.1f초", Double(review.durationMs) / 1000.0))
 
-            Spacer().frame(height: Papercut.space2)
-
-            // 억양 학습에만 (KAN-253). 재녹음·다음 줄은 레벨테스트와 같게 두고 그 위에 보조 버튼 한 줄을 더한다.
+            // 억양 학습에만 (KAN-253). 시안 s-17-review에는 없지만 유지하기로 했고(2026-11-16 결정), 검토 줄 아래 글자 버튼이다.
             if purpose.offersPlayback, let onListen {
-                AccenturyButton(text: listening ? "듣기 멈추기" : "내 녹음 듣기", variant: .secondary, fillsWidth: true) {
+                AccenturyButton(text: listening ? "듣기 멈추기" : "내 녹음 듣기", variant: .text) {
                     onListen()
                 }
             }
 
+            Spacer().frame(height: Papercut.space2)
+
             /*
              * 둘이 같은 폭을 갖는다 (웹 `.record-actions`와 같은 규칙). 무게는 이미 변형이
-             * 가르므로(보조는 그림자 없는 크림, 주는 잉크 면) 폭까지 다르면 보조 동작이 눌리지
+             * 가르므로(보조는 그림자 없는 크림, 주는 벽돌 면) 폭까지 다르면 보조 동작이 눌리지
              * 않을 만큼 작아진다.
              */
             HStack(spacing: Papercut.space3) {
-                AccenturyButton(text: "재녹음", variant: .secondary, fillsWidth: true) {
+                AccenturyButton(text: "재녹음", variant: .secondary, fillsWidth: true, leadingIcon: "arrow.counterclockwise") {
                     onRetake()
                     model.retry()
                 }
@@ -361,6 +346,7 @@ struct RecordingScreen: View {
                     text: "다음",
                     enabled: review.canProceed,
                     fillsWidth: true,
+                    trailingIcon: "arrow.right",
                     /*
                      * 되감기(reset)를 여기서 부르지 않는다 (KAN-146). [다음] 뒤에도 이 화면은
                      * 결과가 나갈 때까지 제출 중 상태로 남으므로, 이 자리에서 되감으면 방금 그린

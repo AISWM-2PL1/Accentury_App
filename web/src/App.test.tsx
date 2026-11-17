@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { clearTestId } from './analytics/testId'
@@ -8,6 +8,7 @@ import { VOICE_CONSENT_TITLE, VOICE_CONSENT_VERSION } from './legal/voiceConsent
 import { snapshotKey } from './progress/progressSnapshot'
 import { START_COUNTDOWN_SECONDS } from './progress/TestFlowScreen'
 import { clearWebSession, getWebSessionToken, loadWebSession, saveWebSession } from './session/webSession'
+import { markResumeLearning, takeResumeLearning } from './learning/resumeFlag'
 
 function setSearch(search: string) {
   window.history.replaceState(null, '', `/${search}`)
@@ -164,7 +165,7 @@ async function passVoiceConsent(consented = false) {
   await act(async () => {})
 }
 
-const REGION_TITLE = '출신 지역이 어디신가요?'
+const REGION_TITLE = '어느 지역 말씨가 몸에 배어 있나요?'
 
 /**
  * 출신 지역 선택 화면을 지난다 (KAN-202). 동의 다음 칸이고 빌드 스위치가 없어(KAN-274) 웹 단독
@@ -175,7 +176,8 @@ const REGION_TITLE = '출신 지역이 어디신가요?'
  */
 async function passRegionSelect(label = '경남') {
   expect(screen.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('radio', { name: label }))
+  // 칩 이름은 「경남, 부산·울산 포함」처럼 광역시까지 읽는다 (KAN-347 7단계)
+  fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${label}`) }))
   fireEvent.click(screen.getByRole('button', { name: '다음' }))
   await act(async () => {})
   await act(async () => {})
@@ -201,6 +203,8 @@ afterEach(() => {
   // 응시 상관 키는 실물 sessionStorage에 남는다 — 지우지 않으면 다음 테스트의 이벤트가
   // 앞 테스트의 응시에 묶인다
   clearTestId()
+  // 홈 [이어가기] 표식도 실물 sessionStorage다 (KAN-347 3-6)
+  takeResumeLearning()
   delete (navigator as { mediaDevices?: unknown }).mediaDevices
   // 진행 화면 분기 테스트가 fetch·localStorage를 스텁한다. 실패로 중단돼도 다음 테스트에
   // 새지 않게 여기서 되돌린다
@@ -228,10 +232,10 @@ describe('App — 스큐 판정 분기', () => {
     expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
     // KAN-148에서 한 문장이던 표기가 숫자 칸으로 갈렸다 - 확인하는 값은 그대로다
     expect(screen.getByText('7문항')).toBeInTheDocument()
-    expect(screen.getByText('~3분')).toBeInTheDocument()
-    // 이모지를 뺀 한 줄로 합쳤다 (KAN-161 3단계, 아트보드 `Main.dc.html`)
-    expect(screen.getByText('음성 3 + 단어 4')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByText('약 3분')).toBeInTheDocument()
+    // 이모지를 뺀 한 줄로 합쳤다 (KAN-161 3단계). 표기는 KAN-347 7단계 시안 s-05
+    expect(screen.getByText('억양 3 · 단어 4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
   })
 
   /*
@@ -244,14 +248,14 @@ describe('App — 스큐 판정 분기', () => {
     stubBridge()
     render(<App />)
     expect(screen.getByText('앱 업데이트가 필요해요')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '내 억양 테스트하기' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '레벨 테스트 시작' })).not.toBeInTheDocument()
   })
 
   it('브리지 객체도 쿼리도 없으면(웹 단독 실행) 인트로가 뜬다 (KAN-31)', () => {
     // 공유 링크를 앱 없이 그대로 연 사람이 이 경로다
     setSearch('?c=kko_share')
     render(<App />)
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(screen.queryByText('앱 업데이트가 필요해요')).not.toBeInTheDocument()
   })
 })
@@ -265,7 +269,7 @@ describe('App — 문항 진행 화면 진입 쿼리 (KAN-100: 네이티브가 �
     await skipStartCountdown()
 
     expect(await screen.findByText('어서 오이소')).toBeInTheDocument()
-    expect(screen.getByText('1 / 1 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '1')
   })
 
   it('sessionId 쿼리가 진행 화면까지 전달돼 그 세션 키에 저장된다', async () => {
@@ -306,46 +310,85 @@ describe('App — 문항 진행 화면 진입 쿼리 (KAN-100: 네이티브가 �
   it('screen 파라미터가 없으면 기존대로 인트로다', () => {
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0`)
     render(<App />)
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
   })
 })
 
-describe('App — 단어 학습 진입 쿼리 (KAN-255)', () => {
-  it('?screen=words면 단어 학습 라우트가 세트 목록을 그린다', async () => {
-    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
+/** 사투리 여행 진행 응답 — 목록 두 개만, 구간 요약(KAN-359)·홈은 404 (배포 전 서버) */
+function stubTravelFetch() {
+  const fetchStub = vi.fn(async (url: unknown) => {
+    const path = new URL(String(url), 'http://x').pathname
+    const json = (body: unknown, status = 200) => ({ ok: status < 300, status, json: async () => body })
+    if (path === '/v0/learning/word-sets') {
+      return json({ contentVersion: 'v1', sets: [{ setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 2, itemCount: 2 }] })
+    }
+    if (path === '/v0/learning/intonation-courses') {
+      return json({
+        contentVersion: 'v1',
+        courses: [{ courseId: 'k1', seq: 1, level: 1, topic: null, title: '인사', cardCount: 3, completedCardCount: 0, completed: false, recommended: true }],
+      })
+    }
+    if (path === '/v0/learning/word-sets/s1') return json({ contentVersion: 'v1', setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cards: [{ cardId: 'c1', standard: '부추', dialect: '정구지' }], items: [] })
+    return json({ code: 'NOT_FOUND', message: '없음', retryable: false }, 404)
+  })
+  vi.stubGlobal('fetch', fetchStub)
+  return fetchStub
+}
+
+describe('App — 학습 탭 「사투리 여행」 진입 쿼리 (KAN-347 3-1)', () => {
+  beforeEach(() => {
     window.AccenturyBridge = {
       requestMicPermission: vi.fn(),
       startVoiceItem: vi.fn(),
       getContractVersion: () => REQUIRED_BRIDGE_VERSION,
       getAccessToken: () => 'acc',
     }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          contentVersion: 'v1',
-          sets: [{ setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 2, itemCount: 2 }],
-        }),
-      })),
-    )
+  })
+
+  it.each(['learn', 'intonation', 'words'])('?screen=%s면 사투리 여행 지도와 탭 바(학습 강조)가 선다 — 옛 값도 같은 탭이다', async (value) => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=${value}`)
+    stubTravelFetch()
     render(<App navigate={vi.fn()} />)
-    expect(await screen.findByRole('heading', { name: '단어 학습' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /먹을 것/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: '사투리 여행' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '학습' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('행정구역 경계: 통계청 SGIS(2013)')).toBeInTheDocument()
+    // KAN-359 전(구간 요약 404): 별 표시 없이 첫 스탬프가 지금 스탬프다
+    expect(screen.getByRole('heading', { level: 2, name: '단어 학습 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /^별 \d+개$/ })).toBeNull()
+  })
+
+  it('이어가기 표식(홈 [이어가기])이 있으면 지도를 거치지 않고 지금 스탬프로 들어가고, 표식은 한 번만 쓴다 (3-6)', async () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation`)
+    stubTravelFetch()
+    markResumeLearning()
+    const { unmount } = render(<App navigate={vi.fn()} />)
+    expect(await screen.findByText('정구지')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: '사투리 여행' })).toBeNull()
+    unmount()
+    // 다시 열면(녹음 ✕·뒤로가기·새로고침) 지도다
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('heading', { level: 1, name: '사투리 여행' })).toBeInTheDocument()
+  })
+
+  it('URL의 resume=1은 읽지 않는다 — 네이티브가 들고 있던 옛 URL로 다시 열려도 지도다 (3-6)', async () => {
+    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation&resume=1`)
+    stubTravelFetch()
+    render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('heading', { level: 1, name: '사투리 여행' })).toBeInTheDocument()
+    expect(screen.queryByText('정구지')).toBeNull()
   })
 
   it('로그인 안 됐으면 안내만 — 탭 바는 계정 로그인 상태에서만 선다 (KAN-252, PR #33 리뷰 P1)', async () => {
+    delete window.AccenturyBridge
     setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=words`)
     render(<App navigate={vi.fn()} />)
-    expect(await screen.findByText('로그인하면 단어 학습을 할 수 있어요')).toBeInTheDocument()
+    expect(await screen.findByText('로그인하면 학습을 이어갈 수 있어요')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '주 메뉴' })).toBeNull()
   })
 })
 
-describe('App — 홈 등급 카드·출석 (KAN-287)', () => {
+describe('App — 홈 테스트 전후·출석 배지 (KAN-287, KAN-347 2단계)', () => {
   const HOME = `?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=home`
-  const queryOf = (url: unknown) => new URLSearchParams(String(url).split('?')[1] ?? '')
   let requestMicPermission: ReturnType<typeof vi.fn>
 
   const BEFORE_TEST = {
@@ -369,7 +412,7 @@ describe('App — 홈 등급 카드·출석 (KAN-287)', () => {
   }
 
   function stubHome(status: number, body: unknown) {
-    const fetchStub = vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => body }))
+    const fetchStub = vi.fn(async (_url: unknown) => ({ ok: status >= 200 && status < 300, status, json: async () => body }))
     vi.stubGlobal('fetch', fetchStub)
     return fetchStub
   }
@@ -385,79 +428,99 @@ describe('App — 홈 등급 카드·출석 (KAN-287)', () => {
     }
   })
 
-  it('테스트 전이면 기존 홈 그대로 + 0일 출석 빈 상태 문구', async () => {
+  const badge = () => screen.queryByRole('button', { name: /^연속 출석 \d+일, 출석 달력 열기$/ })
+
+  it('테스트 전 - 카드 제목·설명·「7문항 · 약 3분」·마이크 아이콘 버튼, 앱 바에 0일 출석 배지', async () => {
     stubHome(200, BEFORE_TEST)
-    render(<App navigate={vi.fn()} />)
-    expect(await screen.findByText('오늘 학습하면 출석이 시작돼요')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
+    const { container } = render(<App navigate={vi.fn()} />)
+    expect(await screen.findByRole('button', { name: '연속 출석 0일, 출석 달력 열기' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(screen.getByText('억양과 단어로 내 경남 사투리 등급을 알아봐요')).toBeInTheDocument()
+    expect(screen.getByText('7문항 · 약 3분')).toBeInTheDocument()
+    const start = screen.getByRole('button', { name: '레벨 테스트 시작' })
+    expect(start.querySelector('svg')).not.toBeNull()
+    expect(container.querySelector('.home-card__icon')?.getAttribute('src')).toMatch(/home-icon-wave/)
   })
 
-  it('테스트 후면 등급 카드·KST 응시일·출석, [억양 학습 시작]은 억양 탭으로, [다시 테스트하기]는 브리지로', async () => {
+  it('테스트 후 - 등급 캐릭터·이름·5칸 막대·글자 버튼 [다시 테스트하기], 주 버튼과 이번 주 출석 줄은 없다', async () => {
     const fetchStub = stubHome(200, AFTER_TEST)
-    const navigate = vi.fn()
-    const { container } = render(<App navigate={navigate} />)
+    const { container } = render(<App navigate={vi.fn()} />)
 
     expect(await screen.findByRole('heading', { level: 1, name: '경남 토박이' })).toBeInTheDocument()
-    expect(String((fetchStub.mock.calls[0] as unknown[])[0])).toMatch(/\/v0\/learning\/home$/)
-    expect(screen.getByText('2026년 10월 14일 응시')).toBeInTheDocument()
-    expect(screen.getByText('3일 연속 출석 중 · 오늘 학습하면 4일')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '레벨 테스트 시작' })).toBeNull()
-    expect(container.querySelectorAll('.btn--primary')).toHaveLength(1)
+    expect(String(fetchStub.mock.calls[0][0])).toMatch(/\/v0\/learning\/home$/)
+    expect(screen.getByRole('img', { name: '5개 등급 중 1번째' }).querySelectorAll('i.is-on')).toHaveLength(1)
+    expect(screen.getByRole('img', { name: '5개 등급 중 1번째' }).querySelectorAll('i')).toHaveLength(5)
+    expect(container.querySelector('.home-hero .illustration--home')).not.toBeNull()
+    expect(container.querySelectorAll('.btn--primary')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: '억양 학습 시작' })).toBeNull()
+    expect(container.querySelector('.home-tier, .home-attendance')).toBeNull()
+    expect(badge()).toHaveAccessibleName('연속 출석 3일, 출석 달력 열기')
 
-    fireEvent.click(screen.getByRole('button', { name: '억양 학습 시작' }))
-    expect(queryOf(navigate.mock.calls[0][0]).get('screen')).toBe('intonation')
-
-    fireEvent.click(screen.getByRole('button', { name: '다시 테스트하기' }))
+    const retest = screen.getByRole('button', { name: '다시 테스트하기' })
+    expect(retest).toHaveClass('btn--text')
+    fireEvent.click(retest)
     expect(requestMicPermission).toHaveBeenCalledTimes(1)
   })
 
-  it('오늘 출석했으면 「N일 연속 출석 중이에요」', async () => {
-    stubHome(200, { ...AFTER_TEST, streak: { currentDays: 5, attendedToday: true, lastAttendedDate: '2026-10-15' } })
-    render(<App navigate={vi.fn()} />)
-    expect(await screen.findByText('5일 연속 출석 중이에요')).toBeInTheDocument()
+  it('테스트 후 - 이어가기 카드가 지도의 지금 스탬프를 보이고, [이어가기]는 표식을 남기고 학습 탭을 연다 — URL에는 싣지 않는다 (KAN-347 3-6)', async () => {
+    const travel = stubTravelFetch()
+    travel.mockImplementationOnce(async () => ({ ok: true, status: 200, json: async () => AFTER_TEST }))
+    const navigate = vi.fn()
+    render(<App navigate={navigate} />)
+    const card = await screen.findByRole('region', { name: '다음 스탬프' })
+    expect(card).toHaveTextContent('1코스 · 1번째 스탬프')
+    expect(within(card).getByRole('heading', { level: 2, name: '단어 학습 1' })).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('스탬프 0개') // KAN-359 전에는 모은 스탬프 수를 숨긴다
+    fireEvent.click(within(card).getByRole('button', { name: '이어가기' }))
+    const next = new URLSearchParams(String(navigate.mock.calls[0][0]).split('?')[1] ?? '')
+    expect(next.get('screen')).toBe('intonation')
+    expect(next.get('resume')).toBeNull()
+    expect(takeResumeLearning()).toBe(true)
   })
 
-  it('streak 없는 응답(KAN-286 미배포 서버)이면 출석 영역이 없다', async () => {
+  it('배지를 누르면 출석 달력 시트가 열려 이번 달 출석을 조회하고, 닫으면 배지로 초점이 돌아온다', async () => {
+    const fetchStub = stubHome(200, AFTER_TEST)
+    render(<App navigate={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: '연속 출석 3일, 출석 달력 열기' }))
+
+    expect(screen.getByRole('dialog', { name: '출석 달력' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(fetchStub.mock.calls.some(([url]) => /\/v0\/learning\/attendance\?year=\d{4}&month=\d{1,2}$/.test(String(url)))).toBe(true),
+    )
+    fireEvent.click(screen.getByRole('button', { name: '출석 달력 닫기' }))
+    expect(screen.queryByRole('dialog', { name: '출석 달력' })).toBeNull()
+    expect(badge()).toHaveFocus()
+  })
+
+  it('streak 없는 응답(KAN-286 미배포 서버)이면 배지가 없다', async () => {
     const { streak: _streak, ...withoutStreak } = AFTER_TEST
     stubHome(200, withoutStreak)
     render(<App navigate={vi.fn()} />)
     expect(await screen.findByRole('heading', { level: 1, name: '경남 토박이' })).toBeInTheDocument()
-    expect(screen.queryByText(/출석/)).toBeNull()
+    expect(badge()).toBeNull()
   })
 
   it.each([
     ['네트워크 실패', () => vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('offline'))))],
     ['503', () => stubHome(503, { code: 'SERVICE_UNAVAILABLE', message: '잠시 후', retryable: true })],
-  ])('조회 실패(%s)면 응답 전과 같은 홈과 탭 바, 오류 표시 없음', async (_name, stub) => {
+  ])('조회 실패(%s)면 응답 전과 같은 홈과 탭 바, 오류 표시·배지 없음', async (_name, stub) => {
     stub()
     render(<App navigate={vi.fn()} />)
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
     await act(async () => {})
-    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: '주 메뉴' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.queryByText(/출석/)).toBeNull()
+    expect(badge()).toBeNull()
   })
 
-  it('levelTestTaken true인데 levelTest null이면 등급 카드 없이 기존 홈 + 출석', async () => {
+  it('levelTestTaken true인데 levelTest null이면 테스트 전 홈 + 배지', async () => {
     stubHome(200, { ...BEFORE_TEST, levelTestTaken: true })
     const { container } = render(<App navigate={vi.fn()} />)
-    expect(await screen.findByText('오늘 학습하면 출석이 시작돼요')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
-    expect(container.querySelector('.home-tier')).toBeNull()
-  })
-
-  it('응시일 파싱이 안 되면 응시일 줄만 빠지고 등급 카드·버튼은 그대로', async () => {
-    stubHome(200, { ...AFTER_TEST, levelTest: { ...AFTER_TEST.levelTest, completedAt: 'not-a-date' } })
-    const { container } = render(<App navigate={vi.fn()} />)
-    expect(await screen.findByRole('heading', { level: 1, name: '경남 토박이' })).toBeInTheDocument()
-    expect(container.querySelector('.home-tier')).not.toBeNull()
-    expect(screen.queryByText(/응시/)).toBeNull()
-    expect(screen.getByRole('button', { name: '억양 학습 시작' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '연속 출석 0일, 출석 달력 열기' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(container.querySelector('.home-hero')).toBeNull()
   })
 
   it('응답 전에도 [레벨 테스트 시작]이 이미 있다', () => {
@@ -524,7 +587,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     }
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
-    expect(screen.getByRole('heading', { level: 1, name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '경남 사투리 레벨 테스트' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '홈' })).toHaveAttribute('aria-current', 'page')
 
     // 광고 동의 메서드를 모르는 브리지(getAdConsent 없음)는 동의 개념이 없는 실행이라 시트가 없다
@@ -650,13 +713,13 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     expect(next.get('c')).toBe('kko_share')
   })
 
-  it('탭 네 곳이 각 화면 쿼리로 보내고 bridge·app·c를 남긴다', () => {
+  it('탭 세 곳(학습·홈·번역기)이 각 화면 쿼리로 보내고 bridge·app·c를 남긴다 — 학습은 옛 빌드가 아는 intonation이다 (KAN-347 3-1)', () => {
     setSearch(`${APP}&screen=home&c=kko_share`)
     const navigate = vi.fn()
     render(<App navigate={navigate} />)
-    for (const name of ['홈', '억양 학습', '단어 학습', '사투리 번역기']) fireEvent.click(screen.getByRole('button', { name }))
+    for (const name of ['홈', '학습', '사투리 번역기']) fireEvent.click(screen.getByRole('button', { name }))
     const nexts = navigate.mock.calls.map(([url]) => queryOf(url))
-    expect(nexts.map((n) => n.get('screen'))).toEqual(['home', 'intonation', 'words', 'translate'])
+    expect(nexts.map((n) => n.get('screen'))).toEqual(['home', 'intonation', 'translate'])
     for (const n of nexts) {
       expect(n.get('bridge')).toBe(String(REQUIRED_BRIDGE_VERSION))
       expect(n.get('app')).toBe('1.0')
@@ -664,14 +727,14 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
     }
   })
 
-  it('?screen=translate면 번역기(KAN-256)와 탭 바(번역기 강조), [바꾸기] 전에는 서버를 부르지 않는다', () => {
+  it('?screen=translate면 번역기(KAN-256)와 탭 바(번역기 강조), [번역하기](원형 ↓ 버튼) 전에는 서버를 부르지 않는다', () => {
     setSearch(`${APP}&screen=translate`)
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
     render(<App navigate={vi.fn()} />)
     expect(screen.getByRole('heading', { level: 1, name: '사투리 번역기' })).toBeInTheDocument()
     expect(screen.getByLabelText('표준어 문장')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '바꾸기' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '번역하기' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '사투리 번역기' })).toHaveAttribute('aria-current', 'page')
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -717,7 +780,7 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
       }
       render(<App navigate={vi.fn()} />)
       expect(screen.getByText(GUEST_PROMPT)).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: '내 사투리 레벨 테스트' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '경남 사투리 레벨 테스트' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '다시 테스트하기' })).toBeNull()
       expect(tabBar()).not.toBeNull()
       // 시작은 회원과 같이 네이티브로 넘긴다 — 세션은 네이티브가 Bearer 없는 익명 세션으로 만든다(webview-bridge §15)
@@ -759,36 +822,8 @@ describe('App — 하단 탭 바와 홈·번역기 (KAN-252)', () => {
   it('인트로(앱 안)에는 탭 바가 없다 — 테스트 진입 쪽 화면이다', () => {
     setSearch(APP)
     render(<App navigate={vi.fn()} />)
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(tabBar()).toBeNull()
-  })
-})
-
-describe('App — 억양 학습 진입 쿼리 (KAN-253)', () => {
-  it('?screen=intonation이면 억양 학습 라우트가 코스 목록을 그린다', async () => {
-    setSearch(`?bridge=${REQUIRED_BRIDGE_VERSION}&app=1.0&screen=intonation`)
-    window.AccenturyBridge = {
-      requestMicPermission: vi.fn(),
-      startVoiceItem: vi.fn(),
-      getContractVersion: () => REQUIRED_BRIDGE_VERSION,
-      getAccessToken: () => 'acc',
-    }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          contentVersion: 'v1',
-          courses: [
-            { courseId: 'k1', seq: 1, level: 1, topic: null, title: '인사', cardCount: 3, completedCardCount: 0, completed: false, recommended: true },
-          ],
-        }),
-      })),
-    )
-    render(<App navigate={vi.fn()} />)
-    expect(await screen.findByRole('heading', { name: '억양 학습' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /인사/ })).toBeInTheDocument()
   })
 })
 
@@ -846,7 +881,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
   /** 인트로 [시작하기] — 웹 마이크 게이트가 비동기라 microtask를 비운다 */
   async function tapStart() {
-    fireEvent.click(screen.getByRole('button', { name: '내 억양 테스트하기' }))
+    fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
     await act(async () => {})
     await act(async () => {})
   }
@@ -868,18 +903,18 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
     await tapStart()
 
     expect(screen.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeInTheDocument()
-    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
     expect(fetchStub).not.toHaveBeenCalled()
 
     await passVoiceConsent()
 
     expect(screen.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeInTheDocument()
-    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
     expect(fetchStub).not.toHaveBeenCalled()
 
     await passRegionSelect()
 
-    expect(screen.getByText('목소리를 확인할게요')).toBeInTheDocument()
+    expect(screen.getByText('목소리 점검')).toBeInTheDocument()
     expect(fetchStub).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
     // 점검은 같은 문서 안의 화면이다 — 리로드하면 방금 받은 마이크 권한을 다시 물어야 한다
@@ -914,7 +949,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
     await tapStart()
 
     // 네이티브 권한 게이트가 받았으므로 웹은 여기서 손을 뗀다 — 화면 전체를 앱이 갈아치운다
-    expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+    expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
     // 동의도 웹 화면이 묻지 않는다 — 앱은 네이티브가 받는다 (KAN-270 2·3단계)
     expect(screen.queryByText(VOICE_CONSENT_TITLE)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
@@ -1300,19 +1335,19 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
       // 지역이 점검 앞이다 — 네트워크를 안 쓰는 화면을 세션 앞에 모아 고아 세션을 안 만든다
       expect(screen.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeInTheDocument()
-      expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+      expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
       expect(fetchStub).not.toHaveBeenCalled()
       // 기본 선택도 건너뛰기도 없다 — 고르기 전에는 [다음]이 잠긴다
       expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
 
-      fireEvent.click(screen.getByRole('radio', { name: '경남' }))
+      fireEvent.click(screen.getByRole('radio', { name: /^경남/ }))
       fireEvent.click(screen.getByRole('button', { name: '다음' }))
       // 점검 화면은 마운트 즉시 듣기 시작한다(비동기) — `tapStart`와 같은 이유로 microtask를 비운다
       await act(async () => {})
       await act(async () => {})
 
       // 지역을 넘기면 원래 흐름(점검)이 이어진다. 아직 세션은 없다
-      expect(screen.getByText('목소리를 확인할게요')).toBeInTheDocument()
+      expect(screen.getByText('목소리 점검')).toBeInTheDocument()
       expect(screen.queryByRole('heading', { level: 1, name: REGION_TITLE })).not.toBeInTheDocument()
       expect(fetchStub).not.toHaveBeenCalled()
 
@@ -1401,7 +1436,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
       // 인트로의 onWebStart가 비어 있어 micGranted가 오르지 않는다 — 점검이 없는 것과 같은 이유
       expect(screen.queryByText(REGION_TITLE)).not.toBeInTheDocument()
-      expect(screen.queryByText('목소리를 확인할게요')).not.toBeInTheDocument()
+      expect(screen.queryByText('목소리 점검')).not.toBeInTheDocument()
       expect(screen.getByRole('heading', { level: 1, name: '사투리 좀 치나?' })).toBeInTheDocument()
     })
   })
@@ -1663,14 +1698,14 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     expect(next.get('sessionId')).toBeNull()
   })
 
-  it('앱 안 결과 화면의 [이 등급에 맞는 억양 학습 시작]은 앱 표식을 남긴 채 A-1로 보낸다 (KAN-252)', async () => {
+  it('앱 안 결과 화면의 [학습 시작]은 앱 표식을 남긴 채 학습 탭(사투리 여행 지도)으로 보낸다 (KAN-252, KAN-347 2-7)', async () => {
     setSearch(RESULT_SEARCH)
     stubBridgeWithToken('token-1', 'acc')
     stubResultFetch()
     const navigate = vi.fn()
 
     render(<App navigate={navigate} />)
-    fireEvent.click(await screen.findByRole('button', { name: '이 등급에 맞는 억양 학습 시작' }))
+    fireEvent.click(await screen.findByRole('button', { name: '학습 시작' }))
 
     expect(navigate).toHaveBeenCalledTimes(1)
     const next = new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '')
@@ -1680,7 +1715,7 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     expect(next.get('sessionId')).toBeNull()
   })
 
-  it('앱 안 결과 화면에는 탭 바가 서고 어느 탭도 강조하지 않는다 (KAN-252)', async () => {
+  it('앱 안 결과 화면에는 탭 바가 서고 「홈」이 선택돼 있다 (KAN-252, KAN-347 2-7)', async () => {
     setSearch(RESULT_SEARCH)
     stubBridgeWithToken('token-1', 'acc')
     stubResultFetch()
@@ -1689,7 +1724,8 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     render(<App navigate={navigate} />)
     await screen.findByRole('heading', { name: '명예주민' })
     const nav = screen.getByRole('navigation', { name: '주 메뉴' })
-    expect(nav.querySelectorAll('[aria-current]')).toHaveLength(0)
+    expect(nav.querySelectorAll('[aria-current]')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: '홈' })).toHaveAttribute('aria-current', 'page')
     fireEvent.click(screen.getByRole('button', { name: '홈' }))
     const next = new URLSearchParams(navigate.mock.calls[0][0].split('?')[1] ?? '')
     expect(next.get('screen')).toBe('home')
@@ -1706,7 +1742,7 @@ describe('App — 결과 화면 진입 쿼리 (KAN-29)', () => {
     await screen.findByRole('heading', { name: '명예주민' })
 
     expect(screen.queryByRole('navigation', { name: '주 메뉴' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '이 등급에 맞는 억양 학습 시작' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '학습 시작' })).toBeNull()
     expect(screen.getByRole('button', { name: '다시 테스트하기' })).toBeInTheDocument()
   })
 
@@ -1883,7 +1919,7 @@ describe('IntroScreen — [시작하기] 결선', () => {
       getContractVersion: () => 1,
     }
     render(<App />)
-    screen.getByRole('button', { name: '내 억양 테스트하기' }).click()
+    screen.getByRole('button', { name: '레벨 테스트 시작' }).click()
     expect(fn).toHaveBeenCalledTimes(1)
   })
 })
@@ -1962,7 +1998,7 @@ describe('App — 웹 단독 결과 화면 (KAN-31 2단계)', () => {
     render(<App />)
 
     await screen.findByRole('button', { name: '친구에게 공유하기' })
-    expect(screen.queryByRole('button', { name: '이 등급에 맞는 억양 학습 시작' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '학습 시작' })).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '주 메뉴' })).not.toBeInTheDocument() // 탭 바도 앱 안에서만
   })
 
@@ -2197,7 +2233,7 @@ describe('App — 유입 퍼널 계측 (KAN-31 3단계)', () => {
     const capture = createFakeCapture()
 
     render(<App navigate={vi.fn()} voiceCheckCapture={capture.factory} />)
-    fireEvent.click(screen.getByRole('button', { name: '내 억양 테스트하기' }))
+    fireEvent.click(screen.getByRole('button', { name: '레벨 테스트 시작' }))
     // 웹 마이크 게이트가 비동기다
     await act(async () => {})
     await act(async () => {})
@@ -2335,7 +2371,7 @@ describe('App — 유입 퍼널 계측 (KAN-31 3단계)', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     // 세는 사건은 하나이고 경로만 갈린다. 둘 다로 가면 퍼널의 분모가 실제보다 커진다
     expect(native).toEqual([{ event: 'referral_opened', campaign: 'kko_share' }])
     expect(queue).toEqual([])
@@ -2353,7 +2389,7 @@ describe('App — 유입 퍼널 계측 (KAN-31 3단계)', () => {
      * 대역을 굳이 심어 두고 확인하는 것은 [track]의 판정이 그 사실에 기대지 않는다는 점이다 —
      * 구버전 앱의 이벤트를 웹 스트림으로 흘려보내면 앱 사용자가 웹 트래픽으로 세어진다.
      */
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect(queue).toEqual([])
   })
 })
@@ -2418,7 +2454,7 @@ describe('App — 인트로 진입의 진행 기록 훑기 (KAN-198)', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('button', { name: '내 억양 테스트하기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '레벨 테스트 시작' })).toBeInTheDocument()
     expect([...stored.keys()]).toEqual([])
   })
 

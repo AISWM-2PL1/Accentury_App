@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetAdSenseForTests } from '../ads/adsense'
 import { createFakeCapture, sineChunk, type FakeCapture } from '../audio/testing/fakeCapture'
 import { START_COUNTDOWN_SECONDS, TestFlowScreen } from './TestFlowScreen'
-import { START_SCREEN_SUBTITLE } from './TestStartScreen'
 import type { FetchLike } from './fetchTestDefinition'
 import { snapshotKey, type SnapshotStorage } from './progressSnapshot'
 import type { TestDefinition, TestItem } from './testDefinition'
@@ -443,10 +442,11 @@ describe('문항 진행', () => {
     renderScreen(okFetch())
     await findFirstItem()
 
-    const bar = screen.getByRole('progressbar', { name: '문항 진행률' })
+    // 라벨은 문항 종류 「억양」「단어」, 번호는 두 종류를 통틀어 1~7 (KAN-347 2-5)
+    const bar = screen.getByRole('progressbar', { name: '억양' })
     expect(bar).toHaveAttribute('aria-valuenow', '1')
     expect(bar).toHaveAttribute('aria-valuemax', '7')
-    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
+    expect(document.querySelector('.progress-indicator__count')).toHaveTextContent(/^1 \/ 7$/)
   })
 
   it('카드 캡션이 문항 번호와 할 일을 따라간다', async () => {
@@ -481,8 +481,7 @@ describe('문항 진행', () => {
     await advance(capture)
 
     expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: '문항 진행률' })).toHaveAttribute('aria-valuenow', '2')
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '2')
   })
 
   it('마지막 문항을 제출하면 분석 대기 화면으로 넘어간다 (KAN-14)', async () => {
@@ -517,7 +516,7 @@ describe('문항 진행', () => {
     renderScreen(okFetch(), { storage })
 
     expect(await screen.findByText('어휘 문항 3')).toBeInTheDocument()
-    expect(screen.getByText('3 / 7 · 단어')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '단어' })).toHaveAttribute('aria-valuenow', '3')
   })
 })
 
@@ -571,7 +570,7 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
     deliverResult('item-1')
 
     expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '2')
   })
 
   it('다음 음성 문항에서는 그 문항의 순번으로 다시 호출한다', async () => {
@@ -715,7 +714,7 @@ describe('VOICE 문항 — 네이티브 녹음 화면 전환 (KAN-100)', () => {
     deliverResult('item-1') // 중복
 
     expect(screen.getByText('음성 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '2')
   })
 
   it('브리지가 없으면(브라우저 단독) 웹 녹음 패널이 그 자리를 맡는다 (KAN-56 Stage 3)', async () => {
@@ -846,7 +845,7 @@ describe('VOICE 문항 — 브라우저 녹음 업로드 (KAN-56 Stage 3)', () =
     await act(async () => {})
 
     expect(screen.getByText('음성 문항 1')).toBeInTheDocument()
-    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '1')
     expect(fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/recording'))).toHaveLength(0)
   })
 
@@ -957,7 +956,7 @@ describe('VOICE 문항 — 보관 음성 유실 복구 (KAN-261)', () => {
 
     expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
     // 진행률은 흔들리지 않는다 — 지금 문항은 여전히 4번이다
-    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '4')
     await recordAndSend(capture)
     expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
     await recordAndSend(capture)
@@ -1032,7 +1031,7 @@ describe('VOICE 문항 — 보관 음성 유실 복구 (KAN-261)', () => {
     expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
     await recordAndSend(capture)
     expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
-    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '4')
     await recordAndSend(capture)
 
     expect(await screen.findByText('어휘 문항 5')).toBeInTheDocument()
@@ -1071,7 +1070,7 @@ describe('VOCABULARY 문항 — 보기 선택 (KAN-13)', () => {
     answerVocabulary()
 
     expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
-    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '4')
   })
 
   it('어휘 문항에서는 네이티브 전환을 부르지 않는다', async () => {
@@ -1154,7 +1153,7 @@ describe('세션 격리 — 다른 세션의 진행을 이어받지 않는다', 
     renderScreen(okFetch(), { storage, sessionId: 'sess-2' })
 
     expect(await findFirstItem()).toBeInTheDocument()
-    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '1')
     // 세션 1의 기록은 지워지지 않는다 — 남의 진행을 폐기할 권리가 없다는 것이 키 분리의 이유다
     expect(storage.getItem(snapshotKey('sess-1'))).not.toBeNull()
   })
@@ -1428,7 +1427,7 @@ describe('분석 대기 화면의 재녹음 — 실패 문항만 이어서 (KAN-
 
     // 첫 응시와 같은 전체 기준 번호 — 분모도 그대로다
     expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
-    expect(screen.getByText('2 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '2')
     expect(screen.queryByText(RETAKE_NOTICE)).not.toBeInTheDocument()
     await recordAndSend(capture)
     await act(async () => {})
@@ -1454,10 +1453,10 @@ describe('분석 대기 화면의 재녹음 — 실패 문항만 이어서 (KAN-
     expect(await screen.findByText('음성 문항 2')).toBeInTheDocument()
     await recordAndSend(capture)
     expect(await screen.findByText('음성 문항 1')).toBeInTheDocument()
-    expect(screen.getByText('1 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '1')
     await recordAndSend(capture)
     expect(await screen.findByText('음성 문항 4')).toBeInTheDocument()
-    expect(screen.getByText('4 / 7 · 음성')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '억양' })).toHaveAttribute('aria-valuenow', '4')
     await recordAndSend(capture)
     await act(async () => {})
 
@@ -1741,8 +1740,8 @@ describe('시작 대기 카운트다운 (KAN-216)', () => {
     await act(async () => {})
 
     // 정의가 온 직후는 문항이 아니라 대기 화면이다 — 제목·status 문구·초 셋이 함께 서고 문항은 없다
-    expect(screen.getByRole('heading', { name: '곧 시작합니다' })).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(START_SCREEN_SUBTITLE)
+    expect(screen.getByRole('heading', { name: '곧 시작해요' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('곧 시작해요')
     expect(shownCount(container)).toBe('3')
     expect(screen.queryByText('음성 문항 1')).toBeNull()
 
@@ -1754,7 +1753,7 @@ describe('시작 대기 카운트다운 (KAN-216)', () => {
 
     // 마지막 틱에서 대기 화면이 내려가고 첫 문항이 같은 커밋에 선다 — 그 사이에 빈 화면은 없다
     tick()
-    expect(screen.queryByRole('heading', { name: '곧 시작합니다' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: '곧 시작해요' })).toBeNull()
     expect(shownCount(container)).toBeNull()
     expect(screen.getByText('음성 문항 1')).toBeInTheDocument()
   })
@@ -1802,10 +1801,10 @@ describe('시작 대기 카운트다운 (KAN-216)', () => {
     renderScreen(okFetch(), { storage })
     await act(async () => {})
 
-    // 시계를 밀지 않았는데도 문항이다 — 이미 하던 시험에 "곧 시작합니다"가 다시 뜨면 처음부터인 줄 안다
-    expect(screen.queryByRole('heading', { name: '곧 시작합니다' })).toBeNull()
+    // 시계를 밀지 않았는데도 문항이다 — 이미 하던 시험에 「곧 시작해요」가 다시 뜨면 처음부터인 줄 안다
+    expect(screen.queryByRole('heading', { name: '곧 시작해요' })).toBeNull()
     expect(screen.getByText('어휘 문항 3')).toBeInTheDocument()
-    expect(screen.getByText('3 / 7 · 단어')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '단어' })).toHaveAttribute('aria-valuenow', '3')
     // 0초에서 시작하면 이펙트가 타이머를 아예 잡지 않는다 — 안 보이는 것이 아니라 안 도는 것이다
     expect(vi.getTimerCount()).toBe(0)
   })

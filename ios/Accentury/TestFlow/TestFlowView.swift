@@ -147,6 +147,11 @@ struct TestFlowView: View {
     /// WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 ``WebViewHost``의
     /// `onPageStarted`(문서 전환)와 브리지 `onLocationChanged`(SPA 이동, KAN-290)로 갱신된다. ``TestFlowModel/webUrl``(앱이 건 진입 URL)과 다르다 — 탭 이동은 웹이 스스로 한다.
     @State private var currentWebUrl: String?
+    /// WebView 로드 실패 화면이 서 있다 (KAN-355). 그 화면이 자기 톱니를 세우므로 아래 ``gearVisible``이 톱니를 숨긴다.
+    @State private var webLoadFailed = false
+    /// 녹음 화면의 그만두기 확인 창이 떠 있다 (KAN-355 리뷰). 공용 대화상자는 오버레이 안에 그려지므로 익명 빌드의 톱니가
+    /// 그 위에 눌리지 않게 ``gearVisible``이 숨긴다.
+    @State private var confirmingQuit = false
 
     /// 지금 화면에 서 있는 오버레이 페이즈. 페이즈가 바뀔 때 녹음을 되감을지 정하는 데 쓴다
     /// (안드로이드 `DisposableEffect(phase) { onDispose { ... } }`의 자리).
@@ -229,6 +234,7 @@ struct TestFlowView: View {
                         intonation.open(start)
                     },
                     onOpenSettings: onOpenSettings,
+                    onLoadFailedChange: { webLoadFailed = $0 },
                     accountKind: accountKind,
                     onRequestLogin: onRequestLogin,
                     // 대기 화면의 [다시 보내기] (KAN-288, §14) — 녹음은 그대로 두고 그 시도만 재전송한다. 결과는 결과 전달이 싣는다
@@ -239,7 +245,7 @@ struct TestFlowView: View {
                      * ``AccenturyCore/webBackTarget(currentUrl:startRequested:)``에 있다. 목적지가 없으면(홈·테스트 진행·결과)
                      * 아무 일도 없다 — KAN-191·KAN-147의 응시 이탈 방지 규칙을 건드리지 않는다. 웹 탭 이동과 같은 결과가 되게
                      * 웹 라우터로 옮기고, 구버전 웹이면 문서를 옮긴다 (KAN-290). 억양 녹음 화면·호출자의 덮개(설정)가 떠 있으면 인식기 자체를 끈다(`edgeSwipeEnabled`).
-                     * 학습 카드 단계도 screen이 intonation·words라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다(안드로이드와 같다).
+                     * 학습 카드 단계도 screen이 learn(옛 intonation·words)이라 뒤로 = 홈이다. 학습은 이탈 허용이라 받아들였다(안드로이드와 같다).
                      */
                     onEdgeSwipeBack: {
                         guard let target = webBackTarget(currentUrl: currentWebUrl, startRequested: model.startRequested),
@@ -509,14 +515,14 @@ struct TestFlowView: View {
     @ViewBuilder
     private var overlay: some View {
         // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
-        // 스와이프 닫기 = 회신 없이 A-2로 (§12). ✕는 같은 close 다음 억양 탭 문서를 다시 열어 코스 목록(A-1)으로 간다 —
-        // A-1은 그 문서의 첫 상태라서다(2026-10-13 사용자 결정, 안드로이드와 같다). 권한 화면에서의 닫기도 같다.
+        // 스와이프 닫기 = 회신 없이 A-2로 (§12). ✕는 같은 close 다음 학습 탭 문서(``learnEntryScreen``, `intonation`)를 다시 열어 사투리 여행 지도로 간다 —
+        // 지도가 그 문서의 첫 상태라서다(2026-10-13 사용자 결정, KAN-355에서 억양 탭 → 학습 탭, 안드로이드와 같다). 권한 화면에서의 닫기도 같다.
         if let start = intonation.start {
             IntonationCloseChrome(
                 onClose: { intonation.close() },
                 onCloseButton: {
                     intonation.close()
-                    guard let target = webTabUrl(currentUrl: currentWebUrl, screen: "intonation"),
+                    guard let target = webTabUrl(currentUrl: currentWebUrl, screen: learnEntryScreen),
                           let url = URL(string: target)
                     else { return }
                     webView?.navigateInApp(to: url)
@@ -624,7 +630,8 @@ struct TestFlowView: View {
                     guard model.onTestQuit() else { return }
                     recording.reset()
                     uploads.teardown()
-                }
+                },
+                confirmingQuit: $confirmingQuit
             )
         }
     }
@@ -644,6 +651,7 @@ struct TestFlowView: View {
     /// 톱니를 세울 화면인가 (KAN-252). 로그인 빌드는 문서 판정(``AccenturyCore/showsSettingsGear(_:)``)에 더해 녹음 오버레이
     /// (레벨 테스트 VOICE 녹음·제출, 억양 학습) 위에서 숨긴다. 익명 빌드는 예전 그대로다. ``nativeCovering``은 따로 본다.
     private var gearVisible: Bool {
+        if webLoadFailed || confirmingQuit { return false }
         guard tabBarEntry else { return true }
         return showsSettingsGear(currentWebUrl) && overlayStart == nil && intonation.start == nil
     }
@@ -982,7 +990,8 @@ private struct RecordingOverlay: View {
     /// 확인 창에서 [그만두기]를 골랐다 (KAN-288). 정리는 호출자가 한다
     let onQuit: () -> Void
 
-    @State private var confirmingQuit = false
+    /// 확인 창이 떠 있는가. 톱니를 숨기려고 ``TestFlowView``가 들고 있다.
+    @Binding var confirmingQuit: Bool
 
     var body: some View {
         RecordingScreen(
@@ -1000,19 +1009,28 @@ private struct RecordingOverlay: View {
             onNext: onSubmit
         )
         /*
-         * 확인 창 (KAN-288, 시안 17~20). 설정의 로그아웃·탈퇴 확인과 같은 시스템 알림이다 — iOS 쪽 확인 창은 아직 디자인 3
-         * 종이 창(안드로이드 `ConfirmDialog`)으로 옮기지 않았다. 머무는 쪽 [계속하기]가 취소 역할이라 바깥을 눌러도 머문다.
+         * 확인 창 (KAN-288, 모양은 KAN-355 시안 s-06-confirm-quit). 시스템 `.alert` 대신 공용 종이 대화상자다(로그아웃 확인과 같은 모양).
+         * 머무는 쪽 [계속하기]가 왼쪽이고 바깥 탭·escape도 같은 동작이라 녹음 화면에 머문다. [그만두기]는 벽돌 외곽선(2026-11-16 결정).
          */
-        .alert("테스트를 그만둘까요?", isPresented: $confirmingQuit) {
-            Button("계속하기", role: .cancel) {}
-            Button("그만두기", action: onQuit)
-        } message: {
-            Text("그만두면 처음부터 다시 시작해야 해요")
+        .confirmDialog(isPresented: confirmingQuit) {
+            ConfirmDialog(
+                title: "테스트를 그만둘까요?",
+                message: ["그만두면 처음부터 다시 시작해야 해요"],
+                cancel: .init(text: "계속하기") { confirmingQuit = false },
+                confirm: .init(text: "그만두기", variant: .destructive) {
+                    confirmingQuit = false
+                    onQuit()
+                }
+            )
         }
         // 화면이 걷히면 마이크를 놓는다. 되감기 판정(`continuesFrom`)은 상위가 하지만, 오버레이
         // 자체가 사라지는 경우(웹으로 돌아감)는 여기서도 한 번 더 막는다 — 상위의 페이즈 변화가
         // 오지 않는 경로(뷰 재구성)에서도 마이크는 반드시 닫혀야 한다.
-        .onDisappear { recording.reset() }
+        // 창을 연 채 화면이 걷혀도(세션 실패 등) 다음 화면의 톱니가 숨은 채 남지 않게 닫는다.
+        .onDisappear {
+            recording.reset()
+            confirmingQuit = false
+        }
     }
 }
 

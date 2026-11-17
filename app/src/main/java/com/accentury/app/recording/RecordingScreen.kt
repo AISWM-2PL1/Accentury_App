@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,15 +32,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.accentury.app.R
+import com.accentury.app.audio.AudioQuality
 import com.accentury.app.audio.QualityStatus
 import com.accentury.app.audio.RecordingEngine
 import com.accentury.app.bridge.GuideF0
@@ -190,9 +199,13 @@ fun RecordingScreen(
                 bottom = Spacing.x8,
             ),
     ) {
-        // 워드마크 앱바 (KAN-288 디자인 3). 8 + 48 + 8 = 예전 위 여백 64와 같아 본문 시작 높이는 그대로고,
-        // 오른쪽 위에 얹히는 닫기 ✕·설정 톱니(호출자, 위 8dp)와 한 줄에 선다.
-        PaperAppBar(onClose = onClose, closeEnabled = !submitting)
+        // 워드마크 앱바 (KAN-288 디자인 3). 8 + 48 + 8 = 예전 위 여백 64와 같아 본문 시작 높이는 그대로다.
+        // 오른쪽에는 ✕ 하나뿐이다 — 톱니는 두지 않는다(2026-10-13 사용자 결정, KAN-354 시안 s-06·s-17).
+        // 억양 학습 ✕는 제출 중에도 닫는다: 뒤로가기와 같은 길이고 진행 중 업로드는 폐기된다 (KAN-252).
+        PaperAppBar(
+            onClose = onClose,
+            closeEnabled = !submitting || purpose is RecordingPurpose.IntonationLearning,
+        )
         Spacer(modifier = Modifier.height(Spacing.x2))
         /*
          * 본문은 스크롤하고 하단(타이머·녹음 버튼)은 고정이다 (아트보드의 `screen()` 틀).
@@ -205,55 +218,55 @@ fun RecordingScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             /*
-             * 웹 진행바와 같은 컴포넌트, 같은 값, 같은 폭이다 - 웹은 음성 문항 화면 맨 위에서 진행바를
-             * 폭 전체로 그린다(.progress-indicator { width: 100% }). 문항이 두 런타임을 오가므로
-             * 막대 길이나 표기가 달라지면 사용자에게는 진행이 튄 것처럼 보인다.
-             *
-             * [note]가 "음성"인 것도 같은 이유다 - 웹 캡션이 "2 / 7 · 음성"이라, 여기서만 종류를
-             * 빼면 같은 자리의 같은 줄이 화면을 넘어갈 때마다 길어졌다 짧아진다.
+             * 웹 진행바와 같은 컴포넌트, 같은 값, 같은 폭이다 - 문항이 두 런타임을 오가므로 막대 길이나 표기가
+             * 달라지면 사용자에게는 진행이 튄 것처럼 보인다. 머리줄은 두 쓰임 모두 「억양」과 n / N이다 (KAN-354 시안
+             * s-06·s-17). 레벨 테스트는 7문항 전체 번호, 억양 학습은 대사 번호(KAN-253 5단계, 이 화면이 A-2 카드 역할)다.
              */
             when (purpose) {
                 is RecordingPurpose.LevelTest -> ProgressIndicator(
                     current = purpose.itemNumber,
                     total = purpose.totalItems,
-                    note = "음성",
                     modifier = Modifier.fillMaxWidth(),
                 )
-                // 억양 학습은 이 화면이 A-2 카드 역할이라 n/N을 여기서 그린다 (KAN-253 5단계). 라벨·종류 표기는
-                // 웹 A-2(일시정지 화면)의 「카드 진행률」·note 없음과 맞춘다 - 뒤로가기로 오갈 때 줄이 튀지 않게.
                 is RecordingPurpose.IntonationLearning -> ProgressIndicator(
                     current = purpose.itemNumber,
                     total = purpose.totalItems,
-                    label = "카드 진행률",
+                    totalPhrase = "대사 ${purpose.totalItems}개",
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
 
             Spacer(modifier = Modifier.height(Spacing.x6))
             /*
-             * 대사 카드. 배지·이모지·부연을 걷고 캡션 한 줄 + 대사만 남겼다 (아트보드 ②).
-             * "평소 말하듯 자연스럽게 읽어주세요"가 사라진 것은 문구를 줄이려는 게 아니라 자리를
-             * 옮긴 것이다 - 카드는 읽을 문장을 내밀고, 어떻게 하라는 말은 버튼 밑 캡션이 한다.
+             * 대사 카드 (KAN-354 시안 s-06·s-17). 칩은 대사 아래다.
+             * - 레벨 테스트: 감정 칩(KAN-283)이 있으면 칩만, 없으면 카드 위 캡션 「n / N · 이 문장을 읽어주세요」만 둔다 —
+             *   두 안내가 겹치면 대사 둘레가 무거워진다(사용자 결정 2026-10-14).
+             * - 억양 학습: 표준어 원문 줄(KAN-253, null이면 생략 §12)이 대사 위, 「사투리로 따라 말해 보세요」 칩이 대사 아래.
              */
-            PromptCard(
-                caption = when (purpose) {
-                    is RecordingPurpose.LevelTest -> promptCaption(purpose.itemNumber, purpose.totalItems)
-                    is RecordingPurpose.IntonationLearning -> promptCaption(0, 0)
-                },
-                prompt = questionText,
-                // 억양 학습의 표준어 원문 (KAN-253). null이면 그 줄을 그리지 않는다 (§12).
-                supporting = (purpose as? RecordingPurpose.IntonationLearning)?.standard?.let { "표준어 · $it" },
-                // 레벨테스트 감정 칩 (KAN-283). 억양 학습은 emotion이 없어 칩도 없다.
-                cue = (purpose as? RecordingPurpose.LevelTest)?.let { emotionCue(it.emotion) },
-            )
+            when (purpose) {
+                is RecordingPurpose.LevelTest -> {
+                    val cue = emotionCue(purpose.emotion)
+                    PromptCard(
+                        prompt = questionText,
+                        caption = if (cue == null) promptCaption(purpose.itemNumber, purpose.totalItems) else null,
+                        cue = cue,
+                    )
+                }
+                is RecordingPurpose.IntonationLearning -> PromptCard(
+                    prompt = questionText,
+                    caption = purpose.standard?.let { "표준어 · $it" },
+                    cue = "사투리로 따라 말해 보세요",
+                )
+            }
 
-            Spacer(modifier = Modifier.height(Spacing.x6))
+            // 시안 `.p2-lanes` margin-top 28
+            Spacer(modifier = Modifier.height(Spacing.x6 + Spacing.x1))
             CurveCard(guidePoints = guidePoints, userSegments = mySegments)
         }
 
-        // 하단 고정. 아트보드의 footer는 본문과 16만큼 떨어진다
+        // 하단 고정 (시안 `.p2-record-foot`: 본문과 24, 요소 사이 12)
         Column(
-            modifier = Modifier.fillMaxWidth().padding(top = Spacing.x4),
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.x6),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (footer != null) {
@@ -277,6 +290,7 @@ fun RecordingScreen(
 
                 is RecordingUiState.Recording -> RecordingControls(
                     elapsedMs = s.elapsedMs,
+                    level = soundRingLevel(s.rms),
                     warning = s.countdownActive,
                     onStop = viewModel::stopRecording,
                 )
@@ -333,17 +347,27 @@ internal fun promptCaption(questionIndex: Int, totalQuestions: Int): String =
     }
 
 /**
- * 대사 위 감정 칩 문구 (KAN-283). 정의의 emotion이 없거나 공백뿐이면 null — 칩 없이 지금 화면 그대로다.
- * "  느낌으로 말해주세요!"처럼 빈 자리가 남은 칩은 없는 것보다 나쁘다.
+ * 대사 아래 감정 칩 문구 (KAN-283, 문구는 KAN-354 시안 「… 느낌으로 말해 주세요」). 정의의 emotion이 없거나 공백뿐이면
+ * null — 칩 없이 캡션 한 줄로 그린다. "  느낌으로 말해 주세요"처럼 빈 자리가 남은 칩은 없는 것보다 나쁘다.
  */
 internal fun emotionCue(emotion: String?): String? =
-    emotion?.trim()?.takeIf { it.isNotEmpty() }?.let { "$it 느낌으로 말해주세요!" }
+    emotion?.trim()?.takeIf { it.isNotEmpty() }?.let { "$it 느낌으로 말해 주세요" }
 
-/** 대기. 누를 것 하나와 그 아래 캡션 한 줄이다 (아트보드 ②) */
+/**
+ * 녹음 중 rms(원 스케일)를 소리 원 크기 0~1로 (KAN-354 움직임 타일 2). 목소리 점검 입력 레벨 바와 같은 로그 눈금
+ * ([inputLevelFraction])을 쓰고, 그 바의 통과선([AudioQuality.QUIET_RMS_THRESHOLD]) 아래는 0이다 — 방 소음만으로 원이
+ * 버튼에서 떨어져 있으면 "소리가 없으면 버튼 테두리에 붙는다"가 깨진다. 위는 전체 스케일에서 1로 막는다.
+ */
+internal fun soundRingLevel(rms: Double): Float {
+    val floor = inputLevelFraction(AudioQuality.QUIET_RMS_THRESHOLD)
+    return ((inputLevelFraction(rms) - floor) / (1f - floor)).coerceIn(0f, 1f)
+}
+
+/** 대기. 누를 것 하나와 그 아래 캡션 한 줄이다 (시안 s-06-recording-idle·s-17) */
 @Composable
 private fun IdleControls(hint: String, onStart: () -> Unit) {
     RecordButton(contentDescription = "녹음 시작", onClick = onStart)
-    Spacer(modifier = Modifier.height(Spacing.x2))
+    Spacer(modifier = Modifier.height(Spacing.x3))
     Caption(hint)
 }
 
@@ -357,7 +381,7 @@ private fun IdleControls(hint: String, onStart: () -> Unit) {
  * 문구와 등장이 강하다.
  */
 @Composable
-private fun RecordingControls(elapsedMs: Long, warning: Boolean, onStop: () -> Unit) {
+private fun RecordingControls(elapsedMs: Long, level: Float, warning: Boolean, onStop: () -> Unit) {
     val enter = tween<Float>(
         durationMillis = motionDuration(Motion.BASE),
         easing = Motion.easeOut,
@@ -385,16 +409,16 @@ private fun RecordingControls(elapsedMs: Long, warning: Boolean, onStop: () -> U
         }
     }
 
-    Spacer(modifier = Modifier.height(Spacing.x2))
-    RecordButton(contentDescription = "녹음 정지", onClick = onStop, recording = true)
-    Spacer(modifier = Modifier.height(Spacing.x2))
+    Spacer(modifier = Modifier.height(Spacing.x3))
+    RecordButton(contentDescription = "녹음 정지", onClick = onStop, recording = true, level = level)
+    Spacer(modifier = Modifier.height(Spacing.x3))
     // 자동 종료를 미리 알린다 — 갑자기 멈추면 사용자는 자기가 뭘 잘못 눌렀다고 생각한다
     Caption(if (warning) "10초가 되면 자동으로 멈춰요" else "녹음 중 · 탭해서 멈추기")
 }
 
 /**
- * `00:04 / 10초`. 뒤쪽 상한만 흐린 잉크다 — 앞의 두 자리가 초마다 바뀌는 값이고 뒤는 고정이라,
- * 같은 무게로 적으면 어느 쪽이 지금인지 한 번에 안 갈린다.
+ * `00:04 / 10초` (시안 `.p2-timer`: Jua 20, 뒤 상한은 본문 14 흐린 잉크). 뒤쪽 상한만 흐린 잉크다 — 앞의 두 자리가
+ * 초마다 바뀌는 값이고 뒤는 고정이라, 같은 무게로 적으면 어느 쪽이 지금인지 한 번에 안 갈린다.
  */
 @Composable
 private fun ElapsedTimer(elapsedMs: Long) {
@@ -402,11 +426,11 @@ private fun ElapsedTimer(elapsedMs: Long) {
     Text(
         buildAnnotatedString {
             append(formatElapsed(elapsedMs))
-            withStyle(SpanStyle(color = muted)) {
+            withStyle(SpanStyle(color = muted, fontFamily = FontFamily.Default, fontSize = 14.sp, letterSpacing = 0.sp)) {
                 append(" / ${RecordingEngine.MAX_DURATION_MS / 1000}초")
             }
         },
-        style = MaterialTheme.typography.titleSmall,
+        style = MaterialTheme.typography.titleSmall.copy(fontSize = 20.sp, lineHeight = 24.sp),
     )
 }
 
@@ -436,7 +460,10 @@ private fun CountdownCapsule(seconds: Int) {
     }
 }
 
-/** 정지 뒤의 확인. 판정 한 줄, 길이 한 줄, 그리고 갈림길 둘 */
+/**
+ * 정지 뒤의 확인 (시안 s-06-recording-review·s-17-review). 판정 한 줄(16), 길이 한 줄(14 흐린 잉크), 그리고 갈림길 둘을
+ * 가로로 나란히 — [재녹음](보조, 되돌리기 그림)·[다음 →](주).
+ */
 @Composable
 private fun ReviewControls(
     state: RecordingUiState.Review,
@@ -449,37 +476,34 @@ private fun ReviewControls(
         Caption("10초가 지나 자동으로 종료됐어요")
         Spacer(modifier = Modifier.height(Spacing.x2))
     }
-    // 판정과 길이를 점선 상자 하나에 담는다 (디자인 3 `.status-box`, 시안 19·20)
-    StatusBlock(
-        tone = StatusTone.Waiting,
-        message = qualityMessage(state.quality),
-        detail = "녹음 길이 ${"%.1f".format(state.durationMs / 1000.0)}초",
-    )
+    Text(qualityMessage(state.quality), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+    Spacer(modifier = Modifier.height(REVIEW_LINE_GAP))
+    Caption("녹음 길이 ${"%.1f".format(state.durationMs / 1000.0)}초")
 
-    Spacer(modifier = Modifier.height(Spacing.x4))
-    // 억양 학습에만 (KAN-253). 재녹음·다음 줄은 레벨테스트와 같게 두고 그 위에 보조 버튼 한 줄을 더한다.
+    // 억양 학습에만 (KAN-253). 시안 s-17-review에는 없지만 유지하기로 했다(2026-11-16) — 검토 줄 아래 글자 버튼으로 둔다.
     if (onListen != null) {
         AccenturyButton(
             text = if (listening) "듣기 멈추기" else "내 녹음 듣기",
-            variant = ButtonVariant.Secondary,
+            variant = ButtonVariant.Text,
             onClick = onListen,
-            modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(modifier = Modifier.height(Spacing.x3))
+    } else {
+        Spacer(modifier = Modifier.height(REVIEW_ACTIONS_GAP))
     }
     /*
-     * 둘이 같은 폭을 갖는다 (웹 `.record-actions`와 같은 규칙). 무게는 이미 변형이 가르므로
-     * (보조는 그림자 없는 크림, 주는 잉크 면) 폭까지 다르면 보조 동작이 눌리지 않을 만큼 작아진다.
+     * 둘이 같은 폭을 갖는다 (웹 `.record-actions`·시안 `.p2-button-row`와 같은 규칙). 무게는 이미 변형이 가르므로
+     * (보조는 그림자 없는 크림, 주는 벽돌 면) 폭까지 다르면 보조 동작이 눌리지 않을 만큼 작아진다.
      */
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.x3),
+        horizontalArrangement = Arrangement.spacedBy(REVIEW_BUTTON_GAP),
     ) {
         AccenturyButton(
             text = "재녹음",
             variant = ButtonVariant.Secondary,
             onClick = onRetry,
             modifier = Modifier.weight(1f),
+            leading = { Icon(painterResource(R.drawable.ic_retry_24), null, Modifier.size(20.dp)) },
         )
         AccenturyButton(
             text = "다음",
@@ -493,20 +517,26 @@ private fun ReviewControls(
              */
             onClick = onNext,
             modifier = Modifier.weight(1f),
+            trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
         )
     }
 }
 
-/** 하단 캡션 한 줄. 13sp 흐린 잉크다 (정본 §3 `caption`) */
+/** 시안 `.p2-review` 줄 사이 6, `.p2-button-row` 위 20·사이 14 — 간격 토큰 사이 값이라 여기에만 적는다 */
+private val REVIEW_LINE_GAP = 6.dp
+private val REVIEW_ACTIONS_GAP = 20.dp
+private val REVIEW_BUTTON_GAP = 14.dp
+
+/** 하단 캡션 한 줄. 본문 14 흐린 잉크다 (시안 `.p2-record-foot > p`) */
 @Composable
 private fun Caption(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.labelSmall,
+        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Normal),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
     )
 }
-
 /** 경고 캡슐 크기 (아트보드 ②b: 높이 32 · 가로 패딩 14) */
 private val COUNTDOWN_CAPSULE_HEIGHT = 32.dp
 private val COUNTDOWN_CAPSULE_PADDING = 14.dp

@@ -300,9 +300,9 @@ final class WebConfigTests: XCTestCase {
         XCTAssertNil(webBackTarget(currentUrl: home, startRequested: false))
     }
 
-    /// 탭 화면의 뒤로는 홈 문서다.
+    /// 탭 화면의 뒤로는 홈 문서다. 학습 탭 새 값 `learn`과 옛 값 `intonation`·`words`가 모두 홈이다 (KAN-355).
     func testBackFromTabScreensGoesHome() {
-        for screen in ["intonation", "words", "translate"] {
+        for screen in ["learn", "intonation", "words", "translate"] {
             XCTAssertEqual(home, webBackTarget(currentUrl: "\(app)&screen=\(screen)", startRequested: false), screen)
         }
     }
@@ -330,12 +330,42 @@ final class WebConfigTests: XCTestCase {
         )
     }
 
+    /// 옛 링크·수동 입력으로 남은 `resume=1`은 탭 이동에 따라가지 않는다(웹 `buildTabUrl`과 같은 목록) — ✕(학습 탭)·뒤로가기(홈)·광고 동의 어디에도 없고 `c`·`bridge`는 남는다
+    /// (KAN-355).
+    func testTabMovesDropResume() {
+        let current = "https://web.example.com/?bridge=1&c=abc&screen=intonation&resume=1"
+        let targets = [
+            webTabUrl(currentUrl: current, screen: learnEntryScreen),
+            webBackTarget(currentUrl: current, startRequested: false),
+            webAdConsentUrl(currentUrl: current, startRequested: false),
+        ]
+        XCTAssertEqual("https://web.example.com/?bridge=1&c=abc&screen=intonation", targets[0])
+        XCTAssertEqual("https://web.example.com/?bridge=1&c=abc&screen=home", targets[1])
+        XCTAssertEqual("https://web.example.com/?bridge=1&c=abc&screen=home&adConsent=open", targets[2])
+        for target in targets {
+            XCTAssertFalse(target?.contains("resume") ?? true, target ?? "nil")
+        }
+    }
+
     /// 문서가 아직 없으면 아무 일도 없다.
     func testBackWithoutDocumentDoesNothing() {
         XCTAssertNil(webBackTarget(currentUrl: nil, startRequested: false))
     }
 
-    // MARK: - webTabUrl: 탭 문서 조립 — 억양 녹음 ✕의 목적지 (KAN-252, 2026-10-13)
+    // MARK: - webTabUrl: 탭 문서 조립 — 억양 녹음 ✕의 목적지 (KAN-252, 2026-10-13 · KAN-355 학습 탭)
+
+    /// 억양 녹음 ✕의 목적지는 학습 탭 문서다 (KAN-355). 보내는 값은 `intonation`(``learnEntryScreen``, 안드로이드와 같다) —
+    /// `learn`을 모르는 옛 웹도 학습 탭으로 받는다. 새 학습 탭(`learn`)에 있었어도 `intonation`으로 옮기고,
+    /// 레벨테스트 값·광고 동의 플래그·fragment를 지우며 계측 코드는 남긴다.
+    func testIntonationCloseTargetIsLearnTab() {
+        XCTAssertEqual("intonation", learnEntryScreen)
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: "\(app)&screen=learn", screen: learnEntryScreen))
+        XCTAssertEqual("\(app)&screen=intonation", webTabUrl(currentUrl: "\(app)&screen=intonation", screen: learnEntryScreen))
+        XCTAssertEqual(
+            "\(app)&c=abc&screen=intonation",
+            webTabUrl(currentUrl: "\(app)&screen=words&c=abc&adConsent=open#card-3", screen: learnEntryScreen)
+        )
+    }
 
     /// 탭 문서는 screen만 바꾼다.
     func testTabUrlReplacesScreen() {
@@ -375,6 +405,8 @@ final class WebConfigTests: XCTestCase {
             (app, false, "\(home)&adConsent=open"),
             (app, true, nil),
             ("\(app)&screen=translate", false, "\(home)&adConsent=open"),
+            ("\(app)&screen=learn", false, "\(home)&adConsent=open"),
+            ("\(app)&screen=intonation", false, "\(home)&adConsent=open"),
             ("\(app)&screen=words&c=abc#x", false, "\(app)&c=abc&screen=home&adConsent=open"),
             ("\(app)&screen=test&testVersion=gn-1&sessionId=s-1", false, nil),
             ("\(app)&screen=result&sessionId=s-1", false, nil),
@@ -399,7 +431,7 @@ final class WebConfigTests: XCTestCase {
 
     /// 탭 화면과 결과에서는 톱니가 없다.
     func testGearHiddenOnTabScreensAndResult() {
-        for screen in ["home", "intonation", "words", "translate", "result"] {
+        for screen in ["home", "learn", "intonation", "words", "translate", "result"] {
             XCTAssertFalse(showsSettingsGear("\(app)&screen=\(screen)"), screen)
         }
     }

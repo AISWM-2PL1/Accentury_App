@@ -44,6 +44,20 @@ export interface WordSetSummary {
   title: string
   cardCount: number
   itemCount: number
+  /*
+   * 진도(서버 KAN-268)와 별(KAN-359)은 선택 필드로 둔다 — 모양 검증이 이 키들을 요구하지 않는다(KAN-359 전 서버·옛 목 응답도
+   * 통과). 사투리 여행 지도(`travel.ts`)가 `completed === true`만 완료로 센다
+   */
+  /** 완료한 시도가 하나라도 있다 (KAN-268) */
+  completed?: boolean
+  /** 가장 최근 완료 시도의 정답률 (KAN-268). 세트 점수(`score`)와 다르다 */
+  latestAccuracyPercent?: number | null
+  /** 목록 안에서 많아야 하나 (KAN-268) */
+  recommended?: boolean
+  /** 세트 점수 = 완료 시도 정답률의 최댓값 (KAN-359). 완료 전이면 null */
+  score?: number | null
+  /** 세트 별 0~3, 최고 기록 (KAN-359). 완료 전이면 0 */
+  stars?: number
 }
 
 /** `GET /v0/learning/word-sets` — 세트는 seq 오름차순 */
@@ -111,11 +125,15 @@ export interface WordWrongItem {
   itemId: string
   cardId: string
   prompt: string
-  chosenChoiceId: string
-  chosenText: string
+  /** 시간 초과 문항이면 null (KAN-360) */
+  chosenChoiceId: string | null
+  /** 시간 초과 문항이면 null (KAN-360). 화면은 이 자리에 「시간 초과」를 쓴다 */
+  chosenText: string | null
   correctChoiceId: string
   correctText: string
   explanation: string
+  /** 고르지 않고 시간이 끝난 문항 (KAN-360). KAN-360 전 서버는 키가 없다 */
+  timedOut?: boolean
 }
 
 /** `POST /v0/learning/word-attempts/{attemptId}/complete` */
@@ -129,6 +147,8 @@ export interface WordAttemptResult {
   wrongItems: WordWrongItem[]
   /** ISO-8601 */
   completedAt: string
+  /** 이번 시도의 별 1~3 (KAN-359). KAN-359 전 서버는 키가 없다 — 성적표가 별과 「코스 별」 줄을 숨긴다 (4-5) */
+  stars?: number
 }
 
 // ── 오류 ────────────────────────────────────────────────────────────────
@@ -143,16 +163,22 @@ export const UNAUTHENTICATED = 'UNAUTHENTICATED'
  */
 export const AUTH_GUEST_NOT_ALLOWED = 'AUTH_GUEST_NOT_ALLOWED'
 
-/** 봉투의 code·retryable을 실은 실패. code는 봉투를 못 읽었으면 null이다 (`VocabSubmitError`와 같은 구조) */
+/**
+ * 봉투의 code·retryable을 실은 실패. code는 봉투를 못 읽었으면 null이다 (`VocabSubmitError`와 같은 구조).
+ * status는 서버가 답한 HTTP 상태다 — 목록 오류 화면의 「오류 코드 N」(s-21, KAN-347 3-7). 응답이 없었으면(네트워크·
+ * 요청 전에 끊음) null이다
+ */
 export class WordLearningError extends Error {
   readonly code: string | null
   readonly retryable: boolean
+  readonly status: number | null
 
-  constructor(message: string, code: string | null, retryable: boolean) {
+  constructor(message: string, code: string | null, retryable: boolean, status: number | null = null) {
     super(message)
     this.name = 'WordLearningError'
     this.code = code
     this.retryable = retryable
+    this.status = status
   }
 }
 
@@ -197,12 +223,15 @@ export async function startWordAttempt(apiBase: string, setId: string, deps: Wor
 export interface WordAnswerSubmission {
   attemptId: string
   itemId: string
-  choiceId: string
+  /** null이면 고르지 않고 5초가 끝났다 — 본문이 `{ timedOut: true }`다 (KAN-360) */
+  choiceId: string | null
   idempotencyKey: string
 }
 
 /**
- * 답안 제출과 채점 (W-4). `ITEM_ALREADY_ANSWERED`(409)도 오류로 던진다 — 머리 주석.
+ * 답안 제출과 채점 (W-4). `ITEM_ALREADY_ANSWERED`(409)도 오류로 던진다 — 머리 주석. 시간 초과 답안(`choiceId: null`)은
+ * KAN-360 서버만 받는다(전에는 400). 5초 제한은 늘 켜져 있으므로(`wordTimer.ts`, KAN-361) prod에는 KAN-360 서버 Release가
+ * 웹보다 먼저 나가야 한다.
  * 그 밖의 코드: 400 `VALIDATION_FAILED`, 403 `LEARNING_ATTEMPT_FORBIDDEN`, 404
  * `LEARNING_ATTEMPT_NOT_FOUND`, 409 `LEARNING_ATTEMPT_COMPLETED`, 422 `ITEM_NOT_IN_VERSION`, 429.
  */
@@ -212,11 +241,13 @@ export async function submitWordAnswer(
   deps: WordApiDeps = {},
 ): Promise<WordAnswerResult> {
   const { attemptId, itemId, choiceId, idempotencyKey } = submission
-  requireValues({ attemptId, itemId, choiceId, idempotencyKey })
+  requireValues({ attemptId, itemId, idempotencyKey, ...(choiceId === null ? {} : { choiceId }) })
   const path =
     `/v0/learning/word-attempts/${encodeURIComponent(attemptId)}` +
     `/items/${encodeURIComponent(itemId)}/answer`
-  const body = await request(apiBase, path, 'POST', { json: { choiceId }, idempotencyKey }, deps)
+  // 시간 초과는 choiceId를 싣지 않는다 — 둘 다 있으면 400이다 (KAN-360 Requirements 1)
+  const json = choiceId === null ? { timedOut: true } : { choiceId }
+  const body = await request(apiBase, path, 'POST', { json, idempotencyKey }, deps)
   if (!isWordAnswerResult(body)) throw shapeError()
   return body
 }
@@ -301,11 +332,12 @@ export async function request(
   }
 
   const envelope = await readErrorEnvelope(response)
-  if (envelope !== null) throw new WordLearningError(envelope.message, envelope.code, envelope.retryable)
+  if (envelope !== null) throw new WordLearningError(envelope.message, envelope.code, envelope.retryable, response.status)
   throw new WordLearningError(
     `요청을 처리하지 못했어요 (HTTP ${response.status})`,
     null,
     isRetryableStatus(response.status),
+    response.status,
   )
 }
 
@@ -383,9 +415,16 @@ function isWordAttemptResult(v: unknown): v is WordAttemptResult {
       attemptId: 'string', contentVersion: 'string', setId: 'string', itemCount: 'number',
       correctCount: 'number', accuracyPercent: 'number', completedAt: 'string',
     }) &&
-    isArrayOf(v.wrongItems, {
-      itemId: 'string', cardId: 'string', prompt: 'string', chosenChoiceId: 'string', chosenText: 'string',
-      correctChoiceId: 'string', correctText: 'string', explanation: 'string',
-    })
+    isArrayOf(
+      v.wrongItems,
+      { itemId: 'string', cardId: 'string', prompt: 'string', correctChoiceId: 'string', correctText: 'string', explanation: 'string' },
+      // 고른 보기는 시간 초과면 null이다 (KAN-360)
+      (w) => isStringOrNull(w.chosenChoiceId) && isStringOrNull(w.chosenText),
+    ) &&
+    (v.stars === undefined || typeof v.stars === 'number')
   )
+}
+
+function isStringOrNull(value: unknown): boolean {
+  return value === null || typeof value === 'string'
 }

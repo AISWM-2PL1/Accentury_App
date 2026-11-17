@@ -37,6 +37,18 @@ describe('VoiceConsentScreen — 선택 동의 (KAN-270)', () => {
   })
 })
 
+describe('VoiceConsentScreen — 서식 (KAN-347 7단계, 시안 s-03-voice-consent-web)', () => {
+  it('제목은 동의 화면 제목 크기 26(.type-headline)이고 [다음]에 화살표 아이콘이 붙는다', () => {
+    renderScreen()
+
+    expect(screen.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toHaveClass('type-headline')
+    const next = screen.getByRole('button', { name: '다음' })
+    expect(next.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+    // 항목 목록: 보관 항목·보유 기간·웹 익명 세션 삭제 한계·방침 링크
+    expect(screen.getAllByRole('listitem')).toHaveLength(4)
+  })
+})
+
 describe('VoiceConsentScreen — [다음]', () => {
   it('체크하지 않아도 열려 있고, 누르면 미동의로 한 번 알린다 — 건너뛰기가 곧 거부다', () => {
     const { onDone } = renderScreen()

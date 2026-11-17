@@ -26,7 +26,8 @@ export interface MicBlockedScreenProps {
 const COPY: Record<MicBlockedScreenProps['reason'], { title: string; body: string }> = {
   denied: {
     title: '마이크 권한이 필요해요',
-    body: '억양 테스트는 목소리로 진행돼요. 브라우저 설정에서 마이크를 허용한 뒤 다시 시작해 주세요.',
+    // 문구는 KAN-347 7단계(시안 s-22). 「휴대폰 설정에서」는 2026-11-05 문구 검토 값이다
+    body: '레벨 테스트는 목소리로 진행돼요. 휴대폰 설정에서 마이크를 허용한 뒤 다시 시작해 주세요.',
   },
   unsupported: {
     title: '이 브라우저에서는 녹음을 지원하지 않아요',
@@ -45,26 +46,19 @@ export function MicBlockedScreen({ reason, platform, onRetry }: MicBlockedScreen
 
   return (
     <main className="screen">
-      <div className="screen__body">
-        {/*
-          이모지 🎤를 잉크 선화로 갈았다 (KAN-161 3단계). 이모지는 시스템이 자기 색으로 그려
-          잉크 한 색 화면에 유일한 색조로 남았다 — 이 화면은 인트로를 대신해 서는 자리라
-          같은 그림 언어를 써야 한다. 선화인 이유는 정본 §8의 녹음 버튼과 같다: 크림 위의
-          잉크 면은 주 버튼과 무게가 같아져 "눌러야 하는 것"으로 읽힌다.
-        */}
-        <div className="hero-icon">
+      {/*
+        예외 화면 서식 (KAN-347 1단계, 시안 s-22): 아이콘 원 112 · 원 윗선 y=200 · 제목 Jua 30 · 설명 15 흐린 잉크.
+        `.status-block`은 달지 않는다 — iOS 스모크 구동기가 그 이름으로 대기·오류 블록을 가른다(nativeSmokeSelectors).
+        하단 버튼은 아래 `.screen__footer`라 전체 너비 그대로다(확정된 결정 2026-11-16). 문구는 7단계에서 바꿨다.
+
+        아이콘은 잉크 선화다 (KAN-161 3단계) — 이모지는 시스템이 자기 색으로 그려 잉크 한 색 화면에 유일한 색조로 남았다.
+      */}
+      <div className="exception">
+        <div className="exception__icon" aria-hidden="true">
           <MicIcon />
         </div>
-
-        <div>
-          <h1 className="type-title">{copy.title}</h1>
-          <p
-            className="type-body-sm"
-            style={{ color: 'var(--color-muted-foreground)', marginTop: 'var(--space-2)' }}
-          >
-            {copy.body}
-          </p>
-        </div>
+        <h1 className="exception__title">{copy.title}</h1>
+        <p className="exception__detail">{copy.body}</p>
       </div>
 
       <div className="screen__footer">

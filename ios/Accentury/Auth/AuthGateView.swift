@@ -128,41 +128,41 @@ private struct SignedInScreen: View {
                 )
                 .accessibilityHidden(settingsOpen)
             }
-            if settingsOpen {
-                SettingsScreen(
-                    user: user,
-                    voiceConsent: voiceConsent,
-                    onClose: { settingsOpen = false },
-                    // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야 다음 로그인에서
-                    // 계정을 다시 고를 수 있다.
-                    onLogout: { await gate.logout { await IdpLogout.all() } },
-                    // 탈퇴도 IdP SDK 세션까지 정리한다 (KAN-251). 애플 계정만 탈퇴 직전에 재인증해 revoke용 코드를 싣는다.
-                    onWithdraw: {
-                        await withdrawAccount(provider: user.provider, appleReauth: appleReauthorization) { code in
-                            // 네이버 SDK 토큰은 IdP 로그아웃이 지우기 전에 읽는다 (KAN-330, 서버 KAN-343이 교환해 네이버 연동을 끊는다).
-                            await gate.withdraw(
-                                appleAuthorizationCode: code,
-                                naverRefreshToken: naverRefreshTokenForWithdrawal(provider: user.provider, sdkRefreshToken: naverSdkRefreshToken())
-                            ) { await IdpLogout.all() }
-                        }
-                    },
-                    // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의 화면이
-                    // 뜨던 문제(PR #22 리뷰).
-                    onVoiceConsentChange: {
-                        let result = await gate.setVoiceConsent($0)
-                        if case .success = result { finishConsentPrompt() }
-                        return result
-                    },
-                    onReloadVoiceConsent: { await gate.reloadVoiceConsent() },
-                    onOpenPrivacy: openPrivacy,
-                    adConsentEnabled: adConsentAvailable,
-                    // 설정을 닫고(✕와 같다) 웹 홈의 광고 동의 시트로 간다 (KAN-315).
-                    onOpenAdConsent: {
-                        settingsOpen = false
-                        adConsentRequests += 1
+        }
+        .settingsCover(isPresented: settingsOpen) {
+            SettingsScreen(
+                user: user,
+                voiceConsent: voiceConsent,
+                onClose: { settingsOpen = false },
+                // 추가 정보 화면의 [다른 계정으로 로그인]과 같은 호출이다 — IdP SDK 세션까지 정리해야 다음 로그인에서
+                // 계정을 다시 고를 수 있다.
+                onLogout: { await gate.logout { await IdpLogout.all() } },
+                // 탈퇴도 IdP SDK 세션까지 정리한다 (KAN-251). 애플 계정만 탈퇴 직전에 재인증해 revoke용 코드를 싣는다.
+                onWithdraw: {
+                    await withdrawAccount(provider: user.provider, appleReauth: appleReauthorization) { code in
+                        // 네이버 SDK 토큰은 IdP 로그아웃이 지우기 전에 읽는다 (KAN-330, 서버 KAN-343이 교환해 네이버 연동을 끊는다).
+                        await gate.withdraw(
+                            appleAuthorizationCode: code,
+                            naverRefreshToken: naverRefreshTokenForWithdrawal(provider: user.provider, sdkRefreshToken: naverSdkRefreshToken())
+                        ) { await IdpLogout.all() }
                     }
-                )
-            }
+                },
+                // 설정에서 바꾼 것도 '물어봤다'로 친다 — 다른 기기에서 동의한 계정이 여기서 끄자마자 동의 화면이
+                // 뜨던 문제(PR #22 리뷰).
+                onVoiceConsentChange: {
+                    let result = await gate.setVoiceConsent($0)
+                    if case .success = result { finishConsentPrompt() }
+                    return result
+                },
+                onReloadVoiceConsent: { await gate.reloadVoiceConsent() },
+                onOpenPrivacy: openPrivacy,
+                adConsentEnabled: adConsentAvailable,
+                // 설정을 닫고(✕와 같다) 웹 홈의 광고 동의 시트로 간다 (KAN-315).
+                onOpenAdConsent: {
+                    settingsOpen = false
+                    adConsentRequests += 1
+                }
+            )
         }
     }
 
@@ -206,20 +206,20 @@ private struct GuestScreen: View {
             )
                 .accessibilityHidden(settingsOpen)
                 .onAppear { restorable = true }
-            if settingsOpen {
-                GuestSettingsScreen(
-                    consented: consentStore.consented(),
-                    onConsentChange: { consentStore.save(consented: $0) },
-                    onClose: { settingsOpen = false },
-                    onLogin: { await gate.leaveGuest() },
-                    onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
-                    adConsentEnabled: adConsentAvailable,
-                    onOpenAdConsent: {
-                        settingsOpen = false
-                        adConsentRequests += 1
-                    }
-                )
-            }
+        }
+        .settingsCover(isPresented: settingsOpen) {
+            GuestSettingsScreen(
+                consented: consentStore.consented(),
+                onConsentChange: { consentStore.save(consented: $0) },
+                onClose: { settingsOpen = false },
+                onLogin: { await gate.leaveGuest() },
+                onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
+                adConsentEnabled: adConsentAvailable,
+                onOpenAdConsent: {
+                    settingsOpen = false
+                    adConsentRequests += 1
+                }
+            )
         }
     }
 }
@@ -228,7 +228,7 @@ private struct GuestScreen: View {
 /// 이식본이고 ``AuthGateView`` 자리에 선다(``ContentView``).
 ///
 /// 관문·추가 정보·계정 동의 오버레이가 없고, 음성 저장 동의는 ``TestFlowView``의 시작 게이트가 설치당 한 번 묻는다.
-/// 설정 톱니는 그대로이고 ``AnonymousSettingsScreen``(「개인정보」만)을 덮는다 — ``SignedInScreen``과 같은 `ZStack` 구조다.
+/// 설정 톱니는 그대로이고 ``AnonymousSettingsScreen``(「광고」 신고·「개인정보」)을 덮는다 — ``SignedInScreen``과 같은 `ZStack`·``View/settingsCover(isPresented:screen:)`` 구조다.
 ///
 /// 세션 생성은 plain 클라이언트다(``TestFlowModel``의 기본 클라이언트가 `AppConfig.loginEnabled`를 본다). 예전 로그인 빌드가
 /// 남긴 토큰이 Keychain에 있어도 Bearer가 실리지 않게 하려는 것이다 — 실리면 서버가 계정 세션으로 보고 voiceConsentVersion을
@@ -251,14 +251,14 @@ struct AnonymousFlowView: View {
             )
                 .accessibilityHidden(settingsOpen)
                 .onAppear { restorable = true }
-            if settingsOpen {
-                AnonymousSettingsScreen(
-                    consented: consentStore.consented(),
-                    onChange: { consentStore.save(consented: $0) },
-                    onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
-                    onClose: { settingsOpen = false }
-                )
-            }
+        }
+        .settingsCover(isPresented: settingsOpen) {
+            AnonymousSettingsScreen(
+                consented: consentStore.consented(),
+                onChange: { consentStore.save(consented: $0) },
+                onOpenPrivacy: { ExternalBrowser.open(privacyPolicyURL) },
+                onClose: { settingsOpen = false }
+            )
         }
     }
 }

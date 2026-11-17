@@ -20,19 +20,30 @@ export const TRANSLATION_TOO_LONG = 'TRANSLATION_TOO_LONG'
 export const TRANSLATION_REJECTED = 'TRANSLATION_REJECTED'
 export const TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE'
 export const VALIDATION_FAILED = 'VALIDATION_FAILED'
+/** 429 하루 한도(계정당 5건, 두 방향 합산). 서버 `ErrorCode.TRANSLATION_DAILY_LIMIT_EXCEEDED`, 재시도 불가 */
+export const TRANSLATION_DAILY_LIMIT_EXCEEDED = 'TRANSLATION_DAILY_LIMIT_EXCEEDED'
 /** 서버 code가 아니다 — 구 서버가 toStandard에 `{dialect}`만 줬을 때 이 클라이언트가 붙인다 */
 export const TRANSLATION_DIRECTION_UNSUPPORTED = 'TRANSLATION_DIRECTION_UNSUPPORTED'
 export const DIRECTION_UNSUPPORTED_MESSAGE = '지금은 표준어로 바꾸기를 쓸 수 없어요'
 
 export type TranslationDirection = 'toDialect' | 'toStandard'
 
-/** 문장 하나를 [direction] 쪽으로 바꾼 문장 하나. 200 본문 `{"dialect": string}` 또는 `{"standard": string}` */
+/**
+ * 번역 결과. [remaining]은 이 번역 뒤 오늘 남은 성공 번역 수(서버 0~4, 2026-10-15 결정)이고, 응답에 0 이상 정수가 없으면
+ * null이다 — `remaining`을 싣지 않던 서버의 응답이다. 화면은 null이면 「오늘 n번 남았어요」를 숨긴다(KAN-347 6-4).
+ */
+export interface TranslationOutcome {
+  result: string
+  remaining: number | null
+}
+
+/** 문장 하나를 [direction] 쪽으로 바꾼다. 200 본문 `{"dialect": string, "remaining"?: number}` 또는 `{"standard": …}` */
 export async function translate(
   apiBase: string,
   text: string,
   direction: TranslationDirection,
   deps: WordApiDeps = {},
-): Promise<string> {
+): Promise<TranslationOutcome> {
   const body = await request(apiBase, '/v0/translations', 'POST', { json: { text, direction }, allowGuest: true }, deps)
   const field = direction === 'toDialect' ? 'dialect' : 'standard'
   if (direction === 'toStandard' && !hasFields(body, { standard: 'string' }) && hasFields(body, { dialect: 'string' })) {
@@ -43,7 +54,11 @@ export async function translate(
   if (!hasFields(body, { [field]: 'string' }) || (body[field] as string).trim() === '') {
     throw new WordLearningError('번역 결과를 해석할 수 없어요', null, false)
   }
-  return body[field] as string
+  const remaining = body.remaining
+  return {
+    result: body[field] as string,
+    remaining: typeof remaining === 'number' && Number.isInteger(remaining) && remaining >= 0 ? remaining : null,
+  }
 }
 
 /**

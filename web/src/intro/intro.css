@@ -1,0 +1,4 @@
+/* 랜딩 (KAN-347 7단계, 시안 s-05). 숫자 카드는 종이(paper) 면 — 화면 배경 크림 위에 한 장 얹힌다 */
+.intro-screen .card {
+  background: var(--color-paper);
+}

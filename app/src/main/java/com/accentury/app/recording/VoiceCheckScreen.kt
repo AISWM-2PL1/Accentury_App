@@ -2,16 +2,18 @@ package com.accentury.app.recording
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -20,26 +22,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.accentury.app.R
 import com.accentury.app.audio.AudioQuality
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.CurveLane
 import com.accentury.app.ui.components.CurveLaneGroup
 import com.accentury.app.ui.components.CurveLaneVariant
-import com.accentury.app.ui.components.PaperLead
 import com.accentury.app.ui.components.PaperScreen
-import com.accentury.app.ui.components.PaperTitle
 import com.accentury.app.ui.components.PromptCard
-import com.accentury.app.ui.components.StatusBlock
-import com.accentury.app.ui.components.StatusTone
 import com.accentury.app.ui.theme.Dimens
 import com.accentury.app.ui.theme.LightPoint
 import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
+import com.accentury.app.ui.theme.accenturyColors
 import kotlin.math.log10
 
 /**
@@ -93,17 +97,46 @@ fun VoiceCheckScreen(
     }
     val segments = userCurveDisplayPoints(frames, VOICE_CHECK_WINDOW_MS, centerHz)
 
-    // 색을 명시한다 - Surface 기본값은 surface(카드 흰색)라, 그대로 두면 이 화면만 흰 배경이 되어
-    // 바로 앞뒤 화면(background #f3ecd9)과 어긋난다 (세션 게이트·녹음 오버레이와 같은 이유).
-    // 시안 13 배치 (KAN-288 디자인 3): 왼쪽 정렬 제목, 본문 스크롤, 바닥에 [다음]·[다시 시도]와 안내 한 줄.
+    val failed = state is VoiceCheckState.TimedOut || state is VoiceCheckState.Failed
+    /*
+     * 녹음 화면과 같은 형식이다 (KAN-354 시안 s-05-voicecheck-app): 대사 카드 → 「내 억양」 곡선 카드 → 입력 레벨 바가 본문이고,
+     * 상태 한 줄·안내 한 줄·[다음 →]이 바닥에 고정된다. 앱바는 워드마크만이다(×·톱니 없음).
+     * 제목·부제(「목소리를 확인할게요」·「아래 말을 편하게 해 주세요」)는 걷었다 — 대사 카드의 캡션과 칩이 같은 말을 한다.
+     */
     PaperScreen(
         modifier = modifier,
         footer = {
+            /*
+             * 상태 한 줄 (시안 `.p2-review > p:first-child` 16). 실패에만 스스로 읽힌다(liveRegion) — 듣는 중 문구는 청크마다
+             * 바뀌므로 읽어 주면 소음이 된다. 시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 — "잡히지 않았어요"만으로는
+             * 다음에 무엇을 다르게 해야 하는지 알 수 없다.
+             */
+            Column(
+                modifier = if (failed) Modifier.semantics { liveRegion = LiveRegionMode.Assertive } else Modifier,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(statusMessage(state), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+                (state as? VoiceCheckState.TimedOut)?.let {
+                    Text(
+                        hintMessage(it.hint),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            Text(
+                "이 소리는 저장하거나 보내지 않아요",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
             when (val s = state) {
                 is VoiceCheckState.Ready -> AccenturyButton(
                     text = "다음",
                     onClick = { onDone(s.centerHz) },
                     modifier = Modifier.fillMaxWidth(),
+                    trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
                 )
 
                 is VoiceCheckState.TimedOut, is VoiceCheckState.Failed -> AccenturyButton(
@@ -116,54 +149,33 @@ fun VoiceCheckScreen(
                 // 누를 것을 주면 말하기를 멈추고 그걸 누른다.
                 is VoiceCheckState.Listening -> Unit
             }
-            Text(
-                "이 소리는 저장하거나 보내지 않아요",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
         },
     ) {
-        PaperTitle("목소리를 확인할게요")
         Spacer(modifier = Modifier.height(Spacing.x2))
-        PaperLead("아래 말을 편하게 해 주세요")
-
-        Spacer(modifier = Modifier.height(Spacing.x4))
         // 문항 화면과 같은 카드다 - 여기서 말한 방식 그대로 문항에서도 말하면 된다는 뜻이 된다.
-        // 캡션에서 이모지를 걷었다 (KAN-161 4단계). 잉크 한 색 화면에서 이모지는 색을
-        // 가진 유일한 물건이라, 종이에 붙은 스티커처럼 그림 밖으로 튄다 (정본 §7).
-        PromptCard(caption = "목소리 점검", prompt = "안녕하세요")
+        // 칩은 시안대로 캡션 아래·대사 위다 (목소리 점검만 그렇다).
+        PromptCard(prompt = "안녕하세요", caption = "목소리 점검", cue = "편하게 말해 주세요", cueAbovePrompt = true)
 
-        Spacer(modifier = Modifier.height(Spacing.x4))
+        // 시안 `.p2-lanes` margin-top 28
+        Spacer(modifier = Modifier.height(Spacing.x6 + Spacing.x1))
         /*
          * 레인은 하나다. 점검에는 따라 할 가이드가 없으므로(자기 목소리만 재는 자리)
-         * 빈 가이드 레인을 함께 세우면 사용자는 없는 곡선을 찾게 된다.
+         * 빈 가이드 레인을 함께 세우면 사용자는 없는 곡선을 찾게 된다. 대신 두 칸 높이를 쓴다(시안 224).
          * 중심이 잠기기 전에는 빈 레인이 정상이다 - 임시 축으로 그려 두면 축이 잠기는 순간
          * 곡선 전체가 한 번 점프한다 ([userCurveDisplayPoints] 참고).
+         * 곡선은 왼쪽부터 실시간으로 자란다(움직임 타일 9). 보간 애니메이션이 없어 움직임 줄이기에서도 같은 그림이다.
          */
-        // 레인 하나여도 상자는 문항 화면과 같다 - 테두리·모서리는 상자가 갖는다.
         CurveLaneGroup {
             CurveLane(
                 label = "내 억양",
                 segments = segments,
                 variant = CurveLaneVariant.User,
+                height = Dimens.curveLaneHeight * 2,
             )
         }
 
         Spacer(modifier = Modifier.height(Spacing.x4))
         InputLevelBar(level = (state as? VoiceCheckState.Listening)?.level ?: 0.0)
-
-        Spacer(modifier = Modifier.height(Spacing.x4))
-        val failed = state is VoiceCheckState.TimedOut || state is VoiceCheckState.Failed
-        StatusBlock(
-            // 실패에만 Error를 준다 - 그래야 스크린 리더가 스스로 읽는다(StatusBlock 주석).
-            // 듣는 중 문구는 청크마다 바뀌므로 읽어 주면 소음이 된다.
-            tone = if (failed) StatusTone.Error else StatusTone.Waiting,
-            message = statusMessage(state),
-            // 시간이 다 됐을 때만 무엇이 모자랐는지 덧붙인다 - "잡히지 않았어요"만으로는
-            // 다음에 무엇을 다르게 해야 하는지 알 수 없다.
-            detail = (state as? VoiceCheckState.TimedOut)?.let { hintMessage(it.hint) },
-        )
     }
 }
 
@@ -177,30 +189,29 @@ private const val VOICE_CHECK_WINDOW_MS = 1_000L
 
 /**
  * 입력 레벨 바. 곡선이 "무엇을 말했는가"라면 이건 "얼마나 크게 말했는가"다 —
- * 볼륨 부족은 곡선만 봐서는 알 수 없다(작게 말해도 F0는 잡힌다).
+ * 볼륨 부족은 곡선만 봐서는 알 수 없다(작게 말해도 F0는 잡힌다). 시안에는 없지만 유지한다(2026-11-16 결정, KAN-347 7단계와 같은 결론).
  *
  * 눈금은 통과선([AudioQuality.QUIET_RMS_THRESHOLD])이다. "조금 더 크게"라는 말만으로는
  * 얼마나 더인지 알 수 없어서, 넘어야 할 자리를 눈에 보이게 둔다.
  */
 @Composable
 private fun InputLevelBar(level: Double) {
-    val fraction = levelBarFraction(level)
-    val threshold = levelBarFraction(AudioQuality.QUIET_RMS_THRESHOLD)
+    val fraction = inputLevelFraction(level)
+    val threshold = inputLevelFraction(AudioQuality.QUIET_RMS_THRESHOLD)
 
     /*
-     * 그릇은 면이 아니라 **테두리**로 그린다 (KAN-161 4단계, 웹 `.level-bar`와 같은 규격).
-     * `surfaceVariant`(#cfc5aa) 면이었는데 크림 위 1.46:1이라 바의 오른쪽 끝이 어디인지
-     * 보이지 않았다 - 채운 만큼만 보이고 전체 길이가 안 보이면 "얼마나 더 크게"를 알 수 없다.
-     * 정본 §7이 이 색으로 상태를 표시하지 말라고 하는 자리가 정확히 여기다.
+     * 그림자색 바탕에 벽돌 채움, 높이 8 (KAN-354 — 진척도 칸과 같은 알약). 바탕의 그림자색은 크림 위 대비가 낮지만
+     * 막대 전체 길이를 알리는 몫이고, 넘어야 할 자리는 흐린 잉크 눈금이 따로 말한다.
      */
     val shape = RoundedCornerShape(Radius.full)
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            // 오른쪽 끝을 곡선 카드([CurveLaneGroup])·대사 카드 본체에 맞춘다 — 둘 다 그림자 폭만큼 안으로 들어가 있다
+            .padding(end = Dimens.paperShadowX)
             .height(Dimens.progressBarHeight)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(LEVEL_BAR_BORDER, MaterialTheme.colorScheme.primary, shape)
+            .background(MaterialTheme.accenturyColors.primaryDim)
             // 값이 아니라 뜻만 읽힌다 - 시시각각 바뀌는 숫자를 읽어 주면 화면을 못 쓴다.
             .clearAndSetSemantics { contentDescription = "입력 레벨" },
     ) {
@@ -226,15 +237,13 @@ private fun InputLevelBar(level: Double) {
 
 private val TICK_WIDTH = 2.dp
 
-/** 그릇 테두리. 결과 점수 막대·녹음 게이지와 같은 1dp다 (정본 §8 컷아웃 규칙의 막대 판) */
-private val LEVEL_BAR_BORDER = 1.dp
-
 /**
- * 원 스케일 rms를 바의 0..1 비율로. **로그 스케일**이다 —
+ * 원 스케일 rms를 0..1 비율로. **로그 스케일**이다 —
  * 사람이 느끼는 크기가 로그라서, 선형으로 그리면 일상적인 발화(rms 수백)가 전체 스케일
  * (32768) 대비 바 왼쪽 끝에 붙어 버려 커졌는지 작아졌는지가 안 보인다.
+ * 입력 레벨 바와 녹음 화면 소리 원([soundRingLevel])이 같은 눈금을 쓴다.
  */
-private fun levelBarFraction(rms: Double): Float {
+internal fun inputLevelFraction(rms: Double): Float {
     if (rms <= 1.0) return 0f
     return (log10(rms) / log10(AudioQuality.FULL_SCALE)).coerceIn(0.0, 1.0).toFloat()
 }

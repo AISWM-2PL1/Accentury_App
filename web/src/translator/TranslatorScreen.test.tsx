@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from '../progress/fetchTestDefinition'
 import type { WordApiDeps } from '../learning/wordApi'
 import { shareResult } from '../share/shareResult'
-import { TranslatorScreen } from './TranslatorScreen'
+import { TranslatorScreen, limitBody } from './TranslatorScreen'
+
+/** 서버 429 문구 원문 (Accentury_Server `ErrorCode.TRANSLATION_DAILY_LIMIT_EXCEEDED`, `TranslationService.CALL_LIMIT_MESSAGE`). 서버가 바꾸면 같이 바꾼다 */
+const SERVER_DAILY_LIMIT = '오늘 번역 횟수(5회)를 다 썼습니다. 내일 다시 시도해 주세요.'
+const SERVER_CALL_LIMIT = '오늘 번역 요청 횟수(20회)를 다 썼습니다. 내일 다시 시도해 주세요.'
 import { resetTranslatorConsentMemory, TRANSLATOR_CONSENT_KEY, writeTranslatorConsent } from './translatorConsentStore'
 
 vi.mock('../share/shareResult', () => ({ shareResult: vi.fn(() => 'bridge') }))
@@ -23,7 +27,8 @@ function setup(fetchImpl: FetchLike, overrides: Partial<WordApiDeps> = {}) {
 
 const input = () => screen.getByLabelText('표준어 문장')
 const type = (value: string) => fireEvent.change(input(), { target: { value } })
-const submit = () => fireEvent.click(screen.getByRole('button', { name: '바꾸기' }))
+const goButton = () => screen.getByRole('button', { name: '번역하기' })
+const submit = () => fireEvent.click(goButton())
 
 /** 응답을 손으로 풀어 주는 fetch — 대기·늦은 응답을 본다 */
 function deferredFetch() {
@@ -53,16 +58,28 @@ afterEach(() => {
 })
 
 describe('입력 상태 (ux-ui 「사투리 번역기 화면」 상태 표)', () => {
-  it('빈 입력·공백만이면 [바꾸기] 비활성, 탭 바는 선다', () => {
+  it('빈 입력·공백만이면 ↓ 비활성, 탭 바는 선다', () => {
     setup(vi.fn())
-    expect(screen.getByRole('button', { name: '바꾸기' })).toBeDisabled()
+    expect(goButton()).toBeDisabled()
     type('   ')
-    expect(screen.getByRole('button', { name: '바꾸기' })).toBeDisabled()
+    expect(goButton()).toBeDisabled()
     expect(screen.getByRole('navigation', { name: '주 메뉴' })).toBeInTheDocument()
   })
 
-  it('입력창 아래 상시 고지가 받는 곳(Google Gemini API)과 처리방침 링크를 말한다', () => {
+  it('규칙 줄 「하루 5번까지 번역할 수 있어요」, 빈 결과 「번역한 문장이 여기 나와요」, ↓ 버튼 이름은 「번역하기」 (KAN-347 6-1)', () => {
     setup(vi.fn())
+    expect(screen.getByText('하루 5번까지 번역할 수 있어요')).toBeInTheDocument()
+    expect(screen.getByText('번역한 문장이 여기 나와요')).toBeInTheDocument()
+    expect(goButton()).toHaveAccessibleName('번역하기')
+    expect(goButton()).toHaveTextContent('')
+    // 입력 카드 라벨 「표준어」(빈 원), 결과 카드 라벨 「경남 사투리」(벽돌 원)
+    expect(document.querySelector('.translator-card:not(.translator-card--output) .translator-card__label')).toHaveTextContent('표준어')
+    expect(document.querySelector('.translator-card--output .translator-card__label--dialect')).toHaveTextContent('경남 사투리')
+  })
+
+  it('입력창 아래 상시 고지가 받는 곳(Google Gemini API)과 처리방침 링크를 말한다, AI 번역 고지도 늘 선다', () => {
+    setup(vi.fn())
+    expect(screen.getByText('AI 번역이라 실제 표현과 다를 수 있어요')).toBeInTheDocument()
     expect(screen.getByText(/입력한 문장은 번역을 위해 Google Gemini API로 보내요/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '개인정보처리방침' })).toBeInTheDocument()
   })
@@ -72,31 +89,37 @@ describe('입력 상태 (ux-ui 「사투리 번역기 화면」 상태 표)', ()
     const hundred = '😀'.repeat(50) + '가'.repeat(50)
     type(hundred)
     expect(screen.getByText('100/100')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '바꾸기' })).toBeEnabled()
+    expect(goButton()).toBeEnabled()
     expect(screen.queryByText('100자까지 쓸 수 있어요')).toBeNull()
 
     type(hundred + '😀')
-    expect(screen.getByText('101/100')).toHaveClass('feedback-message')
-    expect(screen.getByRole('button', { name: '바꾸기' })).toBeDisabled()
-    expect(screen.getByText('100자까지 쓸 수 있어요')).toBeInTheDocument()
+    expect(screen.getByText('101/100')).toHaveClass('translator-card__counter--over')
+    expect(goButton()).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('100자까지 쓸 수 있어요')
+    expect(input()).toHaveAttribute('aria-invalid', 'true')
+    expect(input()).toHaveAccessibleDescription('100자까지 쓸 수 있어요')
   })
 })
 
 describe('요청과 결과', () => {
-  it('대기 중엔 「바꾸는 중이에요」 + 비활성, 다시 눌러도 요청은 한 번, 입력은 그대로', async () => {
+  it('대기 중엔 「번역 중이에요」 + 비활성, 다시 눌러도 요청은 한 번, 입력은 그대로', async () => {
     const { fetchImpl, resolve } = deferredFetch()
     setup(fetchImpl)
     type('밥 먹었어?')
     submit()
-    expect(await screen.findByText('바꾸는 중이에요')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '바꾸기' })).toBeDisabled()
+    expect(await screen.findByText('번역 중이에요')).toBeInTheDocument()
+    expect(document.querySelectorAll('.translator-wait i')).toHaveLength(2)
+    expect(screen.queryByText('번역한 문장이 여기 나와요')).toBeNull()
+    expect(goButton()).toBeDisabled()
     submit()
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(input()).toHaveValue('밥 먹었어?')
 
-    await resolve(0, jsonResponse(200, { dialect: '밥 뭇나?' }))
+    await resolve(0, jsonResponse(200, { direction: 'toDialect', dialect: '밥 뭇나?', remaining: 4 }))
     expect(screen.getByText('밥 뭇나?')).toBeInTheDocument()
+    expect(document.querySelectorAll('.translator-wait i')).toHaveLength(0)
     expect(screen.getByText('AI 번역이라 실제 표현과 다를 수 있어요')).toBeInTheDocument()
+    expect(document.querySelector('.translator-result__meta')).toHaveTextContent('오늘 4번 남았어요')
     expect(screen.getByRole('button', { name: '복사' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '공유' })).toBeInTheDocument()
   })
@@ -117,7 +140,7 @@ describe('요청과 결과', () => {
     type('밥 먹었어?')
     submit()
     type('어디 가?')
-    expect(screen.queryByText('바꾸는 중이에요')).toBeNull()
+    expect(screen.queryByText('번역 중이에요')).toBeNull()
     await resolve(0, jsonResponse(200, { dialect: '밥 뭇나?' }))
     expect(screen.queryByText('밥 뭇나?')).toBeNull()
 
@@ -134,6 +157,8 @@ describe('요청과 결과', () => {
     submit()
     fireEvent.click(await screen.findByRole('button', { name: '복사' }))
     expect(await screen.findByRole('button', { name: '복사했어요' })).toBeInTheDocument()
+    // 아이콘 버튼이라 같은 문구를 카드 왼쪽 아래에 눈으로도 보인다
+    expect(screen.getAllByRole('status').some((el) => el.textContent === '복사했어요')).toBe(true)
     expect(writeText).toHaveBeenCalledWith('밥 뭇나?')
   })
 
@@ -171,16 +196,27 @@ describe('요청과 결과', () => {
 })
 
 describe('오류 상태', () => {
-  it('TRANSLATION_REJECTED → 「올바른 문장을 넣어주세요」, [다시 시도] 없음', async () => {
+  it('TRANSLATION_REJECTED → 입력 카드 아래 한 줄 「올바른 문장을 넣어 주세요」, 대화상자·[다시 시도] 없음, 입력을 고치면 사라진다', async () => {
     setup(vi.fn<FetchLike>(async () => jsonResponse(422, envelope('TRANSLATION_REJECTED', false))))
     type('ㅁㄴㅇㄹ')
     submit()
-    expect(await screen.findByText('올바른 문장을 넣어주세요')).toBeInTheDocument()
+    const line = await screen.findByRole('alert')
+    expect(line).toHaveTextContent('올바른 문장을 넣어 주세요')
+    expect(line).toHaveClass('translator-error')
+    expect(line.querySelector('svg')).not.toBeNull()
+    expect(input()).toHaveAccessibleDescription('올바른 문장을 넣어 주세요')
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+    type('밥 먹었어?')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(input()).not.toHaveAttribute('aria-invalid')
     expect(screen.getByRole('navigation', { name: '주 메뉴' })).toBeInTheDocument()
   })
 
-  it('TRANSLATION_UNAVAILABLE → 문구 + [다시 시도]가 같은 입력으로 재요청', async () => {
+  const FAILED_TITLE = '번역하지 못했어요'
+  const FAILED_BODY = '인터넷 연결이 불안정하거나 잠시 사용량이 많아요. 잠시 뒤 다시 시도해 주세요'
+
+  it('TRANSLATION_UNAVAILABLE → 가운데 대화상자(배경 inert), [다시 시도]가 같은 입력으로 재요청', async () => {
     const fetchImpl = vi
       .fn<FetchLike>()
       .mockResolvedValueOnce(jsonResponse(503, envelope('TRANSLATION_UNAVAILABLE', true)))
@@ -188,27 +224,53 @@ describe('오류 상태', () => {
     setup(fetchImpl)
     type('밥 먹었어?')
     submit()
-    expect(await screen.findByText('지금은 바꿀 수 없어요. 잠시 뒤 다시 시도해 주세요')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    const dialog = await screen.findByRole('dialog', { name: FAILED_TITLE })
+    expect(dialog).toHaveAccessibleDescription(FAILED_BODY)
+    expect(document.querySelector('main')).toHaveAttribute('inert')
+    expect(screen.getByRole('navigation', { name: '주 메뉴' }).parentElement).toHaveAttribute('inert')
+    expect(within(dialog).getByRole('button', { name: '다시 시도' })).toHaveFocus()
+    fireEvent.click(within(dialog).getByRole('button', { name: '다시 시도' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
     expect(fetchImpl.mock.calls[1][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toDialect' }))
   })
 
-  it('네트워크 실패 → 문구 + [다시 시도]', async () => {
+  it('[닫기]·Escape는 대화상자만 닫는다 — 입력은 남고 요청은 다시 나가지 않으며 배경 inert가 풀린다', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(503, envelope('TRANSLATION_UNAVAILABLE', true)))
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    fireEvent.click(within(await screen.findByRole('dialog', { name: FAILED_TITLE })).getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(input()).toHaveValue('밥 먹었어?')
+    expect(document.activeElement).toBe(input()) // 닫으면 초점이 입력칸으로 돌아온다
+    expect(document.querySelector('main')).not.toHaveAttribute('inert')
+    expect(goButton()).toBeEnabled()
+
+    submit()
+    fireEvent.keyDown(await screen.findByRole('dialog', { name: FAILED_TITLE }), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(input()).toHaveValue('밥 먹었어?')
+    expect(document.activeElement).toBe(input())
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('네트워크 실패도 같은 대화상자 + [다시 시도]', async () => {
     setup(vi.fn<FetchLike>(async () => {
       throw new TypeError('Failed to fetch')
     }))
     type('밥 먹었어?')
     submit()
-    expect(await screen.findByText('네트워크 오류로 요청하지 못했어요')).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: FAILED_TITLE })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('TRANSLATION_TOO_LONG(방어) → 「100자까지 쓸 수 있어요」', async () => {
     setup(vi.fn<FetchLike>(async () => jsonResponse(422, envelope('TRANSLATION_TOO_LONG', false))))
     type('밥 먹었어?')
     submit()
-    expect(await screen.findByText('100자까지 쓸 수 있어요')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('100자까지 쓸 수 있어요')
   })
 
   it('VALIDATION_FAILED(방어) → 빈 입력과 같이 아무 문구 없음', async () => {
@@ -219,7 +281,7 @@ describe('오류 상태', () => {
     await act(async () => {})
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.queryByText('바꾸는 중이에요')).toBeNull()
+    expect(screen.queryByText('번역 중이에요')).toBeNull()
   })
 
   it('CLIENT_NOT_SIGNED_IN → 「로그인하면 사투리 번역기를 쓸 수 있어요」, 요청 없음', async () => {
@@ -227,17 +289,112 @@ describe('오류 상태', () => {
     setup(fetchImpl, { getToken: () => null })
     type('밥 먹었어?')
     submit()
-    expect(await screen.findByText('로그인하면 사투리 번역기를 쓸 수 있어요')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('로그인하면 사투리 번역기를 쓸 수 있어요')
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+    // 입력 오류가 아니다 — 결과 카드 자리에 서고 입력칸은 invalid가 아니다 (PR #76 리뷰)
+    expect(screen.getByRole('alert')).toHaveClass('translator-card__empty')
+    expect(document.getElementById('translator-input')).not.toHaveAttribute('aria-invalid')
+    expect(document.getElementById('translator-input-error')).toBeNull()
   })
 
   it('UNAUTHENTICATED(401·갱신 실패) → 오류 문구 그대로', async () => {
     setup(vi.fn<FetchLike>(async () => jsonResponse(401, envelope('AUTH_TOKEN_INVALID', false))))
     type('밥 먹었어?')
     submit()
-    expect(await screen.findByText('로그인이 만료됐어요. 다시 로그인해 주세요')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 만료됐어요. 다시 로그인해 주세요')
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+    expect(screen.getByRole('alert')).toHaveClass('translator-card__empty')
+    expect(document.getElementById('translator-input')).not.toHaveAttribute('aria-invalid')
+  })
+})
+
+describe('남은 횟수와 하루 한도 (KAN-347 6-4·6-6)', () => {
+  const LIMIT = ['이용 안내', '하루 한도를 다 사용했어요.', '번역은 하루 5번까지예요.']
+  const limitCard = () => document.querySelector('.translator-card--limit')
+
+  it('응답 remaining이 없으면(구서버) 「오늘 n번 남았어요」를 숨긴다', async () => {
+    setup(vi.fn<FetchLike>(async () => jsonResponse(200, { dialect: '밥 뭇나?' })))
+    type('밥 먹었어?')
+    submit()
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    expect(screen.queryByText(/남았어요/)).toBeNull()
+  })
+
+  it('remaining 0이면 결과는 그대로 보이고 ↓가 잠기며, 다음 시도(입력 수정·방향 전환) 전에 한도 카드로 바뀐다', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(200, { direction: 'toDialect', dialect: '밥 뭇나?', remaining: 0 }))
+    setup(fetchImpl)
+    type('밥 먹었어?')
+    submit()
+    expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
+    expect(document.querySelector('.translator-result__meta')).toHaveTextContent('오늘 0번 남았어요')
+    expect(limitCard()).toBeNull()
+    expect(goButton()).toBeDisabled()
+
+    type('어디 가?')
+    // remaining 0은 어느 한도로 닫혔는지 몰라 「5번」이라고 하지 않는다 (KAN-361, PR #77 리뷰)
+    expect(limitCard()).toHaveTextContent('하루 한도를 다 사용했어요.')
+    expect(limitCard()).toHaveTextContent('내일 다시 번역할 수 있어요.')
+    expect(limitCard()).not.toHaveTextContent('5번')
+    expect(screen.queryByText('번역한 문장이 여기 나와요')).toBeNull()
+    expect(goButton()).toBeDisabled()
+    expect(goButton()).toHaveAccessibleDescription('이용 안내 하루 한도를 다 사용했어요. 내일 다시 번역할 수 있어요.')
+    fireEvent.click(screen.getByRole('button', { name: /번역 방향 바꾸기/ }))
+    expect(limitCard()).not.toBeNull()
+    submit()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('429 TRANSLATION_DAILY_LIMIT_EXCEEDED → 결과 카드 자리에 한도 카드, ↓ 비활성, 대화상자·[다시 시도]·오류 줄 없음', async () => {
+    setup(vi.fn<FetchLike>(async () => jsonResponse(429, envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false))))
+    type('밥 먹었어?')
+    submit()
+    await vi.waitFor(() => expect(limitCard()).not.toBeNull())
+    expect(within(limitCard() as HTMLElement).getByRole('heading', { name: '하루 한도를 다 사용했어요.' })).toBeInTheDocument()
+    // 한도 종류를 읽을 수 없는 문구('서버 문구')면 기본 본문이다 (KAN-361)
+    for (const text of LIMIT) expect(limitCard()).toHaveTextContent(text)
+    expect(limitCard()).toHaveAttribute('role', 'status')
+    expect(goButton()).toBeDisabled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+  })
+
+  it('LLM 호출 20번 소진(같은 429 코드, 서버 문구만 다름)은 「번역 요청은 하루 20번까지예요.」 - 「5번」이라고 하지 않는다 (KAN-361)', async () => {
+    setup(
+      vi.fn<FetchLike>(async () =>
+        jsonResponse(429, { ...envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false), message: SERVER_CALL_LIMIT }),
+      ),
+    )
+    type('밥 먹었어?')
+    submit()
+    await vi.waitFor(() => expect(limitCard()).not.toBeNull())
+    expect(limitCard()).toHaveTextContent('번역 요청은 하루 20번까지예요.')
+    expect(limitCard()).not.toHaveTextContent('번역은 하루 5번까지예요.')
+    expect(limitCard()).not.toHaveTextContent('습니다')
+    expect(goButton()).toHaveAccessibleDescription('이용 안내 하루 한도를 다 사용했어요. 번역 요청은 하루 20번까지예요.')
+  })
+
+  it('한도 카드 본문은 서버 문구에서 한도 종류와 숫자만 읽어 해요체로 쓴다 (limitBody, KAN-361)', () => {
+    expect(limitBody(SERVER_DAILY_LIMIT)).toBe('번역은 하루 5번까지예요.')
+    expect(limitBody(SERVER_CALL_LIMIT)).toBe('번역 요청은 하루 20번까지예요.')
+    expect(limitBody('')).toBe('번역은 하루 5번까지예요.')
+    expect(limitBody('서버 문구')).toBe('번역은 하루 5번까지예요.')
+  })
+
+  it('한도는 이 화면 안에서만 기억한다 — 다시 열면 ↓가 다시 활성', async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => jsonResponse(429, envelope('TRANSLATION_DAILY_LIMIT_EXCEEDED', false)))
+    const deps: WordApiDeps = { fetchImpl, getToken: () => 'acc', refreshToken: async () => false }
+    const { unmount } = render(<TranslatorScreen apiBase="" deps={deps} />)
+    type('밥 먹었어?')
+    submit()
+    await vi.waitFor(() => expect(limitCard()).not.toBeNull())
+    unmount()
+    render(<TranslatorScreen apiBase="" deps={deps} />)
+    type('밥 먹었어?')
+    expect(limitCard()).toBeNull()
+    expect(goButton()).toBeEnabled()
   })
 })
 
@@ -245,15 +402,21 @@ describe('방향 전환 (KAN-317)', () => {
   const toggle = () => screen.getByRole('button', { name: /번역 방향 바꾸기/ })
   const ok = (body: unknown) => vi.fn<FetchLike>(async () => jsonResponse(200, body))
 
-  it('기본은 표준어 → 사투리, 누르면 라벨이 「사투리 문장」으로, aria-label이 지금 방향을 읽는다', () => {
+  it('기본은 표준어 → 사투리, 누르면 입력 이름이 「경남 사투리 문장」으로, aria-label이 지금 방향을 읽고 두 언어 자리가 바뀐다', () => {
     setup(vi.fn())
+    const pair = document.querySelector('.translator-pair')
     expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 표준어 → 사투리')
-    expect(toggle()).toHaveTextContent('표준어 → 사투리')
+    expect(pair).not.toHaveClass('translator-pair--swapped')
     fireEvent.click(toggle())
-    expect(screen.getByLabelText('사투리 문장')).toBeInTheDocument()
+    expect(screen.getByLabelText('경남 사투리 문장')).toBeInTheDocument()
     expect(screen.queryByLabelText('표준어 문장')).toBeNull()
     expect(toggle()).toHaveAccessibleName('번역 방향 바꾸기, 현재 사투리 → 표준어')
-    expect(toggle()).toHaveTextContent('사투리 → 표준어')
+    expect(pair).toHaveClass('translator-pair--swapped')
+    // 카드 라벨과 점도 바뀐다 — 입력 「경남 사투리」(벽돌 원), 결과 「표준어」(빈 원)
+    expect(document.querySelector('.translator-card:not(.translator-card--output) .translator-card__label--dialect')).toHaveTextContent('경남 사투리')
+    const output = document.querySelector('.translator-card--output .translator-card__label')
+    expect(output).toHaveTextContent('표준어')
+    expect(output).not.toHaveClass('translator-card__label--dialect')
   })
 
   it('요청 본문 direction — 기본 toDialect, 전환 뒤 toStandard', async () => {
@@ -270,27 +433,28 @@ describe('방향 전환 (KAN-317)', () => {
     expect(fetchImpl.mock.calls[1][1]?.body).toBe(JSON.stringify({ text: '밥 먹었어?', direction: 'toStandard' }))
   })
 
-  it('사투리 → 표준어 성공 — 보조 라벨 「표준어」, [복사]는 표준어 문장, [공유]는 「사투리 → 표준어」', async () => {
+  it('사투리 → 표준어 성공 — 결과 라벨 「표준어」, 「오늘 3번 남았어요」, [복사]는 표준어 문장, [공유]는 「사투리 → 표준어」', async () => {
     const writeText = vi.fn(async () => {})
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
     setup(ok({ direction: 'toStandard', standard: '밥 먹었니?', remaining: 3 }))
     fireEvent.click(toggle())
-    fireEvent.change(screen.getByLabelText('사투리 문장'), { target: { value: '밥 뭇나?' } })
+    fireEvent.change(screen.getByLabelText('경남 사투리 문장'), { target: { value: '밥 뭇나?' } })
     submit()
     expect(await screen.findByText('밥 먹었니?')).toBeInTheDocument()
-    expect(screen.getByText('표준어', { exact: true })).toBeInTheDocument()
+    expect(document.querySelector('.translator-card--result .translator-card__label')).toHaveTextContent('표준어')
+    expect(document.querySelector('.translator-result__meta')).toHaveTextContent('오늘 3번 남았어요')
     fireEvent.click(screen.getByRole('button', { name: '복사' }))
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('밥 먹었니?'))
     fireEvent.click(screen.getByRole('button', { name: '공유' }))
     expect(vi.mocked(shareResult).mock.calls[0][0].text).toBe('밥 뭇나? → 밥 먹었니?')
   })
 
-  it('표준어 → 사투리 결과의 보조 라벨은 「사투리」', async () => {
+  it('표준어 → 사투리 결과의 라벨은 「경남 사투리」(벽돌 원)', async () => {
     setup(ok({ dialect: '밥 뭇나?' }))
     type('밥 먹었어?')
     submit()
     expect(await screen.findByText('밥 뭇나?')).toBeInTheDocument()
-    expect(screen.getByText('사투리', { exact: true })).toBeInTheDocument()
+    expect(document.querySelector('.translator-card--result .translator-card__label--dialect')).toHaveTextContent('경남 사투리')
   })
 
   it('결과가 있을 때 바꾸면 결과는 지우고 입력은 그대로 둔다', async () => {
@@ -301,14 +465,14 @@ describe('방향 전환 (KAN-317)', () => {
     fireEvent.click(toggle())
     expect(screen.queryByText('밥 뭇나?')).toBeNull()
     expect(screen.queryByRole('button', { name: '공유' })).toBeNull()
-    expect(screen.getByLabelText('사투리 문장')).toHaveValue('밥 먹었어?')
+    expect(screen.getByLabelText('경남 사투리 문장')).toHaveValue('밥 먹었어?')
   })
 
   it('오류가 있을 때 바꾸면 오류를 지운다', async () => {
     setup(vi.fn<FetchLike>(async () => jsonResponse(422, envelope('TRANSLATION_REJECTED', false))))
     type('ㅁㄴㅇㄹ')
     submit()
-    expect(await screen.findByText('올바른 문장을 넣어주세요')).toBeInTheDocument()
+    expect(await screen.findByText('올바른 문장을 넣어 주세요')).toBeInTheDocument()
     fireEvent.click(toggle())
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -318,22 +482,23 @@ describe('방향 전환 (KAN-317)', () => {
     setup(fetchImpl)
     type('밥 먹었어?')
     submit()
-    expect(await screen.findByText('바꾸는 중이에요')).toBeInTheDocument()
+    expect(await screen.findByText('번역 중이에요')).toBeInTheDocument()
     expect(toggle()).toBeDisabled()
     // disabled 버튼은 click을 내지 않는다 — 대기 중 전환 경로는 막혀 있다. 늦은 응답 가드는 입력 수정으로 대기를 푼 뒤 본다
     type('밥 먹었어')
     fireEvent.click(toggle())
     await resolve(0, jsonResponse(200, { dialect: '밥 뭇나?' }))
     expect(screen.queryByText('밥 뭇나?')).toBeNull()
-    expect(screen.getByLabelText('사투리 문장')).toHaveValue('밥 먹었어')
+    expect(screen.getByLabelText('경남 사투리 문장')).toHaveValue('밥 먹었어')
   })
 
   it('구 서버가 toStandard에 {dialect}만 주면 「지금은 표준어로 바꾸기를 쓸 수 없어요」, [다시 시도] 없음', async () => {
     setup(ok({ dialect: '밥 뭇나?', remaining: 4 }))
     fireEvent.click(toggle())
-    fireEvent.change(screen.getByLabelText('사투리 문장'), { target: { value: '밥 뭇나?' } })
+    fireEvent.change(screen.getByLabelText('경남 사투리 문장'), { target: { value: '밥 뭇나?' } })
     submit()
-    expect(await screen.findByText('지금은 표준어로 바꾸기를 쓸 수 없어요')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('지금은 표준어로 바꾸기를 쓸 수 없어요')
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
   })
 
@@ -368,7 +533,7 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     }
   })
 
-  it('미동의 첫 [바꾸기]는 요청 대신 시트를 띄운다 — Google LLC·Gemini API·처리방침 링크', () => {
+  it('미동의 첫 ↓는 요청 대신 시트를 띄운다 — Google LLC·Gemini API·처리방침 링크', () => {
     const fetchImpl = ok()
     setup(fetchImpl)
     type('밥 먹었어?')
@@ -380,10 +545,13 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     expect(dialog).toHaveTextContent('계정 정보·음성은 보내지 않아요')
     expect(within(dialog).getByRole('link', { name: '개인정보처리방침' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '동의하고 보내기' })).toHaveFocus()
+    // [(보내기 아이콘) 동의하고 보내기] / [취소] (KAN-347 6-2)
+    expect(within(dialog).getByRole('button', { name: '동의하고 보내기' }).querySelector('svg')).not.toBeNull()
+    expect(within(dialog).getByRole('button', { name: '취소' })).toBeInTheDocument()
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('[취소]는 시트만 닫는다 — 요청 없음, 입력 그대로, [바꾸기] 다시 활성', async () => {
+  it('[취소]는 시트만 닫는다 — 요청 없음, 입력 그대로, ↓ 다시 활성', async () => {
     const fetchImpl = ok()
     setup(fetchImpl)
     type('밥 먹었어?')
@@ -393,10 +561,10 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(input()).toHaveValue('밥 먹었어?')
-    expect(screen.getByRole('button', { name: '바꾸기' })).toBeEnabled()
+    expect(goButton()).toBeEnabled()
   })
 
-  it('[동의하고 보내기]는 그 입력을 보내고 동의를 남긴다 — 다시 [바꾸기]해도 시트 없음', async () => {
+  it('[동의하고 보내기]는 그 입력을 보내고 동의를 남긴다 — 다시 ↓해도 시트 없음', async () => {
     const fetchImpl = ok()
     setup(fetchImpl)
     type('  밥 먹었어?  ')
@@ -413,7 +581,7 @@ describe('Gemini 전송 동의 (KAN-304)', () => {
     await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
   })
 
-  it('시트가 뜬 동안 입력을 바꾸면 시트가 닫힌다 — 요청 없음, 다시 [바꾸기]하면 새 입력으로 시트', async () => {
+  it('시트가 뜬 동안 입력을 바꾸면 시트가 닫힌다 — 요청 없음, 다시 ↓하면 새 입력으로 시트', async () => {
     const fetchImpl = ok()
     setup(fetchImpl)
     type('밥 먹었어?')

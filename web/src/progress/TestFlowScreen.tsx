@@ -516,12 +516,12 @@ function TestRunner({
         {/*
           진행 중(KAN-261)에는 지금 문항(거절당한 음성 문항)을 그대로 가리켜 진행이 되감기지 않는다.
           대기 단계(KAN-271)에는 지금 문항이 없으므로 재녹음 중인 문항의 번호를 쓴다 — 분모는 그대로다.
-          두 경우 모두 음성 문항이라 표기는 "음성"이다.
+          두 경우 모두 음성 문항이라 라벨은 「억양」이다.
         */}
         <ProgressIndicator
           current={awaitingAnalysis ? redoIndex + 1 : progress.current}
           total={progress.total}
-          note="음성"
+          label="억양"
         />
         <VoiceItemScreen
           key={`redo:${redoItem.itemId}`}
@@ -597,11 +597,10 @@ function TestRunner({
         current={progress.current}
         total={progress.total}
         /*
-         * 숫자 옆의 한 마디 — "2 / 7 · 음성" (KAN-161 3단계, 아트보드). 지금 문항이 어느
-         * 종류인지가 진행 표기에 붙으면, 음성과 어휘가 번갈아 나오는 동안 "방금 것과 다른
-         * 종류로 넘어왔다"가 화면 맨 위에서 읽힌다. 시각 전용이라 스크린 리더에는 빠진다.
+         * 라벨이 지금 문항의 종류다 — 「억양」「단어」, 번호는 두 종류를 통틀어 1~7 (KAN-347 2-5, 시안 s-07). 음성과 어휘가
+         * 번갈아 나오는 동안 "방금 것과 다른 종류로 넘어왔다"가 화면 맨 위에서 읽힌다.
          */
-        note={current.type === 'VOICE' ? '음성' : '단어'}
+        label={current.type === 'VOICE' ? '억양' : '단어'}
       />
       {/*
         본문은 유형이 정한다. 두 화면 모두 문항이 바뀔 때 새로 마운트되도록 itemId를 key로 준다 —

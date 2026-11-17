@@ -16,17 +16,41 @@ final class ProfileFormStateTests: XCTestCase {
     }
 
     // 성별은 선택이라 빠진다 (KAN-330) — 성별 없는 완료는 StoreReviewFixTests.
-    func test성별을_뺀_네_칸이_다_차야_완료할_수_있다() {
-        XCTAssertTrue(complete().isComplete)
-        let cases: [(ProfileFormState) -> Void] = [
-            { $0.email = "" }, { $0.name = "" }, { $0.birthDate = nil }, { $0.region = nil },
-        ]
+    // 지역은 다음 화면이라 프로필 [다음]은 세 칸만 본다 (KAN-355).
+    func test프로필_다음은_성별을_뺀_세_칸이_차야_켜지고_지역은_보지_않는다() {
+        XCTAssertTrue(complete().basicsComplete)
+        let cases: [(ProfileFormState) -> Void] = [{ $0.email = "" }, { $0.name = "" }, { $0.birthDate = nil }]
         for clear in cases {
             let form = complete()
             clear(form)
+            XCTAssertFalse(form.basicsComplete)
             XCTAssertFalse(form.isComplete)
             XCTAssertNil(form.toInput())
         }
+
+        let noRegion = complete()
+        noRegion.region = nil
+        XCTAssertTrue(noRegion.basicsComplete)
+    }
+
+    func test지역_없이는_저장_본문을_만들지_않는다() {
+        let form = complete()
+        form.region = nil
+        XCTAssertFalse(form.isComplete)
+        XCTAssertNil(form.toInput())
+    }
+
+    /// 프로필 화면 값과 지역 화면에서 고른 값이 한 본문으로 나간다 (KAN-355 — 저장은 지역 화면 [다음] 한 번).
+    func test두_화면의_값을_합쳐_저장_본문을_만든다() {
+        let form = ProfileFormState(email: "a@b.co", name: "이름", birthDate: "2000-01-02", gender: .MALE)
+        XCTAssertTrue(form.basicsComplete)
+        XCTAssertNil(form.toInput())
+
+        form.region = .GYEONGNAM
+        XCTAssertEqual(
+            ProfileInput(email: "a@b.co", name: "이름", birthDate: "2000-01-02", gender: "MALE", region: "GYEONGNAM"),
+            form.toInput()
+        )
     }
 
     func test공백뿐인_이메일과_이름_골뱅이_없는_이메일은_빈칸이다() {
@@ -92,5 +116,15 @@ final class ProfileFormStateTests: XCTestCase {
     func test지역은_웹_regions_ts와_같은_순서_같은_표기다() {
         XCTAssertEqual(["서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"], Region.allCases.map(\.label))
         XCTAssertEqual(["MALE", "FEMALE"], Gender.allCases.map(\.rawValue))
+    }
+
+    // 프로필 칸이 원인인 실패만 프로필 화면으로 되돌린다 (KAN-355 리뷰).
+    func test만14세_거절과_재시도불가는_프로필로_되돌리고_다시_누르면_되는_실패는_머문다() {
+        XCTAssertTrue(profileFieldFailure(AuthFailure(.underAge)))
+        XCTAssertTrue(profileFieldFailure(AuthFailure(.unsupported)))
+        XCTAssertFalse(profileFieldFailure(AuthFailure(.retry)))
+        XCTAssertFalse(profileFieldFailure(AuthFailure(.retryLater)))
+        XCTAssertFalse(profileFieldFailure(AuthFailure(.rateLimited, retryAfterSeconds: 3)))
+        XCTAssertFalse(profileFieldFailure(nil))
     }
 }

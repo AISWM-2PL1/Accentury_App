@@ -16,15 +16,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -44,11 +47,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -75,10 +77,10 @@ import com.accentury.app.audio.QualityStatus
 import com.accentury.app.audio.RecordingEngine
 import com.accentury.app.audio.WavWriter
 import com.accentury.app.audio.defaultPcmSource
-import com.accentury.app.auth.AnonymousRegionScreen
 import com.accentury.app.auth.AnonymousSettingsScreen
 import com.accentury.app.auth.AnonymousVoiceConsentStore
 import com.accentury.app.auth.AuthCheckScreen
+import com.accentury.app.auth.AuthFailureReason
 import com.accentury.app.auth.AuthGateController
 import com.accentury.app.auth.AuthGateState
 import com.accentury.app.auth.AuthResult
@@ -86,7 +88,10 @@ import com.accentury.app.auth.IdpLogout
 import com.accentury.app.auth.LoginScreen
 import com.accentury.app.auth.PRIVACY_POLICY_URL
 import com.accentury.app.auth.PRIVACY_POLICY_VERSION
+import com.accentury.app.auth.ProfileFormState
 import com.accentury.app.auth.ProfileScreen
+import com.accentury.app.auth.Region
+import com.accentury.app.auth.RegionSelectScreen
 import com.accentury.app.auth.SettingsGearButton
 import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
@@ -132,20 +137,20 @@ import com.accentury.app.testflow.TestFlowPhase
 import com.accentury.app.testflow.continuesFrom
 import com.accentury.app.ui.components.AccenturyButton
 import com.accentury.app.ui.components.ConfirmDialog
-import com.accentury.app.ui.components.HeroIcon
-import com.accentury.app.ui.components.PaperLead
-import com.accentury.app.ui.components.PaperScreen
-import com.accentury.app.ui.components.PaperTitle
+import com.accentury.app.ui.components.PaperExceptionScreen
+import com.accentury.app.ui.components.paperShadow
 import com.accentury.app.ui.theme.AccenturyTheme
 import com.accentury.app.ui.theme.Dimens
-import com.accentury.app.ui.theme.LightPoint
-import com.accentury.app.ui.theme.LightPrimaryDim
+import com.accentury.app.ui.theme.LightPaper
+import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
+import com.accentury.app.ui.theme.accenturyColors
 import com.accentury.app.upload.UploadRequest
 import com.accentury.app.upload.UploadState
 import com.accentury.app.upload.UploadViewModel
 import com.accentury.app.web.AppLinkEntry
 import com.accentury.app.web.ExternalBrowser
+import com.accentury.app.web.LEARN_ENTRY_SCREEN
 import com.accentury.app.web.TestEntry
 import com.accentury.app.web.WebViewHost
 import com.accentury.app.web.appLinkOrigins
@@ -311,13 +316,52 @@ private fun AuthGate(gate: AuthGateController, appLink: StateFlow<AppLinkEntry?>
             modifier = modifier,
         )
 
-        is AuthGateState.NeedsProfile -> ProfileScreen(
-            user = state.user,
-            error = state.error,
-            onSubmit = gate::submitProfile,
-            onSwitchAccount = { gate.logout { IdpLogout.all(context) } },
-            modifier = modifier,
-        )
+        is AuthGateState.NeedsProfile -> {
+            /*
+             * 추가 정보 두 화면 (KAN-354 3단계): 프로필 [다음] → 출신 지역 [다음]에서 두 화면 값을 모아 한 번 저장한다
+             * (`PUT /v0/users/me/profile`은 지역이 필수). 입력을 여기 두어 지역 화면에서 뒤로 가도 프로필 칸이 남는다.
+             * 계정이 바뀌면(다른 계정으로 다시 로그인) 앞 계정의 입력을 물려받지 않는다.
+             */
+            val form = rememberSaveable(state.user.id, saver = ProfileFormState.saver()) { ProfileFormState.from(state.user) }
+            var pickingRegion by rememberSaveable(state.user.id) { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+            if (pickingRegion) {
+                // 저장 중 뒤로가기는 삼킨다 — 흘려보내면 Android 10·11에서 Activity가 끝나며 PUT이 취소된다(PR #74 리뷰).
+                BackHandler { if (!form.submitting) pickingRegion = false }
+                RegionSelectScreen(
+                    selected = form.region,
+                    onSelect = { form.region = it },
+                    onNext = {
+                        // launch 앞에서 세워야 이중 탭이 두 번째 요청을 만들지 않는다 (VoiceConsentScreen과 같은 이유).
+                        form.submitting = true
+                        scope.launch {
+                            try {
+                                gate.submitProfile(form.toInput())
+                                // 만 14세 미만 거절은 생년월일 칸과 [다른 계정으로 로그인]이 있는 프로필 화면에서 보인다(PR #74 리뷰).
+                                // state.error를 보는 effect로 하지 않는다 — 같은 거절이 거듭 오면 값이 같아(submitProfile은
+                                // error를 지우고 시작하지 않는다) effect가 다시 돌지 않는다. 그래서 저장이 끝난 자리에서 판정한다.
+                                val after = gate.state.value as? AuthGateState.NeedsProfile
+                                if (after?.error?.reason == AuthFailureReason.UnderAge) pickingRegion = false
+                            } finally {
+                                form.submitting = false
+                            }
+                        }
+                    },
+                    busy = form.submitting,
+                    // 재시도성 실패(망·요청 과다)만 여기 남는다. 프로필에서 값을 고쳐 다시 와도 옛 UnderAge 안내는 그리지 않는다.
+                    error = state.error?.takeIf { it.reason != AuthFailureReason.UnderAge },
+                    modifier = modifier,
+                )
+            } else {
+                ProfileScreen(
+                    form = form,
+                    onNext = { pickingRegion = true },
+                    error = state.error?.takeIf { it.reason == AuthFailureReason.UnderAge },
+                    onSwitchAccount = { gate.logout { IdpLogout.all(context) } },
+                    modifier = modifier,
+                )
+            }
+        }
 
         is AuthGateState.SignedIn -> {
             /*
@@ -664,6 +708,8 @@ private fun TestFlow(
     // 결과를 웹에 넣으려면 evaluateJavascript를 부를 인스턴스가 필요하다.
     // 로드 실패 화면·재시도 구간에는 WebView가 아예 없으므로 nullable이다.
     var webView by remember { mutableStateOf<WebView?>(null) }
+    // 웹뷰 연결 실패 화면이 떠 있는가 (KAN-354). 그 화면엔 웹 탭 바가 없어 설정으로 갈 길이 톱니뿐이다.
+    var webLoadFailed by remember { mutableStateOf(false) }
     // WebView가 지금 띄운 문서의 URL (KAN-252). 뒤로가기·톱니 판정용 — 웹이 탭을 옮길 때마다 onPageStarted로 갱신된다.
     var webUrl by remember { mutableStateOf<String?>(null) }
     // WebView 로드·브리지 판정과 앱 안 이동 목적지 판정(KAN-324)이 같은 allowlist를 쓰게 한 곳에 둔다.
@@ -1134,6 +1180,7 @@ private fun TestFlow(
                 // 내가 들고 있는 인스턴스일 때만 놓는다 — 재생성 순서에 따라 새 WebView가 먼저
                 // 등록된 뒤 옛 것이 해제될 수 있고, 그때 방금 받은 참조를 지우면 안 된다.
                 onWebViewReleased = { if (webView === it) webView = null },
+                onLoadFailedChanged = { webLoadFailed = it },
             )
 
             /*
@@ -1203,10 +1250,23 @@ private fun TestFlow(
             when {
                 // 억양 학습 녹음 A-3 (KAN-253). 학습 웹 위에 덮는다 — 레벨테스트 흐름과 동시에 설 일은 없다(웹이 한 화면만 그린다).
                 // 시스템 뒤로가기 = 회신 없이 A-2로 (§12). 권한 화면에서의 뒤로가기도 같다.
-                intonationStart != null && intonation != null -> {
+                intonationStart != null -> {
                     BackHandler(onBack = intonation::close)
+                    // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close 다음 학습 탭 문서를 다시 열어
+                    // 사투리 여행 지도(학습 탭의 첫 화면)로 간다 (KAN-354 5단계 — 억양 탭이 학습 탭으로 합쳐졌다). 보내는 값은
+                    // 배포된 웹이 아는 `intonation`이다([LEARN_ENTRY_SCREEN], 2026-11-16 결정).
+                    // 오버레이만 닫으면 대사 카드가 남아 한 번 더 눌러야 했다. 뒤로가기는 그대로 카드로 간다. 권한 화면에서도 같다.
+                    // 녹음 화면에서는 레벨 테스트와 같은 앱바 ✕로 선다 (KAN-354 시안 s-17).
+                    val closeIntonation: () -> Unit = {
+                        intonation.close()
+                        webTabUrl(webUrl, LEARN_ENTRY_SCREEN)?.let { webView?.navigateInApp(it, allowedOrigins) }
+                    }
                     if (!intonationMicOk) {
                         PermissionGate(onGranted = { intonationMicOk = true })
+                        IntonationCloseButton(
+                            onClick = closeIntonation,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
+                        )
                     } else {
                         // 회신 직후 웹이 다음 카드를 바로 열면(KAN-254 5단계) close·open이 한 프레임에 묶여 화면이 안 내려가고
                         // 앞 카드의 확인 단계([다음] 등)가 남는다 — 카드가 바뀌면 새로 세워 onDispose의 recording.reset()을 태운다
@@ -1216,31 +1276,26 @@ private fun TestFlow(
                                 uploader = intonation,
                                 recording = intonationRecording,
                                 centerHz = voiceCenterHz,
+                                onClose = closeIntonation,
                             )
                         }
                     }
-                    // 화면 위의 닫기 ✕ (KAN-252, 2026-10-13 사용자 결정). 뒤로가기와 같은 close 다음 억양 탭 문서를 다시 열어
-                    // 코스 목록(A-1)으로 간다 — A-1은 그 문서의 첫 상태라서다. 오버레이만 닫으면 대사 카드(A-2)가 남아
-                    // [코스 목록으로]를 한 번 더 눌러야 했다. 뒤로가기는 그대로 카드로 간다. 권한 화면에서도 같다.
-                    IntonationCloseButton(
-                        onClick = {
-                            intonation.close()
-                            webTabUrl(webUrl, "intonation")?.let { webView?.navigateInApp(it, allowedOrigins) }
-                        },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.x2),
-                    )
                 }
 
                 // 재응시 직전의 출신 지역 (KAN-270, PR #22 리뷰). 결과 화면 위에 덮는다. 고르면 저장하고 멈췄던
                 // 재응시를 이어 간다. 이번에는 지역이 있어 [proceedRetest]가 곧장 세션 요청으로 간다.
-                retestRegionPending && anonymousConsent != null ->
-                    AnonymousRegionScreen(
-                        onDone = { code ->
-                            anonymousConsent.saveRegion(code)
+                retestRegionPending && anonymousConsent != null -> {
+                    var region by rememberSaveable { mutableStateOf<Region?>(null) }
+                    RegionSelectScreen(
+                        selected = region,
+                        onSelect = { region = it },
+                        onNext = {
+                            region?.let { anonymousConsent.saveRegion(it.name) }
                             retestRegionPending = false
                             proceedRetest()
                         },
                     )
+                }
 
                 // 시작 게이트 1칸 — 마이크 권한 (KAN-98). 통과 표시를 따로 두는 이유는 뒤에 세션
                 // 생성이 이어지기 때문이다: 세션을 기다리는 동안 권한 화면으로 되돌아가면 안 된다.
@@ -1260,8 +1315,14 @@ private fun TestFlow(
                 // (KAN-274). 고르면 store에 region이 생겨 조건이 풀린다.
                 anonymousConsent != null && startRequested && session == null && micPassed &&
                     anonymousConsent.asked() &&
-                    needsAnonymousRegion(anonymousConsent.region()) ->
-                    AnonymousRegionScreen(onDone = anonymousConsent::saveRegion)
+                    needsAnonymousRegion(anonymousConsent.region()) -> {
+                    var region by rememberSaveable { mutableStateOf<Region?>(null) }
+                    RegionSelectScreen(
+                        selected = region,
+                        onSelect = { region = it },
+                        onNext = { region?.let { anonymousConsent.saveRegion(it.name) } },
+                    )
+                }
 
                 // 시작 게이트 2칸 — 목소리 점검 (KAN-105). 중심 음높이를 받으면 조건이 풀린다.
                 // 마이크가 막 열린 자리라 여기서 확인하고, 잰 값은 이후 모든 문항의 곡선 축이 된다.
@@ -1403,8 +1464,9 @@ private fun TestFlow(
                 retestRegionPending ||
                 (intonationStart != null && !intonationMicOk)
             // 탭 바 빌드의 탭 화면·결과는 탭 바의 [설정]이 설정을 연다 (KAN-252, webview-bridge §13).
+            // 웹뷰 연결 실패 화면은 문서와 무관하게 톱니를 세운다 — 탭 바가 뜨지 않았다 (KAN-354, 시안 s-15-webview-failed).
             val gearVisible = if (tabBarEntry) {
-                showsSettingsGear(webUrl) && overlayStart == null && intonationStart == null
+                (webLoadFailed || showsSettingsGear(webUrl)) && overlayStart == null && intonationStart == null
             } else {
                 true
             }
@@ -1489,7 +1551,7 @@ private fun RecordingOverlay(
             busy = false,
             dismissLabel = "계속하기",
         ) {
-            Text("그만두면 처음부터 다시 시작해야 해요", style = MaterialTheme.typography.bodyMedium)
+            Text("그만두면 처음부터 다시 시작해야 해요")
         }
     }
 }
@@ -1550,12 +1612,13 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 
         MicPermissionState.Rationale -> GateScreen(
             headline = "발음 분석에 마이크가 필요해요",
-            // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 정본 문장은 웹 PrivacyNotice.
-            supporting = "따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요",
-            // 「계속」 (KAN-330, 애플 5.1.1(iv)) — 시스템 권한 창 앞의 안내 화면이 「허용」을 말하면 심사가 허용 유도로 본다.
+            // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 웹 PrivacyNotice 정본 문장과 같은 말이다 (KAN-354).
+            supporting = "따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요",
+            // 「계속 →」 (KAN-330, 애플 5.1.1(iv)) — 시스템 권한 창 앞의 안내 화면이 「허용」을 말하면 심사가 허용 유도로 본다.
             buttonLabel = "계속",
             onButtonClick = { launcher.launch(Manifest.permission.RECORD_AUDIO) },
             modifier = modifier,
+            buttonTrailing = R.drawable.ic_arrow_forward_24,
         )
 
         MicPermissionState.Denied -> GateScreen(
@@ -1571,6 +1634,7 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
             headline = "설정에서 마이크를 허용해 주세요",
             supporting = "권한 창을 더 띄울 수 없어요 · 설정에서 허용하면 이어서 시작할 수 있어요",
             buttonLabel = "설정 열기",
+            buttonLeading = R.drawable.outline_settings_24,
             onButtonClick = {
                 context.startActivity(
                     Intent(
@@ -1587,8 +1651,9 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
 /**
  * 게이트 화면. 녹음 오버레이와 같은 이유로 크림 화면이 아래 WebView를 가린다.
  *
- * 배치는 시안 09를 따른다 (KAN-288 디자인 3) — 점선 표식 안의 마이크, 왼쪽 정렬 제목·부연, 무엇에 쓰는지 세 줄,
- * 바닥의 주버튼. 권한을 묻는 화면이라 "무엇을 왜 가져가는지"가 먼저 보이고 버튼이 마지막에 오는 순서가 중요하다.
+ * 예외 화면 서식([PaperExceptionScreen])의 변형이다 (KAN-354 시안 s-04-mic-permission-gate·-denied) — 가운데 정렬로 아이콘 원 112
+ * 안의 마이크 선화 56, 제목 Jua 30, 설명 15 흐린 잉크, 그 아래 쓰임 세 줄 목록 상자, 바닥 고정 주버튼. 앱바는 워드마크만이다.
+ * 권한을 묻는 화면이라 "무엇을 왜 가져가는지"가 먼저 보이고 버튼이 마지막에 오는 순서가 중요하다. 세 상태가 같은 서식이다.
  */
 @Composable
 private fun GateScreen(
@@ -1597,57 +1662,53 @@ private fun GateScreen(
     buttonLabel: String,
     onButtonClick: () -> Unit,
     modifier: Modifier = Modifier,
+    @DrawableRes buttonLeading: Int? = null,
+    @DrawableRes buttonTrailing: Int? = null,
 ) {
-    PaperScreen(
+    PaperExceptionScreen(
+        // 녹음 버튼 안의 그림과 같은 선화다 - "이 앱이 쓰는 것"과 "지금 허락을 구하는 것"이 같다는 게 그림으로 읽힌다.
+        icon = { Icon(painterResource(R.drawable.ic_mic_24), contentDescription = null, modifier = Modifier.size(Dimens.heroIconGlyph)) },
+        title = headline,
+        detail = supporting,
         modifier = modifier,
-        footer = { AccenturyButton(text = buttonLabel, onClick = onButtonClick, modifier = Modifier.fillMaxWidth()) },
-    ) {
-        Spacer(Modifier.weight(1f))
-        // 마이크 선화. 아래 녹음 버튼 안의 아이콘과 같은 그림이다 - "이 앱이 쓰는 것"과 "지금 허락을 구하는 것"이
-        // 같다는 게 그림으로 읽힌다. 설명을 달지 않는 것은 바로 아래 제목이 이미 마이크 이야기를 하기 때문이다.
-        HeroIcon {
-            Icon(
-                painter = painterResource(R.drawable.outline_mic_24),
-                contentDescription = null,
-                tint = LightPoint,
-                modifier = Modifier.size(32.dp),
+        body = { AssuranceList() },
+        footer = {
+            AccenturyButton(
+                text = buttonLabel,
+                onClick = onButtonClick,
+                modifier = Modifier.fillMaxWidth(),
+                leading = buttonLeading?.let { res -> { Icon(painterResource(res), null, Modifier.size(20.dp)) } },
+                trailing = buttonTrailing?.let { res -> { Icon(painterResource(res), null, Modifier.size(20.dp)) } },
             )
-        }
-        Spacer(Modifier.height(Spacing.x6))
-        PaperTitle(headline)
-        Spacer(Modifier.height(Spacing.x3))
-        PaperLead(supporting)
-        Spacer(Modifier.height(Spacing.x4))
-        AssuranceList()
-        Spacer(Modifier.weight(1f))
-    }
+        },
+    )
 }
 
 /**
- * 마이크를 왜 달라는지 세 줄로 답한다 (시안 `.steps`). 권한 요청 앞에서 사용자가 실제로 궁금해하는 것은
- * "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다. 줄 사이는 그림자색 점선이다.
+ * 마이크를 왜 달라는지 세 줄로 답한다 (시안 `.p1-benefits`). 권한 요청 앞에서 사용자가 실제로 궁금해하는 것은
+ * "무엇에 쓰는가"와 "안전한가" 둘이라, 그 답을 버튼보다 먼저 보이는 자리에 둔다. paper 상자·잉크 1 테두리·종이 그림자에
+ * 둥근 불릿 목록이다(음성 저장 동의 화면의 목록과 같은 모양).
  */
 @Composable
 private fun AssuranceList() {
-    Column {
+    val shape = RoundedCornerShape(Radius.lg)
+    Column(
+        modifier = Modifier
+            .padding(top = Spacing.x6)
+            .paperShadow(MaterialTheme.accenturyColors.primaryDim, Radius.lg)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(LightPaper)
+            .border(1.dp, MaterialTheme.colorScheme.onBackground, shape)
+            .padding(horizontal = Spacing.x4, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(Spacing.x2),
+    ) {
         ASSURANCES.forEach { text ->
-            Text(
-                text,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .drawBehind {
-                        val y = size.height - 0.5.dp.toPx()
-                        drawLine(
-                            color = LightPrimaryDim,
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = 1.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
-                        )
-                    }
-                    .padding(vertical = Spacing.x3),
-            )
+            // 둥근 불릿에 내어쓰기 — 줄이 넘어가도 글머리 아래로 들어가지 않는다 (시안 `list-style-type: disc`)
+            Row {
+                Text("•", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = Spacing.x2))
+                Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Normal))
+            }
         }
     }
 }

@@ -45,6 +45,9 @@ const VOICE_CHECK_TIMEOUT_MS = 25_000
  */
 const E2E_REGION = { label: '경남', code: 'GYEONGNAM' } as const
 
+/** 출신 지역 화면 제목 (KAN-347 7단계). 지역 화면을 직접 보는 스펙(smoke·text-scale)도 같은 값을 쓴다 */
+export const REGION_TITLE = '어느 지역 말씨가 몸에 배어 있나요?'
+
 /**
  * 맞춤형 광고 동의 시트가 떠 있으면 「일반 광고만 보기」로 지나간다 (KAN-197 2단계).
  *
@@ -53,7 +56,7 @@ const E2E_REGION = { label: '경남', code: 'GYEONGNAM' } as const
  * `resolveAdConsentSource`) — 그런 판에서 이 헬퍼가 아무 일도 하지 않고 지나가는 것이 정상이다.
  *
  * ID가 있는 빌드의 첫 방문에는 인트로 위에 이 시트가 덮인다. 막이 화면 전체를 가리므로
- * (`.ad-consent-sheet`가 `position: fixed; inset: 0`) 지나치지 않으면 [내 억양 테스트하기]가
+ * (`.ad-consent-sheet`가 `position: fixed; inset: 0`) 지나치지 않으면 [레벨 테스트 시작]이
  * 다른 요소에 가려진 상태로 남고, Playwright의 actionability 검사가 클릭을 기다리다 시간
  * 초과로 죽는다 — vitest의 `fireEvent`는 hit-testing이 없어 막을 뚫고 닿지만 실브라우저는 아니다.
  *
@@ -71,7 +74,7 @@ const E2E_REGION = { label: '경남', code: 'GYEONGNAM' } as const
  *
  * ## 인트로가 그려지기를 여기서 기다린다 (PR #109 리뷰 (2026-09-13))
  *
- * `isVisible()`은 기다리지 않는 즉답이라, `page.goto('/')` 직후에 부르면 React가 시트를 그리기
+ * `isVisible()`은 기다리지 않는 즉답이라, `page.goto('/test')` 직후에 부르면 React가 시트를 그리기
  * 전의 빈 순간을 「시트 없음」으로 읽는다. 그러면 헬퍼는 그냥 지나가고 다음 클릭이 뒤늦게 덮인
  * 막 밑에서 actionability를 기다리다 시간 초과로 죽는다 — 호출부 세 곳(`smoke`, `mic-blocked`
  * 둘) 중 하나라도 빠뜨리면 플레이키가 되므로, 호출자에게 맡기지 않고 이 함수가 인트로의 h1을
@@ -125,7 +128,7 @@ export async function passAdConsentIfShown(page: Page): Promise<void> {
  */
 export async function startTest(page: Page, options: { voiceConsent?: boolean } = {}): Promise<void> {
   const voiceConsent = options.voiceConsent === true
-  await page.goto('/')
+  await page.goto('/test')
 
   /*
    * 인트로가 그려지기를 기다리는 일도 헬퍼가 맡는다 (PR #109 리뷰 (2026-09-13)). 첫 방문이면
@@ -137,7 +140,7 @@ export async function startTest(page: Page, options: { voiceConsent?: boolean } 
    * [시작하기]가 곧 마이크 권한 요청이다. `--use-fake-ui-for-media-stream`이 대화상자를
    * 자동 승인하므로 여기서 멈추지 않고, 승인되면 App이 음성 저장 동의 화면으로 갈아 끼운다.
    */
-  await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
+  await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
 
   await expect(page.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeVisible()
   if (voiceConsent) {
@@ -148,16 +151,15 @@ export async function startTest(page: Page, options: { voiceConsent?: boolean } 
   await page.getByRole('button', { name: '다음', exact: true }).click()
 
   /*
-   * 동의 다음은 늘 지역 화면이다. 라디오는 어휘 문항과 같은 `.choice__radio`라 1px + clip-path로
-   * 눈에서만 지워져 있다 (`answerVocabularyItem`의 주석). 같은 이유로 `force`. [다음]은 고르기 전에는
-   * disabled라 고른 뒤에만 눌린다.
+   * 동의 다음은 늘 지역 화면이다(KAN-347 7단계부터 지도 위 칩). 칩 라디오는 어휘 문항의 `.choice__radio`처럼 1px + clip-path로
+   * 눈에서만 지워져 있다 (`answerVocabularyItem`의 주석). 같은 이유로 `force`. 칩 이름은 「경남, 부산·울산 포함」이라 부분 일치로
+   * 잡는다. [다음]은 고르기 전에는 disabled라 고른 뒤에만 눌린다.
    */
-  await expect(
-    page.getByRole('heading', { level: 1, name: '출신 지역이 어디신가요?' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeVisible()
   await page.getByRole('radio', { name: E2E_REGION.label }).check({ force: true })
   await page.getByRole('button', { name: '다음', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '목소리를 확인할게요' })).toBeVisible()
+  // 목소리 점검은 제목 없이 카드의 「안녕하세요」가 h1이다 (KAN-347 7단계)
+  await expect(page.getByRole('heading', { level: 1, name: '안녕하세요' })).toBeVisible()
 
   /*
    * [다음]은 판정기가 `ready`일 때만 그려진다 — 이 버튼이 보인다는 것은 가짜 마이크의
@@ -229,7 +231,13 @@ export async function answerVoiceItem(page: Page): Promise<void> {
    * 녹음이 잘리지는 않지만, 그러면 [정지]를 거치지 않는 다른 경로를 타게 된다.
    */
   await expect(page.getByText(RECORD_ELAPSED_MARK)).toBeVisible({ timeout: 10_000 })
-  await page.getByRole('button', { name: '정지', exact: true }).click()
+  /*
+   * 녹음 중 정지 네모는 속이 채워져 있어야 한다 (시안 s-06-recording, KAN-347 7단계 보완). 문항 순서는 계약이 아니라([awaitItem])
+   * 특정 스펙이 아니라 음성 문항을 지나는 이 헬퍼에서 본다. computed style은 jsdom이 못 보는 자리다
+   */
+  const stop = page.getByRole('button', { name: '정지', exact: true })
+  expect(await stop.locator('path').evaluate((path) => getComputedStyle(path).fill)).not.toBe('none')
+  await stop.click()
 
   /*
    * 확인 단계. [다음]이 보인다는 것은 품질 게이트(FR-AD-08)를 통과했다는 뜻이다 — 짧거나

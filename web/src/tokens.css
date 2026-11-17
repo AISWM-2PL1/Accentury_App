@@ -67,6 +67,9 @@
      짚는 자리에만 쓴다. 정오답·오류에는 쓰지 않는다 */
   --color-point: #a8503a;
   --color-point-foreground: #f3ecd9;
+  /* 종이 (KAN-347 1단계). 크림 바탕 위에 한 장 더 얹은 밝은 종이 — 선택지·시트·대화상자 면이다.
+     잉크 위 대비는 크림과 같은 급이라(크림보다 밝다) 글자 규칙이 그대로 선다 */
+  --color-paper: #f8f3e6;
 
   /* ── 타이포 (정본 §3) ──
      본문은 시스템 산세리프다. Android 시스템 폰트가 Noto Sans CJK KR이라 네이티브의
@@ -89,6 +92,9 @@
      본문 글꼴로 적으면 "지금 몇 초"가 문단의 한 낱말처럼 읽힌다. 앱은 M3의 titleSmall 슬롯이
      이 값을 든다 (Type.kt) */
   --text-timer: 1rem;
+  /* 버튼 라벨 (KAN-347 1단계). 주·보조 버튼은 Jua 17, 글자 버튼은 Jua 16이다 — 본문 14/500이던 것을 올렸다 */
+  --text-button: 1.0625rem;
+  --text-button-text: 1rem;
   --text-intro-hero: 3.5rem;
 
   /* 굵기는 둘뿐이다 (KAN-161 2단계). Jua는 굵기 하나짜리 폰트라 700·900을 주면 브라우저가
@@ -112,12 +118,13 @@
   --space-8: 2rem;
 
   /* 반경은 글자와 함께 커지면 안 되는 장식 치수 - px 유지 (KAN-313). 큰 글자에서 모서리만 둥글어지면 종이가 아니라 알약이 된다 */
-  /* 디자인 3 (KAN-288)의 4/6/10 체계. sm은 칩·별점 칸, md는 버튼·선택지·입력칸, lg는 카드·시트다.
-     xl은 따로 두지 않고 lg와 같은 10으로 접는다 — 시안에 10보다 큰 종이 모서리가 없다 */
+  /* 디자인 3 (KAN-288)의 4/6/10 체계. sm은 칩·별점 칸, md는 버튼·입력칸, lg는 카드·선택지다.
+     xl은 lg와 같은 10으로 남기고(쓰는 곳 없음), 시트·대화상자는 새 토큰 sheet 16이다 (KAN-347 1단계) */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-xl: 10px;
+  --radius-sheet: 16px;
   --radius-full: 9999px;
 
   /* 상단 워드마크 앱바 높이 (KAN-288, 시안 `.appbar` min-height 56). `ui/AppBar`가 화면 위에 고정으로 선다 */
@@ -142,6 +149,8 @@
   /* 선택지 한 칸 (KAN-288). 버튼(48)보다 6 높다 — 시안의 선택지는 글 한 줄 + 위아래 여백 14다 */
   --control-height-choice: max(48px, 3.375rem);
   --prompt-card-min-height: 9.5rem;
+  /* 본문 폭 제한. KAN-347 1단계에서 공통 화면 틀은 이 제한을 풀고 좌우 24만 둔다 — 남은 쓰임은 지금 모양을
+     그대로 두는 두 분석 대기 화면(`.screen--analysis-wait`)과 그 화면의 진행 막대·목록뿐이다 */
   --content-max-width: 20rem;
   --opacity-disabled: 0.6;
   --prompt-card-padding: 1.5rem;
@@ -161,7 +170,7 @@
 
   /* ── 그림자 (정본 §5, KAN-161) ──
      오프셋 종이 그림자. 번지지도 흐려지지도 않고, 어긋난 자리에 단색 면이 그대로 깔린다.
-     넷이 같은 값인 것은 규칙이다 — 종이 한 장의 두께는 카드든 버튼이든 같다.
+     그림자는 `4px 5px 0 #cfc5aa` 하나이고 선택지만 `3px 4px 0`이다 (KAN-347 1단계) — 종이 한 장의 두께는 카드든 버튼이든 같다.
 
      어긋난 거리를 따로 토큰으로 둔 이유는 눌림이다: 누르면 그림자가 사라지고 본체가
      정확히 이만큼 오른쪽·아래로 내려가 그림자 자리를 덮는다. 두 값이 갈리면 종이가
@@ -173,7 +182,10 @@
   --shadow-card: var(--paper-shadow-x) var(--paper-shadow-y) 0 var(--color-primary-dim);
   --shadow-prompt: var(--paper-shadow-x) var(--paper-shadow-y) 0 var(--color-primary-dim);
   --shadow-hero: var(--paper-shadow-x) var(--paper-shadow-y) 0 var(--color-primary-dim);
-  --shadow-choice: var(--paper-shadow-x) var(--paper-shadow-y) 0 var(--color-primary-dim);
+  /* 선택지만 한 칸 얇은 3/4다 (KAN-347 1단계) — 한 화면에 네 장이 쌓이는 종이라 4/5면 그림자가 줄무늬가 된다 */
+  --choice-shadow-x: 3px;
+  --choice-shadow-y: 4px;
+  --shadow-choice: var(--choice-shadow-x) var(--choice-shadow-y) 0 var(--color-primary-dim);
 
   /* ── 모션 (정본 §5) ── */
   --ease-out: cubic-bezier(0, 0, 0.2, 1);

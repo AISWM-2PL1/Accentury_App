@@ -1,12 +1,10 @@
 import SwiftUI
 
-/// 여럿 중 하나를 고르는 선택지 (KAN-224 — 성별·출신지역). 안드로이드 `ui/components/ChoiceButton.kt`의 이식본이고
-/// 웹의 `.choice`와 같은 규칙이다: 1.5 잉크 테두리 + 크림 면 + 반경 16, **고른 것만 테두리 2와 오프셋 그림자**.
-/// 색으로 고른 것을 가르지 않는다 (정본 §7).
+/// 여럿 중 하나를 고르는 선택지 (KAN-224, 모양은 KAN-355 시안 s-02-profile `.p4-gender-row .choice`). 지금 사용처는 프로필 화면의
+/// 성별 셋이다 — 출신 지역은 KAN-355부터 지도 화면 칩(``RegionSelectScreen``)이 고른다. 종이 면·잉크 1 테두리·반경 6·높이 48·
+/// 종이 그림자, **고른 것만 테두리 2**. 색으로 고른 것을 가르지 않는다 (정본 §7). 라벨은 Jua 16이다.
 ///
-/// 그림자 자리는 고르지 않은 칸도 비워 둔다(``View/paperShadow(cornerRadius:visible:)``의 visible=false) — 고를 때마다
-/// 칸 크기가 바뀌면 격자가 들썩인다. 라벨은 웹 2열 선택지와 같은 Jua `title`이다. 스크린 리더에는 선택 상태가 붙은
-/// 버튼으로 읽힌다(SwiftUI에는 라디오 역할이 없어 `.isSelected` 특성이 그 자리다).
+/// 스크린 리더에는 선택 상태가 붙은 버튼으로 읽힌다(SwiftUI에는 라디오 역할이 없어 `.isSelected` 특성이 그 자리다).
 struct ChoiceButton: View {
 
     let label: String
@@ -21,15 +19,16 @@ struct ChoiceButton: View {
             action()
         } label: {
             Text(label)
-                .papercutType(.title)
+                .papercutType(.textButton)
                 .foregroundColor(Papercut.ink)
                 .lineLimit(1)
-                .frame(maxWidth: .infinity, minHeight: Papercut.controlHeightLarge)
-                .padding(.horizontal, Papercut.space3)
-                .background(shape.fill(Papercut.cream))
-                .overlay(shape.stroke(Papercut.ink, lineWidth: selected ? Papercut.borderStrong : Papercut.borderRegular))
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: Papercut.touchTargetMin)
+                .padding(.horizontal, Papercut.space2)
+                .background(shape.fill(Papercut.paper))
+                .overlay(shape.strokeBorder(Papercut.ink, lineWidth: selected ? Papercut.borderStrong : Papercut.borderHairline))
                 .contentShape(shape)
-                .paperShadow(cornerRadius: Papercut.radiusMD, visible: selected)
+                .paperShadow(cornerRadius: Papercut.radiusMD)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])

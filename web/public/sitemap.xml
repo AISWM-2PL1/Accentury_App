@@ -5,6 +5,9 @@
     <loc>https://accentury.app/</loc>
   </url>
   <url>
+    <loc>https://accentury.app/test</loc>
+  </url>
+  <url>
     <loc>https://accentury.app/privacy.html</loc>
   </url>
   <url>
@@ -15,9 +18,6 @@
   </url>
   <url>
     <loc>https://accentury.app/account-deletion.html</loc>
-  </url>
-  <url>
-    <loc>https://accentury.app/guide/index.html</loc>
   </url>
   <url>
     <loc>https://accentury.app/guide/how-the-test-works.html</loc>

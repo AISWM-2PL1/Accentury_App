@@ -8,7 +8,7 @@
 
 ## 웹 흐름
 
-[내 억양 테스트하기](마이크 권한) → **동의 화면** → 출신 지역 → 목소리 점검 → 세션 생성. 지역 화면은
+[레벨 테스트 시작](마이크 권한) → **동의 화면** → 출신 지역 → 목소리 점검 → 세션 생성. 지역 화면은
 예전에 staging 빌드에만 있었고 KAN-274가 빌드 스위치를 걷어내 두 환경 모두 늘 선다. 동의 화면에서 체크했는지와
 무관하다. 서버가 동의하지 않은 익명 세션도 음성 없이 점수와 지역을 남기기 때문이다(아래 「동의하지 않은 익명 세션」).
 
@@ -98,7 +98,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 
 권한 안내 세 곳(`MainActivity.kt`)도 조건부 문장으로 바꿨다.
 
-- 권한 설명(Rationale): 따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요
+- 권한 설명(Rationale): 따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요 (KAN-354에서 웹 `PrivacyNotice` 정본 문장과 같은 말로 통일)
 - 권한 거부(Denied): 발음을 들어야 분석할 수 있어요 · 음성은 따로 동의한 경우에만 보관돼요
 - 인트로 안심 문구 셋째 줄: 음성은 따로 동의한 경우에만 보관
 
@@ -140,9 +140,12 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
   참이면 `retestRegionPending`을 세워 결과 화면 위에 지역 화면을 덮는다. [다음]을 누르면 지역을 저장하고 멈췄던
   재응시를 이어 간다. 광고는 그 앞에서 이미 끝났으므로 다시 보지 않는다. 웹 결과 화면은 광고 때와 같이 pending으로
   기다린다(시간 기반 해제가 없다). 지역 화면이 떠 있는 동안 톱니는 숨긴다(`nativeCovering`).
-- **지역 화면** `AnonymousRegionScreen`: 질문은 `ProfileScreen` 지역 칸과 같은 「어느 지역 말씨가 몸에 배어
-  있나요?」, 부제·캡션·[다음] 규칙은 웹 `RegionSelectScreen`과 같다(기본 선택 없음, 건너뛰기 없음, 고른 뒤 활성).
-  나열은 웹 `DISPLAY_ORDER`(`REGION_DISPLAY_ORDER`) 2열이다.
+- **지역 화면** Android `auth/RegionSelectScreen.kt` (KAN-354 3단계부터, 그 전은 2열 칩 `AnonymousRegionScreen`): 회원의
+  프로필 다음 화면과 같은 지도 화면이다(시안 s-13-region-select-maponly). 질문 「어느 지역 말씨가 몸에 배어 있나요?」,
+  기본 선택 없음, 건너뛰기 없음, 고른 뒤 [다음] 활성은 웹 `RegionSelectScreen`과 같다. 칩 10개가 라디오 그룹이고 지도 면은
+  스크린 리더에서 숨긴다. 경계는 정본 `docs/assets/region-map.svg`의 바이트 동일 사본 `app/src/main/assets/region-map.svg`를
+  실행 때 읽어 `data-region`별 path로 나누고(`auth/RegionMap.kt` `parseRegionMap`), `PathParser`로 그린다. 사본이 정본과
+  같은지는 `RegionMapTest`가 본다 — 정본을 바꾸면 사본도 `cp`로 다시 둔다.
 - **본문 `region`**: 저장된 지역이 있으면 동의와 무관하게 싣는다 (KAN-274, `AnonymousVoiceConsentStore.region()`).
   없으면 키째 빠진다. 첫 응시와 재응시 둘 다. 계정 모드는 보내지 않는다(서버가 프로필 지역을 쓴다). 서버는 코드 10개만 받고
   그 밖은 400이다.
@@ -155,7 +158,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | 동의 저장 | 서버 계정 (`PUT\|DELETE /v0/users/me/voice-consent`) | 기기 로컬 prefs |
 | 묻는 때 | 로그인 뒤 TestFlow 위 오버레이, 계정당 한 번 | 시작 게이트 권한 뒤, 설치당 한 번 |
 | 세션 본문 `voiceConsentVersion` | 보내지 않음 (서버가 계정 값 사용) | 동의면 `VOICE_CONSENT_VERSION` |
-| 출신 지역 | 추가 정보 화면(프로필), 본문에 안 실음 | 모든 사용자에게 동의 다음 칸에서 설치당 한 번, 본문 `region` |
+| 출신 지역 | 추가 정보 프로필 다음 지역 화면(KAN-354, Android), 본문에 안 실음 | 모든 사용자에게 동의 다음 칸에서 설치당 한 번, 본문 `region` |
 | 버전 출처 | 서버 `currentVersion` | 앱 상수 (400이면 폴백) |
 | 설정 화면 | 계정·개인정보·로그아웃 | 개인정보만 |
 
@@ -173,7 +176,7 @@ DETAILS 셋째 줄만 다르다. 웹은 익명 세션의 삭제 요청 한계를
 | `AnonymousVoiceConsentStore.kt` (prefs `voice_consent_anonymous`, 키 `asked`·`consented`·`region`) | `AccenturyCore/Auth/AnonymousVoiceConsentStore.swift` (UserDefaults `voice_consent_anonymous.asked`·`.consented`·`.region`, `@MainActor ObservableObject`) |
 | `anonymousVoiceConsentVersion(consented)` | `anonymousVoiceConsentVersion(consented:)` (같은 파일) |
 | `needsAnonymousRegion(region)`·`saveRegion` (7단계, KAN-274에서 동의 조건 제거) | `needsAnonymousRegion(region:)`·`saveRegion(_:)` (같은 파일) |
-| `auth/AnonymousRegionScreen.kt`·`REGION_DISPLAY_ORDER` | `Accentury/Auth/AnonymousRegionScreen.swift`·`regionDisplayOrder` (`ChoiceButton` 재사용) |
+| `auth/RegionSelectScreen.kt`(KAN-354 지도 화면, 옛 `AnonymousRegionScreen.kt`·`REGION_DISPLAY_ORDER`) | `Accentury/Auth/AnonymousRegionScreen.swift`·`regionDisplayOrder` (`ChoiceButton` 재사용) |
 | `VOICE_CONSENT_VERSION`·`VOICE_CONSENT_DETAILS_ANONYMOUS`·`VOICE_CONSENT_SETTING_CAPTION_ANONYMOUS` | `voiceConsentVersion`·`voiceConsentDetailsAnonymous`·`voiceConsentSettingCaptionAnonymous` (`VoiceConsentText.swift`) |
 | `SessionClient.create(..., voiceConsentVersion, region)`·`createWithConsentFallback(..., region)`·`CODE_VALIDATION_FAILED` | 프로토콜 요구사항 5인자 `create`(7단계에 `region` 추가), 확장 `createWithConsentFallback`, `codeValidationFailed` (`Session/SessionClient.swift`). 4인자 이하 `create`는 확장 오버로드 |
 | TestFlow `anonymousConsent` 인자, when 체인 동의·지역 단계 | `TestFlowModel(anonymousConsent:)`·`needsAnonymousConsent`·`needsAnonymousRegion`, `TestFlowView` overlay 사슬의 권한과 점검 사이(동의 → 지역) |
@@ -209,10 +212,10 @@ UserDefaults 키 이름은 광고 동의(`ad_consent.state`)와 같은 규칙이
 
 ### 체크 칸
 
-동의 화면의 체크 칸은 `Toggle`이 아니다. 로그인 화면 필수 동의 줄과 같은 그림(`ConsentCheckMark`, 잉크 테두리 칸에
-크림 체크)을 단 `Button`이다. iOS `Toggle`은 스위치로 그려져 "이 문장에 동의한다"는 뜻이 흐려진다. 한 앱에서
+동의 화면의 체크 칸은 `Toggle`이 아니다. 로그인 화면 필수 동의 줄과 같은 그림(`ConsentCheckMark`, 22pt 잉크 1 테두리 칸에
+체크하면 크림 4 띠 안쪽 벽돌 칸, KAN-355 시안 `.p1-check`)을 단 `Button`이다. iOS `Toggle`은 스위치로 그려져 "이 문장에 동의한다"는 뜻이 흐려진다. 한 앱에서
 동의 칸이 두 모양이 되는 것도 피했다. 접근성은 로그인 `ConsentRow`와 같다. 줄 전체가 한 요소로 읽히고 체크하면
-"선택됨"이 붙는다. 설정 화면의 켜고 끄기는 Android `Switch` 자리라 `Toggle`(잉크 색)을 그대로 쓴다.
+"선택됨"이 붙는다. 설정 화면의 켜고 끄기는 스위치 자리라 `Toggle`(잉크 색)을 그대로 쓴다. Android는 KAN-354부터 Material `Switch` 대신 시안 s-11-settings `.switch`를 그린 `PaperSwitch`(38×24 네모 트랙)이고, 읽기·누름은 행의 `toggleable`(`Role.Switch`)이 맡는다.
 
 ### 마이크 권한 설명 (plist)
 

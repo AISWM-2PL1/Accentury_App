@@ -5,9 +5,8 @@ import UIKit
 
 /// 로그인 화면 (KAN-224). 인트로(웹)보다 앞에 서는 필수 관문이다. 안드로이드 `auth/LoginScreen.kt`의 이식본이다.
 ///
-/// 버튼은 브랜드 면색 없이 보조 버튼 모양을 쓴다 (2026-09-28 팀장 결정) — 크림·잉크 한 벌 화면에 브랜드 색 넷이 서면
-/// 그것만 튄다. 글자만으로는 어느 계정인지 한눈에 읽히지 않아 왼쪽에 공식 로고만 공식 색으로 둔다
-/// (docs/wiki/social-login-logos.md). 순서는 구글 → 카카오 → 네이버 → 애플이고 넷 다 같은 크기다 — 애플을 다른
+/// 버튼은 각 사 가이드의 면·글자·문구를 따른다 (2026-11-11 결정, KAN-355 2단계 — 2026-09-28 「Papercut 보조 버튼 유지」를
+/// 대체, docs/wiki/social-login-logos.md). 순서는 구글 → 카카오 → 네이버 → 애플이고 넷 다 같은 크기다 — 애플을 다른
 /// 소셜 로그인과 같은 무게로 두는 것이 App Review 4.8의 요구다.
 struct LoginScreen: View {
 
@@ -45,29 +44,29 @@ struct LoginScreen: View {
                         if guestStep {
                             guestConsent
                         } else {
-                            VStack(spacing: Papercut.space3) {
-                                ForEach(providers, id: \.self) { provider in
-                                    if provider == .APPLE {
-                                        // 애플은 시스템 버튼이다 (KAN-344-6, App Review 4.8 + HIG Sign in with Apple). 로고·글자를 우리가
-                                        // 그리면 HIG 위반으로 거절될 수 있다. 흐름(AppleIdp)과 막기 규칙은 다른 버튼과 같다.
-                                        AppleSignInButton(enabled: state.buttonsEnabled) {
-                                            Task { await state.signIn(idp: { await signIn(provider) }, login: onLogin) }
+                            // 시안 s-01-login 세로 간격: 버튼 사이 10, 버튼 묶음 → 동의 줄 22, 동의 줄 → 둘러보기 4.
+                            VStack(spacing: 0) {
+                                VStack(spacing: IdpBrand.buttonSpacing) {
+                                    ForEach(providers, id: \.self) { provider in
+                                        if provider == .APPLE {
+                                            // 애플은 시스템 버튼이다 (KAN-344-6, App Review 4.8 + HIG Sign in with Apple). 로고·글자를 우리가
+                                            // 그리면 HIG 위반으로 거절될 수 있다. 흐름(AppleIdp)과 막기 규칙은 다른 버튼과 같다.
+                                            AppleSignInButton(enabled: state.buttonsEnabled) {
+                                                Task { await state.signIn(idp: { await signIn(provider) }, login: onLogin) }
+                                            }
+                                        } else {
+                                            IdpButton(provider: provider, enabled: state.buttonsEnabled) {
+                                                Task { await state.signIn(idp: { await signIn(provider) }, login: onLogin) }
+                                            }
                                         }
-                                    } else {
-                                        AccenturyButton(
-                                            text: "\(providerLabel(provider))로 계속하기",
-                                            variant: .secondary,
-                                            enabled: state.buttonsEnabled,
-                                            fillsWidth: true,
-                                            leading: AnyView(IdpLogo(provider: provider)),
-                                            action: { Task { await state.signIn(idp: { await signIn(provider) }, login: onLogin) } }
-                                        )
                                     }
                                 }
+                                ConsentRow(checked: $state.consented, onOpenPrivacy: onOpenPrivacy)
+                                    .padding(.top, 22)
+                                // 계정 없이 쓸 수 있는 기능(사투리 번역기)의 입구 (KAN-330, App Store 지침 5.1.1(v)). 소셜 버튼보다 가볍게 글자 버튼이다.
+                                AccenturyButton(text: "로그인 없이 둘러보기", variant: .text, enabled: !state.inFlight) { guestStep = true }
+                                    .padding(.top, Papercut.space1)
                             }
-                            ConsentRow(checked: $state.consented, onOpenPrivacy: onOpenPrivacy)
-                            // 계정 없이 쓸 수 있는 기능(사투리 번역기)의 입구 (KAN-330, App Store 지침 5.1.1(v)). 소셜 버튼보다 가볍게 글자 버튼이다.
-                            AccenturyButton(text: "로그인 없이 둘러보기", variant: .text, enabled: !state.inFlight) { guestStep = true }
                         }
                     }
                 }
@@ -84,7 +83,8 @@ struct LoginScreen: View {
     /// 게스트 동의 단계 (KAN-330). 방침 동의(소셜 로그인과 같은 값·같은 버전)와 만 14세 이상 확인 둘 다 필수다 — 게스트에게는 생년월일을
     /// 받는 추가 정보 화면이 없어 나이를 여기서 확인한다(가입 연령 제한, 방침 7항). 서버는 동의 두 필드만 받는다.
     private var guestConsent: some View {
-        VStack(alignment: .leading, spacing: Papercut.space3) {
+        // 시안 s-01b-login-guest: 줄 사이 6, [둘러보기 시작] 위 10 더, 뒤에 → 선화.
+        VStack(alignment: .leading, spacing: 6) {
             Text("로그인 없이 둘러보기")
                 .papercutType(.headline)
                 .foregroundColor(Papercut.ink)
@@ -95,10 +95,12 @@ struct LoginScreen: View {
                 .fixedSize(horizontal: false, vertical: true)
             ConsentRow(checked: $state.consented, onOpenPrivacy: onOpenPrivacy)
             CheckRow(checked: $state.ageConfirmed, label: "만 14세 이상입니다 (필수)")
-            AccenturyButton(text: "둘러보기 시작", enabled: state.guestEnabled, fillsWidth: true) {
+            AccenturyButton(text: "둘러보기 시작", enabled: state.guestEnabled, fillsWidth: true, trailingIcon: "arrow.right") {
                 Task { await state.startGuest(onStartGuest) }
             }
-            AccenturyButton(text: "돌아가기", variant: .text, enabled: !state.inFlight, fillsWidth: true) { guestStep = false }
+            .padding(.top, 10)
+            // 시안 `.p1-guest`: 가운데 정렬·늘 밑줄
+            AccenturyButton(text: "돌아가기", variant: .text, enabled: !state.inFlight, fillsWidth: true, underlined: true) { guestStep = false }
         }
     }
 
@@ -184,7 +186,8 @@ private struct ConsentRow: View {
     var body: some View {
         HStack(spacing: 0) {
             CheckRow(checked: $checked, label: "개인정보 수집·이용 동의 (필수)")
-            AccenturyButton(text: "보기", variant: .text, action: onOpenPrivacy)
+            // 시안 `.p1-required .btn`: 좌우 여백 0·최소 폭 44 — 오른쪽 끝이 본문 오른쪽 선에 닿는다.
+            AccenturyButton(text: "보기", variant: .text, flush: true, action: onOpenPrivacy)
         }
     }
 }
@@ -197,7 +200,7 @@ private struct CheckRow: View {
 
     var body: some View {
         Button { checked.toggle() } label: {
-            HStack(spacing: Papercut.space2) {
+            HStack(spacing: Papercut.space3) {
                 ConsentCheckMark(checked: checked)
                 Text(label)
                     .papercutType(.bodySmall)
@@ -214,9 +217,9 @@ private struct CheckRow: View {
 }
 
 /// 시스템 Sign in with Apple 버튼 (KAN-344-6). `SignInWithAppleButton`(SwiftUI)은 요청·완료를 버튼이 직접 처리해서 지금의 흐름
-/// (``AppleIdp``의 nonce·재인증 공용 `ASAuthorizationController`)을 갈라 놓는다 — 그래서 UIKit 버튼을 감싸 탭만 받는다. 모양은 크림 위
-/// 보조 버튼과 같은 무게인 흰 바탕 + 외곽선(`whiteOutline`), 글자는 `continue`(「Apple로 계속하기」, 시스템이 현지화)다. 높이·모서리는
-/// 다른 소셜 버튼(보조 버튼 48·`radiusMD`)과 맞춘다 — HIG는 최소 높이 30pt 이상, 모서리 반경은 앱에 맞춰 바꿀 수 있다고 한다.
+/// (``AppleIdp``의 nonce·재인증 공용 `ASAuthorizationController`)을 갈라 놓는다 — 그래서 UIKit 버튼을 감싸 탭만 받는다. 모양은 검정
+/// 면(`.black`, KAN-355 2단계 — 다른 셋이 각 사 면색을 쓰므로 애플도 HIG 기본 면), 글자는 `continue`(「Apple로 계속하기」, 시스템이
+/// 현지화)다. 높이·모서리는 다른 IdP 버튼(48·12)과 맞춘다 — HIG는 최소 높이 30pt 이상, 모서리 반경은 앱에 맞춰 바꿀 수 있다고 한다.
 /// https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple
 /// https://developer.apple.com/documentation/authenticationservices/asauthorizationappleidbutton
 private struct AppleSignInButton: View {
@@ -227,7 +230,7 @@ private struct AppleSignInButton: View {
     var body: some View {
         AppleIdButtonView(action: action)
             .frame(maxWidth: .infinity)
-            .frame(height: Papercut.touchTargetMin)
+            .frame(height: IdpBrand.height)
             .disabled(!enabled)
             .opacity(enabled ? 1 : Papercut.opacityDisabled)
     }
@@ -240,8 +243,8 @@ private struct AppleIdButtonView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
-        let button = ASAuthorizationAppleIDButton(authorizationButtonType: .continue, authorizationButtonStyle: .whiteOutline)
-        button.cornerRadius = Papercut.radiusMD
+        let button = ASAuthorizationAppleIDButton(authorizationButtonType: .continue, authorizationButtonStyle: .black)
+        button.cornerRadius = IdpBrand.cornerRadius
         button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
         return button
     }
@@ -258,54 +261,116 @@ private struct AppleIdButtonView: UIViewRepresentable {
     }
 }
 
-/// 체크박스 그림 한 칸. 안드로이드 Material 체크박스 자리다. 색으로 상태를 알리지 않는 팔레트라 잉크 면 + 크림 체크
-/// 한 벌이다. 로그인 필수 동의와 음성 저장 선택 동의(``VoiceConsentScreen``, KAN-270)가 같은 그림을 쓴다.
+/// 체크박스 그림 한 칸 (모양은 KAN-355 시안 `.p1-check`). 안드로이드 Material 체크박스 자리다. 22 칸에 잉크 1 테두리, 체크하면
+/// 크림 4 띠 안쪽이 벽돌로 찬다. 로그인 필수 동의와 음성 저장 선택 동의(``VoiceConsentScreen``, KAN-270)가 같은 그림을 쓴다.
 struct ConsentCheckMark: View {
     let checked: Bool
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(checked ? Papercut.ink : Color.clear)
-            .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(Papercut.ink, lineWidth: Papercut.borderStrong))
-            .overlay {
+        RoundedRectangle(cornerRadius: Papercut.radiusSM, style: .continuous)
+            .strokeBorder(Papercut.ink, lineWidth: Papercut.borderHairline)
+            .background {
                 if checked {
-                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(Papercut.cream)
+                    // 시안 `box-shadow: inset 0 0 0 4px` — 테두리 안쪽 크림 4를 남기고 벽돌.
+                    RoundedRectangle(cornerRadius: 1, style: .continuous).fill(Papercut.point).padding(Papercut.space1)
                 }
             }
-            .frame(width: 20, height: 20)
-            .padding(Papercut.space3)
+            .frame(width: 22, height: 22)
     }
 }
 
-/// IdP 공식 로고 (KAN-224). 파일은 안드로이드와 같은 공식 배포본에서 옮겼다(Assets.xcassets `Idp*`, 출처는
-/// social-login-logos.md). 애플은 SF Symbol `apple.logo`가 애플이 앱에 허락한 그 로고다. 버튼 글자가 이미 제공자를
-/// 말하므로 스크린 리더에는 읽히지 않는다.
+/// IdP 버튼 값 (KAN-355 2단계, 시안 s-01-login `.p1-brand`). 면·글자 색은 각 사 가이드 값이라 Papercut 팔레트에 두지 않고
+/// 여기 한곳에 모은다(출처는 docs/wiki/social-login-logos.md).
+private enum IdpBrand {
+    static let height: CGFloat = 48
+    static let cornerRadius: CGFloat = 12
+    static let buttonSpacing: CGFloat = 10
+    /// 시스템 글꼴 15 Medium (시안 `font: 500 15px var(--font-body)`) — 1단계 Jua 라벨 규칙을 받지 않는다.
+    static let labelSize: CGFloat = 15
+    /// 라벨 양옆 여백 48 — 왼쪽 로고와 겹치지 않고 가운데가 유지된다.
+    static let labelInset: CGFloat = 48
+    /// 눌림 덮개 — 각 사 면색 위에 검정 8%를 얹어 면 위에서 눌림이 읽히게 한다(공용 버튼의 내려앉음을 쓰지 않는다).
+    static let pressedOverlay: Double = 0.08
+
+    static func face(_ provider: Provider) -> Color {
+        switch provider {
+        case .GOOGLE: return Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF2 / 255)  // Neutral #F2F2F2
+        case .KAKAO: return Color(red: 0xFE / 255, green: 0xE5 / 255, blue: 0x00 / 255)  // #FEE500
+        case .NAVER: return Color(red: 0x03 / 255, green: 0xC7 / 255, blue: 0x5A / 255)  // #03C75A
+        case .APPLE, .GUEST: return .black
+        }
+    }
+
+    static func label(_ provider: Provider) -> Color {
+        switch provider {
+        case .GOOGLE: return Color(red: 0x1F / 255, green: 0x1F / 255, blue: 0x1F / 255)  // #1F1F1F
+        case .KAKAO: return Color.black.opacity(0.85)  // #000000 85%
+        case .NAVER, .APPLE, .GUEST: return .white
+        }
+    }
+
+    /// 로고 왼쪽 여백 — 구글 12, 나머지 16 (시안 `.p1-brand img`).
+    static func logoInset(_ provider: Provider) -> CGFloat { provider == .GOOGLE ? 12 : 16 }
+}
+
+/// 구글·카카오·네이버 로그인 버튼 (KAN-355 2단계). 면·글자·문구는 각 사 가이드, 로고는 왼쪽·문구는 가운데다.
+/// 비활성(방침 동의 전)은 버튼 전체를 ``Papercut/opacityDisabled``로 흐린다 — 각 사 면색이 크림 위에서 바래 보여 면 위에서
+/// 구별되고, 공용 버튼의 비활성 모양(종이 그림자 면)은 각 사 면색을 지우므로 쓰지 않는다.
+private struct IdpButton: View {
+    let provider: Provider
+    let enabled: Bool
+    let action: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            Text(loginButtonLabel(provider))
+                .font(.system(size: IdpBrand.labelSize, weight: .medium))
+                .foregroundColor(IdpBrand.label(provider))
+                .lineLimit(1)
+                .padding(.horizontal, IdpBrand.labelInset)
+                .frame(maxWidth: .infinity, minHeight: IdpBrand.height)
+                .overlay(alignment: .leading) {
+                    IdpLogo(provider: provider).padding(.leading, IdpBrand.logoInset(provider))
+                }
+        }
+        .buttonStyle(IdpButtonStyle(face: IdpBrand.face(provider), reduceMotion: reduceMotion))
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : Papercut.opacityDisabled)
+    }
+}
+
+/// IdP 버튼의 면과 눌림. 눌림은 1단계 공용 규칙(75ms)이고 동작 줄이기면 바로 끝 상태다.
+private struct IdpButtonStyle: ButtonStyle {
+    let face: Color
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: IdpBrand.cornerRadius, style: .continuous)
+        return configuration.label
+            .background(shape.fill(face))
+            .overlay(shape.fill(Color.black.opacity(configuration.isPressed ? IdpBrand.pressedOverlay : 0)))
+            .contentShape(shape)
+            .animation(reduceMotion ? nil : .easeOut(duration: Papercut.Motion.press), value: configuration.isPressed)
+    }
+}
+
+/// IdP 공식 로고 (KAN-224, 색은 KAN-355). 파일 출처는 social-login-logos.md. 크기는 시안 s-01-login의 `<img>` 값이다.
+/// 애플은 시스템 버튼이 로고까지 그린다. 버튼 글자가 이미 제공자를 말하므로 스크린 리더에는 읽히지 않는다.
 private struct IdpLogo: View {
     let provider: Provider
 
     var body: some View {
         Group {
             switch provider {
-            // 구글 PNG는 20pt로 박는다. 카카오·네이버는 벡터 자산의 고유 크기(가이드 최소 이상)를 쓴다.
             case .GOOGLE: Image("IdpGoogle").resizable().frame(width: 20, height: 20)
-            case .KAKAO: Image("IdpKakao")
-            case .NAVER: Image("IdpNaver")
-            // HIG: 로고와 글자는 검정(또는 흰색) — 우리 잉크가 그 자리다. 크기는 글자 높이에 맞춘다.
-            case .APPLE: Image(systemName: "apple.logo").font(.system(size: 19, weight: .medium)).foregroundColor(Papercut.ink)
-            case .GUEST: EmptyView()
+            case .KAKAO: Image("IdpKakao").resizable().scaledToFit().frame(width: 18, height: 17)
+            case .NAVER: Image("IdpNaverWhite").resizable().frame(width: 16, height: 16)
+            case .APPLE, .GUEST: EmptyView()
             }
         }
         .accessibilityHidden(true)
-    }
-}
-
-private func providerLabel(_ provider: Provider) -> String {
-    switch provider {
-    case .GOOGLE: return "Google"
-    case .KAKAO: return "카카오"
-    case .NAVER: return "네이버"
-    case .APPLE: return "Apple"
-    case .GUEST: return "게스트"
     }
 }
 
@@ -320,11 +385,15 @@ struct AuthFailureBlock<Action: View>: View {
     @ViewBuilder var action: () -> Action
 
     var body: some View {
-        StatusBlock(tone: .error, message: message, detail: detail, action: action)
+        StatusBlock(tone: .error, message: failure.message(verb: verb), detail: failure.detail, action: action)
     }
+}
 
-    private var message: String {
-        switch failure.reason {
+/// ``AuthFailureBlock``과 예외 화면(``AuthCheckScreen``, KAN-355)이 같이 쓰는 문구.
+extension AuthFailure {
+
+    func message(verb: String) -> String {
+        switch reason {
         case .retry, .retryLater: return "\(verb)하지 못했어요"
         case .rateLimited: return "잠시 뒤에 \(verb)할 수 있어요"
         case .underAge: return "만 14세 이상만 가입할 수 있어요"
@@ -333,12 +402,12 @@ struct AuthFailureBlock<Action: View>: View {
         }
     }
 
-    private var detail: String? {
-        switch failure.reason {
+    var detail: String? {
+        switch reason {
         case .retry: return "네트워크를 확인하고 다시 시도해 주세요"
         case .retryLater: return "잠시 뒤에 다시 시도해 주세요"
         case .rateLimited:
-            return failure.retryAfterSeconds.map { "접속이 몰리고 있어요 · \($0)초 뒤에 다시 눌러 주세요" }
+            return retryAfterSeconds.map { "접속이 몰리고 있어요 · \($0)초 뒤에 다시 눌러 주세요" }
                 ?? "접속이 몰리고 있어요 · 잠시 뒤에 다시 눌러 주세요"
         case .underAge: return nil
         case .unsupported: return "앱을 최신 버전으로 업데이트한 뒤 다시 열어 주세요"
@@ -383,24 +452,23 @@ struct AuthCheckScreen: View {
         }
     }
 
-    /// 확인 실패·[다시 시도] 뒤 대기 — 워드마크 앱바 아래에 선다 (KAN-288 디자인 3, 안드로이드 `AuthCheckScreen`)
+    /// 확인 실패·[다시 시도] 뒤 대기 — 워드마크 앱바 아래에 선다 (KAN-288 디자인 3, 안드로이드 `AuthCheckScreen`).
+    /// 실패는 예외 화면 서식(``ExceptionScreen``, KAN-355)이다.
     private var checkContent: some View {
         ZStack {
             Papercut.cream.ignoresSafeArea()
             if let failure {
-                AuthFailureBlock(failure: failure, verb: "연결") {
+                ExceptionScreen(systemImage: symbol(failure.reason), title: failure.message(verb: "연결"), message: failure.detail) {
                     // 재시도 불가 거절은 업데이트 안내다 (KAN-288 시안 15, 안드로이드 `AuthCheckScreen`) — [업데이트하기]가
                     // App Store를 열고 지금까지의 [다시 시도]는 [나중에]로 남는다. 상품 페이지가 없는 빌드는 예전 그대로다.
                     if failure.reason == .unsupported, let storeURL = AppConfig.appStoreURL {
-                        VStack(spacing: Papercut.space2) {
-                            AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
-                            AccenturyButton(text: "나중에", variant: .text, action: onRetry)
-                        }
+                        AccenturyButton(text: "업데이트하기") { openURL(storeURL) }
+                        AccenturyButton(text: "나중에", variant: .text, action: onRetry)
                     } else {
-                        AccenturyButton(text: "다시 시도", variant: .secondary, action: onRetry)
+                        // 시안 s-15 서식대로 주 버튼이다 (KAN-355, 예전에는 보조 버튼).
+                        AccenturyButton(text: "다시 시도", leadingIcon: "arrow.clockwise", action: onRetry)
                     }
                 }
-                .padding(Papercut.space4)
             } else {
                 VStack(spacing: Papercut.space3) {
                     StatusBlock(tone: .waiting, message: "로그인 정보를 확인하고 있어요")
@@ -408,6 +476,17 @@ struct AuthCheckScreen: View {
                 }
                 .padding(Papercut.space4)
             }
+        }
+    }
+
+    /// 아이콘 원의 선화 (KAN-355). 시작 확인에서 나오는 이유는 연결·서버·몰림·업데이트이고, 나머지 둘은 같은 계열에서 골랐다.
+    private func symbol(_ reason: AuthFailureReason) -> String {
+        switch reason {
+        case .retry: return "wifi.slash"
+        case .retryLater: return "exclamationmark.circle"
+        case .rateLimited: return "hourglass"
+        case .unsupported: return "arrow.down.app"
+        case .underAge, .guestLimitExceeded: return "person.crop.circle.badge.exclamationmark"
         }
     }
 }

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 네이버 N 로고 (KAN-224). 좌표·색은 공식 NAVER_login_KR.ai(PDF 호환)의 H56 아이콘형 버튼 N 도형 그대로 —
-     PDF는 y가 위로 자라므로 scaleY=-1로 뒤집고 N 경계로 옮기기만 했다. 출처: docs/wiki/social-login-logos.md -->
+<!-- 네이버 N 로고 (KAN-224). 좌표는 공식 NAVER_login_KR.ai(PDF 호환)의 H56 아이콘형 버튼 N 도형 그대로 —
+     PDF는 y가 위로 자라므로 scaleY=-1로 뒤집고 N 경계로 옮기기만 했다. 색은 녹색 버튼(#03C75A) 위의 흰 N이다
+     (KAN-354, 가이드의 녹색 배경형). 출처: docs/wiki/social-login-logos.md -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="16dp"
     android:height="16dp"
@@ -8,7 +9,7 @@
     android:viewportHeight="20">
     <group android:scaleY="-1" android:translateX="13.561" android:translateY="10.706">
         <path
-            android:fillColor="#03A94D"
+            android:fillColor="#FFFFFF"
             android:fillType="evenOdd"
             android:pathData="M0,0 L-7.415,10.706 L-13.561,10.706 L-13.561,-9.294 L-7.122,-9.294 L-7.122,1.408 L0.293,-9.294 L6.439,-9.294 L6.439,10.706 L0,10.706 Z" />
     </group>

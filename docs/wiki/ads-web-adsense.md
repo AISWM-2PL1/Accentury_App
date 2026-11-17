@@ -595,7 +595,7 @@ skip 1건은 `retake.spec.ts`다 — `E2E_FAIL_ITEM`이 없는 스택의 정상 
 | `privacy.html`은 이 레포에 없다 | 서버 레포 `infra/privacy/`가 같은 버킷에 따로 올린다. sitemap에는 주소만 적는다 |
 
 계약은 `web/src/staticPages.test.ts`가 지킨다 — robots의 `Sitemap:` 줄, sitemap의 절대 주소와
-확장자, sitemap이 가리키는 글의 실재(`/`·`/privacy.html` 제외), 글에 `<script src=` 없음.
+확장자(`/`와 `/test` 제외), sitemap이 가리키는 글의 실재(`/`, `/test`, `/privacy.html` 제외), 글에 `<script src=` 없음.
 
 확인은 배포 뒤 두 줄이다.
 
@@ -610,12 +610,13 @@ curl -s https://accentury.app/sitemap.xml
 
 | 경로 | 역할 | 출처 |
 |---|---|---|
-| `/` (`web/index.html`) | 앱 첫 화면. `#root` 뒤 정적 `<footer id="site-footer">`에 소개·사투리 이야기·방침·문의 링크 | 이 레포 |
+| `/` (`web/public/guide/index.html`) | 사투리 이야기 목차(7편 링크와 한 줄 요약)이자 사이트의 첫 화면. [내 억양 테스트하기] 버튼이 `/test`로 간다 | 이 레포 `web/public/guide/` |
+| `/test` (`web/index.html`) | 테스트 화면(SPA). `#root` 뒤 정적 `<footer id="site-footer">`에 소개, 사투리 이야기, 방침, 문의 링크 | 이 레포 |
 | `/about.html` | 서비스 소개(음성·단어 문항, 5등급, 데이터 처리 한 줄, 팀). 3단계에서 "10문항, 모두 목소리로 답한다"를 바로잡음 — 단어 문항은 객관식이고 문항 수는 정의마다 다르다 | 이 레포 `web/public/` |
 | `/contact.html` | 문의(`team2pl1@gmail.com`, 오류·제휴·개인정보 요청) | 이 레포 `web/public/` |
 | `/account-deletion.html` | 앱 계정 삭제(회원 탈퇴) 안내 — 앱 안 경로(설정 → 계정 → [회원 탈퇴] → [탈퇴]), 앱 없이 이메일 요청, 지워지는 것·남는 것. Play Console 「계정 삭제 URL」로 입력하는 주소다(KAN-251 3단계, 2026-10-08). 첫 화면 footer에는 없고 `contact.html`에서 링크한다 | 〃 |
 | `/privacy.html` | 개인정보처리방침 | 서버 레포 `infra/privacy/` |
-| `/guide/index.html` | 사투리 이야기 목차(7편 링크와 한 줄 요약) | 이 레포 `web/public/guide/` |
+| `/guide/index.html` | `/`로 301. 글과 sitemap은 이 주소를 가리키지 않는다 | CloudFront Function |
 | `/guide/how-the-test-works.html` | 테스트 진행 순서(권한·점검·카운트다운·두 문항 유형·분석 대기·결과) | 〃 |
 | `/guide/five-tiers.html` | 점수 세 개(억양·단어·종합)의 뜻과 다섯 등급 이름. 공식·가중치·경계값은 뺐다 | 〃 |
 | `/guide/pitch-curve.html` | 실시간 '내 억양' 곡선의 파이프라인(코드 상수는 뺐다) | 〃 |
@@ -624,9 +625,22 @@ curl -s https://accentury.app/sitemap.xml
 | `/guide/faq.html` | 자주 묻는 질문(권한, 재녹음, 분석 대기, 공유, 보관) | 〃 |
 | `/guide/team-story.html` | 만든 이유와 팀(소속·역할·핵심 차별점) | 〃 |
 
+**루트와 테스트 화면의 주소 (KAN-346).** 쿼리 없는 `/`는 사투리 이야기 목차이고 테스트 화면은 `/test`다.
+파일을 옮긴 것이 아니다. 버킷의 `index.html`은 그대로 SPA이고, 서버 레포의 CloudFront Function
+(`infra/modules/edge/spa-rewrite.js`)이 `/` 요청에 `guide/index.html`을 내준다. 스토어에 나간 앱이 루트에
+`bridge` 쿼리를 붙여 WebView로 열기 때문에, 루트라도 쿼리에 SPA가 읽는 키(`bridge`, `screen`, 공유 유입
+계측 코드 `c`)가 있으면 SPA가 나간다. `utm_*`만 붙은 루트는 목차다.
+그래서 글에서 테스트로 보내는 링크는 `/test`로, 목차로 보내는 링크는 `/`로 적는다. `/guide/index.html`은
+301이라 어디에도 적지 않는다(`staticPages.test.ts`가 검사). 공유 링크 `/t?c=...`는 그대로다.
+SPA는 브라우저가 루트에 있으면 화면을 옮길 때 `/test`로 옮긴다(`navigation/entryUrl.ts`의 `entryPath`).
+옛 루트 주소에서 [다시 테스트하기]를 눌렀을 때 목차가 뜨지 않게 하려는 것이다. 앱은 루트 그대로다.
+목차는 루트에서 나가므로 상대 경로를 쓰지 않고(테스트가 검사), 사이트의 첫 화면이라 파비콘과 `og:*`를 head에 둔다.
+홈 화면 바로가기가 여는 주소(manifest의 `start_url`)도 `/test`다.
+로컬 Vite(`npm run dev`)에는 이 Function이 없어 `/`가 테스트 화면이고 목차는 `/guide/index.html`로 연다.
+
 새 페이지는 `about.html`을 복사해 head·main만 바꾼다(인라인 스타일, 외부 CSS·글꼴·스크립트 0, 배경은 앱 종이색
 `#f3ecd9`). 페이지 HTML 주석은 `<!-- Accentury 정적 페이지 (KAN-275). 작성 원칙·근거는 docs/wiki/ads-web-adsense.md §11 -->`
-한 줄만 둔다. 하단 `<nav>`는 모든 페이지가 같다(홈·소개·사투리 이야기·개인정보처리방침·문의, 테스트가 검사). 새 `.html`은
+한 줄만 둔다. 하단 `<nav>`는 모든 페이지가 같다(억양 테스트, 소개, 사투리 이야기, 개인정보처리방침, 문의. 테스트가 검사). 새 `.html`은
 sitemap에 올리지 않으면 `staticPages.test.ts`가 깨지고(역방향 검사), `PAGES`에 넣으면 본문 하한과 내부 링크의
 파일 실재까지 검사한다.
 

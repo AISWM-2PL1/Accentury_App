@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 입력 칸 (KAN-224 추가 정보 화면). 안드로이드 `ui/components/AccenturyTextField.kt`의 이식본이다 — 1.5 잉크 테두리,
-/// 크림 면, 반경 16, 최소 높이 48. 그림자는 없다: 떠 있는 종이는 주 버튼 하나여야 한다(``AccenturyButton``).
+/// 입력 칸 (KAN-224 추가 정보 화면, 모양은 KAN-355 시안 s-02-profile). 안드로이드 `ui/components/AccenturyTextField.kt`의 이식본이다 —
+/// 1 잉크 테두리, 종이 면, 반경 6, 최소 높이 48. 그림자는 없다: 떠 있는 종이는 주 버튼 하나여야 한다(``AccenturyButton``).
 /// 포커스는 테두리가 2로 굵어지는 것으로만 보인다 — 두께가 "지금 이것"을 뜻하는 유일한 자리라는 정본 §8 규칙이다.
 ///
 /// `onTap`을 주면 글자를 치는 칸이 아니라 누르는 칸이 된다(생년월일 — 달력을 연다). 모양은 같고 버튼으로 읽힌다.
@@ -28,12 +28,21 @@ struct AccenturyTextField: View {
 
             Group {
                 if let onTap {
+                    // 시안 s-02-profile `.p4-date-picker`: 앞에 달력 선화 20·간격 8, 비었을 때 안내는 Jua 17 흐린 잉크(`.btn` 라벨 글꼴).
+                    // 고른 날짜는 다른 칸과 같은 본문 글꼴이다.
                     Button(action: onTap) {
-                        Text(text.isEmpty ? (placeholder ?? "") : text)
-                            .papercutType(.body)
-                            .foregroundColor(text.isEmpty ? Papercut.muted : Papercut.ink)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                        HStack(spacing: Papercut.space2) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: Papercut.buttonIconSize - 3, weight: .regular))
+                                .frame(width: Papercut.buttonIconSize, height: Papercut.buttonIconSize)
+                                .foregroundColor(text.isEmpty ? Papercut.muted : Papercut.ink)
+                                .accessibilityHidden(true)
+                            Text(text.isEmpty ? (placeholder ?? "") : text)
+                                .papercutType(text.isEmpty ? .button : .body)
+                                .foregroundColor(text.isEmpty ? Papercut.muted : Papercut.ink)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(label)
@@ -54,8 +63,8 @@ struct AccenturyTextField: View {
             .padding(.horizontal, Papercut.space4)
             .padding(.vertical, Papercut.space3)
             .frame(minHeight: Papercut.touchTargetMin)
-            .background(shape.fill(Papercut.cream))
-            .overlay(shape.stroke(Papercut.ink, lineWidth: focused ? Papercut.borderStrong : Papercut.borderRegular))
+            .background(shape.fill(Papercut.paper))
+            .overlay(shape.strokeBorder(Papercut.ink, lineWidth: focused ? Papercut.borderStrong : Papercut.borderHairline))
         }
     }
 }

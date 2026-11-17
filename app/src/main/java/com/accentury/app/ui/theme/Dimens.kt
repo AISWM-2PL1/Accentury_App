@@ -21,14 +21,17 @@ object Spacing {
 }
 
 /**
- * 반경 4/6/10 세 단계 (KAN-288 디자인 3). 오려 낸 종이라 모서리를 크게 굴리지 않는다 — 시안 `--radius-sm/md/lg`.
- * [xl]은 대사 카드가 쓰던 이름이라 남기고 [lg]와 같은 10이다(카드·시트 반경).
+ * 반경 칩 4 · 버튼 6 · 카드 10 · 시트 16 (KAN-288 디자인 3, 시트는 KAN-354). 오려 낸 종이라 모서리를 크게 굴리지 않는다 —
+ * 시안 `--radius-sm/md/lg`. [xl]은 대사 카드가 쓰던 이름이라 남기고 [lg]와 같은 10이다.
  */
 object Radius {
     val sm = 4.dp
     val md = 6.dp
     val lg = 10.dp
     val xl = 10.dp
+
+    /** 시트·확인 창 (KAN-354, 시안 `.sheet` 16). 화면 위에 따로 뜬 종이라 카드보다 한 단계 굴린다 */
+    val sheet = 16.dp
 
     /** 완전한 원. 배지·원형 버튼처럼 모서리를 끝까지 굴리는 자리 */
     val full = 9999.dp
@@ -42,30 +45,28 @@ object Dimens {
     val touchTargetMin = 48.dp
 
     /**
-     * 화면의 주 컨트롤 높이 - 주 버튼과 선택지가 같이 쓴다. [touchTargetMin] 48dp가 손가락이
-     * 닿는 최소선이라면 이 값은 시안이 "이 화면에서 누를 것"에 준 크기다.
-     * 보조 버튼은 [touchTargetMin] 그대로다 - 둘의 무게 차이가 크기로도 읽힌다.
+     * 화면의 주 컨트롤 높이 - 주 버튼과 선택지가 같이 쓴다. 정본 `control-height-lg` 48이다 (KAN-354, 이전 50).
+     * [touchTargetMin]과 값이 같다 - 주·보조 버튼의 무게 차이는 크기가 아니라 면 색(벽돌/크림)이 말한다(정본 §4).
      */
-    val controlHeightLg = 50.dp
+    val controlHeightLg = 48.dp
 
     /** 대사 카드 최소 높이. 문항 길이가 달라도 카드가 들썩이지 않게 고정한다 */
     val promptCardMinHeight = 152.dp
 
-    /** 대사·질문 카드 안쪽 여백 */
-    val promptCardPadding = 22.dp
-
     /**
-     * 곡선 레인 하나의 높이. 시안은 폰 목업(390x844) 기준 72px인데, 실제 기기에서는
-     * 대사 카드 아래로 220dp 가까이 비어 있어 곡선이 필요 이상으로 납작했다.
-     * 곡선의 오르내림이 이 화면의 정보 자체라(ux-ui.md §D) 읽히는 크기를 우선한다.
+     * 곡선 레인 하나의 높이 (KAN-354 시안 `.p2-lane` 112, 이전 120). 옛 시안의 72는 실제 기기에서 곡선이 납작했다 —
+     * 곡선의 오르내림이 이 화면의 정보 자체라(ux-ui.md §D) 읽히는 크기를 우선한다. 목소리 점검은 레인 하나에 두 배를 쓴다.
      */
-    val curveLaneHeight = 120.dp
+    val curveLaneHeight = 112.dp
 
     /** 원형 녹음 버튼 지름 (시안: w-20 h-20) */
     val recordButtonSize = 80.dp
 
     /** 화면을 여는 원형 히어로 아이콘 지름 (시안: w-28 h-28) */
     val heroIconSize = 112.dp
+
+    /** 히어로 아이콘 원 안의 선화 아이콘 (KAN-354, 시안 56) */
+    val heroIconGlyph = 56.dp
 
     /**
      * 막대 두께 (정본 §4). 결과 점수 막대·입력 레벨 바·남은 시간 게이지가 같이 쓴다.

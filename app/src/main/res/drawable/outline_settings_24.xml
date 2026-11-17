@@ -1,6 +1,6 @@
 <!--
   ~ Material Icons "settings" (Outlined) — KAN-247 설정 진입 톱니.
-  ~ outline_mic_24.xml과 같은 출처(Google Material Icons, Apache License 2.0)다.
+  ~ 출처: Google Material Icons, Apache License 2.0.
   ~ http://www.apache.org/licenses/LICENSE-2.0
   -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:height="24dp" android:tint="#000000" android:viewportHeight="24" android:viewportWidth="24" android:width="24dp">

@@ -29,12 +29,16 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.accentury.app.recording.CurvePoint
 import com.accentury.app.recording.PathCommand
 import com.accentury.app.recording.insetY
 import com.accentury.app.recording.smoothPathCommands
 import com.accentury.app.ui.theme.Dimens
+import com.accentury.app.ui.theme.LightPaper
 import com.accentury.app.ui.theme.Radius
 import com.accentury.app.ui.theme.Spacing
 import com.accentury.app.ui.theme.accenturyColors
@@ -46,24 +50,25 @@ import com.accentury.app.ui.theme.accenturyColors
 internal enum class CurveLaneVariant { Guide, User }
 
 /**
- * 곡선 레인을 담는 상자 (KAN-161 2단계). 레인 하나든 둘이든 테두리와 모서리는 이 상자가
- * 갖고 레인 자신은 갖지 않는다 — 레인마다 테두리를 두르면 상자 안에 상자가 겹쳐 선이
- * 두 겹으로 보인다. 웹 `.curve-card`와 같은 규격이다.
+ * 곡선 레인을 담는 상자 (KAN-161 2단계, 모양은 KAN-354 시안 `.p2-lanes`). 레인 하나든 둘이든 테두리와 모서리는 이 상자가
+ * 갖고 레인 자신은 갖지 않는다 — 레인마다 테두리를 두르면 상자 안에 상자가 겹쳐 선이 두 겹으로 보인다.
+ * paper 면·잉크 1dp 테두리·반경 10이라 대사 카드와 같은 종이로 읽힌다(그림자는 대사 카드만 갖는다).
+ * 오른쪽을 그림자 폭만큼 비운다 — [paperShadow]가 대사 카드 본체를 그만큼 안으로 들이므로, 비우지 않으면 두 카드의
+ * 오른쪽 끝이 어긋난다(시안은 그림자가 레이아웃 밖이라 두 카드 끝이 같다, 리뷰 P2-3).
  */
 @Composable
 internal fun CurveLaneGroup(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val colors = MaterialTheme.accenturyColors
-    val shape = RoundedCornerShape(Radius.md)
+    val shape = RoundedCornerShape(Radius.lg)
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .padding(end = Dimens.paperShadowX)
             .clip(shape)
-            .background(colors.curveLaneSurface)
-            // 디자인 3 `.curve-wrap`: 레인 상자 선은 그림자색이다 — 잉크 선이면 곡선보다 상자가 먼저 보였다 (KAN-288)
-            .border(GROUP_BORDER, colors.primaryDim, shape),
+            .background(LightPaper)
+            .border(GROUP_BORDER, MaterialTheme.colorScheme.onBackground, shape),
         content = content,
     )
 }
@@ -92,6 +97,7 @@ internal fun CurveLaneGroup(
  *
  * @param topDivider 위 레인과 나를 가르는 줄을 그릴지. 웹이 `.curve-lane + .curve-lane`로
  *   자동으로 하는 일을 여기서는 첫 레인이 아닌 쪽이 스스로 말한다.
+ * @param height 레인 높이. 목소리 점검은 레인 하나에 두 칸 높이를 쓴다(시안 s-05-voicecheck-app 224)
  */
 @Composable
 internal fun CurveLane(
@@ -99,6 +105,7 @@ internal fun CurveLane(
     segments: List<List<CurvePoint>>,
     variant: CurveLaneVariant,
     topDivider: Boolean = false,
+    height: Dp = Dimens.curveLaneHeight,
 ) {
     val colors = MaterialTheme.accenturyColors
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -112,14 +119,14 @@ internal fun CurveLane(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(Dimens.curveLaneHeight)
-            // 레인 사이 구분선. 상자 테두리보다 얇고 흐리다 - 나누는 선이 두르는 선만큼
-            // 진하면 레인 둘이 따로 놓인 상자로 보인다
+            .height(height)
+            // 레인 사이 구분선. 상자 테두리와 같은 굵기의 그림자색이다 (시안 `.p2-lane + .p2-lane`) - 나누는 선이
+            // 두르는 선만큼 진하면 레인 둘이 따로 놓인 상자로 보인다
             .drawBehind {
                 if (!topDivider) return@drawBehind
                 val width = DIVIDER.toPx()
                 drawLine(
-                    color = muted,
+                    color = colors.primaryDim,
                     start = Offset(0f, width / 2f),
                     end = Offset(size.width, width / 2f),
                     strokeWidth = width,
@@ -180,12 +187,12 @@ internal fun CurveLane(
             }
             dots.forEach { center -> drawCircle(lineColor, radius = stroke, center = center) }
         }
-        // 라벨은 레인 좌상단에 얹는다(시안). 곡선 상단 여백 10% 안쪽이라 겹치지 않는다
+        // 라벨은 레인 좌상단에 얹는다 (시안 `.p2-lane > span` 12/18, 위 4·왼쪽 12). 곡선은 위 24부터라 겹치지 않는다
         Text(
             label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 18.sp),
             color = muted,
-            modifier = Modifier.padding(start = Spacing.x3),
+            modifier = Modifier.padding(start = Spacing.x3, top = Spacing.x1),
         )
     }
 }
@@ -304,5 +311,5 @@ private val HALFTONE_DOT = 1.dp
 /** 망점의 진하기. 1이면 곡선 아래가 잉크 면이 되어 곡선 자체가 안 보인다 */
 private const val HALFTONE_ALPHA = 0.5f
 
-private val GROUP_BORDER = 1.5.dp
+private val GROUP_BORDER = 1.dp
 private val DIVIDER = 1.dp

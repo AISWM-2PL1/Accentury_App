@@ -43,7 +43,7 @@
 | `getContractVersion(): number` | KAN-97 | 앱이 보유한 계약 버전. 동기 반환 | 스큐 협상 이전 앱으로 본다 |
 | `getSessionToken(): string` | KAN-13 | 어휘 답안 제출의 `Authorization` 헤더에 실을 토큰. 동기 반환. origin이 allowlist 밖이면 빈 문자열 | 빈 값은 `null`로 정규화 → 제출 불가 |
 | `requestMicPermission()` | KAN-98 | 네이티브 마이크 권한 게이트를 연다 | 웹이 직접 `getUserMedia` |
-| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0, emotion?}`. `emotion`(KAN-283)은 정의 VOICE 문항의 말투 감정 문자열(예: "부탁하는")을 가공 없이 — 정의에 없으면 키가 없다, 빈 문자열은 그대로 온다. 「~ 느낌으로 말해주세요!」 문구와 빈 값 처리는 네이티브 몫. 하위호환 추가라 계약 버전 그대로 | 웹 녹음기(`WebVoiceRecorder`) |
+| `startVoiceItem(payloadJson)` | KAN-100 | 네이티브 녹음 화면으로 전환. payload = `{itemId, prompt, itemNumber, totalItems, maxDurationMs, guideF0, emotion?}`. `emotion`(KAN-283)은 정의 VOICE 문항의 말투 감정 문자열(예: "부탁하는")을 가공 없이 — 정의에 없으면 키가 없다, 빈 문자열은 그대로 온다. 「~ 느낌으로 말해주세요!」 문구(Android는 KAN-354부터 「~ 느낌으로 말해 주세요」, 대사 아래 칩)와 빈 값 처리는 네이티브 몫. 하위호환 추가라 계약 버전 그대로 | 웹 녹음기(`WebVoiceRecorder`) |
 | `startRetest()` | KAN-34 | 이전 세션·결과를 버리고 새 세션으로 인트로 리로드. **인자 없음** — 폐기할 토큰은 네이티브가 들고 있다 | 쿼리를 걷어내고 인트로로 (`goToIntro`) |
 | `startRetestAfterFailure()` | KAN-248 | 실패 출구의 재응시. `startRetest`와 같되 **보상형 광고만 건너뛴다**. 인자도 회신 규칙 차이도 없다 (§8.6) | `startRetest()` — 구버전 앱에서는 광고가 떠도 감수. 그것도 없으면 `goToIntro` |
 | `shareResult(payloadJson)` | KAN-30 | 카카오 피드 템플릿으로 공유. payload = `{imageUrl, text, webTestUrl}` — 점수·세션 id·등급 코드 없음 | `navigator.share` → 링크 복사 |
@@ -658,6 +658,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
   `TOO_QUIET`·`TOO_SHORT`·`CLIPPED`(Android `recording/RecordingScreen.kt`의 `QualityStatus`, iOS `Recording/RecordingScreen.swift`),
   `maxDurationMs` 10초 자동 컷, 2단 레인(위 가이드 `guideF0`, 아래 내 억양). 진행 표기는 5단계부터 레벨테스트와 같은 진행바·`n / N`
   컴포넌트로 그린다 — 접근성 라벨은 「카드 진행률」, 종류 note 없음(웹 A-2와 같음, 레벨테스트는 「문항 진행률」·「음성」 그대로).
+  Android는 KAN-354부터 두 쓰임 모두 라벨 「억양」·`n / N`이고 스크린 리더는 「억양 · 대사 3개 중 1번째」(레벨테스트 「억양 · 7문항 중 1번째」) 한 문장이다.
 - **세션 ID·문항 인덱스와 섞지 않는다.** 억양 학습은 레벨테스트 세션이 없다. 레벨테스트 진행 상태(세션 토큰,
   문항 인덱스, 보관 음성 복구 §10, 재응시 잠금)를 읽거나 갱신하지 않고, `onItemResult`도 보내지 않는다. 카드 식별은 `cardId` 하나다.
 - **확인 단계에 [내 녹음 듣기] Secondary 버튼**을 둔다 — 학습 화면에만(레벨테스트 녹음 화면에는 없음, 2026-10-12 착수 결정).
@@ -669,7 +670,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
   - [재시도]는 무제한. 단 `503 ANALYSIS_UNAVAILABLE`은 서버가 그 키의 시도를 실패로 기록했을 수 있어(같은 키 재전송이 실패 시도를 202로 돌려준다 — 서버 코드로 확인, 아래 「Android 구현」) **재시도 때 새 키**를 쓴다. 400·413·415·422처럼 봉투 `retryable:false`면 재시도 대신 다시 녹음을 안내한다(오디오가 같으면 결과도 같다).
   - 202 응답 `{attemptId, contentVersion, cardId, status, pollAfterMs}` 중 `attemptId`만 웹으로 넘긴다. 폴링은 웹(KAN-254)이 한다.
 - **뒤로가기 = 회신 없이 일시정지 A-2 복귀.** 업로드 진행 중이면 요청을 버린다(같은 키로 서버에 이미 닿았더라도 웹은 그 시도를 모른다 — 다음 녹음은 새 키라 별개 시도다).
-- **화면 오른쪽 위 ✕ 닫기** (KAN-252, 2026-10-13 사용자 결정) — ✕ = `close` 후 억양 탭 문서(A-1)로, 뒤로가기·제스처는 카드(A-2)로 (2026-10-13 사용자 결정). A-1은 `?screen=intonation` 문서의 첫 상태라 문서를 다시 열면 목록이 뜬다 — URL은 `webTabUrl(currentUrl, "intonation")`(`webBackTarget`과 같은 쿼리 규칙, 문서를 모르면 닫기만). 권한 화면 포함, 제출 중에도 선다. 시스템 뒤로·가장자리 스와이프를 몰라도 나갈 수 있게. 모양은 설정 톱니와 같다(Android `learning/IntonationRecordingOverlay.kt` `IntonationCloseButton`, iOS `IntonationCloseChrome`). 레벨 테스트 VOICE 녹음 화면에는 두지 않는다(KAN-147).
+- **화면 오른쪽 위 ✕ 닫기** (KAN-252, 2026-10-13 사용자 결정) — ✕ = `close` 후 억양 탭 문서(A-1)로, 뒤로가기·제스처는 카드(A-2)로 (2026-10-13 사용자 결정). A-1은 `?screen=intonation` 문서의 첫 상태라 문서를 다시 열면 목록이 뜬다 — URL은 `webTabUrl(currentUrl, "intonation")`(`webBackTarget`과 같은 쿼리 규칙, 문서를 모르면 닫기만). Android는 KAN-354 5단계부터 학습 탭 첫 화면(사투리 여행 지도)으로 가는 `webTabUrl(currentUrl, LEARN_ENTRY_SCREEN)`(`screen=intonation`, PR #74 리뷰)이다 — 웹은 KAN-347 3단계부터 `learn`·`intonation`·`words`를 모두 학습 탭으로 받고, 내보내는 값은 옛 앱 빌드 호환 때문에 당분간 `intonation`이다(2026-11-16 결정, `web/src/navigation/entryUrl.ts`의 `LEARN_URL_SCREEN`). iOS도 KAN-355부터 같은 값을 보낸다 — `webTabUrl(currentUrl, learnEntryScreen)`(`screen=intonation`). 권한 화면 포함, 제출 중에도 선다. 시스템 뒤로·가장자리 스와이프를 몰라도 나갈 수 있게. 모양은 설정 톱니와 같다(Android `learning/IntonationRecordingOverlay.kt` `IntonationCloseButton`, iOS `IntonationCloseChrome`). 레벨 테스트 VOICE 녹음 화면에는 두지 않는다(KAN-147).
 - origin이 allowlist 밖인 문서에서 온 호출은 다른 메서드와 같이 조용히 버린다(§5).
 
 #### Android 구현 (KAN-253 2단계)
@@ -678,7 +679,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 |---|---|
 | 파일 | `web/AccenturyBridge.kt`(`startIntonationRecording`) · `web/WebViewHost.kt`(전달) · `bridge/IntonationRecordingStart.kt`(파서) · `bridge/IntonationRecordedDelivery.kt`(회신 JS) · `learning/IntonationUploadClient.kt` · `learning/IntonationRecordingViewModel.kt`(열림·업로드·키 규칙) · `learning/IntonationRecordingOverlay.kt`(A-3) · `recording/PcmPlayer.kt`([내 녹음 듣기]) · `MainActivity.kt` TestFlow(결선) |
 | origin·파싱 | `startVoiceItem`과 같은 순서 — postToMain 뒤 `isCurrentUrlAllowed`, 파싱 실패는 `CrashReports.recordBridgeParseFailure("startIntonationRecording")`. 빈 `cardId`·빈 `prompt`·`maxDurationMs ≤ 0`·`itemNumber`/`totalItems` 누락·범위 밖은 버린다. `guideF0`만 불량이면 곡선만 버린다(`decodeTolerantOfGuide`, `startVoiceItem`과 공유) |
-| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `RecordingPurpose`를 받는다 — `LevelTest(itemNumber, totalItems)`는 이전과 같은 모양, `IntonationLearning(standard, itemNumber, totalItems)`는 진행바·`n / N`(라벨 「카드 진행률」, note 없음 — 5단계), 대사 카드 아래 「표준어 · …」 한 줄(null이면 생략), 확인 단계에 [내 녹음 듣기]. 확인 뒤의 일은 호출자의 `onNext`가 정한다. 녹음 뷰모델은 레벨테스트와 다른 인스턴스(`viewModel(key = "intonation")`) |
+| 녹음 화면 재사용 | `RecordingScreen`이 문항 번호 대신 `RecordingPurpose`를 받는다 — `LevelTest(itemNumber, totalItems)`는 이전과 같은 모양, `IntonationLearning(standard, itemNumber, totalItems)`는 진행바·`n / N`(라벨 「억양」 — KAN-354, 이전 「카드 진행률」), 대사 카드 위 「표준어 · …」 한 줄(null이면 생략)과 대사 아래 「사투리로 따라 말해 보세요」 칩(KAN-354), 확인 단계에 [내 녹음 듣기](검토 줄 아래 글자 버튼). 확인 뒤의 일은 호출자의 `onNext`가 정한다. 녹음 뷰모델은 레벨테스트와 다른 인스턴스(`viewModel(key = "intonation")`) |
 | 업로드 | `AuthClients.authedClient`에 60초 callTimeout만 얹어 쓴다 — 계정 Bearer와 401 → 갱신 1회 → 같은 요청 재시도 1회가 그 클라이언트(`AccessTokenInterceptor`·`TokenAuthenticator`)에 이미 있다. multipart는 레벨테스트와 같은 `upload/UploadClient.kt`의 `recordingMultipart` |
 | 멱등 키 | 제출 1건마다 `li_<UUID>`, [재시도]는 같은 키. `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키 — 서버 `IntonationScoringService.upload`가 분석 큐 전달 실패 시 그 키의 시도를 `RETRYABLE_FAILED`로 커밋하고 503을 주며, 같은 키 재전송에는 그 실패 시도를 202로 돌려준다(2026-10-12 origin/Dev 확인). 회로 차단(`accepts()` false)의 503은 시도를 만들지 않아 어느 키든 같다 |
 | 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요」(Refresh 거절이면 TokenRefresher가 이미 로그인 화면으로 돌린다) |
@@ -700,7 +701,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | 멱등 키 | Android와 같다 — 제출 1건마다 `li_<소문자 UUID>`, [재시도]는 같은 키, `503 ANALYSIS_UNAVAILABLE` 뒤 재시도는 새 키, 다시 녹음은 새 키 |
 | 실패 | 녹음 화면 하단이 실패 안내로 바뀐다. `retryable:true`(전송 실패 포함)는 [다시 녹음]·[재시도], `false`는 [다시 녹음]만. 문구는 서버 봉투 문구, 갱신 뒤에도 401이면 「로그인이 만료됐어요. 다시 로그인해 주세요」 |
 | 회신·닫기 | `uploadState`가 `.accepted` → `onIntonationRecorded({cardId, attemptId})` 한 번 → `close()`(상태가 idle로 돌아가 두 번 회신하지 않는다). 업로드 중·202 뒤에는 하단이 「제출 중…」. 닫기·다시 녹음 뒤 늦게 온 202는 세대 번호로 버린다 |
-| 뒤로가기 | iOS에는 시스템 뒤로가기가 없어 `IntonationCloseChrome`이 왼쪽 위 닫기(xmark)와 왼쪽 가장자리 스와이프를 둔다 — 둘 다 `close()`: 진행 중 업로드 Task 취소(URLSession까지 내려간다), 보관 음성 참조 폐기, 회신 없음. 권한 화면에서도 같다 |
+| 뒤로가기 | iOS에는 시스템 뒤로가기가 없어 `IntonationCloseChrome`이 왼쪽 위 닫기(xmark)와 왼쪽 가장자리 스와이프를 둔다 — 둘 다 `close()`: 진행 중 업로드 Task 취소(URLSession까지 내려간다), 보관 음성 참조 폐기, 회신 없음. 권한 화면에서도 같다. 닫은 뒤 웹 문서는 KAN-355부터 학습 탭 `webTabUrl(currentUrl, learnEntryScreen)`(`screen=intonation`, 사투리 여행 지도)이다. 웹이 `learn`을 받기 전 빌드와도 맞도록 보내는 값은 `intonation`이다(안드로이드 `LEARN_ENTRY_SCREEN`과 같다). 뒤로가기 표는 `learn`도 받는다(옛 `intonation`·`words` 유지) |
 | 음성 바이트 | 디스크에 닿지 않는다(레벨테스트와 같이 메모리 PCM → `WavWriter` 메모리 WAV, `RecordingFileLifecycleTests`의 규칙). Swift `Data`는 값 타입이라 Android처럼 0으로 덮지 않고, `UploadManager`와 같이 접수·다시 녹음·닫기에서 참조를 놓는다(`retainsAudio`로 테스트) |
 | 마이크 권한 | 열 때마다 `MicPermission.currentStatus()`로 확인하고, 없으면 `PermissionGateView`를 먼저 띄운다. 그동안 톱니는 숨긴다 |
 | [내 녹음 듣기] | `AVAudioPlayer(data:fileTypeHint: .wav)`로 메모리 WAV를 재생(파일 URL 없음 — FR-DP-02). 녹음 세션이 `.record`라 재생 직전 `.playback`으로 바꾸고 정지 때 비활성화한다(다음 녹음은 `AudioRecorder`가 `.record`로 다시 잡는다). 재생 중 다시 누르면 정지. [재녹음]·확인 단계 이탈·[다음]·화면 이탈 때 정지 |
@@ -714,6 +715,26 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 
 2026-10-13 사용자 결정으로 앱 진입이 **웹이 그리는 하단 탭 바 5칸**(홈 · 억양 학습 · 단어 학습 · 사투리 번역기 · 설정)으로
 바뀌었다(ux-ui.md 「앱 진입 구조 — 하단 탭 바」). 앞 넷은 웹 화면이라 URL로 옮기고, 설정만 네이티브 화면이라 이 메서드로 연다.
+
+### 학습 탭 화면 값 `learn`과 옛 값 (KAN-347 3단계, 웹 관점)
+
+KAN-347 3단계에서 탭 바가 **4칸**(학습 · 홈 · 사투리 번역기 · 설정)이 됐다. 「단어 학습」「억양 학습」이 학습 탭 「사투리 여행」
+하나로 합쳐졌고, 설정 칸은 위 `openSettings` 그대로다.
+
+- **웹이 받는 값**: `?screen=learn`(새 값)과 옛 값 `?screen=intonation`·`?screen=words`가 모두 학습 탭이다(`navigation/entryUrl`
+  `isLearnScreen`). 옛 빌드의 억양 녹음 ✕(`webTabUrl(current, "intonation")`)·옛 링크도 사투리 여행 지도로 열린다.
+- **웹이 내보내는 값**: 탭 이동·결과 [학습 시작]·홈 [이어가기]는 학습 탭 URL을 **옛 값 `intonation`**으로 싣는다
+  (`entryUrl` `LEARN_URL_SCREEN`). 웹은 머지 즉시 배포되고, 스토어의 옛 앱 빌드(origin/Release `b636648`)는 웹이 알려 준 현재
+  URL(`onLocationChanged`·문서 로드)의 `screen`이 `intonation`·`words`·`translate`일 때만 뒤로가기를 홈으로 돌리고
+  (`BACK_TO_HOME_SCREENS`/`backToHomeScreens`) 광고 설정 행을 연다(`webAdConsentUrl`). `learn`을 실으면 옛 빌드에서 학습 탭의
+  뒤로가기가 앱 종료(Android)·무반응(iOS)이 된다. 새 빌드(KAN-354·355)는 `learn`과 옛 값을 함께 받는다 — `learn`을 받는 빌드가
+  스토어에 다 퍼진 뒤 `LEARN_URL_SCREEN` 하나를 `'learn'`으로 바꾼다. 그때 앱이 학습 탭을 열 때 보내는 값(Android `WebConfig.kt` `LEARN_ENTRY_SCREEN` = `intonation` — 억양 녹음 ✕ 목적지)도 함께 `learn`으로 바꾼다. iOS는 `AccenturyCore/Web/WebConfig.swift`의 `learnEntryScreen`(KAN-355)이 같은 자리라 함께 바꾼다. 이 표는 `entryUrl.test.ts`의 「학습 탭 화면 값」 묶음이 지킨다.
+- **홈 [이어가기]는 URL에 싣지 않는다**: 「지금 스탬프로 바로」는 WebView의 sessionStorage 일회성 표식(`learning/resumeFlag`)으로
+  건네고, 학습 탭이 읽는 즉시 지운다. 스토어의 옛 빌드와 새 빌드 모두 `webTabUrl`이 현재 URL의 모르는 쿼리를 보존하므로, URL에
+  `resume=1`을 실으면 웹이 걷기 전에 네이티브가 들고 있던 그 URL로 녹음 ✕·뒤로가기가 다시 열어 지도 대신 스탬프로 들어간다.
+  sessionStorage는 같은 출처·같은 WebView라 문서 전체 로드(구버전 앱)와 SPA 이동을 모두 건넌다. URL에 `resume`이 들어와도 웹은
+  읽지 않고 다음 탭 이동(`buildTabUrl`)에서 지운다. 네이티브는 할 일이 없다.
+- 설정 톱니 판정(`showsSettingsGear`)은 `screen`이 없거나 `test`일 때만이라 학습 탭 값과 무관하다.
 
 ### web → native: `openSettings()`
 
@@ -732,7 +753,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
   |---|---|---|
   | 인트로 | 현재 문서에 `screen` 없음 | 보임 |
   | 테스트 진행 | `screen=test` | 보임 |
-  | 탭 화면 | `screen=home`·`intonation`·`words`·`translate` | 숨김 (탭 바 [설정]) |
+  | 탭 화면 | `screen=home`·`learn`·`intonation`·`words`·`translate` | 숨김 (탭 바 [설정]) |
   | 결과 | `screen=result` | 숨김 (탭 바 [설정]) |
   | 레벨 테스트 VOICE 문항 녹음·제출 | 네이티브 녹음 오버레이 | 숨김 |
   | 억양 학습 녹음 | 네이티브 녹음 오버레이 | 숨김 |
@@ -751,7 +772,7 @@ payload는 버린다.** 회신을 받으면 「분석 중이에요」 자리 표
 | `web/WebViewHost.kt` | `onOpenSettings` 전달, `onPageStarted(url)`로 현재 문서 URL을 상위에 알림(뒤로가기·톱니 판정용) |
 | `MainActivity.kt` `TestFlow(tabBarEntry)` | 로그인 빌드(AuthGate SignedIn)만 `true` — 홈 시작·톱니는 인트로·테스트 진행에만(녹음 오버레이 위 제외)·탭 뒤로가기. 익명 빌드(AnonymousFlow)는 `false`라 인트로 시작·톱니 유지 |
 | `MainActivity.kt` 설정 화면 | 기존 `onOpenSettings`(settingsOpen = true) 그대로 — SignedIn은 `SettingsScreen`, 익명은 `AnonymousSettingsScreen` |
-| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)`, 톱니 판정 `showsSettingsGear(url)`(`screen` 없음·`test`면 true) |
+| `web/WebConfig.kt` | `buildWebUrl(home = true)` → `&screen=home`(testEntry가 있으면 무시), 뒤로가기 판정 `webBackTarget(url, startRequested)`(홈으로 가는 `BACK_TO_HOME_SCREENS` = `learn`·`intonation`·`words`·`translate` — KAN-354 5단계가 학습 탭 `learn`을 더하고 옛 두 값을 남겼다. 웹은 KAN-347 3단계부터 `learn`·`intonation`·`words`를 모두 학습 탭으로 받고, 내보내는 값은 옛 앱 빌드 호환 때문에 당분간 `intonation`이다 — 2026-11-16 결정, `web/src/navigation/entryUrl.ts`의 `LEARN_URL_SCREEN`), 톱니 판정 `showsSettingsGear(url)`(`screen` 없음·`test`면 true) |
 
 **시작 URL 상태.** `home = startsAtHome(tabBarEntry, introRequested, appLinkEntered = appLink != null)`(`web/WebConfig.kt`). 재응시
 성공(`RetestOutcome.Replaced`)이 `introRequested`를 세워 재응시 뒤에는 인트로가 뜬다(`rememberSaveable`, 회전을 넘긴다).
@@ -770,7 +791,7 @@ Android 3단계와 같은 규칙을 옮겼다. 판정 함수는 Core(`AccenturyC
 | `Web/WebViewHost.swift` | `onOpenSettings` 전달, `didStartProvisionalNavigation`·`didCommit`에서 `onPageStarted(webView.url)`로 현재 문서 URL을 상위에 알림(뒤로·톱니 판정용), 왼쪽 가장자리 `UIScreenEdgePanGestureRecognizer`(60pt 이상 끌고 놓으면 `onEdgeSwipeBack`, `edgeSwipeEnabled`로 켜고 끔) |
 | `TestFlow/TestFlowView.swift` `tabBarEntry`·`covered` | 로그인 빌드(`AuthGateView` SignedIn)만 `true` — 톱니는 `showsSettingsGear(currentWebUrl)`이고 녹음 오버레이(VOICE 녹음·제출, 억양 학습) 위에서 숨김. 스와이프는 `webBackTarget` 대상이 있을 때만 그 URL을 `load`. 억양 녹음·설정·음성 저장 동의가 덮으면(`covered`) 인식기를 끈다. 익명 빌드(`AnonymousFlowView`)는 `false`라 인트로 시작·톱니 유지·스와이프 없음 |
 | `TestFlow/TestFlowModel.swift` | `webUrl`이 `home: startsAtHome(tabBarEntry:introRequested:appLinkEntered:)`를 넘김. `appLinkEntered`는 `applyAppLink`가 링크를 인정하면(코드 없음·무효 포함) 서고 `UserDefaults`(`test_flow_app_link_entered`)에 적힌다 — 새 실행의 `clearSavedState`가 먼저 지우고 링크는 그 뒤 `onContinueUserActivity`로 오므로 새 링크를 지우지 않는다(PR #33 리뷰 P1). 재응시 성공(`.replaced`)이 `introRequested`를 세움 — `UserDefaults`(`test_flow_intro_requested`)에 적어 시스템 종료 뒤 장면 복원을 넘기고, 관문 이탈 때와 **새 실행**(`@SceneStorage` 복원 표시 없음, `init(restoresSavedState: false)`) 때 `clearSavedState`가 함께 지운다 — 앱을 새로 열면 Android `rememberSaveable`처럼 홈부터다(4단계 보완, ios-port.md §3 「새 실행은 홈부터」) |
-| `AccenturyCore/Web/WebConfig.swift` | `buildWebUrl(home:)`, `startsAtHome(tabBarEntry:introRequested:appLinkEntered:)`, `webBackTarget(currentUrl:startRequested:)`, `showsSettingsGear(_:)` — 안드로이드 `WebConfig.kt`의 이식본, 테스트도 `WebConfigTests.swift`에 1:1 |
+| `AccenturyCore/Web/WebConfig.swift` | `buildWebUrl(home:)`, `startsAtHome(tabBarEntry:introRequested:appLinkEntered:)`, `webBackTarget(currentUrl:startRequested:)`, `showsSettingsGear(_:)` — 안드로이드 `WebConfig.kt`의 이식본, 테스트도 `WebConfigTests.swift`에 1:1. 탭 이동 URL(`webTabUrl`)은 `screen`·레벨테스트 값·`adConsent`와 함께 `resume`도 지운다(KAN-355) — 웹 `buildTabUrl`이 지우는 키와 같은 목록이다. 웹은 홈 [이어가기]를 URL이 아니라 sessionStorage 표식(KAN-347, `learning/resumeFlag`)으로 넘겨 지금 이 키가 실리는 경로는 없고, 옛 링크·수동 입력으로 남은 값이 녹음 ✕·뒤로가기·광고 동의 URL에 따라가지 않게 하는 방어다 |
 
 **iOS의 뒤로는 왼쪽 가장자리 스와이프다.** iOS에는 시스템 뒤로 버튼이 없어 Android 시스템 뒤로가기 자리를 이 몸짓이 맡는다.
 판정 표는 Android와 같고, 대상이 없을 때(홈·테스트 진행·결과) Android는 앱이 닫히지만 iOS는 아무 일도 없다.
@@ -800,7 +821,7 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 
   | 현재 문서 | 재열기 |
   |---|---|
-  | `screen=home`, `intonation`·`words`·`translate` | 허용 |
+  | `screen=home`, `intonation`·`words`·`translate` (Android는 `learn`도, KAN-354) | 허용 |
   | 인트로(`screen` 없음), 시작 전 | 허용 |
   | 인트로, 시작 게이트 중(`startRequested`) · `screen=test` · `screen=result` · 문서 모름 | 금지 |
 
@@ -816,6 +837,7 @@ Keychain 읽기가 끝나야 값이 밀리므로 웹이 `waitForAccessToken`으�
 - **같은 URL 재이동도 재마운트** — `AppRoot`의 키는 쿼리 문자열이 아니라 이동 횟수다. 키가 `search`였을 때 `replaceState`로 걷은 뒤 같은 URL로 두 번째 재열기 이동이 오면 상태가 같아 재마운트를 건너뛰어 시트가 안 떴다(두 번째 재열기 회귀, 2026-11-03 iOS 실기기).
 - **플래그는 따라가지 않는다** — 웹 `buildTabUrl`·`buildIntroUrl`(`web/src/navigation/entryUrl.ts`)과 네이티브 `webTabUrl`이
   `adConsent`를 지운다. 탭을 옮겼다 홈으로 돌아와도 시트가 다시 뜨지 않는다.
+  Android `webTabUrl`은 `resume`도 지운다(KAN-354). 웹은 이제 URL에 `resume`을 싣지 않는다(KAN-347 PR #76, 홈 [이어가기]는 sessionStorage 일회성 표식 `web/src/learning/resumeFlag.ts`) — 옛 문서·딥링크에 남은 값이 따라가지 않게 웹 `buildTabUrl`과 같은 규칙으로 지운다.
 - **구버전 실행** — 브리지에 `getAdConsent`가 없어 `consent === null`이면 플래그가 있어도 시트를 열지 않는다(기존 규칙).
 
 ## 14. 업로드 재전송 (KAN-288 6단계)
@@ -938,3 +960,64 @@ App Store 빌드 15 거절(2026-11-09, 5.1.1(v) 로그인 강제) 대응이다. 
 - 홈의 게스트는 테스트 전 카드([레벨 테스트 시작])와 그 아래 학습용 로그인 안내다. 등급 카드·출석은 없고, `getAccountKind`가 `'guest'`면 홈
   조회(`GET /v0/learning/home`)를 부르지 않는다(PR #70 리뷰). 레벨 테스트 흐름(문항·업로드·분석 대기·결과·재응시·공유)의 웹 호출은 전부
   세션 토큰(`st_`)이라 게스트 차단 API가 없다. 결과 화면의 [억양 학습 시작]은 학습 탭의 로그인 안내로 간다. 광고 동의 시트 규칙은 회원과 같다
+
+## 16. OS 글자 크기 → 웹 루트 글자 (KAN-332)
+
+웹 CSS는 크기를 rem으로 쓴다(KAN-313, [ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313)). 그런데 OS 글자 설정이 WebView 루트 글자
+크기에 닿지 않으면 rem은 16px 그대로라 사용자가 글자를 키워도 화면은 그대로다. 이 절은 네이티브가 OS 배율을 웹 루트 글자로 옮기는
+규칙이다. 브리지 메서드가 아니라 WebView 설정·주입 스크립트라 계약 버전은 2 그대로다(§1).
+
+### 계약
+
+- **웹 루트 px = 16 × min(OS 배율, 2.0).** 상한 200%(32px)는 WCAG 1.4.4 기준이자 KAN-313이 검증한 범위다(팀 결정 2026-11-12).
+  하한은 두지 않는다 — OS가 기본보다 작게 두면 그 값을 그대로 쓴다
+- 웹은 첫 렌더 전과 `resize` 때마다 `syncLargeText()`(`web/src/ui/textScale.ts`, `main.tsx`가 부른다)로 루트 computed font-size를 읽고,
+  16.5px을 넘으면 `html[data-large-text]`를 단다. 글자 크기 변경은 브라우저가 알려 주지 않으므로, 실행 중 배율을 바꾸는 쪽이
+  루트 크기를 바꾼 뒤 `resize`를 보내야 한다
+
+### 네이티브가 지킬 것 (Android 1단계 · iOS 2단계 완료)
+
+#### Android (KAN-332 1단계, PR #72 리뷰로 루트 주입 전환)
+
+| 항목 | 내용 |
+|---|---|
+| textZoom | `web/WebViewHost.kt` factory에서 `settings.textZoom = 100`으로 고정한다. 기본값도 `fontScale`을 따라서(Chromium `AwSettings`) 그대로 두면 주입과 겹쳐 글자가 이중으로 커진다 |
+| 주입 | iOS와 같은 루트 px 주입(팀 결정 2026-11-12). `webRootFontPx(fontScale) = 16.0 * min(fontScale, 2.0)`, 스크립트는 `webRootFontScript(px)` — iOS `webRootFontScript(px:)`와 **같은 문자열**(`Locale.ROOT`, 소수 4자리에서 자르고 끝의 0을 지운다). `WebViewFeature.DOCUMENT_START_SCRIPT`가 되면 `WebViewCompat.addDocumentStartJavaScript(webView, webDocumentStartScript(script), allowedOrigins)`(androidx.webkit 1.18.0). allowedOriginRules 형식 `SCHEME://HOST[:PORT]`가 `webOrigin()` 값과 같아 그대로 넘긴다 |
+| 문서 시작 DOM | androidx.webkit 문서는 그 시점에 DOM이 없을 수 있다고 적는다. 그래서 `webDocumentStartScript`가 `document.documentElement`가 있으면 바로, 없으면 `html` 요소가 붙는 순간(MutationObserver) 같은 스크립트를 돌린다. WebView 155 실측에서는 문서 시작에 이미 있었다 |
+| 미지원 폴백 | `DOCUMENT_START_SCRIPT`가 없는 WebView는 `onPageFinished`에서 `evaluateJavascript(script)`. 첫 렌더 뒤라 늦지만 `resize`로 큰 글자 표식을 다시 잰다 |
+| 실행 중 변경 | `MainActivity`에 `configChanges`가 없어 OS 배율이 바뀌면 Activity가 다시 서고, factory가 새 배율로 다시 돈다 |
+| 테스트 | `WebTextScaleTest`(단위: 1.0→16, 0.85→13.6, 1.3→20.8, 2.0→32, 3.0→32, iOS와 같은 스크립트 문자열, 독일 로케일에서도 소수점) · `TextZoomMeasureTest`(androidTest, 아래 실측을 단언). **CI는 androidTest를 돌리지 않는다** — WebView 엔진이 바뀔 때 수동 실행: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.accentury.app.web.TextZoomMeasureTest` |
+
+실측(2026-11-12, Pixel_8 에뮬레이터 API 37, WebView 155.0.8059.43). `#w`는 `width:10rem`, `#c`는 `font-size:16px`:
+
+| 조건 | 루트 computed | `1rem` 글자 | `0.8125rem` 글자 | `#w` 폭 | `#c` 글자 |
+|---|---|---|---|---|---|
+| textZoom 100 | 16px | 16px | 13px | 160 | 16px |
+| textZoom 200 | 32px | 32px | 26px | **160** | **32px** |
+| textZoom 100 + 루트 32px 주입 | 32px | 32px | 26px | 320 | 16px |
+
+textZoom은 모든 글자의 computed font-size에 배율을 곱할 뿐 rem 길이(폭·간격·행간·칸)는 16px 기준 그대로 둔다. 글자 크기만 재면
+두 모델이 같은 값을 내서 이전 실측이 이 차이를 가르지 못했다. Chromium 근거는 `font_builder.cc` `GetComputedSizeFromSpecifiedSize`
+(TextZoomFactor를 곱함), `css_to_length_conversion_data.cc` `FontSizes`(rem은 루트 `SpecifiedFontSize` 기준), `aw_settings.cc`
+(`SetTextZoomFactor`). iOS 주입과 KAN-313 E2E(`web/e2e/text-scale.spec.ts`)는 루트 font-size 모델이라, 그대로 두면 Android만
+`line-height: 1rem` 탭 라벨이 겹치고 `calc(…rem - px)` 칸이 좁아진다(PR #72 리뷰 계산). 그래서 textZoom을 100에 고정하고 루트 px를
+주입해 세 경로를 한 모델로 맞췄다. 문서 시작 주입은 파싱 중 인라인 스크립트가 읽는 루트도 32px였다(첫 렌더 전에 닿음).
+
+#### iOS (KAN-332 2단계)
+
+| 항목 | 내용 |
+|---|---|
+| 배율 | `UIFontMetrics(forTextStyle: .body).scaledValue(for: 16, compatibleWith: traits) / 16`. `traits`는 `UIApplication.shared.preferredContentSizeCategory`로 만든 트레잇이다 — 인자 없는 `scaledValue(for:)`는 호출 맥락의 트레잇을 읽을 수 있어 앱 전체 설정을 명시한다. 기본 크기(.large)에서 1.0 |
+| 주입 | WKWebView는 Dynamic Type을 루트 글자에 반영하지 않아 스크립트로 심는다. `WKUserScript(.atDocumentStart, forMainFrameOnly: true)`(브리지 심과 같은 시점), 소스는 `AccenturyCore` `webRootFontScript(px:)`: `document.documentElement.style.fontSize='<px>px';window.dispatchEvent(new Event('resize'));`. px는 `webRootFontPx(scale:)` = `16 * min(scale, 2)`, 소수 4자리에서 자르고 끝의 0을 지운다 |
+| 실행 중 변경 | `UIContentSizeCategory.didChangeNotification`을 `WebViewCoordinator.contentSizeCategoryDidChange`가 받는다. 유저 스크립트를 하나만 빼는 API가 없어 전부 지우고 **브리지 심과 글자 스크립트를 둘 다 다시 넣는다**(브리지 심이 빠지면 다음 문서의 브리지가 통째로 죽는다). 지금 문서에는 같은 스크립트를 `evaluateJavaScript`로 바로 적용한다 |
+| 해제 | `dismantleUIView`에서 관찰을 푼다 |
+| 파일 | `Web/WebViewHost.swift`(`currentWebRootFontPx`·`rootFontUserScript`·관찰 등록/해제) · Core `Web/WebTextScale.swift` · `WebTextScaleTests` |
+
+### 웹이 지킬 것
+
+- 루트(`html`)에 `!important` font-size를 걸지 않는다. 두 플랫폼 주입 모두 인라인 스타일이라 `!important` 규칙에 진다
+- 크기는 rem으로 쓴다([ux-ui.md 「크기 단위 규칙」](ux-ui.md#크기-단위-규칙-rempx-구분-kan-313))
+
+### 범위 밖
+
+- 네이티브 화면(SwiftUI·Compose)의 Dynamic Type 추종은 이 티켓에서 다루지 않는다

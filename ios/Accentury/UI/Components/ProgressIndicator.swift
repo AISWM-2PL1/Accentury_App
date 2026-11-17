@@ -17,13 +17,27 @@ func progressDotState(position: Int, current: Int) -> ProgressDotState {
     return .todo
 }
 
-/// 진척도 (KAN-148, 형태는 KAN-161 2단계). 안드로이드 `ui/components/ProgressIndicator.kt`의
-/// 이식본이고 웹 `ProgressIndicator`와 같은 구성이다 — 도트 줄과 "2 / 7" 표기를 한 덩어리로
-/// 묶는다. 둘이 떨어져 있으면 한쪽만 고쳐 숫자와 도트가 어긋나는 날이 온다.
+/// 진행 표시가 세는 것 (KAN-355). 스크린 리더 문장의 단위만 갈린다.
+enum ProgressUnit: Equatable {
+    /// 레벨 테스트 — 7문항 전체 번호
+    case items
+    /// 억양 학습 — 카드의 대사 수
+    case lines
+}
+
+/// 진행 표시를 스크린 리더가 한 번에 읽을 문장 (KAN-355, 시안 `aria-label`). 「억양 · 7문항 중 1번째」 꼴이다 — 눈에 보이는
+/// 「억양」·「1 / 7」을 그대로 읽으면 「일 슬래시 칠」이 되어 몇 번째인지가 귀에 안 남는다.
+func progressAccessibilityLabel(label: String, current: Int, total: Int, unit: ProgressUnit) -> String {
+    switch unit {
+    case .items: return "\(label) · \(total)문항 중 \(current)번째"
+    case .lines: return "\(label) · 대사 \(total)개 중 \(current)번째"
+    }
+}
+
+/// 진행 표시 (KAN-148, 형태는 KAN-355 시안 s-06·s-17). 위 줄 왼쪽에 라벨 「억양」, 오른쪽에 「1 / 7」(둘 다 캡션 13 흐린 잉크),
+/// 그 아래 8 띄워 알약 칸 줄(높이 8·간격 6)이다. 숫자와 칸을 한 덩어리로 묶는다 — 떨어져 있으면 한쪽만 고쳐 어긋나는 날이 온다.
 ///
-/// 세 상태를 색이 아니라 **형태**로 가른다 (정본 §7·§8): 완료는 잉크로 찬 캡슐, 현재는 테두리가
-/// 두꺼워지고 왼쪽 절반만 찬 캡슐, 미완료는 빈 캡슐이다. ``Papercut/paperShadow``(#cfc5aa)로
-/// 남은 칸을 칠하지 않는다 — 크림 위 1.46:1이라 안 보인다.
+/// 칸 색은 시안 값이다: 지난 칸 벽돌(``Papercut/point``), 지금 칸 종이 그림자 면에 왼쪽 절반 벽돌, 남은 칸 종이 그림자. 테두리는 없다.
 ///
 /// ``current``가 1부터 시작하는 건 호출자 몫이자 의도다 — 첫 문항을 0/7로 보이면 아직
 /// 시작도 안 한 느낌이라 이탈이 는다 (`ux-ui.md` §3 Goal-Gradient).
@@ -31,53 +45,46 @@ struct ProgressIndicator: View {
 
     let current: Int
     let total: Int
-    var label: String = "문항 진행률"
-    /// 웹 캡션이 "2 / 7 · 음성"이라 여기서만 종류를 빼면 같은 자리의 같은 줄이 화면을
-    /// 넘어갈 때마다 길어졌다 짧아진다.
-    var note: String?
+    var unit: ProgressUnit = .items
+    var label: String = "억양"
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: Papercut.space2) {
-            HStack(spacing: Papercut.space1) {
+        VStack(spacing: Papercut.space2) {
+            HStack {
+                Text(label)
+                Spacer(minLength: Papercut.space3)
+                Text("\(current) / \(total)")
+            }
+            .papercutType(.caption)
+            .foregroundColor(Papercut.muted)
+
+            HStack(spacing: progressDotGap) {
                 ForEach(0..<max(total, 0), id: \.self) { index in
                     dot(progressDotState(position: index + 1, current: current))
                 }
             }
-            .frame(maxWidth: .infinity)
-            /*
-             * 값을 읽는 것은 이 줄 하나다. 도트가 문항 수(정의가 주는 값, 현재 7)만큼 각각 읽히면
-             * 스크린 리더가 같은 정보를 그만큼 되풀이하므로 줄 전체에 "2 / 7"을 통째로 실어 한 번만
-             * 읽히게 하고, 아래 숫자는 의미론에서 뺀다(시각적으로는 남는다).
-             */
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(label) \(current) / \(total)")
-
-            Text(note == nil ? "\(current) / \(total)" : "\(current) / \(total) · \(note!)")
-                .papercutType(.caption)
-                .foregroundColor(Papercut.muted)
-                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)
+        // 줄 전체를 한 번만 읽는다 — 칸마다, 라벨·숫자마다 읽히면 같은 정보를 칸 수만큼 되풀이한다.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(progressAccessibilityLabel(label: label, current: current, total: total, unit: unit))
     }
 
     private func dot(_ state: ProgressDotState) -> some View {
-        let shape = Capsule()
-        return shape
-            .fill(state == .done ? Papercut.ink : Papercut.cream)
-            /*
-             * 현재 칸만 왼쪽 절반이 차 있다. 배경 위에 사각형 하나를 얹을 뿐이라 번지는 면이
-             * 아니고, 바깥의 clipShape가 캡슐 모양으로 잘라 준다 — 웹이 50%에서 딱 끊기는
-             * linear-gradient로 그리는 것과 같은 결과다.
-             */
+        Capsule()
+            .fill(state == .done ? Papercut.point : Papercut.paperShadow)
+            // 지금 칸만 왼쪽 절반이 벽돌이다. 바깥 clipShape가 알약 모양으로 잘라 준다(시안 `::before` inset 0 50% 0 0).
             .overlay(alignment: .leading) {
                 if state == .current {
                     GeometryReader { proxy in
-                        Papercut.ink.frame(width: proxy.size.width / 2)
+                        Papercut.point.frame(width: proxy.size.width / 2)
                     }
                 }
             }
-            .clipShape(shape)
-            .overlay(shape.stroke(Papercut.ink, lineWidth: state == .current ? Papercut.borderStrong : Papercut.borderHairline))
+            .clipShape(Capsule())
             .frame(height: Papercut.progressDotHeight)
     }
+
+    /// 칸 사이 (시안 `.progress-indicator__dots` gap 6). 4·8 눈금 밖 값이라 이 화면 상수로 둔다.
+    private let progressDotGap: CGFloat = 6
 }

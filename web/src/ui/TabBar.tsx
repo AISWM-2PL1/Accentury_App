@@ -1,6 +1,6 @@
 /**
- * 하단 탭 바 (KAN-252, 2026-10-13 사용자 결정). 단어 학습 · 억양 학습 · 홈 · 사투리 번역기 · 설정 다섯 칸
- * (순서는 같은 날 에뮬 확인에서 홈을 가운데로 바꿨다).
+ * 하단 탭 바 (KAN-252, 2026-10-13 사용자 결정 → KAN-347 3-1). 학습 · 홈 · 사투리 번역기 · 설정 네 칸. 「단어 학습」「억양 학습」
+ * 두 칸이 「학습」(사투리 여행 지도) 하나로 합쳐졌다. 모양(아이콘·라벨·지금 탭 벽돌 띠)은 그대로다.
  *
  * 어느 화면에 세울지는 부르는 쪽이 정한다 — 앱 안(standalone 아님)의 목록 화면에서만 선다. 진행 중 화면
  * (테스트·학습 카드·녹음·퀴즈·완료)에는 이탈 버튼을 두지 않는다는 규칙(KAN-147)을 이 컴포넌트가 알 수 없어서다.
@@ -19,8 +19,8 @@ import { canOpenSettings, openSettings } from '../bridge/bridge'
 import type { TabScreen } from '../navigation/entryUrl'
 
 const TABS: { id: TabScreen; label: string; icon: ReactNode }[] = [
-  { id: 'words', label: '단어 학습', icon: <path d="M5 4 H17 A2 2 0 0 1 19 6 V20 H7 A2 2 0 0 1 5 18 Z M5 18 A2 2 0 0 1 7 16 H19" /> },
-  { id: 'intonation', label: '억양 학습', icon: <path d="M3 14 C6 6 8 6 10 12 S14 18 16 10 S19 8 21 12" /> },
+  // 책 그림은 옛 「단어 학습」 칸의 것 그대로다 (시안 s-11·s-16 탭 바)
+  { id: 'learn', label: '학습', icon: <path d="M5 4 H17 A2 2 0 0 1 19 6 V20 H7 A2 2 0 0 1 5 18 Z M5 18 A2 2 0 0 1 7 16 H19" /> },
   { id: 'home', label: '홈', icon: <path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z" /> },
   { id: 'translate', label: '사투리 번역기', icon: <path d="M4 5 H16 V13 H9 L5 16 V13 H4 Z M18 9 H20 V17 H19 V20 L15 17 H10 V15" /> },
 ]

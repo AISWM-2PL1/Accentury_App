@@ -28,6 +28,10 @@ export interface IntonationCourseSummary {
   completed: boolean
   /** 목록 안에서 많아야 하나만 true (서버 §3.20) */
   recommended: boolean
+  /** 세트 점수 = 대사별 최고 점수의 평균 반올림 (KAN-359). 완료 전이면 null. KAN-359 전 서버는 키가 없다 */
+  score?: number | null
+  /** 세트 별 0~3, 최고 기록 (KAN-359). KAN-359 전 서버는 키가 없다 */
+  stars?: number
 }
 
 /** `GET /v0/learning/intonation-courses` — 코스는 seq 오름차순, 없으면 빈 배열 */

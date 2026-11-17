@@ -23,7 +23,8 @@
  */
 
 import { expect, test, type Page } from '@playwright/test'
-import { passAdConsentIfShown } from './helpers/testFlow'
+import { VOICE_CONSENT_TITLE } from '../src/legal/voiceConsent'
+import { passAdConsentIfShown, REGION_TITLE } from './helpers/testFlow'
 
 /**
  * Pixel 7 폭 412(기준)와 좁은 폰 360. 넘침은 좁은 폭에서 먼저 난다. 100·150·200%에 더해 중간 배율 재현점(KAN-327)을 둔다 —
@@ -137,7 +138,8 @@ async function stubServer(page: Page): Promise<void> {
         json: {
           contentVersion: 'e2e',
           sets: [
-            { setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 1, itemCount: 1 },
+            // s1을 끝내 둔다 — 순차 잠금(KAN-347 3-4)이라 그래야 지도의 지금 스탬프가 억양 학습 1(k1)이다
+            { setId: 's1', seq: 1, level: 1, category: '음식', title: '먹을 것', cardCount: 1, itemCount: 1, completed: true },
             { setId: 's2', seq: 2, level: 1, category: '생활', title: '집 안에서 쓰는 물건 이름', cardCount: 6, itemCount: 6 },
           ],
         },
@@ -189,13 +191,13 @@ async function denyMic(page: Page): Promise<void> {
 /** 화면별 진입. 끝나면 그 화면이 다 그려져 있다 */
 const SCREENS: Record<string, (page: Page) => Promise<void>> = {
   인트로: async (page) => {
-    await page.goto('/')
+    await page.goto('/test')
     await passAdConsentIfShown(page)
   },
   홈: async (page) => {
     await asApp(page)
     await page.goto('/?bridge=2&app=1.0&screen=home')
-    await expect(page.locator('.home-streak')).toBeVisible()
+    await expect(page.locator('.home-hero h1')).toBeVisible()
   },
   '음성 문항': async (page) => {
     await webSession(page, 's_voice', 'gn-voice')
@@ -212,36 +214,93 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.goto('/?bridge=2&app=1.0&screen=result&sessionId=s_e2e')
     await expect(page.getByRole('button', { name: '친구에게 공유하기' })).toBeVisible()
   },
-  '억양 코스 목록': async (page) => {
+  // 열린 출석 달력 시트 — 날짜 칸·월 이동 버튼이 큰 글자·좁은 폭에서도 48 이상인지 (KAN-347 2단계, 리뷰 P1)
+  '출석 달력': async (page) => {
+    await page.route(
+      (u) => u.pathname === '/v0/learning/attendance',
+      (r) => {
+        const q = new URL(r.request().url()).searchParams
+        const [year, month] = [Number(q.get('year')), Number(q.get('month'))]
+        const iso = (d: number) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        return r.fulfill({
+          json: {
+            year, month,
+            days: [{ date: iso(1), items: [{ kind: 'SET', key: 'a1', id: 's1', title: '', done: 3, total: 3 }] }],
+            monthCount: 1, lastMonthCount: 9,
+            streak: { currentDays: 3, attendedToday: true, lastAttendedDate: iso(2) },
+            today: iso(2),
+          },
+        })
+      },
+    )
+    await SCREENS['홈'](page)
+    await page.getByRole('button', { name: /출석 달력 열기$/ }).click()
+    await expect(page.getByRole('dialog', { name: '출석 달력' }).getByRole('button', { name: /월 1일, 출석$/ })).toBeVisible()
+    // 시트가 다 올라온 뒤 잰다 (300ms)
+    await page.waitForTimeout(400)
+  },
+  '사투리 여행 지도': async (page) => {
     await asApp(page)
-    await page.goto('/?bridge=2&app=1.0&screen=intonation')
-    await expect(page.getByRole('button', { name: /인사와 안부/ })).toBeVisible()
+    await page.goto('/?bridge=2&app=1.0&screen=learn')
+    await expect(page.getByRole('region', { name: '지금 코스' })).toBeVisible()
+  },
+  '코스 지도': async (page) => {
+    await SCREENS['사투리 여행 지도'](page)
+    await page.getByRole('button', { name: /^1코스 · / }).click()
+    await expect(page.getByRole('list').getByRole('button').first()).toBeVisible()
   },
   '억양 카드': async (page) => {
-    await SCREENS['억양 코스 목록'](page)
-    await page.getByRole('button', { name: /인사와 안부/ }).click()
+    await SCREENS['사투리 여행 지도'](page)
+    await page.getByRole('button', { name: '시작', exact: true }).click()
     await expect(page.getByText('밥 뭇나?', { exact: false }).first()).toBeVisible()
-  },
-  '단어 세트': async (page) => {
-    await asApp(page)
-    await page.goto('/?bridge=2&app=1.0&screen=words')
-    await expect(page.getByRole('button', { name: /먹을 것/ })).toBeVisible()
   },
   번역기: async (page) => {
     await asApp(page)
     await page.goto('/?bridge=2&app=1.0&screen=translate')
     await expect(page.getByLabel('표준어 문장')).toBeVisible()
   },
+  // 결과 카드 아래쪽(「오늘 n번 남았어요」·복사·공유)과 신고 링크가 큰 글자에서 넘치지 않는지 (KAN-347 6단계)
+  '번역기 결과': async (page) => {
+    await asApp(page)
+    await page.route(
+      (url) => url.pathname === '/v0/translations',
+      (route) => route.fulfill({ json: { direction: 'toDialect', dialect: '밥 뭇나?', remaining: 4 } }),
+    )
+    await page.goto('/?bridge=2&app=1.0&screen=translate')
+    await page.getByLabel('표준어 문장').fill('밥 먹었니?')
+    await page.getByRole('button', { name: '번역하기', exact: true }).click()
+    await expect(page.getByText('오늘 4번 남았어요')).toBeVisible()
+  },
   '녹음 중': async (page) => {
     await SCREENS['음성 문항'](page)
     await page.getByRole('button', { name: '녹음', exact: true }).click()
     await expect(page.getByRole('button', { name: '정지', exact: true })).toBeVisible({ timeout: 10_000 })
   },
+  /*
+   * 브라우저 단독 시작 흐름 (KAN-347 7단계). 가짜 마이크가 권한을 자동 승인하므로 백엔드 없이 동의·지역·점검까지 간다
+   * (세션 생성은 점검의 [다음] 뒤라 여기서 부르지 않는다).
+   */
+  '음성 동의': async (page) => {
+    await SCREENS['인트로'](page)
+    await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeVisible()
+  },
+  '출신 지역': async (page) => {
+    await SCREENS['음성 동의'](page)
+    await page.getByRole('button', { name: '다음', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: REGION_TITLE })).toBeVisible()
+    await page.getByRole('radio', { name: '경남' }).check({ force: true })
+  },
+  '목소리 점검': async (page) => {
+    await SCREENS['출신 지역'](page)
+    await page.getByRole('button', { name: '다음', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '안녕하세요' })).toBeVisible()
+  },
   '마이크 차단': async (page) => {
     await denyMic(page)
-    await page.goto('/')
+    await page.goto('/test')
     await passAdConsentIfShown(page)
-    await page.getByRole('button', { name: '내 억양 테스트하기', exact: true }).click()
+    await page.getByRole('button', { name: '레벨 테스트 시작', exact: true }).click()
     await expect(page.getByRole('button', { name: '앱으로 테스트하기' })).toBeVisible()
   },
 }
@@ -328,22 +387,23 @@ for (const { scales, ...viewport } of VIEWPORTS) {
 /*
  * 320 폭 기본 글자 배치 (Codex 교차 검증 2026-11-09). 큰 글자용 재배치가 칸 폭만 보고 켜지면 320 폭에서는 100%에서도
  * 걸린다 — 홈 등급 카드의 글자가 그림 아래로 내려가고(카드 200→314px) 탭 라벨이 줄을 바꿨다(탭 바 65→77px).
- * 기준 스냅샷 대신 두 가지만 단정한다: 등급 글자가 그림과 같은 행, 탭 라벨이 한 줄.
+ * 기준 스냅샷 대신 두 가지만 단정한다: 홈 등급 이름이 한 줄로 본문 안(KAN-347 2단계에서 카드가 없어졌다), 탭 라벨이 한 줄.
  */
 test.describe('폭 320 기본 글자', () => {
   test.use({ viewport: { width: 320, height: 915 } })
 
-  test('홈 등급 카드는 그림과 글자가 같은 행이고 탭 라벨은 한 줄이다', async ({ page }) => {
+  test('홈 등급 이름은 한 줄로 본문 안에 들고 탭 라벨은 한 줄이다', async ({ page }) => {
     await stubServer(page)
     await SCREENS['홈'](page)
     await page.evaluate(() => document.fonts.ready)
 
-    const art = await page.locator('.home-tier .illustration--home').boundingBox()
-    const text = await page.locator('.home-tier__text').boundingBox()
-    expect(art && text, '등급 카드 그림·글자').toBeTruthy()
-    // 같은 행: 글자 칸이 그림 오른쪽에서 시작하고 세로로 그림과 겹친다
-    expect(text!.x).toBeGreaterThanOrEqual(art!.x + art!.width)
-    expect(text!.y).toBeLessThan(art!.y + art!.height)
+    const name = page.locator('.home-hero h1')
+    const box = (await name.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(24 - 0.5)
+    expect(box.x + box.width).toBeLessThanOrEqual(320 - 24 + 0.5)
+    // 한 줄 = line-height 1.3 × 글자 크기
+    const lines = await name.evaluate((el) => el.getBoundingClientRect().height / (parseFloat(getComputedStyle(el).fontSize) * 1.3))
+    expect(Math.round(lines)).toBe(1)
 
     const labels = page.locator('.tab-bar__label')
     expect(await labels.count()).toBeGreaterThan(0)
