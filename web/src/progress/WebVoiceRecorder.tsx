@@ -449,7 +449,7 @@ export function WebVoiceRecorder({
         남는다. 단계마다 넣었다 뺐다 하면 그때마다 아래 조작부가 120px씩 오르내린다.
       */}
       <div className="item-screen__body web-recorder__curves">{curveCard}</div>
-      <div className="item-screen__footer">{controls()}</div>
+      <div className="item-screen__footer web-recorder__footer">{controls()}</div>
     </>
   )
 }

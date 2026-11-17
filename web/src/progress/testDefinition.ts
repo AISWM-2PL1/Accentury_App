@@ -63,8 +63,8 @@ export interface VoiceItem extends TestItemBase {
   guideF0: GuideF0
   /**
    * 말투 감정 (KAN-283, 예: "부탁하는"·"다급한"). VOICE 문항에만 있는 선택 필드다 — KAN-282 전
-   * 정의나 서버가 값을 넣지 않은 문항에서는 없을 수 있다. 「~ 느낌으로 말해주세요!」 문구는
-   * 네이티브 녹음 화면이 붙이므로 여기엔 값만 담긴다
+   * 정의나 서버가 값을 넣지 않은 문항에서는 없을 수 있다. 「(감정) 느낌으로 말해 주세요」 문구는
+   * 보여 주는 쪽이 붙이므로(네이티브 녹음 화면, 웹 `VoiceItemScreen.emotionCue`) 여기엔 값만 담긴다
    */
   emotion?: string
 }
