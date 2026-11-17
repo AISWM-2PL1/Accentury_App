@@ -5,10 +5,11 @@
  * - 답을 고르면 멈추고(제출 전 답 변경 가능), 앱 전환·화면 꺼짐(`visibilitychange` hidden) 때 멈췄다가 남은 시간부터 잇는다.
  * - 학습 단어 문항에만 있다. 레벨 테스트 어휘 문항(`progress/VocabularyItemScreen`)에는 없다.
  *
- * ## 켜는 설정값 (4-5)
+ * ## 늘 켜져 있다 (4-5, KAN-361)
  *
- * 시간 초과 답안(`timedOut`)은 서버 KAN-360이 받는다. 그 전 서버는 `choiceId` 없는 답안을 400으로 거절하므로 기본은 **꺼짐**이다.
- * 빌드 변수 `VITE_WORD_TIME_LIMIT=true`로 켠다(`VITE_STORE_LISTING_READY`와 같은 방식). KAN-360 배포 뒤 배포 빌드 변수에 넣는다.
+ * 시간 초과 답안(`timedOut`)은 서버 KAN-360이 받는다. 예전에는 서버보다 먼저 나가는 경우를 막으려고 빌드 변수로 꺼 두었는데,
+ * 웹과 서버를 같은 날 prod에 올리기로 해서 스위치를 걷었다(2026-11-17). 배포 순서는 **서버 Release 먼저, 웹(App Release) 나중**이다 -
+ * 거꾸로 가면 그 사이 시간 초과 답안이 400으로 거절된다. 끄는 길은 테스트용 `timeLimitMs={null}` 하나다.
  *
  * 남은 시간 계산은 아래 순수 함수 세 개다 — 시계(`now`)를 인자로 받아 가짜 타이머 없이도 시험할 수 있다.
  */
@@ -19,11 +20,6 @@ export const WORD_TIME_LIMIT_MS = 5000
 
 /** 이 아래로 내려가면 막대가 벽돌색으로 바뀌고 흔들린다 (타일 11) */
 export const WORD_TIME_WARNING_MS = 1000
-
-/** 제한 시간(ms). 꺼져 있으면 null — 막대를 그리지 않는다 */
-export function wordTimeLimitMs(): number | null {
-  return (import.meta.env.VITE_WORD_TIME_LIMIT as string | undefined) === 'true' ? WORD_TIME_LIMIT_MS : null
-}
 
 /** `since`부터 `left`ms가 남았다. `since`가 null이면 멈춰 있다 */
 export interface Countdown {

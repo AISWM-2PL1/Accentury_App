@@ -10,7 +10,7 @@ import { useWordLearning, type WordLearningView } from './useWordLearning'
 import { WordLearningRoute, WordQuizScreen, WordReportScreen, quotePrompt } from './WordLearningScreens'
 import type { WordApiDeps } from './wordApi'
 import { LEVELS_TIMEOUT_MS, type CourseStarsChange } from './travel'
-import { WORD_TIME_LIMIT_MS, pauseCountdown, remainingMs, resumeCountdown, wordTimeLimitMs } from './wordTimer'
+import { WORD_TIME_LIMIT_MS, pauseCountdown, remainingMs, resumeCountdown } from './wordTimer'
 
 /** 코스 1의 「단어 학습 2」 */
 const STAMP = { kind: 'word' as const, id: 's1', course: 1, n: 2 }
@@ -476,12 +476,6 @@ describe('5초 제한 막대 (4-2)', () => {
   const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms))
   const timer = () => screen.getByRole('timer')
   const fill = () => timer().querySelector<HTMLElement>('.word-timer__fill')!
-
-  it('설정값 기본은 꺼짐이고 VITE_WORD_TIME_LIMIT=true면 5초다 (4-5, KAN-360 전 꺼 둔다)', () => {
-    expect(wordTimeLimitMs()).toBeNull()
-    vi.stubEnv('VITE_WORD_TIME_LIMIT', 'true')
-    expect(wordTimeLimitMs()).toBe(5000)
-  })
 
   it('꺼져 있으면 막대가 없고 10초가 지나도 아무것도 내지 않는다', () => {
     vi.useFakeTimers()
