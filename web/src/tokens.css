@@ -139,6 +139,10 @@
      48px이 되어 360 폭 본문이 312→264px로 줄고, 낱말 끊김과 줄 수가 늘어난다. 여백은 글자를 담는 칸이 아니라 화면 가장자리
      몫이다. .screen·.item-screen·앱바·하단 시트 패널이 같이 쓴다. 위아래 간격은 rem 그대로다 */
   --screen-padding-x: 24px;
+  /* 데스크톱 브라우저에서 앱을 휴대폰 폭 한 줄로 세운다. 폰(≤430)에서는 여백이 0이라 배치가 그대로다.
+     position: fixed 띠·시트는 body가 아니라 화면에 붙으므로 같은 여백(--app-gutter)을 좌우에 직접 준다 */
+  --app-max-width: 430px;
+  --app-gutter: max(0px, (100vw - var(--app-max-width)) / 2);
 
   /* 터치 영역 하한 (KAN-313). 글자를 키우면 3rem으로 같이 커지고, 줄여도 48px 아래로는 내려가지 않는다.
      48 하한이 걸린 높이 토큰(--control-height-*)도 같은 max(48px, …) 형식이다 */
@@ -246,7 +250,8 @@
 }
 
 body {
-  margin: 0;
+  max-width: var(--app-max-width);
+  margin: 0 auto;
   font-family: var(--font-body);
   font-size: var(--text-body);
   line-height: var(--leading-normal);

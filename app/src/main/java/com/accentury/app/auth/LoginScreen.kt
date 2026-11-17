@@ -274,8 +274,8 @@ private fun GuestConsentStep(state: LoginScreenState, onOpenPrivacy: () -> Unit,
 }
 
 /**
- * IdP 버튼 한 개 (KAN-354, 시안 `.p1-brand`). 각 사 가이드 규격이라 공용 [AccenturyButton]을 쓰지 않는다 — 폭 전체·최소 높이 48·
- * 모서리 12·테두리와 그림자 없음·시스템 글꼴 15(Jua 라벨 규칙 제외)이고, 로고는 왼쪽에 고정, 문구는 버튼 가운데다.
+ * IdP 버튼 한 개 (KAN-354, 시안 `.p1-brand`). 각 사 가이드 규격이라 공용 [AccenturyButton]을 쓰지 않는다 — 폭 전체·최소 높이 44·
+ * 모서리 12·테두리와 그림자 없음·시스템 글꼴 17(iOS 시스템 Apple 버튼 글자 크기, Jua 라벨 규칙 제외)이고, 로고는 문구 바로 앞에 붙어 함께 가운데다.
  *
  * 눌림은 면 위에 검정 10%를 덮고, 비활성(방침 동의 전)은 버튼 전체를 40%로 흐린다 — 공용 비활성(그림자색 면)으로 바꾸면
  * 각 사 면색이 사라진다. 눌리지 않는 것과 스크린 리더의 「사용 중지됨」은 clickable(enabled)가 맡는다.
@@ -289,8 +289,8 @@ private fun IdpButton(provider: Provider, onClick: () -> Unit, enabled: Boolean)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            // 높이는 최소 48 — 글꼴 2.0에서 「Google 계정으로 계속하기」가 두 줄이 되면 버튼이 자란다(에뮬레이터 4차, 고정 48에 잘렸다)
-            .heightIn(min = Dimens.controlHeightLg)
+            // 높이는 최소 44(iOS 시스템 Apple 버튼 높이와 같다) — 글꼴 2.0에서 「Google 계정으로 계속하기」가 두 줄이 되면 버튼이 자란다(에뮬레이터 4차, 고정 48에 잘렸다)
+            .heightIn(min = 44.dp)
             .alpha(if (enabled) 1f else IDP_DISABLED_ALPHA)
             .clip(shape)
             .background(fill)
@@ -298,18 +298,25 @@ private fun IdpButton(provider: Provider, onClick: () -> Unit, enabled: Boolean)
             .clickable(interactionSource = interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        // 시안: 로고 왼쪽 16(구글 12), 문구는 좌우 48을 비운 가운데
-        IdpLogo(provider, Modifier.align(Alignment.CenterStart).padding(start = if (provider == Provider.GOOGLE) Spacing.x3 else Spacing.x4))
-        Text(
-            providerLabel(provider),
-            // 줄 높이를 글자 크기와 같게 두면 큰 글꼴에서 글자 아래가 잘렸다 — 20으로 둔다(한 줄이면 가운데라 모양은 같다).
-            style = TextStyle(fontFamily = FontFamily.Default, fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = 20.sp),
-            color = label,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 48.dp, vertical = Spacing.x2),
-        )
+        // 로고는 문구 바로 앞 8에 붙어 함께 가운데다 — iOS 시스템 Apple 버튼과 같은 배치(2026-11-17)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.x2),
+            modifier = Modifier.padding(horizontal = Spacing.x4, vertical = Spacing.x2),
+        ) {
+            IdpLogo(provider, Modifier)
+            Text(
+                providerLabel(provider),
+                // 줄 높이를 글자 크기와 같게 두면 큰 글꼴에서 글자 아래가 잘렸다 — 22로 둔다(한 줄이면 가운데라 모양은 같다).
+                style = TextStyle(fontFamily = FontFamily.Default, fontSize = 17.sp, fontWeight = FontWeight.Medium, lineHeight = 22.sp),
+                color = label,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                // 글꼴 2.0에서 두 줄로 꺾이도록 남은 폭 안에 묶는다(채우지는 않아 한 줄이면 묶음이 가운데다)
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
     }
 }
 

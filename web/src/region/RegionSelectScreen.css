@@ -36,6 +36,28 @@
   aspect-ratio: 342 / 420;
 }
 
+/*
+ * 고른 지역 안내 줄(.region-selection)까지 한 화면에 들어오게 지도를 남은 높이에 맞춰 줄인다. 키가 작은 폰(375×667)에서
+ * 지도가 폭에 맞춰 420 비율로 서면 안내 줄이 sticky [다음] 뒤로 들어갔다. 화면을 뷰포트 높이로 묶고, 본문이 남은 높이를
+ * 갖게 한 뒤(`container-type: size`) 지도 폭을 「남은 높이 − 출처·안내 줄」의 비율 폭과 본문 폭 중 작은 쪽으로 둔다.
+ * 큰 글자는 지도를 걷고 목록으로 펴서 스크롤하므로 걸지 않는다.
+ */
+html:not([data-large-text]) .region-screen {
+  height: 100dvh;
+}
+
+html:not([data-large-text]) .region-screen__body {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+}
+
+html:not([data-large-text]) .region-screen .region-map {
+  /* 4.5rem = 출처 한 줄(12px + 위 4) + 안내 한 줄(18px × 1.55 + 위 16)의 합에 여유 몇 px */
+  width: min(100%, (100cqh - 4.5rem) * 342 / 420);
+  align-self: center;
+}
+
 .region-screen .region-map__geography,
 .region-screen .region-map__connector {
   position: absolute;

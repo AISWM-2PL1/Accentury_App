@@ -282,13 +282,15 @@ struct ConsentCheckMark: View {
 /// IdP 버튼 값 (KAN-355 2단계, 시안 s-01-login `.p1-brand`). 면·글자 색은 각 사 가이드 값이라 Papercut 팔레트에 두지 않고
 /// 여기 한곳에 모은다(출처는 docs/wiki/social-login-logos.md).
 private enum IdpBrand {
-    static let height: CGFloat = 48
+    static let height: CGFloat = 44
     static let cornerRadius: CGFloat = 12
     static let buttonSpacing: CGFloat = 10
-    /// 시스템 글꼴 15 Medium (시안 `font: 500 15px var(--font-body)`) — 1단계 Jua 라벨 규칙을 받지 않는다.
-    static let labelSize: CGFloat = 15
-    /// 라벨 양옆 여백 48 — 왼쪽 로고와 겹치지 않고 가운데가 유지된다.
-    static let labelInset: CGFloat = 48
+    /// 시스템 글꼴 17 Medium — 시스템 Apple 버튼(높이 44)이 그리는 글자와 같은 크기로 맞춘다(2026-11-17 캡처 실측). Apple 글자는 높이에 비례해 정해진다(48이면 19). Jua 라벨 규칙은 받지 않는다.
+    static let labelSize: CGFloat = 17
+    /// 로고+라벨 묶음 양옆 최소 여백.
+    static let labelInset: CGFloat = 16
+    /// 로고와 라벨 사이 — 로고는 라벨 바로 앞에 붙어 함께 가운데에 선다(시스템 Apple 버튼과 같은 배치, 2026-11-17).
+    static let logoGap: CGFloat = 8
     /// 눌림 덮개 — 각 사 면색 위에 검정 8%를 얹어 면 위에서 눌림이 읽히게 한다(공용 버튼의 내려앉음을 쓰지 않는다).
     static let pressedOverlay: Double = 0.08
 
@@ -309,11 +311,9 @@ private enum IdpBrand {
         }
     }
 
-    /// 로고 왼쪽 여백 — 구글 12, 나머지 16 (시안 `.p1-brand img`).
-    static func logoInset(_ provider: Provider) -> CGFloat { provider == .GOOGLE ? 12 : 16 }
 }
 
-/// 구글·카카오·네이버 로그인 버튼 (KAN-355 2단계). 면·글자·문구는 각 사 가이드, 로고는 왼쪽·문구는 가운데다.
+/// 구글·카카오·네이버 로그인 버튼 (KAN-355 2단계). 면·글자·문구는 각 사 가이드, 로고는 문구 바로 앞에 붙어 함께 가운데다(시스템 Apple 버튼과 같은 배치, 2026-11-17).
 /// 비활성(방침 동의 전)은 버튼 전체를 ``Papercut/opacityDisabled``로 흐린다 — 각 사 면색이 크림 위에서 바래 보여 면 위에서
 /// 구별되고, 공용 버튼의 비활성 모양(종이 그림자 면)은 각 사 면색을 지우므로 쓰지 않는다.
 private struct IdpButton: View {
@@ -325,15 +325,15 @@ private struct IdpButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(loginButtonLabel(provider))
-                .font(.system(size: IdpBrand.labelSize, weight: .medium))
-                .foregroundColor(IdpBrand.label(provider))
-                .lineLimit(1)
-                .padding(.horizontal, IdpBrand.labelInset)
-                .frame(maxWidth: .infinity, minHeight: IdpBrand.height)
-                .overlay(alignment: .leading) {
-                    IdpLogo(provider: provider).padding(.leading, IdpBrand.logoInset(provider))
-                }
+            HStack(spacing: IdpBrand.logoGap) {
+                IdpLogo(provider: provider)
+                Text(loginButtonLabel(provider))
+                    .font(.system(size: IdpBrand.labelSize, weight: .medium))
+                    .foregroundColor(IdpBrand.label(provider))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, IdpBrand.labelInset)
+            .frame(maxWidth: .infinity, minHeight: IdpBrand.height)
         }
         .buttonStyle(IdpButtonStyle(face: IdpBrand.face(provider), reduceMotion: reduceMotion))
         .disabled(!enabled)
