@@ -56,8 +56,14 @@ export const MAX_CHARS = 100
 
 const TOO_LONG_MESSAGE = '100자까지 쓸 수 있어요'
 const SIGN_IN_MESSAGE = '로그인하면 사투리 번역기를 쓸 수 있어요'
-/** 한도 카드 기본 본문 - 응답 `remaining` 0으로 닫혔거나 429 문구에서 한도 종류를 못 읽었을 때 (KAN-347 6-6) */
+/** 한도 카드 기본 본문 - 429 문구에서 한도 종류를 못 읽었을 때 (KAN-347 6-6) */
 const LIMIT_BODY = '번역은 하루 5번까지예요.'
+
+/**
+ * 응답 `remaining` 0으로 닫힌 한도 카드 본문 (KAN-361, PR #77 리뷰). `remaining`은 남은 성공 칸과 남은 LLM 호출 수 가운데 작은
+ * 쪽이라 어느 한도로 0이 됐는지 알 수 없다 - 「5번」이라고 단정하지 않는다.
+ */
+const LIMIT_BODY_AFTER_LAST = '내일 다시 번역할 수 있어요.'
 
 /**
  * 429 `TRANSLATION_DAILY_LIMIT_EXCEEDED`의 한도 카드 본문 (KAN-361). 서버는 같은 코드로 두 한도를 보내고 문구만 다르다 -
@@ -159,7 +165,7 @@ export function TranslatorScreen({ apiBase, tabBar, deps }: TranslatorScreenProp
       ({ result, remaining }) => {
         if (requestId.current !== id) return
         setStatus({ kind: 'done', id, source: input, result, direction, remaining })
-        if (remaining === 0) setLimitMessage(LIMIT_BODY)
+        if (remaining === 0) setLimitMessage(LIMIT_BODY_AFTER_LAST)
       },
       (error: unknown) => {
         if (requestId.current !== id) return
