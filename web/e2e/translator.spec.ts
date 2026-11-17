@@ -400,7 +400,8 @@ test('remaining 0 - 결과는 「오늘 0번 남았어요」로 보이고, 다�
 
   await input(page).fill('어디 가?')
   await expect(page.getByText(LIMIT_TITLE, { exact: true })).toBeVisible()
-  await expect(page.getByText(LIMIT_BODY, { exact: true })).toBeVisible()
+  // 어느 한도로 0이 됐는지 몰라 「5번」이라고 하지 않는다 (KAN-361)
+  await expect(page.getByText('내일 다시 번역할 수 있어요.', { exact: true })).toBeVisible()
   await expect(submit(page)).toBeDisabled()
   expect(requests).toHaveLength(1)
 })
