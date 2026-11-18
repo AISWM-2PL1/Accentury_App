@@ -297,7 +297,7 @@ android {
         // 16은 빌드 15의 2026-11-09 2차 거절 대응(KAN-328~331·KAN-344: 성별 선택 항목화, 마이크 안내 「계속」,
         // 로그인 없이 둘러보기, 네이버 탈퇴 연동 해제, 광고 등급 PG, 광고 신고) 재제출 빌드다.
         // iOS·Android는 같은 번호를 쓴다.
-        versionCode = 16
+        versionCode = 17
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
