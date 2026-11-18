@@ -445,16 +445,15 @@ Xcode가 아카이브 때 이 파일과 SDK 매니페스트를 합쳐 개인정�
 | 키 | 값 | 근거 |
 |---|---|---|
 | `NSPrivacyAccessedAPITypes` | `NSPrivacyAccessedAPICategoryUserDefaults` · 사유 `CA92.1` 하나 | 광고 동의·음성 동의 표시·흐름 상태 저장을 이 앱만 읽고 쓴다. 파일 시각·부팅 시각·디스크 용량·키보드 API는 쓰지 않는다(2026-11-10 grep, 파일 머리 주석) |
-| `NSPrivacyTracking` | `true` | ATT를 허용한 사용자에게 맞춤형 광고(AdMob, IDFA)를 요청한다. 라벨 「추적」 = 예와 맞춘다 |
-| `NSPrivacyTrackingDomains` | 빈 배열 | 구글이 AdMob 추적 도메인을 문서로 주지 않고 GoogleMobileAds 매니페스트에도 없다. 광고 도메인을 적으면 ATT 미허용 기기에서 iOS가 그 연결을 막아 npa 광고까지 끊긴다 |
+| `NSPrivacyTracking` | `false` (빌드 17부터) | 빌드 16의 `true`+빈 도메인 조합이 업로드 검사 ITMS-91064로 막혔다(2026-11-18) — 애플은 `true`면 추적 도메인 1개 이상을 요구한다. 추적은 GMA가 자기 매니페스트(`DeviceID` `Tracking=true`)로 선언하고, ATT 요청·IDFA 맞춤 광고·ASC 라벨 「추적」= 예는 그대로다 |
+| `NSPrivacyTrackingDomains` | 키 없음 | 구글이 AdMob 추적 도메인을 문서로 주지 않고 GoogleMobileAds 매니페스트에도 없다. 광고 도메인을 적으면 ATT 미허용 기기에서 iOS가 그 연결을 막아 npa 광고까지 끊긴다 |
 | `NSPrivacyCollectedDataTypes` | 오디오 · 제품 상호작용 · 이메일 · 기타 사용자 콘텐츠 · 기타 데이터 · 이름 · 사용자 ID — 전부 `Linked=true`, `Tracking=false` | `app-store-listing.md` §6.2의 ①②⑨⑩⑪⑫⑬. 목적은 우리 코드 몫만 적는다 |
 
 - **SDK 몫은 SDK 매니페스트가 선언한다** — 기기 ID·광고 데이터·대략적 위치·진단·카카오 기타 데이터(GoogleMobileAds·UserMessagingPlatform·
   Firebase·GoogleDataTransport·KakaoSDKCommon 등). 여기 다시 적으면 보고서에 같은 행이 겹친다. NaverIdLogin·GoogleSignIn은 매니페스트를
   싣지 않는다(§6.2의 아카이브 21개 목록에 없다)
-- **열린 위험**: `NSPrivacyTracking = true`에 추적 도메인이 비어 있는 조합이다. 업로드 검증이나 Xcode 개인정보 보고서가 이 조합을 경고하면,
-  대안은 앱 쪽을 `NSPrivacyTracking = false`로 두는 것이다 — 추적은 GMA가 자기 매니페스트(`DeviceID` `Tracking=true`)로 이미 선언한다.
-  확인은 `app-store-listing.md` §10 「빌드 16 제출 전 체크」
+- **해결된 위험(빌드 17)**: 빌드 16은 `NSPrivacyTracking = true`에 추적 도메인이 빈 조합으로 올라가 ITMS-91064(Invalid tracking information)를 받았다.
+  위 대안대로 앱 쪽을 `false`로 바꾸고 도메인 키를 뺐다. SDK 매니페스트 중 추적 도메인을 가진 것은 없다(빌드 16 ipa 전수 확인)
 
 ### 빌드 번호 16
 
