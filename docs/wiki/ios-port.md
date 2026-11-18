@@ -432,7 +432,7 @@ iOS는 진행 저장이 `UserDefaults`에 남아(`ios/README.md` 「진행 저�
   네이버 앱 조회용 `naversearchapp`·`naversearchthirdlogin`이 `LSApplicationQueriesSchemes`에 더해졌다.
 - **세션 생성 15초 상한이 갱신을 덮지 않는다.** 갱신은 토큰 없는 기본 세션으로 나간다 (`social-login.md` §7).
 
-## 12. 개인정보 매니페스트 · 빌드 16 (KAN-330)
+## 12. 개인정보 매니페스트 · 빌드 16·17 (KAN-330)
 
 App Store 빌드 15 거절(2026-11-09) 대응 묶음의 iOS 쪽 설정 두 가지다. 화면·흐름 변경은 `social-login.md`(게스트·성별·애플 버튼·네이버 탈퇴),
 `ads-admob.md` §6·§7.5(PG·ATT), `webview-bridge.md` §15(브리지)에 있다.
@@ -455,8 +455,8 @@ Xcode가 아카이브 때 이 파일과 SDK 매니페스트를 합쳐 개인정�
 - **해결된 위험(빌드 17)**: 빌드 16은 `NSPrivacyTracking = true`에 추적 도메인이 빈 조합으로 올라가 ITMS-91064(Invalid tracking information)를 받았다.
   위 대안대로 앱 쪽을 `false`로 바꾸고 도메인 키를 뺐다. SDK 매니페스트 중 추적 도메인을 가진 것은 없다(빌드 16 ipa 전수 확인)
 
-### 빌드 번호 16
+### 빌드 번호 17
 
-`ios/Accentury/Config/Base.xcconfig` `CURRENT_PROJECT_VERSION = 16`(`MARKETING_VERSION` 1.0 그대로). Android `app/build.gradle.kts`
-`versionCode = 16`과 같은 커밋 묶음에서 올렸다 — 두 값이 다르면 `AccenturyCoreTests/ReleaseVersionParityTests`(`swift test`)가 두 파일을
-직접 읽어 실패한다. 15는 2026-11-09 거절 빌드라 다시 쓸 수 없다(`app-store-listing.md` §1·§11).
+`ios/Accentury/Config/Base.xcconfig` `CURRENT_PROJECT_VERSION = 17`(`MARKETING_VERSION` 1.0 그대로). Android `app/build.gradle.kts`
+`versionCode = 17`과 같은 커밋 묶음에서 올렸다 — 두 값이 다르면 `AccenturyCoreTests/ReleaseVersionParityTests`(`swift test`)가 두 파일을
+직접 읽어 실패한다. 15는 2026-11-09 거절 빌드라 다시 쓸 수 없다(`app-store-listing.md` §1·§11). 16은 2026-11-18 심사 제출 때 업로드 검사 ITMS-91064(앱 매니페스트 `NSPrivacyTracking` true·추적 도메인 없음)로 「잘못된 바이너리」 처리돼 번호가 소모됐다. 17은 그 매니페스트만 고친 빌드다(PR #87).
