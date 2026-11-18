@@ -11,17 +11,16 @@
   - NSPrivacyAccessedAPITypes: 앱 타깃(AccenturyCore 정적 링크 포함)이 직접 부르는 필수 사유 API는 UserDefaults 하나다
     (광고 동의·음성 동의 표시·흐름 상태 저장 — 이 앱만 읽고 쓴다 → CA92.1). 파일 시각·부팅 시각·디스크 용량·키보드 API는
     쓰지 않는다(2026-11-10 grep). https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api
-  - NSPrivacyTracking: true — ATT를 허용한 사용자에게 맞춤형 광고(AdMob, IDFA)를 요청한다. 라벨 「추적」= 예와 맞춘다.
-  - NSPrivacyTrackingDomains: 비워 둔다. 구글은 AdMob의 추적 도메인을 문서로 주지 않고 GoogleMobileAds 매니페스트에도 없다.
-    광고 도메인을 적으면 ATT 미허용 기기에서 iOS가 그 연결을 막아 비맞춤(npa) 광고까지 끊긴다.
+  - NSPrivacyTracking: false, NSPrivacyTrackingDomains: 넣지 않는다. 빌드 16이 ITMS-91064(Invalid tracking information)로
+    막혔다(2026-11-18) — 애플은 true면 추적 도메인을 1개 이상 요구한다. 구글은 AdMob의 추적 도메인을 문서로 주지 않고
+    GoogleMobileAds 매니페스트에도 없으며, 광고 도메인을 적으면 ATT 미허용 기기에서 iOS가 그 연결을 막아 비맞춤(npa) 광고까지
+    끊긴다. ATT 요청·IDFA 맞춤 광고는 이 키와 무관하게 그대로 동작하고, ASC 라벨 「추적」= 예도 그대로 둔다.
   - NSPrivacyCollectedDataTypes: 우리 서버·우리 계측이 모으는 행 (§6.2 ①②⑨⑩⑪⑫⑬). 목적은 우리 코드의 몫만 적는다.
 -->
 <plist version="1.0">
 <dict>
 	<key>NSPrivacyTracking</key>
-	<true/>
-	<key>NSPrivacyTrackingDomains</key>
-	<array/>
+	<false/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
