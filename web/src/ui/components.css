@@ -102,6 +102,43 @@
 }
 
 /*
+ * 누르는 동안 살짝 어두워짐 (KAN-367). 종이가 내려가는 눌림(.btn--primary·.choice·.word-set-row 등)이 없는
+ * 요소만 모은다 — 겹치면 눌림이 두 번 보인다. 덧칠은 inset 그림자로 얹어 요소의 배경색·모양을 그대로 둔다
+ * (여기 모은 요소는 그림자가 없다). 글자 사이의 인라인 링크 .text-link는 문단 줄 위에 상자가 떠서 뺐다.
+ * Android는 `PressDimIndication`이 같은 값을 그린다.
+ */
+.btn--text:active:not(:disabled),
+.close-button:active:not(:disabled),
+.tab-bar__item:active,
+.feedback-rating__star:active:not(:has(input:disabled)),
+.region-screen .region-chip:active:not(:has(input:disabled)) .region-chip__name,
+.translator-icon-button:active:not(:disabled),
+.attendance-panel__close:active,
+.attendance-panel__nav button:active:not(:disabled),
+.attendance-cell:active:not(:disabled),
+.streak-badge:active,
+.translator-pair__toggle:active:not(:disabled),
+.translator-report:active:not(:disabled),
+.word-report__row-top:active {
+  box-shadow: inset 0 0 0 100vmax var(--color-press-dim);
+}
+
+/* 모양이 없는 맨 요소는 덧칠이 직각 상자로 뜨지 않게 버튼 반경으로 둥글린다 */
+.attendance-panel__close:active,
+.attendance-panel__nav button:active:not(:disabled),
+.attendance-cell:active:not(:disabled),
+.streak-badge:active,
+.translator-report:active:not(:disabled),
+.word-report__row-top:active {
+  border-radius: var(--radius-md);
+}
+
+/* 맞바꿈 단추는 보이는 모양이 동그라미(::before)라 덧칠도 동그랗게 */
+.translator-pair__toggle:active:not(:disabled) {
+  border-radius: var(--radius-full);
+}
+
+/*
  * 비활성은 불투명도만 낮춘다. 회색으로 칠하면 색이 하나 더 늘고, 그 회색이 배경에 따라
  * 대비를 잃는다 — 원래 색을 흐리게 하면 대비 비율이 함께 줄어 예측 가능하다.
  */

@@ -1,5 +1,6 @@
 package com.accentury.app.ui.theme
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
@@ -142,7 +143,9 @@ fun AccenturyTheme(
         MaterialTheme(
             colorScheme = LightColorScheme,
             typography = Typography,
-            content = content,
-        )
+        ) {
+            // MaterialTheme가 LocalIndication을 ripple로 덮어쓰므로 안쪽에서 다시 준다 (KAN-367)
+            CompositionLocalProvider(LocalIndication provides PressDimIndication, content = content)
+        }
     }
 }
