@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
  * 음성 저장 선택 동의 화면 (KAN-270 2단계, 서버 KAN-269). 로그인과 추가 정보를 마친 미동의 계정에 한 번 뜬다
  * — 띄울지는 [shouldPromptVoiceConsent]가, 다시 안 띄우는 기억은 [VoiceConsentPromptStore]가 맡는다.
  *
- * 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 미체크 [다음]이 거부지만, 앱은 계정에
+ * 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 체크를 푼 [다음]이 거부지만, 앱은 계정에
  * 한 번 묻고 끝나므로 [건너뛰기]가 "이번에 안 한다"를 분명히 말해야 한다. [동의하고 계속]은 체크해야 켜진다 —
  * 만 14세 확인이 체크박스 문장에 묶여 있다.
  *
@@ -73,11 +73,12 @@ fun VoiceConsentScreen(
     details: List<String> = VOICE_CONSENT_DETAILS,
 ) {
     val scope = rememberCoroutineScope()
-    var checked by rememberSaveable { mutableStateOf(false) }
+    // 처음부터 체크돼 있다(2026-11-24 사용자 결정, KAN-367) - 2026-10-06 팀 결정 「기본 미동의」를 뒤집었다
+    var checked by rememberSaveable { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var failed by rememberSaveable { mutableStateOf(false) }
 
-    // 시안 11 배치 (KAN-288): 본문은 스크롤, 두 버튼과 안내 한 줄은 바닥 고정. 체크는 기본 해제이고 체크 전 주 버튼은
+    // 시안 11 배치 (KAN-288): 본문은 스크롤, 두 버튼과 안내 한 줄은 바닥 고정. 체크는 기본 체크(2026-11-24)이고 체크를 풀면 주 버튼은
     // 비활성 모양(그림자색 면)이다. [건너뛰기]는 KAN-354 시안 s-03-voice-consent-app대로 글자 버튼이다(KAN-288의 보조 버튼
     // 모양을 대체, 리뷰 P2-2). 문구는 현재 앱 문구를 유지한다.
     // 모양은 KAN-354 시안 s-03-voice-consent-app: 본문·목록은 흐린 잉크, 체크 줄은 paper 상자 + 종이 그림자, 목록은 둥근 불릿.

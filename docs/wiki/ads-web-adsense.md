@@ -737,7 +737,7 @@ Android(`addJavascriptInterface`)·iOS(`BridgeUserScript`가 심는 `window.Acce
   - `web/src/intro/MicBlockedScreen.tsx` (다른 앱이 마이크를 쓰는 경우 문구)
 - `voice-data.html`
   - `Accentury_Server` origin/Release `infra/privacy/privacy.html` (방침 버전 2026-10-04) 1항 표·「음성 녹음」·「음성 저장과 AI 모델 학습 활용 (선택 동의)」·「선택 동의하지 않으신 경우에 남기는 분석 정보」·「테스트 세션」, 3항(서울 리전), 5항, 6항, 9항(공유)
-  - `docs/wiki/voice-consent.md` 「웹 흐름」(웹은 세션마다 묻고 기본 미체크, 거부해도 제한 없음)
+  - `docs/wiki/voice-consent.md` 「웹 흐름」(웹은 세션마다 묻고 기본 체크(2026-11-24부터, 그 전엔 미체크), 거부해도 제한 없음)
 - `faq.html` — 답은 화면 문구와 코드 동작 그대로
   - `web/src/intro/MicBlockedScreen.tsx` (denied·unsupported·unavailable 문구), `~/accentury/docs/wiki/audio-capture.md` 「마이크 권한 (두 겹)」, `~/accentury/docs/wiki/ux-ui.md` §4 C(앱 거부 시 설정으로 진행)
   - `web/src/progress/WebVoiceRecorder.tsx` 머리 주석 (로컬 재녹음 무제한, 업로드는 [다음]에서만)

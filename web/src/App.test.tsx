@@ -152,14 +152,14 @@ async function passVoiceCheck(capture: FakeCapture) {
 
 /**
  * 음성 저장 선택 동의 화면을 지난다 (KAN-270). 권한 뒤 첫 칸이라 웹 단독 실행의 시작 흐름을
- * 보는 테스트는 전부 이 문을 지난다. 기본은 체크하지 않은 [다음] — 선택 동의라 건너뛰기가 곧
- * 미동의이고, 그러면 세션 생성 본문이 동의 화면 전과 같다.
+ * 보는 테스트는 전부 이 문을 지난다. 화면은 기본 체크(2026-11-24, KAN-367)라, 이 도우미의 기본은 체크를 푼
+ * [다음] — 미동의이고, 그러면 세션 생성 본문이 동의 화면 전과 같다. `consented`면 그대로 [다음]이다.
  *
  * 다음 칸은 지역 선택 화면이다 (`passRegionSelect`).
  */
 async function passVoiceConsent(consented = false) {
   expect(screen.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeInTheDocument()
-  if (consented) fireEvent.click(screen.getByRole('checkbox'))
+  if (!consented) fireEvent.click(screen.getByRole('checkbox'))
   fireEvent.click(screen.getByRole('button', { name: '다음' }))
   await act(async () => {})
   await act(async () => {})
@@ -1116,7 +1116,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
 
   /*
    * 음성 저장 선택 동의 (KAN-270, 서버 KAN-269). 권한 뒤 첫 칸이다: [시작하기] →
-   * 권한 → **동의** → 지역 → 점검 → 세션 생성. 체크한 세션만 본문에 게시 버전이 실리고,
+   * 권한 → **동의** → 지역 → 점검 → 세션 생성. 체크된 채 넘긴 세션만 본문에 게시 버전이 실리고,
    * 서버가 그 버전을 400으로 거절하면(낡은 문안) 동의 없이 한 번 더 만들어 응시를 이어 간다.
    */
   describe('음성 저장 선택 동의 (KAN-270)', () => {
@@ -1141,7 +1141,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
       return { fetchStub, navigate }
     }
 
-    it('체크하고 진행하면 세션 생성 본문에 게시 버전이 실린다', async () => {
+    it('체크된 그대로 진행하면 세션 생성 본문에 게시 버전이 실린다', async () => {
       const { fetchStub, navigate } = await runToSession(true)
 
       expect(fetchStub).toHaveBeenCalledTimes(1)
@@ -1154,7 +1154,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
       expect(navigate).toHaveBeenCalledTimes(1)
     })
 
-    it('체크하지 않고 진행하면 voiceConsentVersion 키 자체가 없다 — 응시는 그대로 이어진다', async () => {
+    it('체크를 풀고 진행하면 voiceConsentVersion 키 자체가 없다 — 응시는 그대로 이어진다', async () => {
       const { fetchStub, navigate } = await runToSession(false)
 
       expect(fetchStub).toHaveBeenCalledTimes(1)
