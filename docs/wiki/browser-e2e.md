@@ -193,9 +193,10 @@ Playwright가 `webServer.env`를 부모 환경 **위에** 얹으므로 셸의 �
 웹 단독 시작 게이트가 [레벨 테스트 시작] → 권한 → **음성 저장 선택 동의** → 지역 →
 점검 → 세션 생성이 됐다 (`web/src/legal/VoiceConsentScreen.tsx`, 설계는 [voice-consent.md](voice-consent.md)).
 광고 시트와 달리 늘 뜨는 화면이라 **유무를 보지 않고** 제목을 기다린다 — 안 뜨면 그 자체가
-결함이다. `startTest(page, { voiceConsent })`의 기본은 체크하지 않은 [다음]이고, 본문 단언에
-`voiceConsentVersion` 유무가 지역과 같은 방식으로 붙었다(체크했으면 게시 버전, 아니면 키 없음).
-체크박스는 지역 라디오와 달리 숨기지 않은 실물 표식이라 `check()`에 `force`가 필요 없다.
+결함이다. `startTest(page, { voiceConsent })`의 기본은 체크를 푼 [다음](화면이 2026-11-24부터 기본 체크라 `uncheck()`)이고,
+`voiceConsent: true`면 체크된 그대로 [다음]이다. 본문 단언에 `voiceConsentVersion` 유무가 지역과 같은 방식으로
+붙었다(동의했으면 게시 버전, 아니면 키 없음). 체크박스는 지역 라디오와 달리 숨기지 않은 실물 표식이라
+`check()`·`uncheck()`에 `force`가 필요 없다.
 
 `voice-consent.spec.ts`가 `voiceConsent: true`로 한 번 걷는다. **KAN-269가 들어간 서버가 있어야
 통과한다** — 버전을 모르는 서버는 400을 주고, 웹은 동의 없이 다시 만들어 응시를 잇지만 첫 응답이

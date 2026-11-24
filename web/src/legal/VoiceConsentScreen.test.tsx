@@ -15,10 +15,10 @@ function checkbox() {
 }
 
 describe('VoiceConsentScreen — 선택 동의 (KAN-270)', () => {
-  it('처음에는 체크되어 있지 않다 — 그냥 [다음]을 누른 사람이 동의한 것으로 쌓이면 안 된다', () => {
+  it('처음부터 체크되어 있다 — 2026-11-24 사용자 결정(KAN-367)으로 기본 체크', () => {
     renderScreen()
 
-    expect(checkbox()).not.toBeChecked()
+    expect(checkbox()).toBeChecked()
   })
 
   it('선택 동의임과 만 14세 확인을 밝히고, 방침의 해당 절로 가는 링크를 건다', () => {
@@ -50,9 +50,11 @@ describe('VoiceConsentScreen — 서식 (KAN-347 7단계, 시안 s-03-voice-cons
 })
 
 describe('VoiceConsentScreen — [다음]', () => {
-  it('체크하지 않아도 열려 있고, 누르면 미동의로 한 번 알린다 — 건너뛰기가 곧 거부다', () => {
+  it('체크를 풀어도 열려 있고, 누르면 미동의로 한 번 알린다 — 체크를 풀고 [다음]이 곧 거부다', () => {
     const { onDone } = renderScreen()
 
+    fireEvent.click(checkbox())
+    expect(checkbox()).not.toBeChecked()
     const next = screen.getByRole('button', { name: '다음' })
     expect(next).toBeEnabled()
     fireEvent.click(next)
@@ -61,10 +63,9 @@ describe('VoiceConsentScreen — [다음]', () => {
     expect(onDone).toHaveBeenCalledWith(false)
   })
 
-  it('체크한 뒤 누르면 동의로 알린다', () => {
+  it('그대로 누르면 동의로 알린다 — 기본 체크라 [다음]만 눌러도 동의다', () => {
     const { onDone } = renderScreen()
 
-    fireEvent.click(checkbox())
     expect(checkbox()).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
@@ -72,13 +73,13 @@ describe('VoiceConsentScreen — [다음]', () => {
     expect(onDone).toHaveBeenCalledWith(true)
   })
 
-  it('체크했다 풀면 미동의로 알린다 — 마지막 상태가 확정이다', () => {
+  it('풀었다 다시 체크하면 동의로 알린다 — 마지막 상태가 확정이다', () => {
     const { onDone } = renderScreen()
 
     fireEvent.click(checkbox())
     fireEvent.click(checkbox())
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
-    expect(onDone).toHaveBeenCalledWith(false)
+    expect(onDone).toHaveBeenCalledWith(true)
   })
 })

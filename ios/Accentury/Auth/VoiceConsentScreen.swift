@@ -5,9 +5,9 @@ import SwiftUI
 /// 로그인과 추가 정보를 마친 미동의 계정에 한 번 뜬다 — 띄울지는 ``AccenturyCore/shouldPromptVoiceConsent(state:wasPrompted:)``가,
 /// 다시 안 띄우는 기억은 ``AccenturyCore/UserDefaultsVoiceConsentPromptStore``가 맡는다.
 ///
-/// 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 미체크 [다음]이 거부지만, 앱은 계정에
-/// 한 번 묻고 끝나므로 [건너뛰기]가 "이번에 안 한다"를 분명히 말해야 한다. [동의하고 계속]은 체크해야 켜진다 —
-/// 만 14세 확인이 체크박스 문장에 묶여 있다.
+/// 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 체크를 푼 [다음]이 거부지만, 앱은 계정에
+/// 한 번 묻고 끝나므로 [건너뛰기]가 "이번에 안 한다"를 분명히 말해야 한다. [동의하고 계속]은 체크돼 있어야 켜진다(기본 체크,
+/// 2026-11-24) — 만 14세 확인이 체크박스 문장에 묶여 있다.
 ///
 /// 체크 칸은 `Toggle`이 아니라 로그인 화면 필수 동의 줄과 같은 ``ConsentCheckMark`` 버튼이다. iOS `Toggle`은 스위치로
 /// 그려져 "문장에 동의한다"는 체크박스의 뜻이 흐려지고, 같은 앱 안에서 동의 칸이 두 모양이 되면 안 된다. 스크린 리더에는
@@ -33,7 +33,8 @@ struct VoiceConsentScreen: View {
     /// 보관 항목·기간·철회 줄. 익명 모드는 ``AccenturyCore/voiceConsentDetailsAnonymous``
     var details: [String] = voiceConsentDetails
 
-    @State private var checked = false
+    /// 처음부터 체크돼 있다(2026-11-24 사용자 결정, KAN-367) — 2026-10-06 팀 결정 「기본 미동의」를 뒤집었다
+    @State private var checked = true
     @State private var submitting = false
     @State private var failed = false
 

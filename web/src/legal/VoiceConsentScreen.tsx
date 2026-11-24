@@ -5,15 +5,15 @@
  * 출신 지역(체크 여부와 무관, KAN-274) → 목소리 점검 → 세션 생성(`startStandaloneTest`). 동의하면 세션 생성 본문에
  * `voiceConsentVersion`이 실리고, 서버는 그 세션의 음성만 AI 학습용으로 보관한다.
  *
- * ## 선택 동의라서 지키는 것 (팀 결정 2026-10-06)
+ * ## 선택 동의라서 지키는 것 (팀 결정 2026-10-06, 기본값만 2026-11-24 변경)
  *
- * - **기본은 미동의다.** 체크박스를 미리 채워 두지 않는다 — 그냥 [다음]을 누른 사람의 음성이
- *   동의한 것으로 쌓이면 동의가 아니다.
- * - **[다음]은 체크와 무관하게 늘 눌린다.** 건너뛰기 버튼을 따로 두지 않고, 체크하지 않은 채
+ * - **기본은 체크돼 있다 (2026-11-24 사용자 결정, KAN-367).** 2026-10-06 팀 결정은 「기본 미동의, 미리 채워
+ *   두지 않는다」였고 이를 뒤집었다. 그래서 [다음]만 누르면 동의로 기록되고, 체크를 풀고 [다음]을 눌러야 거부다.
+ * - **[다음]은 체크와 무관하게 늘 눌린다.** 건너뛰기 버튼을 따로 두지 않고, 체크를 푼 채
  *   [다음]이 곧 거부다. 거부해도 응시·결과에 제한이 없으므로 화면이 길을 막을 이유가 없다
  *   (출신 지역 화면은 라벨을 받으려고 있는 화면이라 반대로 잠근다 — `RegionSelectScreen`).
  * - **세션마다 묻는다.** 웹은 익명이라 앞 응시의 동의를 이어 줄 사람이 없다. 값은 `micGranted`처럼
- *   `App`의 문서 상태로만 살고, 재응시는 문서를 다시 로드하므로(`goToIntro`) 매번 미동의로 시작한다.
+ *   `App`의 문서 상태로만 살고, 재응시는 문서를 다시 로드하므로(`goToIntro`) 매번 기본 체크 상태로 다시 묻는다.
  *
  * ## 왜 점검 앞인가
  *
@@ -46,7 +46,7 @@ export interface VoiceConsentScreenProps {
 }
 
 export function VoiceConsentScreen({ onDone }: VoiceConsentScreenProps) {
-  const [checked, setChecked] = useState(false)
+  const [checked, setChecked] = useState(true)
 
   return (
     <main className="item-screen voice-consent" aria-labelledby="voice-consent-title">
@@ -88,7 +88,7 @@ export function VoiceConsentScreen({ onDone }: VoiceConsentScreenProps) {
       </div>
 
       <div className="item-screen__footer">
-        {/* 체크와 무관하게 늘 눌린다 — 체크하지 않은 [다음]이 곧 거부다 (헤더 참고) */}
+        {/* 체크와 무관하게 늘 눌린다 — 체크를 푼 [다음]이 곧 거부다 (헤더 참고) */}
         <Button onClick={() => onDone(checked)} style={{ width: '100%' }}>
           다음
           <ArrowRightIcon />
