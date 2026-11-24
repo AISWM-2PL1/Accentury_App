@@ -12,7 +12,12 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { AD_CONSENT_DENY, AD_CONSENT_TITLE } from '../../src/ads/adConsentText'
 import { STORE_PENDING_CAPTION } from '../../src/audio/storeText'
-import { VOICE_CONSENT_CHECKBOX_LABEL, VOICE_CONSENT_TITLE, VOICE_CONSENT_VERSION } from '../../src/legal/voiceConsent'
+import {
+  VOICE_CONSENT_AGE_LABEL,
+  VOICE_CONSENT_CHECKBOX_LABEL,
+  VOICE_CONSENT_TITLE,
+  VOICE_CONSENT_VERSION,
+} from '../../src/legal/voiceConsent'
 import { VOCABULARY_ITEM_COUNT, VOICE_ITEM_COUNT } from '../../src/intro/introText'
 import { itemCaption } from '../../src/progress/itemBadge'
 
@@ -118,8 +123,9 @@ export async function passAdConsentIfShown(page: Page): Promise<void> {
  * ## 음성 저장 동의 화면은 늘 있다 (KAN-270)
  *
  * 웹 단독 실행이면 권한 뒤에 반드시 뜬다. 그래서 유무를 보지 않고
- * 제목을 기다린다 — 안 뜨면 그 자체가 결함이다. 화면은 기본 체크(2026-11-24, KAN-367)라, 헬퍼의 기본은
- * 체크를 푼 [다음](미동의)이고, `voiceConsent: true`면 체크된 그대로 지나간다. 본문 단언은 지역과 같은 방식이다 —
+ * 제목을 기다린다 — 안 뜨면 그 자체가 결함이다. 화면은 동의 칸 체크·만 14세 확인 칸 비움으로 시작하고 둘 다 체크돼야
+ * 동의다(KAN-367 PR #89 리뷰 G). 헬퍼의 기본은 동의 칸을 푼 [다음](미동의)이고, `voiceConsent: true`면 두 칸을 다
+ * 체크하고 지나간다. 본문 단언은 지역과 같은 방식이다 —
  * 동의했으면 게시 버전이, 아니면 키 자체가 없어야 한다.
  *
  * 동의했다면 서버가 그 버전을 알아야 201이다. 버전을 모르는 서버(KAN-269 전)는 400을 주고 웹이
@@ -145,9 +151,13 @@ export async function startTest(page: Page, options: { voiceConsent?: boolean } 
   await expect(page.getByRole('heading', { level: 1, name: VOICE_CONSENT_TITLE })).toBeVisible()
   // 체크박스는 숨기지 않은 실물 표식이라 지역 라디오와 달리 `force`가 필요 없다. check·uncheck는 이미 그 상태면 그대로 둔다
   const checkbox = page.getByRole('checkbox', { name: VOICE_CONSENT_CHECKBOX_LABEL })
-  if (voiceConsent) await checkbox.check()
-  else await checkbox.uncheck()
-  // [다음]은 체크와 무관하게 열려 있다 — 체크를 푼 [다음]이 곧 미동의다
+  if (voiceConsent) {
+    await checkbox.check()
+    await page.getByRole('checkbox', { name: VOICE_CONSENT_AGE_LABEL }).check()
+  } else {
+    await checkbox.uncheck()
+  }
+  // [다음]은 체크와 무관하게 열려 있다 — 두 칸이 다 체크되지 않은 [다음]이 곧 미동의다
   await page.getByRole('button', { name: '다음', exact: true }).click()
 
   /*

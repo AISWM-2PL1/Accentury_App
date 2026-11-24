@@ -29,9 +29,10 @@ public let voiceConsentLead =
     "억양 분석 AI 모델을 학습시키고 개선하는 데 쓰려고, 따로 동의하신 분의 음성 녹음과 분석 정보를 보관해요. " +
     "선택 사항이라 동의하지 않아도 테스트 응시와 결과 확인에 아무 제한이 없어요."
 
-/// 체크박스 문구. ④ 만 14세 이상 확인을 동의와 한 문장에 묶는다
-public let voiceConsentCheckboxLabel =
-    "음성 녹음과 분석 정보를 AI 모델 학습에 쓰도록 보관하는 데 동의하고, 만 14세 이상임을 확인해요."
+/// 체크박스 문구 둘 — 동의(기본 체크)와 ④ 만 14세 이상 확인(기본 비움). 둘 다 체크돼야 동의다 (KAN-367 PR #89 리뷰 G).
+/// 체크박스 문장 분리(KAN-367 PR #89)는 KAN-366의 버전 상향에 함께 실린다 — 그 전에 Release로 승격하지 말 것.
+public let voiceConsentCheckboxLabel = "음성 녹음과 분석 정보를 AI 모델 학습에 쓰도록 보관하는 데 동의해요."
+public let voiceConsentAgeLabel = "만 14세 이상이에요."
 
 /// ③ 보관 항목·보유 기간 + 철회 경로. 방침 링크 줄은 화면이 따로 그린다
 public let voiceConsentDetails: [String] = [
