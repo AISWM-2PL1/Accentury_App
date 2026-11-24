@@ -5,9 +5,9 @@ import SwiftUI
 /// 로그인과 추가 정보를 마친 미동의 계정에 한 번 뜬다 — 띄울지는 ``AccenturyCore/shouldPromptVoiceConsent(state:wasPrompted:)``가,
 /// 다시 안 띄우는 기억은 ``AccenturyCore/UserDefaultsVoiceConsentPromptStore``가 맡는다.
 ///
-/// 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 체크를 푼 [다음]이 거부지만, 앱은 계정에
-/// 한 번 묻고 끝나므로 [건너뛰기]가 "이번에 안 한다"를 분명히 말해야 한다. [동의하고 계속]은 체크돼 있어야 켜진다(기본 체크,
-/// 2026-11-24) — 만 14세 확인이 체크박스 문장에 묶여 있다.
+/// 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 두 칸이 다 체크되지 않은 [다음]이 거부지만,
+/// 앱은 계정에 한 번 묻고 끝나므로 [건너뛰기]가 "이번에 안 한다"를 분명히 말해야 한다. [동의하고 계속]은 동의 칸(기본 체크)과
+/// 만 14세 확인 칸(기본 비움)이 둘 다 체크돼야 켜진다(2026-11-24, KAN-367 PR #89 리뷰 G).
 ///
 /// 체크 칸은 `Toggle`이 아니라 로그인 화면 필수 동의 줄과 같은 ``ConsentCheckMark`` 버튼이다. iOS `Toggle`은 스위치로
 /// 그려져 "문장에 동의한다"는 체크박스의 뜻이 흐려지고, 같은 앱 안에서 동의 칸이 두 모양이 되면 안 된다. 스크린 리더에는
@@ -33,8 +33,10 @@ struct VoiceConsentScreen: View {
     /// 보관 항목·기간·철회 줄. 익명 모드는 ``AccenturyCore/voiceConsentDetailsAnonymous``
     var details: [String] = voiceConsentDetails
 
-    /// 처음부터 체크돼 있다(2026-11-24 사용자 결정, KAN-367) — 2026-10-06 팀 결정 「기본 미동의」를 뒤집었다
+    /// 동의 칸은 처음부터 체크, 만 14세 확인 칸은 비어 있다 — 둘 다 체크돼야 동의다(2026-11-24 이성주 결정, 개인정보 담당 검토 전,
+    /// KAN-367 PR #89 리뷰 G). 2026-10-06 팀 결정 「기본 미동의」를 동의 칸만 뒤집었다
     @State private var checked = true
+    @State private var ageConfirmed = false
     @State private var submitting = false
     @State private var failed = false
 
@@ -52,30 +54,10 @@ struct VoiceConsentScreen: View {
                         .foregroundColor(Papercut.muted)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    // 체크 줄은 종이 한 장(종이 면·잉크 1·반경 10·종이 그림자, 시안 `.p4-consent-check`)이다.
-                    Button { checked.toggle() } label: {
-                        HStack(alignment: .top, spacing: Papercut.space3) {
-                            ConsentCheckMark(checked: checked)
-                            Text(voiceConsentCheckboxLabel)
-                                .papercutType(.bodySmall)
-                                .foregroundColor(Papercut.ink)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(Papercut.space3)
-                        .frame(minHeight: Papercut.touchTargetMin)
-                        .background(RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous).fill(Papercut.paper))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous)
-                                .strokeBorder(Papercut.ink, lineWidth: Papercut.borderHairline)
-                        )
-                        .contentShape(Rectangle())
-                        .paperShadow(cornerRadius: Papercut.radiusLG)
+                    VStack(spacing: Papercut.space4) {
+                        checkRow(voiceConsentCheckboxLabel, isOn: $checked)
+                        checkRow(voiceConsentAgeLabel, isOn: $ageConfirmed)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(submitting)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(checked ? .isSelected : [])
                     .padding(.top, Papercut.space2)
 
                     // 목록은 둥근 불릿 (시안 `list-style-type: disc`), 글자는 흐린 잉크.
@@ -105,7 +87,7 @@ struct VoiceConsentScreen: View {
 
             // 하단 고정 (``ExceptionScreen``의 footer 자리와 같은 좌우 24·아래 32)
             VStack(spacing: Papercut.space3) {
-                AccenturyButton(text: "동의하고 계속", enabled: checked && !submitting, fillsWidth: true, trailingIcon: "arrow.right") {
+                AccenturyButton(text: "동의하고 계속", enabled: checked && ageConfirmed && !submitting, fillsWidth: true, trailingIcon: "arrow.right") {
                     submitting = true
                     Task {
                         failed = await !onConsent()
@@ -125,5 +107,32 @@ struct VoiceConsentScreen: View {
         // 아래 WebView를 완전히 가린다 (SettingsScreen과 같다).
         // 워드마크 앱바 (KAN-288 디자인 3). 위 8 + 앱바 48 + 8 = 예전 위 여백 64라 본문 시작 높이는 그대로다.
         .paperAppBar()
+    }
+
+    /// 체크 줄 하나 — 종이 한 장(종이 면·잉크 1·반경 10·종이 그림자, 시안 `.p4-consent-check`). 동의·만 14세 확인 두 줄이 같이 쓴다.
+    private func checkRow(_ label: String, isOn: Binding<Bool>) -> some View {
+        Button { isOn.wrappedValue.toggle() } label: {
+            HStack(alignment: .top, spacing: Papercut.space3) {
+                ConsentCheckMark(checked: isOn.wrappedValue)
+                Text(label)
+                    .papercutType(.bodySmall)
+                    .foregroundColor(Papercut.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(Papercut.space3)
+            .frame(minHeight: Papercut.touchTargetMin)
+            .background(RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous).fill(Papercut.paper))
+            .overlay(
+                RoundedRectangle(cornerRadius: Papercut.radiusLG, style: .continuous)
+                    .strokeBorder(Papercut.ink, lineWidth: Papercut.borderHairline)
+            )
+            .contentShape(Rectangle())
+            .paperShadow(cornerRadius: Papercut.radiusLG)
+        }
+        .buttonStyle(.plain)
+        .disabled(submitting)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isOn.wrappedValue ? .isSelected : [])
     }
 }
