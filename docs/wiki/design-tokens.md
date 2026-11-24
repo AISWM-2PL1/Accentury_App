@@ -59,7 +59,7 @@ Accentury 네이티브(Compose)와 웹(WebView)이 공유하는 색·타이포·
 | `foreground` | `#1c1a17` | 본문 텍스트 |
 | `card` | `#f3ecd9` | 카드 표면. 배경과 같은 색이고 테두리·그림자로 갈린다 |
 | `paper` | `#f8f3e6` | 크림 위에 한 장 더 얹은 밝은 종이. 크림과 1.06:1이라 면만으로 갈리지 않고 잉크 테두리가 경계를 맡는다. Android는 카드·입력 칸·확인 창 면(`LightPaper`, KAN-354), 웹은 선택지·바텀 시트·대화상자 면(`--color-paper`, KAN-347 1단계) |
-| `press-dim` | `rgba(0, 0, 0, 0.05)` | 누르는 동안 요소 위에 얹는 덧칠(KAN-367). 자체 눌림(종이가 내려감)이 없는 줄·닫기 버튼·아이콘 버튼 등이 손가락 아래 반응을 보이게 한다. 글자 버튼은 덧칠 대신 누르는 동안 밑줄이다(웹·Android). 웹 SVG 지도 지역은 같은 5%를 `brightness(0.95)`로 낸다. Android는 키보드 포커스 중에도 같은 덧칠 |
+| `press-dim` | `rgba(0, 0, 0, 0.05)` | 누르는 동안 요소 위에 얹는 덧칠(KAN-367). 자체 눌림(종이가 내려감)이 없는 줄·닫기 버튼·아이콘 버튼 등이 손가락 아래 반응을 보이게 한다. 글자 버튼은 덧칠 대신 누르는 동안 밑줄이다(웹·Android). 웹 SVG 지도 지역은 paper에 이 5%를 미리 섞은 채움(`#ece7da`, learning.css)으로 낸다 — WebKit이 path의 filter를 무시할 수 있어서. Android는 키보드 포커스 중에도 같은 덧칠 |
 | `card-foreground` | `#1c1a17` | 카드 위 텍스트 |
 | `secondary` | `#f3ecd9` | 보조 면 |
 | `secondary-foreground` | `#1c1a17` | 보조 면 위 텍스트 |
