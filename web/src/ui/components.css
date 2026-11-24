@@ -96,18 +96,22 @@
   box-shadow: none;
 }
 
-/* 글자만 있는 버튼은 움직이지 않는다 - 종이가 아니라 글씨라 내려갈 바닥이 없다 */
+/*
+ * 글자만 있는 버튼은 움직이지 않는다 - 종이가 아니라 글씨라 내려갈 바닥이 없다. 대신 누르는 동안 글자에 밑줄을
+ * 긋는다 (KAN-367). Android Text 변형의 `TextDecoration.Underline`과 같이 글꼴이 정한 굵기·간격·글자색으로, 글자
+ * 폭만큼만 긋는다. 밑줄은 줄 높이를 바꾸지 않아 글자가 움직이지 않는다
+ */
 .btn--text:active:not(:disabled) {
   transform: none;
+  text-decoration: underline;
 }
 
 /*
  * 누르는 동안 살짝 어두워짐 (KAN-367). 종이가 내려가는 눌림(.btn--primary·.choice·.word-set-row 등)이 없는
  * 요소만 모은다 — 겹치면 눌림이 두 번 보인다. 덧칠은 inset 그림자로 얹어 요소의 배경색·모양을 그대로 둔다
  * (여기 모은 요소는 그림자가 없다). 글자 사이의 인라인 링크 .text-link는 문단 줄 위에 상자가 떠서 뺐다.
- * Android는 `PressDimIndication`이 같은 값을 그린다.
+ * Android는 `PressDimIndication`이 같은 값을 그린다. 글자 버튼 .btn--text는 Android처럼 누르면 밑줄이라 여기 없다.
  */
-.btn--text:active:not(:disabled),
 .close-button:active:not(:disabled),
 .tab-bar__item:active,
 .feedback-rating__star:active:not(:has(input:disabled)),
