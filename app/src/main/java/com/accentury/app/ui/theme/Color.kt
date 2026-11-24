@@ -58,6 +58,9 @@ val LightPointForeground = Color(0xFFF3ECD9)
  */
 val LightPaper = Color(0xFFF8F3E6)
 
+/** 누르는 동안 얹는 덧칠 (KAN-367, 웹 `--color-press-dim`). 검정 5% - [PressDimIndication]이 쓴다 */
+val LightPressDim = Color(0x0D000000)
+
 /**
  * 정답도 잉크다. 단일 잉크 팔레트에서 초록·빨강을 되살리면 종이 그림이 깨지므로,
  * 정오답은 색이 아니라 문구·아이콘으로 가른다 (WCAG 1.4.1, 정본 §7).
@@ -129,6 +132,7 @@ val DarkAccentForeground = Color(0xFFF3ECD9)
 val DarkPoint = Color(0xFFA8503A)
 val DarkPointForeground = Color(0xFFF3ECD9)
 val DarkPaper = Color(0xFFF8F3E6)
+val DarkPressDim = Color(0x0D000000)
 
 val DarkSuccess = Color(0xFF1C1A17)
 val DarkSuccessForeground = Color(0xFFF3ECD9)
