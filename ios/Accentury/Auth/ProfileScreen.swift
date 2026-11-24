@@ -66,7 +66,7 @@ struct ProfileScreen: View {
         }
     }
 
-    // 키보드가 떠도 하단 버튼은 바닥 제자리다(2026-11-24 사용자 지시, KAN-367). 본문과 버튼을 VStack으로 쌓으면 키보드가 safe area를
+    // 키보드가 떠도 하단 버튼은 바닥 제자리다(2026-11-24 이성주 지시, KAN-367 PR #89). 본문과 버튼을 VStack으로 쌓으면 키보드가 safe area를
     // 줄일 때 버튼이 키보드 위로 따라 올라온다. 그래서 둘을 ZStack 형제로 두고 버튼 층에만 키보드 safe area를 무시시킨다 — 본문
     // ScrollView는 그대로 키보드 위로 줄어 포커스 칸을 보이는 자리로 올린다. 바깥 전체에 걸면 그 스크롤 회피까지 꺼진다.
     private var profile: some View {
@@ -131,8 +131,9 @@ struct ProfileScreen: View {
                             .onChange(of: geo.size.height) { footerHeight = $0 }
                     }
                 )
-                // 본문이 버튼 밑으로 스크롤돼 들어가도 비치지 않게 바탕을 깐다
-                .background(Papercut.cream)
+                // 본문이 버튼 밑으로 스크롤돼 들어가도 비치지 않게 바탕을 깐다. ScrollView는 바닥 safe area(홈 인디케이터 자리)까지
+                // 그리므로 바탕만 그 띠까지 늘린다 — 버튼 위치와 위 높이 측정은 그대로다
+                .background(Papercut.cream.ignoresSafeArea(edges: .bottom))
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
