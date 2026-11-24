@@ -111,7 +111,8 @@
  * 요소만 모은다 — 겹치면 눌림이 두 번 보인다. 덧칠은 inset 그림자로 얹어 요소의 배경색·모양을 그대로 둔다
  * (여기 모은 요소는 그림자가 없다). 글자 사이의 인라인 링크 .text-link는 문단 줄 위에 상자가 떠서 뺐다.
  * Android는 `PressDimIndication`이 같은 값을 그린다. 글자 버튼 .btn--text는 Android처럼 누르면 밑줄이라 여기 없다.
- * 같은 클래스를 누를 수 없는 요소도 쓰면(신고 완료 p, 정답 행 div, 달력 빈칸 span) 태그로 좁힌다.
+ * 같은 클래스를 누를 수 없는 요소도 쓰면(정답 행 div, 달력 빈칸 span) 태그로 좁힌다. 늘 밑줄인 글자 링크(번역 신고
+ * .translator-report, 결과 화면 .result-feedback__open)는 덧칠하지 않는다 (PR #89 리뷰 결정 E).
  */
 .close-button:active:not(:disabled),
 .tab-bar__item:active,
@@ -122,7 +123,6 @@
 .attendance-panel__nav button:active:not(:disabled),
 button.attendance-cell:active:not(:disabled) .attendance-cell__day,
 .streak-badge:active,
-button.translator-report:active:not(:disabled),
 summary.word-report__row-top:active {
   box-shadow: inset 0 0 0 100vmax var(--color-press-dim);
 }
@@ -140,7 +140,6 @@ button.attendance-cell.is-today.is-attended:active:not(:disabled) .attendance-ce
 .attendance-panel__close:active,
 .attendance-panel__nav button:active:not(:disabled),
 .streak-badge:active,
-button.translator-report:active:not(:disabled),
 summary.word-report__row-top:active {
   border-radius: var(--radius-md);
 }
