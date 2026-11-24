@@ -136,6 +136,7 @@ fun AccenturyTheme(
     content: @Composable () -> Unit,
 ) {
     // ripple 없이 누름만 받는다 - indication을 따로 안 준 clickable이 회색 사각 ripple을 그리지 않게
+    // 루트에서 끄는 이유: 글자 버튼(AccenturyButton Text)이 Material TextButton이라 LocalIndication이 아니라 ripple()을 직접 쓴다
     CompositionLocalProvider(
         LocalAccenturyColors provides LightAccenturyColors,
         LocalRippleConfiguration provides null,

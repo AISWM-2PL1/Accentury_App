@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,6 +94,9 @@ fun AccenturyButton(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    // 키보드·D-패드 포커스도 밑줄로 보인다(KAN-367) - 테마가 ripple을 꺼 TextButton의 포커스 표시가 사라졌다.
+    // clickable 포커스는 터치 모드 밖에서만 생겨 손가락 탭 뒤에는 밑줄이 남지 않는다
+    val focused by interaction.collectIsFocusedAsState()
 
     if (variant == ButtonVariant.Text) {
         TextButton(
@@ -104,7 +108,7 @@ fun AccenturyButton(
             ButtonContent(
                 text = text,
                 style = ButtonLabel.Text.copy(
-                    textDecoration = if (pressed && enabled) TextDecoration.Underline else TextDecoration.None,
+                    textDecoration = if ((pressed || focused) && enabled) TextDecoration.Underline else TextDecoration.None,
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 leading = leading,
