@@ -4,9 +4,12 @@ import android.graphics.Matrix
 import android.graphics.Path
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -317,10 +321,19 @@ private fun RegionMap(selected: Region?, onSelect: (Region) -> Unit, enabled: Bo
 @Composable
 private fun RegionChip(region: Region, selected: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier) {
     val shape = RoundedCornerShape(Radius.sm)
+    // 누르는 칸은 48dp 그대로, 덧칠은 보이는 이름표에만 (KAN-367, 웹 `.region-chip__name`과 같다)
+    val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .defaultMinSize(minWidth = 60.dp, minHeight = Dimens.touchTargetMin)
-            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .selectable(
+                selected = selected,
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
             .semantics { contentDescription = regionChipDescription(region) }
             .padding(horizontal = Spacing.x2),
         contentAlignment = Alignment.Center,
@@ -330,6 +343,8 @@ private fun RegionChip(region: Region, selected: Boolean, enabled: Boolean, onCl
                 .heightIn(min = 28.dp)
                 .border(1.dp, MaterialTheme.colorScheme.primary, shape)
                 .background(if (selected) LightPoint else LightPaper, shape)
+                .clip(shape)
+                .indication(interaction, LocalIndication.current)
                 .padding(horizontal = Spacing.x2),
             contentAlignment = Alignment.Center,
         ) {
