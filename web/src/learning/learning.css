@@ -796,6 +796,11 @@ summary.word-report__row-top:focus-visible {
   stroke-width: 3;
 }
 
+/* 누르는 동안 그 지역 면만 살짝 어두워짐 (KAN-367). SVG라 공용 inset 그림자가 안 먹어 밝기로 같은 5%를 낸다 */
+.travel-land[role='button']:active .travel-land__region {
+  filter: brightness(0.95);
+}
+
 .travel-atlas__here {
   pointer-events: none;
   fill: var(--color-point);
