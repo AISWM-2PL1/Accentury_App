@@ -22,7 +22,7 @@ final class AnonymousVoiceConsentTests: XCTestCase {
     }
 
     func test동의하면_게시_문안_버전을_싣는다() {
-        XCTAssertEqual("2026-10-04", anonymousVoiceConsentVersion(consented: true))
+        XCTAssertEqual("2026-11-24", anonymousVoiceConsentVersion(consented: true))
         XCTAssertEqual(voiceConsentVersion, anonymousVoiceConsentVersion(consented: true))
     }
 
