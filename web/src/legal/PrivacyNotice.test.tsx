@@ -38,6 +38,14 @@ describe('PrivacyNotice — 인트로 고지 한 줄 (KAN-177)', () => {
     expect(screen.getByText(/따로 동의하지 않으면 녹음한 음성은/)).toBeInTheDocument()
   })
 
+  it('녹음 전에 음성을 누구에게 보내는지 밝힌다 (KAN-366, App Store 5.1.1(i))', () => {
+    render(<PrivacyNotice />)
+
+    expect(
+      screen.getByText(/녹음은 Accentury가 직접 운영하는 서버\(AWS 서울\)로 보내 분석해요\. 외부 AI 회사에는 보내지 않아요\./),
+    ).toBeInTheDocument()
+  })
+
   it('브라우저 단독 실행에서는 새 탭으로 연다 — 응시하려던 화면을 정책 문서로 덮지 않는다', () => {
     render(<PrivacyNotice />)
 

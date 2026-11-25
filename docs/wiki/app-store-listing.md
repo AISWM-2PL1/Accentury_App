@@ -995,6 +995,8 @@ Google LLC의 Gemini API로 전송되며, 보내는 것은 사용자가 입력�
 [바꾸기] → 동의 시트
 
 [음성 데이터]
+녹음은 Accentury가 직접 운영하는 서버(AWS 서울 리전)로만 보내 분석하고, 외부 AI 회사에는 보내지 않습니다.
+녹음 전 인트로 고지와 음성 저장 동의 시트 두 곳에 이 사실을 적었습니다.
 녹음한 음성은 점수를 매기는 데 쓰입니다. 음성 저장과 AI 모델 학습 활용에 따로 동의하지 않은
 경우에는 요청이 끝나는 즉시 삭제됩니다. 이 선택 동의를 한 경우에만 음성을 서버(AWS 서울 리전)에
 보관해 억양 분석 모델의 학습과 개선에 씁니다. 동의하지 않아도 앱 이용에 제한이 없고, 동의는
@@ -1031,17 +1033,19 @@ When the Home screen first opens, a sheet explains the ads with a single 계속 
 Google AdMob interstitial (analysis wait screen) and rewarded (before a retake), with production ad unit IDs.
 
 [Dialect translator and third-party AI service]
-The translator converts a sentence of up to 100 characters between standard Korean and the Gyeongnam dialect. It is the only feature that uses a third-party AI service: the typed sentence is sent through our server to the Gemini API of Google LLC. Only the sentence is sent; no account information or audio goes to Google.
+The translator converts a sentence of up to 100 characters between standard Korean and the Gyeongnam dialect. It is the only feature that uses a third-party AI service: only the typed sentence is sent, through our server, to the Gemini API of Google LLC; no account information or audio goes to Google.
 A notice below the input field names the Google Gemini API, with a privacy policy link. Before the first translation a consent sheet states what is sent, who receives it (Google LLC's Gemini API), why, what is not sent (account information, audio), and that Google may use the sentences to improve its products, with 동의하고 보내기 (Agree and send) and 취소 (Cancel). Nothing is sent before the user agrees. Each result has 부적절한 결과 신고 (Report inappropriate result).
 The privacy policy (https://accentury.app/privacy.html) covers this in 사투리 번역기 (앱), section 2 (third parties) and section 4 (overseas transfer).
 To check: login screen > 로그인 없이 둘러보기 > agree > 사투리 번역기 tab > type a sentence > 바꾸기 (Convert) > consent sheet.
 
 [Voice data]
-Recorded audio is used to score and deleted as soon as the request finishes, unless the user gives a separate optional consent to voice storage and AI model training; only then is it stored on our server (AWS Seoul region). Audio is never shared with third parties.
+Recordings go only to a server Accentury operates itself (AWS Seoul region), never to an outside AI company; the pre-recording notice and the voice storage consent sheet both say so. Audio is used to score and deleted when the request finishes, unless the user separately opts in to voice storage for AI model training; only then is it kept on that server. Audio is never shared with third parties.
 
 [Account data and deletion]
 In the app: the 설정 (Settings) tab in the bottom tab bar > 계정 (Account) > 회원 탈퇴 (Delete account) > confirm.
 ```
+
+**빌드 18판 수신처 문장 (2026-11-24, KAN-366).** 빌드 17 거절(§11, 2026-11-20)에 대응해 두 메모의 [음성 데이터]·[Voice data] 첫머리에 녹음의 수신처(Accentury가 직접 운영하는 AWS 서울 서버, 외부 AI 회사 미전송)와 그 사실을 적은 화면 두 곳(녹음 전 인트로 고지, 음성 저장 동의 시트)을 넣었다. 영어 블록은 **3969자**(3856자 → 3969자, 끝 줄바꿈 제외, Python `len`)다 — 4000자를 맞추려고 [Voice data]의 「gives a separate optional consent to voice storage and AI model training」을 「separately opts in to voice storage for AI model training」으로, 번역기 문단의 「Only the sentence is sent;」 문장을 앞 문장에 합쳤다. 화면 문장 정본은 `web/src/legal/voiceConsent.ts`의 `VOICE_CONSENT_LEAD`와 `web/src/legal/PrivacyNotice.tsx`다.
 
 **빌드 16판 (2026-11-10, KAN-330·KAN-331·KAN-344).** 위 두 블록은 빌드 16 기준이다. 빌드 15 거절(§11) 대응으로 바꾼 것:
 「로그인 없이 둘러보기」 문단과 확인 경로(심사관이 로그인 없이 번역기 동의 시트에 닿게), 성별 선택 항목, 마이크 사전 안내의 [계속] 하나,
@@ -1195,6 +1199,7 @@ ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때
 | 2026-11-09 | 1.0 (15) | 5.1.1(v) | 계정 기반이 아닌 기능(단어 학습·억양 학습·번역기)까지 로그인을 강제한다 | 앱 진입이 로그인 게이트 뒤에 있고 모든 API가 계정 토큰을 요구했다 | 서버 **KAN-329**(게스트 계정 `POST /v0/auth/guest`, 번역만 허용) / 앱 **KAN-330** 「로그인 없이 둘러보기」, 학습 탭 로그인 안내(webview-bridge §15). 학습은 계정별 기록이라 로그인 유지(팀 결정). 레벨 테스트는 게스트에게 연다 — 익명 세션이라 계정이 필요 없다(PR #70 리뷰 뒤 팀 결정 2026-11-10) | 빌드 16은 ITMS-91064로 막힘(2026-11-18) → 빌드 17로 제출 |
 | 2026-11-09 | 1.0 (15) | 5.1.1(i) · 5.1.2(i) | 제3자 AI 서비스 수신자 고지 재지적 | 코드 결함은 없다 — 동의 시트가 전송 전에 Google LLC Gemini API를 밝힌다. 로그인 벽 때문에 심사관이 번역기에 닿지 못했을 가능성이 크고, 새 제출에는 빌드 13 회신 스레드가 없었다 | **KAN-331** 동의 시트에 「계정 정보·음성은 보내지 않아요」, 게스트 확인 경로를 메모 첫머리에 / **KAN-344** 결과 신고 버튼 | 빌드 16은 ITMS-91064로 막힘(2026-11-18) → 빌드 17로 제출 |
 | 2026-11-09 | 1.0 (15) | 5.1.1(iv) | 마이크 사전 안내의 「마이크 허용」 버튼이 시스템 권한 창을 대신하는 것처럼 보인다 | 사전 안내 버튼 문구 | 앱 **KAN-330** [계속]으로. 같은 구조인 광고 사전 시트의 두 선택지도 iOS에서 [계속] 하나로(KAN-344, webview-bridge §8.7) | 빌드 16은 ITMS-91064로 막힘(2026-11-18) → 빌드 17로 제출 |
+| 2026-11-20 | 1.0 (17) | 5.1.1(i) · 5.1.2(i) | 「The app still does not clearly identify who the data is sent to before sharing the data.」 스크린샷은 iPad Air의 음성 저장 동의 시트 | 음성 저장 동의 시트와 녹음 전 고지가 음성을 어디로 보내는지 밝히지 않았다. 실제로는 자체 AI 서버(AWS 서울 리전, 자체 호스팅 Whisper·MFA)에서만 분석하고 외부 AI 회사로 보내지 않는다 | **KAN-366** 동의 시트 문안과 인트로 고지에 「녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요.」, 동의 버전 `2026-11-24`(서버·웹·Android·iOS), §8 메모 [Voice data] 갱신 | 빌드 18로 재제출 예정 |
 
 **빌드 13 회신에서 빌드 15 재제출로 바꾼 이유 (2026-11-04).** 11-02 팀장 결정은 같은 빌드 13으로
 회신하는 것이었지만, 2026-11-04에 빌드 15 재제출로 바꿨다. 이유는 셋이다.
@@ -1377,6 +1382,45 @@ Accentury team
 한국어 요약. 빌드 17로 심사해 달라고 하고, 거절 넷에 하나씩 답한다 — 로그인 없이 레벨 테스트와 번역기를 쓰는 길(억양·단어 학습만 계정 기록이라 로그인, 2026-11-10 팀 결정),
 성별 선택, 마이크·광고 사전 안내의 [계속] 하나, 번역기 동의 시트가 보내는 것·받는 곳·안 보내는 것을 전송 전에 밝힌다는 점과 결과 신고.
 마지막에 계정 없이 동의 시트까지 가는 세 단계를 준다.
+
+### Resolution Center 회신문 — 빌드 17 거절 (영어 초안, 2026-11-24)
+
+빌드 18을 올린 뒤 새 제출의 메시지 스레드에 낸다. 같은 본문을 `~/Downloads/accentury-build18/reply.txt`로도 저장했다.
+화면 문장이 빌드 18과 다르면 이 초안·§8·`web/src/legal/voiceConsent.ts`를 함께 고친다.
+
+```
+Hello App Review team,
+
+Thank you for reviewing Accentury 1.0 (build 17). We have uploaded build 18 with the
+following changes.
+
+5.1.1(i), 5.1.2(i) - Who receives the voice recordings
+The voice storage consent sheet and the notice shown before recording now name the
+recipient of the recordings. Both screens say, in Korean:
+"녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요."
+("Recordings are sent for analysis to a server that Accentury operates itself (AWS Seoul).
+They are not sent to any outside AI company.")
+
+Voice recordings from the level test and accent lessons are processed only on servers that
+Accentury operates in the AWS Seoul region, with speech models we host ourselves. They are
+not sent to any third-party AI service.
+
+The only feature that uses a third-party AI service is the dialect translator, which sends
+the typed sentence to Google LLC's Gemini API. Before anything is sent, a separate consent
+sheet names the recipient (Google LLC's Gemini API) and what is and is not sent, and
+nothing is sent until the user taps 동의하고 보내기 (Agree and send).
+
+We have also updated the notes in App Review Information to describe the above.
+
+Please review build 18.
+
+Thank you for your time.
+Accentury team
+```
+
+한국어 요약. 빌드 18로 심사해 달라고 하고, 음성 저장 동의 시트와 녹음 전 고지에 수신처 문장을 넣었다고 한국어 원문과 영어 번역으로 밝힌다.
+음성은 Accentury가 운영하는 AWS 서울 서버에서 자체 호스팅 모델로만 처리하고 외부 AI 서비스로 보내지 않는다는 점, 유일한 제3자 AI는
+번역기의 Google Gemini이고 입력 전 별도 동의 시트로 수신자를 밝힌다는 점, 메모 갱신을 적는다.
 
 ### 회신 절차
 
