@@ -298,8 +298,9 @@ android {
         // 로그인 없이 둘러보기, 네이버 탈퇴 연동 해제, 광고 등급 PG, 광고 신고) 재제출 빌드다.
         // 17은 빌드 16이 2026-11-18 iOS 업로드 검사 ITMS-91064(매니페스트 NSPrivacyTracking=true, 추적 도메인 없음)로
         // 막혀 iOS 개인정보 매니페스트만 고친 빌드다. Android 코드 변화는 없고 iOS와 번호를 맞추려고 같이 올린다.
+        // 18은 빌드 17이 2026-11-20 App Store 5.1.1(i)·5.1.2(i)로 거절돼(음성 동의 시트에 수신처 없음) 수신처 문장을 넣은 빌드다 (KAN-366).
         // iOS·Android는 같은 번호를 쓴다.
-        versionCode = 17
+        versionCode = 18
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

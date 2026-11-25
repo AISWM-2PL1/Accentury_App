@@ -459,4 +459,4 @@ Xcode가 아카이브 때 이 파일과 SDK 매니페스트를 합쳐 개인정�
 
 `ios/Accentury/Config/Base.xcconfig` `CURRENT_PROJECT_VERSION = 17`(`MARKETING_VERSION` 1.0 그대로). Android `app/build.gradle.kts`
 `versionCode = 17`과 같은 커밋 묶음에서 올렸다 — 두 값이 다르면 `AccenturyCoreTests/ReleaseVersionParityTests`(`swift test`)가 두 파일을
-직접 읽어 실패한다. 15는 2026-11-09 거절 빌드라 다시 쓸 수 없다(`app-store-listing.md` §1·§11). 16은 2026-11-18 심사 제출 때 업로드 검사 ITMS-91064(앱 매니페스트 `NSPrivacyTracking` true·추적 도메인 없음)로 「잘못된 바이너리」 처리돼 번호가 소모됐다. 17은 그 매니페스트만 고친 빌드다(PR #87).
+직접 읽어 실패한다. **18(2026-11-25, KAN-366)**: 17이 2026-11-20 5.1.1(i)·5.1.2(i)로 거절돼(음성 동의 시트에 수신처 없음) 수신처 문장을 넣고 두 값을 18로 함께 올렸다. 15는 2026-11-09 거절 빌드라 다시 쓸 수 없다(`app-store-listing.md` §1·§11). 16은 2026-11-18 심사 제출 때 업로드 검사 ITMS-91064(앱 매니페스트 `NSPrivacyTracking` true·추적 도메인 없음)로 「잘못된 바이너리」 처리돼 번호가 소모됐다. 17은 그 매니페스트만 고친 빌드다(PR #87).
