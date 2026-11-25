@@ -44,7 +44,7 @@ export const VOICE_CONSENT_LEAD =
 
 /**
  * 체크박스 문구 둘 — 동의(기본 체크)와 ④ 만 14세 이상 확인(기본 비움). 둘 다 체크돼야 동의다 (KAN-367 PR #89 리뷰 G).
- * 체크박스 문장 분리(KAN-367 PR #89)는 KAN-366의 버전 상향에 함께 실린다 — 그 전에 Release로 승격하지 말 것.
+ * 체크박스 문장 분리(KAN-367 PR #89)는 KAN-366의 버전 상향(2026-11-24)에 함께 실렸다 — 두 문안 변경이 한 버전으로 기록된다.
  */
 export const VOICE_CONSENT_CHECKBOX_LABEL = '음성 녹음과 분석 정보를 AI 모델 학습에 쓰도록 보관하는 데 동의해요.'
 export const VOICE_CONSENT_AGE_LABEL = '만 14세 이상이에요.'
