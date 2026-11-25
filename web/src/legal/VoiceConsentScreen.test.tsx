@@ -44,6 +44,14 @@ describe('VoiceConsentScreen — 선택 동의 (KAN-270)', () => {
     // 미동의의 결과를 버튼 아래에서 한 번 더 — 인트로 고지와 같은 사실이다
     expect(screen.getByText('동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요')).toBeInTheDocument()
   })
+
+  it('동의 전에 음성의 수신처를 밝힌다 — 자체 서버, 외부 AI 회사 미전송 (KAN-366, App Store 5.1.1(i))', () => {
+    renderScreen()
+
+    expect(
+      screen.getByText(/녹음은 Accentury가 직접 운영하는 서버\(AWS 서울\)로 보내 분석해요\. 외부 AI 회사에는 보내지 않아요\./),
+    ).toBeInTheDocument()
+  })
 })
 
 describe('VoiceConsentScreen — 서식 (KAN-347 7단계, 시안 s-03-voice-consent-web)', () => {

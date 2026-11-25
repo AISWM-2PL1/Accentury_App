@@ -1157,7 +1157,7 @@ describe('App — 웹 단독 실행 (KAN-31)', () => {
         client: { platform: 'WEB' },
       })
       // 서버 `AccenturyProperties.VOICE_CONSENT_VERSION`과 같은 값이다 — 다르면 400이다
-      expect(VOICE_CONSENT_VERSION).toBe('2026-10-04')
+      expect(VOICE_CONSENT_VERSION).toBe('2026-11-24')
       expect(navigate).toHaveBeenCalledTimes(1)
     })
 
