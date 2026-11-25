@@ -5,8 +5,8 @@ import XCTest
 final class VoiceConsentPromptTests: XCTestCase {
 
     private let user = AuthUser(id: "u-1", provider: .GOOGLE)
-    private let notConsented = VoiceConsent(consented: false, currentVersion: "2026-10-04")
-    private let consented = VoiceConsent(consented: true, version: "2026-10-04", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-10-04")
+    private let notConsented = VoiceConsent(consented: false, currentVersion: "2026-11-24")
+    private let consented = VoiceConsent(consented: true, version: "2026-11-24", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-11-24")
 
     func test미동의이고_아직_묻지_않았으면_띄운다() {
         XCTAssertTrue(shouldPromptVoiceConsent(state: .signedIn(user, voiceConsent: notConsented), wasPrompted: false))

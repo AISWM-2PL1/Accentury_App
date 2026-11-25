@@ -127,13 +127,13 @@ final class URLSessionSessionClientTests: XCTestCase {
             appVersion: "1.0",
             previousToken: nil,
             campaignToken: nil,
-            voiceConsentVersion: "2026-10-04"
+            voiceConsentVersion: "2026-11-24"
         )
 
         let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
         XCTAssertNil(recorded.header("Authorization"))
         let body = try XCTUnwrap(String(data: recorded.body, encoding: .utf8))
-        XCTAssertTrue(body.contains(#""voiceConsentVersion":"2026-10-04""#), body)
+        XCTAssertTrue(body.contains(#""voiceConsentVersion":"2026-11-24""#), body)
     }
 
     func test동의_버전이_없으면_voiceConsentVersion_키_자체를_빼고_보낸다_KAN270() async throws {
@@ -152,7 +152,7 @@ final class URLSessionSessionClientTests: XCTestCase {
             appVersion: "1.0",
             previousToken: nil,
             campaignToken: nil,
-            voiceConsentVersion: "2026-10-04",
+            voiceConsentVersion: "2026-11-24",
             region: "JEJU"
         )
 
@@ -167,7 +167,7 @@ final class URLSessionSessionClientTests: XCTestCase {
             appVersion: "1.0",
             previousToken: nil,
             campaignToken: nil,
-            voiceConsentVersion: "2026-10-04"
+            voiceConsentVersion: "2026-11-24"
         )
 
         let body = try XCTUnwrap(String(data: try XCTUnwrap(MockURLProtocol.lastRequest()).body, encoding: .utf8))

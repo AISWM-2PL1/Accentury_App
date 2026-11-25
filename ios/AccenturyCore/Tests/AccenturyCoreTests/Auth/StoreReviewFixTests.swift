@@ -11,7 +11,7 @@ final class StoreReviewFixTests: XCTestCase {
     {"accessToken":"jwt_g","refreshToken":"rt_g","accessTokenExpiresInSec":900,
      "user":{"id":"g-1","provider":"GUEST"}}
     """
-    private let guestMe = #"{"profileStatus":"INCOMPLETE","user":{"id":"g-1","provider":"GUEST"},"voiceConsent":{"consented":false,"currentVersion":"2026-10-04"}}"#
+    private let guestMe = #"{"profileStatus":"INCOMPLETE","user":{"id":"g-1","provider":"GUEST"},"voiceConsent":{"consented":false,"currentVersion":"2026-11-24"}}"#
     private func envelope(_ code: String, _ retryable: Bool) -> String {
         #"{"code":"\#(code)","message":"m","retryable":\#(retryable),"correlationId":"c"}"#
     }

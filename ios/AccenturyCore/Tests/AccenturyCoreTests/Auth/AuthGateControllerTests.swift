@@ -18,15 +18,15 @@ final class AuthGateControllerTests: XCTestCase {
     }
     private func consent(_ consented: Bool) -> String {
         consented
-            ? #"{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}"#
-            : #"{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}"#
+            ? #"{"consented":true,"version":"2026-11-24","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-11-24"}"#
+            : #"{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-11-24"}"#
     }
     private let loginComplete = """
     {"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"isNewUser":false,
      "profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}
     """
-    private let notConsented = VoiceConsent(consented: false, currentVersion: "2026-10-04")
-    private let consented = VoiceConsent(consented: true, version: "2026-10-04", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-10-04")
+    private let notConsented = VoiceConsent(consented: false, currentVersion: "2026-11-24")
+    private let consented = VoiceConsent(consented: true, version: "2026-11-24", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-11-24")
     private func tokens(_ n: Int) -> String { #"{"accessToken":"jwt_\#(n)","refreshToken":"rt_\#(n)","accessTokenExpiresInSec":900}"# }
     private func envelope(_ code: String, _ retryable: Bool) -> String {
         #"{"code":"\#(code)","message":"m","retryable":\#(retryable),"correlationId":"c"}"#
@@ -355,7 +355,7 @@ final class AuthGateControllerTests: XCTestCase {
         let put = MockURLProtocol.requests()[2]
         XCTAssertEqual("PUT", put.method)
         XCTAssertEqual("/v0/users/me/voice-consent", put.url?.path)
-        XCTAssertEqual(#"{"version":"2026-10-04"}"#, String(data: put.body, encoding: .utf8))
+        XCTAssertEqual(#"{"version":"2026-11-24"}"#, String(data: put.body, encoding: .utf8))
     }
 
     func test동의_상태를_모르면_me로_버전을_먼저_읽고_동의한다() async {
@@ -371,7 +371,7 @@ final class AuthGateControllerTests: XCTestCase {
         XCTAssertEqual(.signedIn(user, voiceConsent: consented), gate.state)
         let requests = MockURLProtocol.requests()
         XCTAssertEqual("/v0/users/me", requests[2].url?.path)
-        XCTAssertEqual(#"{"version":"2026-10-04"}"#, String(data: requests[3].body, encoding: .utf8))
+        XCTAssertEqual(#"{"version":"2026-11-24"}"#, String(data: requests[3].body, encoding: .utf8))
     }
 
     func test철회는_DELETE_뒤_미동의로_바뀐다() async {
