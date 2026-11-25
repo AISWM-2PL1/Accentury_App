@@ -143,12 +143,12 @@ class OkHttpSessionClientTest {
     fun `익명 동의 버전을 바디 voiceConsentVersion으로 싣는다 - Authorization은 없다 (KAN-270)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
 
-        client().create(appVersion = "1.0", voiceConsentVersion = "2026-10-04")
+        client().create(appVersion = "1.0", voiceConsentVersion = "2026-11-24")
 
         val recorded = server.takeRequest()
         assertNull(recorded.getHeader("Authorization"))
         val body = recorded.body.readUtf8()
-        assertTrue(body, body.contains(""""voiceConsentVersion":"2026-10-04""""))
+        assertTrue(body, body.contains(""""voiceConsentVersion":"2026-11-24""""))
     }
 
     @Test
@@ -165,7 +165,7 @@ class OkHttpSessionClientTest {
     fun `익명 지역을 바디 region으로 싣는다 (KAN-270 7단계)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
 
-        client().create(appVersion = "1.0", voiceConsentVersion = "2026-10-04", region = "JEJU")
+        client().create(appVersion = "1.0", voiceConsentVersion = "2026-11-24", region = "JEJU")
 
         val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals("JEJU", body["region"]!!.jsonPrimitive.content)
@@ -175,7 +175,7 @@ class OkHttpSessionClientTest {
     fun `지역이 없으면 region 키 자체를 빼고 보낸다 (KAN-270 7단계)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody(createdBody))
 
-        client().create(appVersion = "1.0", voiceConsentVersion = "2026-10-04")
+        client().create(appVersion = "1.0", voiceConsentVersion = "2026-11-24")
 
         val body = server.takeRequest().body.readUtf8()
         assertFalse(body, body.contains("region"))
