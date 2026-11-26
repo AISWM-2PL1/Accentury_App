@@ -43,6 +43,15 @@
 4. Android `VOICE_CONSENT_VERSION` (`app/src/main/java/com/accentury/app/auth/VoiceConsentText.kt`, 익명 모드 세션용 — 5단계)
 5. iOS `voiceConsentVersion` (`ios/AccenturyCore/Sources/AccenturyCore/Auth/VoiceConsentText.swift`, 익명 모드 세션용 — 6단계)
 
+수신처 문장(「녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요.」)은
+플랫폼마다 상수 하나다 — 웹 `VOICE_RECIPIENT_NOTICE`, Android `VOICE_RECIPIENT_NOTICE`, iOS `voiceRecipientNotice`.
+동의 시트 LEAD와 녹음 전 고지(웹 `PrivacyNotice`, 네이티브 마이크 게이트)가 같은 값을 쓴다 (KAN-366 PR #90 리뷰).
+
+### 옛 빌드의 계정 동의와 기존 동의 (2026-11-26 팀 결정)
+
+1. 옛 빌드(Android 현행, iOS 17)의 계정 동의 PUT은 서버가 준 `currentVersion`을 그대로 실어 보낸다. 그래서 옛 문안(수신처 문장 없음)을 보고 동의해도 `2026-11-24`로 기록된다. 받아들이고 코드는 바꾸지 않는다. 빌드 18이 보급될 때까지의 한시적 상황이고, 이 차이를 막으려면 옛 빌드를 고쳐야 하는데 이미 배포된 빌드는 고칠 수 없다. 네이티브 상수와 계정 흐름을 대조하는 작업도 하지 않기로 했다.
+2. 옛 문안으로 이미 동의한 계정·세션은 재동의 없이 유효하다. 방침이 이미 자체 서버 처리와 제3자 미전송을 고지하고 있어, 수신처 문장은 새 사실이 아니라 시트에 옮겨 적은 것이다.
+
 인트로 고지(`PrivacyNotice`)는 "따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요."로
 조건부 문장이 됐다. 앱 WebView에도 그대로 보이는데, 조건을 단 문장이라 플랫폼 공통으로 맞다.
 
@@ -230,8 +239,10 @@ UserDefaults 키 이름은 광고 동의(`ad_consent.state`)와 같은 규칙이
 `Info-Release.plist`·`Info-Debug.plist`의 `NSMicrophoneUsageDescription`을 조건부 문장으로 바꿨다.
 
 ```
-억양 분석을 위해 마이크로 목소리를 녹음해요. 따로 동의하지 않으면 녹음은 분석 뒤 바로 삭제돼요.
+억양 분석을 위해 녹음한 목소리를 Accentury가 운영하는 서버(AWS 서울)로 보내요. 따로 동의하지 않으면 분석 뒤 바로 삭제돼요.
 ```
+
+KAN-366 PR #90 리뷰(2026-11-26 팀 결정)로 수신처를 넣었다. 옛 문구는 「억양 분석을 위해 마이크로 목소리를 녹음해요. 따로 동의하지 않으면 녹음은 분석 뒤 바로 삭제돼요.」였다.
 
 심사 가이드라인 5.1.1(ii)의 목적 문자열이라 처분이 사실과 맞아야 한다(`app-store-listing.md` §5).
 

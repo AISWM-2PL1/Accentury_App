@@ -15,6 +15,7 @@
 
 import { AD_CONSENT_SETTINGS_LINK } from '../ads/adConsentText'
 import { PrivacyPolicyLink } from './PrivacyPolicyLink'
+import { VOICE_RECIPIENT_NOTICE } from './voiceConsent'
 
 export interface PrivacyNoticeProps {
   /**
@@ -36,9 +37,9 @@ export function PrivacyNotice({ onAdConsentSettings }: PrivacyNoticeProps = {}) 
 
         첫 두 문장은 수신처다 (KAN-366). 빌드 17이 App Store 5.1.1(i)로 "공유 전에 누구에게 보내는지
         밝히지 않는다"며 거절됐다. 이 줄은 녹음 전 인트로에 늘 보이는 고지라 동의 여부와 무관하게
-        음성이 어디로 가는지를 밝히는 자리다. 문장은 `voiceConsent.ts` LEAD 끝 두 문장과 같다.
+        음성이 어디로 가는지를 밝히는 자리다. 문장은 `voiceConsent.ts`의 VOICE_RECIPIENT_NOTICE다(LEAD 끝 두 문장).
       */}
-      녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요. 따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요.
+      {VOICE_RECIPIENT_NOTICE}{' '}따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요.
       {/*
         줄을 여기서 끊는다. 문장과 링크를 한 줄에 흘려 담으면 폭이 모자라 문장이 먼저 두 줄로
         갈리고(캡션 13px · 콘텐츠 폭 312dp에 문장만 약 256dp), 링크가 앞 줄 꼬리에 붙어 어디까지가

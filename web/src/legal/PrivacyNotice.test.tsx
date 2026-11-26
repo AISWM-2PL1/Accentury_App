@@ -46,6 +46,14 @@ describe('PrivacyNotice — 인트로 고지 한 줄 (KAN-177)', () => {
     ).toBeInTheDocument()
   })
 
+  it('수신처 상수로 묶은 뒤에도 고지 문장이 글자 그대로다 (KAN-366 PR #90 리뷰)', () => {
+    const { container } = render(<PrivacyNotice />)
+
+    expect(container.textContent).toContain(
+      '녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요. 따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요.',
+    )
+  })
+
   it('브라우저 단독 실행에서는 새 탭으로 연다 — 응시하려던 화면을 정책 문서로 덮지 않는다', () => {
     render(<PrivacyNotice />)
 
