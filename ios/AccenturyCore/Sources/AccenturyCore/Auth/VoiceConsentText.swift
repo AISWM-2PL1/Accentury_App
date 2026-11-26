@@ -20,7 +20,8 @@ import Foundation
 /// **서버 `AccenturyProperties.VOICE_CONSENT_VERSION`과 같아야 한다** — 웹 `web/src/legal/voiceConsent.ts`, 안드로이드
 /// `auth/VoiceConsentText.kt`의 `VOICE_CONSENT_VERSION`과 같은 값이다. 다르면 서버가 400 `VALIDATION_FAILED`로 세션
 /// 생성을 거절하고, 그때 ``SessionClient/createWithConsentFallback(appVersion:previousToken:campaignToken:voiceConsentVersion:)``이
-/// 동의 없이 한 번 더 만들어 응시는 막히지 않는다. 문안을 바꾸면 이 값과 서버·웹·안드로이드를 함께 올린다.
+/// 동의 없이 한 번 더 만들어 응시는 막히지 않는다. 문안을 바꾸면 이 값과 서버, 웹, Android 상수를 함께 올린다.
+/// 방침 버전은 방침 본문이 바뀔 때만 올린다(`voice-consent.md`).
 /// 2026-11-24는 App Store 5.1.1(i) 빌드 17 거절에 대응해 LEAD에 수신처 문장을 넣으며 올린 값이다 (KAN-366).
 public let voiceConsentVersion = "2026-11-24"
 

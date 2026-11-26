@@ -19,7 +19,8 @@ package com.accentury.app.auth
  * `VoiceConsentText.swift`와 같은 값이다. 다르면 서버가 400 `VALIDATION_FAILED`로 세션 생성을 거절하고, 그때
  * `createWithConsentFallback`이 동의 없이 한 번 더 만들어 응시는 막히지 않는다. 계정 동의는 서버 currentVersion을
  * 쓰고 이 상수와 대조하지 않기로 했다 (2026-11-26, `voice-consent.md`). 옛 빌드의 계정 동의도 서버 currentVersion으로
- * 기록되는 것을 받아들였다. 문안을 바꾸면 이 값과 서버·웹·iOS를 함께 올린다.
+ * 기록되는 것을 받아들였다. 문안을 바꾸면 이 값과 서버, 웹, iOS 상수를 함께 올린다.
+ * 방침 버전은 방침 본문이 바뀔 때만 올린다(`voice-consent.md`).
  * 2026-11-24는 App Store 5.1.1(i) 빌드 17 거절에 대응해 LEAD에 수신처 문장을 넣으며 올린 값이다 (KAN-366).
  */
 const val VOICE_CONSENT_VERSION = "2026-11-24"

@@ -25,8 +25,8 @@
  *
  * **서버 `AccenturyProperties.VOICE_CONSENT_VERSION`과 같아야 한다** — 다르면 서버가 400
  * `VALIDATION_FAILED`로 세션 생성을 거절한다 (그때 `startStandaloneTest`가 동의 없이 한 번 더
- * 만들어 응시는 막히지 않는다). 문안을 바꾸면 `privacy.html`의 `accentury-policy-version`과 이
- * 값, 서버 값을 함께 올린다 (KAN-269/KAN-270).
+ * 만들어 응시는 막히지 않는다). 문안을 바꾸면 이 값과 서버, Android, iOS 상수를 함께 올린다.
+ * 방침 버전은 방침 본문이 바뀔 때만 올린다(`voice-consent.md`) (KAN-269/KAN-270).
  *
  * 2026-11-24로 올린 근거 (KAN-366): App Store 5.1.1(i) 거절에 대응해 LEAD에 수신처 문장을 넣어 문안이
  * 바뀌었다. 서버 `AccenturyProperties.Training.VOICE_CONSENT_VERSION`·Android·iOS 상수와 같은 값이다.
