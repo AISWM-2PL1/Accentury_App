@@ -68,8 +68,7 @@ struct PermissionGateView: View {
                     // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 웹 PrivacyNotice 정본 문장과 같은 말이다 (KAN-355에서 통일).
                     // KAN-366 — 앞 두 문장은 수신처(자체 서버·외부 AI 미전송). App Store 5.1.1(i) 빌드 17 거절이 녹음 전 수신처 고지를 요구했다.
                     // 안드로이드 MainActivity 마이크 게이트와 같은 문장이다.
-                    supporting: "녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요. " +
-                        "따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요",
+                    supporting: "\(voiceRecipientNotice) 따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요",
                     // 「계속 →」이다 (KAN-330, App Store 빌드 15 거절 5.1.1(iv)). 시스템 권한 창 앞의 화면은 설명만 하고, 허용을 우리
                     // 버튼이 말하면 안 된다 — 사용자가 이 화면에서 이미 허용한 것처럼 읽힌다. 허용·거부는 다음에 뜨는 시스템 창이 묻는다.
                     button: GateButton(label: "계속", trailingIcon: "arrow.right", action: .request)
