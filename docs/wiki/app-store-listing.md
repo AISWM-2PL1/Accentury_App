@@ -40,7 +40,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
-| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **16**(2026-11-10, KAN-330). 15는 2026-11-09에 거절됐고(§11), 16이 그 대응(성별 선택·게스트 둘러보기·ATT 사전 시트 [계속]·마이크 [계속]·개인정보 매니페스트·광고 신고·애플 시스템 버튼)을 담은 재제출 빌드다. Android `versionCode`도 16. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고 2026-10-30에 거절됐다. 14는 2026-10-25 CI(ios-release run 40174171160, Dev dispatch)의 TestFlight 업로드로 소모됐다(KAN-292 R8 대응, 미제출, KAN-304·315 미포함). 15가 KAN-304·KAN-315 리젝 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로)을 담은 재제출 빌드다(2026-11-04 결정, §11). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
+| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **18**(2026-11-25, KAN-366). 17은 2026-11-20 5.1.1(i)·5.1.2(i)로 거절됐고(§11), 18은 음성 동의 시트·마이크 사전 안내에 녹음 수신처(자체 서버·AWS 서울, 외부 AI 미전송)를 넣은 재제출 빌드다. Android `versionCode`도 18. 17은 2026-11-18에 올렸다(PR #87). 16은 2026-11-18 심사 제출 때 업로드 검사 ITMS-91064(앱 매니페스트 `NSPrivacyTracking` true·추적 도메인 없음)로 「잘못된 바이너리」 처리돼 번호가 소모됐다(§11). 17은 매니페스트만 고친 빌드다. 16은 2026-11-10 KAN-330에서 올렸다. 15는 2026-11-09에 거절됐고(§11), 16이 그 대응(성별 선택·게스트 둘러보기·ATT 사전 시트 [계속]·마이크 [계속]·개인정보 매니페스트·광고 신고·애플 시스템 버튼)을 담은 재제출 빌드다. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고 2026-10-30에 거절됐다. 14는 2026-10-25 CI(ios-release run 40174171160, Dev dispatch)의 TestFlight 업로드로 소모됐다(KAN-292 R8 대응, 미제출, KAN-304·315 미포함). 15가 KAN-304·KAN-315 리젝 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로)을 담은 재제출 빌드다(2026-11-04 결정, §11). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
 
 **개인 계정이라 나중에 옮기려면 App Transfer 절차를 밟는다.** 팀·법인 명의로 넘기는 것은
 계정 사이의 앱 이전이고, 애플이 요구하는 조건(미해결 계약 없음, 양쪽 계정의 법적 동의 등)을
@@ -444,8 +444,8 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 
 | 자리 | 실제 문자열 |
 |---|---|
-| iOS 권한 프롬프트 | `억양 분석을 위해 마이크로 목소리를 녹음해요. 따로 동의하지 않으면 녹음은 분석 뒤 바로 삭제돼요.` (`ios/Accentury/Info-Release.plist:387` `NSMicrophoneUsageDescription`, KAN-270 3단계) |
-| 앱 내 권한 게이트 | `발음 분석에 마이크가 필요해요` / `따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요` (`ios/Accentury/Permission/PermissionGateView.swift:66-70`, KAN-270 3단계) |
+| iOS 권한 프롬프트 | `억양 분석을 위해 녹음한 목소리를 Accentury가 운영하는 서버(AWS 서울)로 보내요. 따로 동의하지 않으면 분석 뒤 바로 삭제돼요.` (`ios/Accentury/Info-Release.plist:400` `NSMicrophoneUsageDescription`, KAN-270 3단계, 수신처는 KAN-366 PR #90 리뷰 2026-11-26) |
+| 앱 내 권한 게이트 | `발음 분석에 마이크가 필요해요` / `녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요. 따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요` (`ios/Accentury/Permission/PermissionGateView.swift:65-75`, 앞 두 문장은 `voiceRecipientNotice`, KAN-270 3단계·KAN-366) |
 | 스토어 설명 | `녹음한 음성은 점수를 매기는 데 쓰고 곧바로 지워요. 음성 저장과 AI 모델 학습 활용에 따로 동의하신 경우에만 보관하고` (§3, KAN-269 갱신) |
 | 방침 1항 음성 행 | 선택 동의가 없으면 분석이 끝나면 즉시 삭제, 선택 동의가 있으면 학습 목적 달성 시까지 보관 (Accentury_Server `infra/privacy/privacy.html` 1항 「음성 저장과 AI 모델 학습 활용 (선택 동의)」, 방침 버전 `2026-10-04`) |
 | 개인정보 라벨 | 「오디오 데이터」 수집으로 신고 (§6, KAN-269 갱신) |
@@ -995,6 +995,8 @@ Google LLC의 Gemini API로 전송되며, 보내는 것은 사용자가 입력�
 [바꾸기] → 동의 시트
 
 [음성 데이터]
+녹음은 Accentury가 직접 운영하는 서버(AWS 서울 리전)로만 보내 분석하고, 외부 AI 회사에는 보내지 않습니다.
+녹음 전 인트로 고지와 음성 저장 동의 시트 두 곳에 이 사실을 적었습니다.
 녹음한 음성은 점수를 매기는 데 쓰입니다. 음성 저장과 AI 모델 학습 활용에 따로 동의하지 않은
 경우에는 요청이 끝나는 즉시 삭제됩니다. 이 선택 동의를 한 경우에만 음성을 서버(AWS 서울 리전)에
 보관해 억양 분석 모델의 학습과 개선에 씁니다. 동의하지 않아도 앱 이용에 제한이 없고, 동의는
@@ -1031,19 +1033,21 @@ When the Home screen first opens, a sheet explains the ads with a single 계속 
 Google AdMob interstitial (analysis wait screen) and rewarded (before a retake), with production ad unit IDs.
 
 [Dialect translator and third-party AI service]
-The translator converts a sentence of up to 100 characters between standard Korean and the Gyeongnam dialect. It is the only feature that uses a third-party AI service: the typed sentence is sent through our server to the Gemini API of Google LLC. Only the sentence is sent; no account information or audio goes to Google.
+The translator converts a sentence of up to 100 characters between standard Korean and the Gyeongnam dialect. It is the only feature that uses a third-party AI service: only the typed sentence is sent, through our server, to the Gemini API of Google LLC; no account information or audio goes to Google.
 A notice below the input field names the Google Gemini API, with a privacy policy link. Before the first translation a consent sheet states what is sent, who receives it (Google LLC's Gemini API), why, what is not sent (account information, audio), and that Google may use the sentences to improve its products, with 동의하고 보내기 (Agree and send) and 취소 (Cancel). Nothing is sent before the user agrees. Each result has 부적절한 결과 신고 (Report inappropriate result).
 The privacy policy (https://accentury.app/privacy.html) covers this in 사투리 번역기 (앱), section 2 (third parties) and section 4 (overseas transfer).
 To check: login screen > 로그인 없이 둘러보기 > agree > 사투리 번역기 tab > type a sentence > 바꾸기 (Convert) > consent sheet.
 
 [Voice data]
-Recorded audio is used to score and deleted as soon as the request finishes, unless the user gives a separate optional consent to voice storage and AI model training; only then is it stored on our server (AWS Seoul region). Audio is never shared with third parties.
+Recordings go only to a server Accentury operates itself (AWS Seoul region), never to an outside AI company; the pre-recording notice and the voice storage consent sheet both say so. Audio is used to score and deleted when the request finishes, unless the user separately opts in to voice storage for AI model training; only then is it kept on that server. Audio is never shared with third parties.
 
 [Account data and deletion]
 In the app: the 설정 (Settings) tab in the bottom tab bar > 계정 (Account) > 회원 탈퇴 (Delete account) > confirm.
 ```
 
-**빌드 16판 (2026-11-10, KAN-330·KAN-331·KAN-344).** 위 두 블록은 빌드 16 기준이다. 빌드 15 거절(§11) 대응으로 바꾼 것:
+**빌드 18판 수신처 문장 (2026-11-24, KAN-366).** 빌드 17 거절(§11, 2026-11-20)에 대응해 두 메모의 [음성 데이터]·[Voice data] 첫머리에 녹음의 수신처(Accentury가 직접 운영하는 AWS 서울 서버, 외부 AI 회사 미전송)와 그 사실을 적은 화면 두 곳(녹음 전 인트로 고지, 음성 저장 동의 시트)을 넣었다. 영어 블록은 **3969자**(3856자 → 3969자, 끝 줄바꿈 제외, Python `len`)다 — 4000자를 맞추려고 [Voice data]의 「gives a separate optional consent to voice storage and AI model training」을 「separately opts in to voice storage for AI model training」으로, 번역기 문단의 「Only the sentence is sent;」 문장을 앞 문장에 합쳤다. 화면 문장 정본은 `web/src/legal/voiceConsent.ts`의 `VOICE_CONSENT_LEAD`와 `web/src/legal/PrivacyNotice.tsx`다.
+
+**빌드 16판 (2026-11-10, KAN-330·KAN-331·KAN-344, 이력).** 위 두 블록은 지금 빌드 18 기준이고(바로 위 문단), 아래는 빌드 16 때 빌드 15 거절(§11) 대응으로 바꾼 것이다:
 「로그인 없이 둘러보기」 문단과 확인 경로(심사관이 로그인 없이 번역기 동의 시트에 닿게), 성별 선택 항목, 마이크 사전 안내의 [계속] 하나,
 광고 안내 시트의 [계속] 하나와 ATT 결과로 맞춤형 결정(webview-bridge §8.7), 번역기 동의 시트의 「보내지 않는 것(계정 정보·음성)」과
 [부적절한 결과 신고], 탈퇴 경로 「오른쪽 위 톱니」 → 하단 「설정」 탭(KAN-252 탭 바 이후 탭 화면에는 톱니가 없다). 영어 블록은
@@ -1180,6 +1184,7 @@ ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때
 - [ ] AdMob 콘솔의 앱별 광고 콘텐츠 등급을 **PG**로 맞춘다 — 코드(`maxAdContentRating` PG, `ads-admob.md` §6)와 같은 값
 - [ ] Xcode › Product › Archive › **Generate Privacy Report**를 §6.2 표와 대조한다. 앱 매니페스트(`PrivacyInfo.xcprivacy`)가 이번에 처음 들어갔다.
   업로드나 보고서가 `NSPrivacyTracking`·추적 도메인을 경고하면 `ios-port.md` §12의 대안(앱 쪽 Tracking false)을 본다
+  → **실제로 걸렸다**: 빌드 16이 2026-11-18 제출 때 ITMS-91064로 막혀 빌드 17에서 false로 고쳤다(PR #87). 이 검사는 TestFlight 업로드가 아니라 심사 제출 때 돈다
 - [ ] 스크린샷 갱신 — 로그인 화면(「로그인 없이 둘러보기」·애플 시스템 버튼), 마이크·광고 사전 안내 [계속], 추가 정보의 「선택 안 함」
 - [ ] Resolution Center에 빌드 15 거절 회신문(§11)을 낸다
 - [ ] 네이버 데모 계정의 **해외 로그인 차단**이 꺼져 있는지 확인한다(심사관은 해외에서 로그인한다, §8 「데모 계정」)
@@ -1190,10 +1195,11 @@ ASC 심사 메모 필드는 4000자 제한이라 2026-11-04 빌드 15 제출 때
 | 날짜 | 빌드 | 가이드라인 | 애플 지적 요지 | 원인 | 조치 | 상태 |
 |---|---|---|---|---|---|---|
 | 2026-10-30 | 1.0 (13) | 5.1.1(i) · 5.1.2(i) | 앱이 개인정보를 제3자 AI 서비스와 공유하는 것으로 보이는데, 보내기 전에 누구에게 보내는지 밝히지 않는다. 무엇을 보내는지·누구에게 보내는지 고지, 보내기 전 허락, 방침의 수집·이용·제3자 보호 고지를 요구 | 사투리 번역기가 입력 문장을 Google LLC의 Gemini API로 보내면서 화면에 고지·동의가 없었다. 2026-10-08에 「방침 고지로 갈음」하기로 한 결정이 원인이다 | **KAN-304**(PR #59) 번역기 상시 고지·사전 동의 시트, 홈 광고 동의 시트 / **KAN-315**(PR #60) 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로 → 빌드 15로 재제출 | 빌드 15로 재제출(2026-11-04 23:51) → **2026-11-09 다시 거절 — 아래 행** |
-| 2026-11-09 | 1.0 (15) | 5.1.1(v) | 성별 입력이 필수다 | 서버·앱 모두 성별을 프로필 완료 조건에 넣었다. 성별을 쓰는 기능은 없다 | 서버 **KAN-328**(PR 머지, null 허용) / 앱 **KAN-330** 「선택 안 함」 칩 | 빌드 16 준비 중 |
-| 2026-11-09 | 1.0 (15) | 5.1.1(v) | 계정 기반이 아닌 기능(단어 학습·억양 학습·번역기)까지 로그인을 강제한다 | 앱 진입이 로그인 게이트 뒤에 있고 모든 API가 계정 토큰을 요구했다 | 서버 **KAN-329**(게스트 계정 `POST /v0/auth/guest`, 번역만 허용) / 앱 **KAN-330** 「로그인 없이 둘러보기」, 학습 탭 로그인 안내(webview-bridge §15). 학습은 계정별 기록이라 로그인 유지(팀 결정). 레벨 테스트는 게스트에게 연다 — 익명 세션이라 계정이 필요 없다(PR #70 리뷰 뒤 팀 결정 2026-11-10) | 빌드 16 준비 중 |
-| 2026-11-09 | 1.0 (15) | 5.1.1(i) · 5.1.2(i) | 제3자 AI 서비스 수신자 고지 재지적 | 코드 결함은 없다 — 동의 시트가 전송 전에 Google LLC Gemini API를 밝힌다. 로그인 벽 때문에 심사관이 번역기에 닿지 못했을 가능성이 크고, 새 제출에는 빌드 13 회신 스레드가 없었다 | **KAN-331** 동의 시트에 「계정 정보·음성은 보내지 않아요」, 게스트 확인 경로를 메모 첫머리에 / **KAN-344** 결과 신고 버튼 | 빌드 16 준비 중 |
-| 2026-11-09 | 1.0 (15) | 5.1.1(iv) | 마이크 사전 안내의 「마이크 허용」 버튼이 시스템 권한 창을 대신하는 것처럼 보인다 | 사전 안내 버튼 문구 | 앱 **KAN-330** [계속]으로. 같은 구조인 광고 사전 시트의 두 선택지도 iOS에서 [계속] 하나로(KAN-344, webview-bridge §8.7) | 빌드 16 준비 중 |
+| 2026-11-09 | 1.0 (15) | 5.1.1(v) | 성별 입력이 필수다 | 서버·앱 모두 성별을 프로필 완료 조건에 넣었다. 성별을 쓰는 기능은 없다 | 서버 **KAN-328**(PR 머지, null 허용) / 앱 **KAN-330** 「선택 안 함」 칩 | 빌드 16은 ITMS-91064로 막힘(2026-11-18) → 빌드 17로 제출 |
+| 2026-11-09 | 1.0 (15) | 5.1.1(v) | 계정 기반이 아닌 기능(단어 학습·억양 학습·번역기)까지 로그인을 강제한다 | 앱 진입이 로그인 게이트 뒤에 있고 모든 API가 계정 토큰을 요구했다 | 서버 **KAN-329**(게스트 계정 `POST /v0/auth/guest`, 번역만 허용) / 앱 **KAN-330** 「로그인 없이 둘러보기」, 학습 탭 로그인 안내(webview-bridge §15). 학습은 계정별 기록이라 로그인 유지(팀 결정). 레벨 테스트는 게스트에게 연다 — 익명 세션이라 계정이 필요 없다(PR #70 리뷰 뒤 팀 결정 2026-11-10) | 빌드 16은 ITMS-91064로 막힘(2026-11-18) → 빌드 17로 제출 |
+| 2026-11-09 | 1.0 (15) | 5.1.1(i) · 5.1.2(i) | 제3자 AI 서비스 수신자 고지 재지적 | 코드 결함은 없다 — 동의 시트가 전송 전에 Google LLC Gemini API를 밝힌다. 로그인 벽 때문에 심사관이 번역기에 닿지 못했을 가능성이 크고, 새 제출에는 빌드 13 회신 스레드가 없었다 | **KAN-331** 동의 시트에 「계정 정보·음성은 보내지 않아요」, 게스트 확인 경로를 메모 첫머리에 / **KAN-344** 결과 신고 버튼 | 빌드 16은 ITMS-91064로 막힘(2026-11-18) → 빌드 17로 제출 |
+| 2026-11-09 | 1.0 (15) | 5.1.1(iv) | 마이크 사전 안내의 「마이크 허용」 버튼이 시스템 권한 창을 대신하는 것처럼 보인다 | 사전 안내 버튼 문구 | 앱 **KAN-330** [계속]으로. 같은 구조인 광고 사전 시트의 두 선택지도 iOS에서 [계속] 하나로(KAN-344, webview-bridge §8.7) | 빌드 16은 ITMS-91064로 막힘(2026-11-18) → 빌드 17로 제출 |
+| 2026-11-20 | 1.0 (17) | 5.1.1(i) · 5.1.2(i) | 「The app still does not clearly identify who the data is sent to before sharing the data.」 스크린샷은 iPad Air의 음성 저장 동의 시트 | 음성 저장 동의 시트와 녹음 전 고지가 음성을 어디로 보내는지 밝히지 않았다. 실제로는 자체 AI 서버(AWS 서울 리전, 자체 호스팅 Whisper·MFA)에서만 분석하고 외부 AI 회사로 보내지 않는다 | **KAN-366** 동의 시트 문안과 인트로 고지에 「녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요.」, 동의 버전 `2026-11-24`(서버·웹·Android·iOS), §8 메모 [Voice data] 갱신 | 빌드 18로 재제출 예정 |
 
 **빌드 13 회신에서 빌드 15 재제출로 바꾼 이유 (2026-11-04).** 11-02 팀장 결정은 같은 빌드 13으로
 회신하는 것이었지만, 2026-11-04에 빌드 15 재제출로 바꿨다. 이유는 셋이다.
@@ -1332,14 +1338,15 @@ Accentury team
 
 ### Resolution Center 회신문 — 빌드 15 거절 (영어 초안, 2026-11-10)
 
-빌드 16을 올린 뒤 새 제출의 메시지 스레드(애플이 열어 둔 것)에 낸다. 메모(§8 영어 블록)가 같은 내용을 담으므로 스레드가 없으면
-메모만으로 충분하다. 화면 라벨·버튼 이름이 빌드 16과 다르면 이 초안과 §8을 함께 고친다.
+빌드 17을 올린 뒤 새 제출의 메시지 스레드(애플이 열어 둔 것)에 낸다. 메모(§8 영어 블록)가 같은 내용을 담으므로 스레드가 없으면
+메모만으로 충분하다. 화면 라벨·버튼 이름이 빌드 17과 다르면 이 초안과 §8을 함께 고친다.
+빌드 16은 ITMS-91064로 심사 전에 막혀(2026-11-18) 같은 내용을 빌드 17로 낸다.
 
 ```
 Hello App Review team,
 
-Thank you for reviewing Accentury 1.0 (build 15). We have uploaded build 16 with the
-following changes. Please review build 16.
+Thank you for reviewing Accentury 1.0 (build 15). We have uploaded build 17 with the
+following changes. Please review build 17.
 
 5.1.1(v) - Account sign-in
 The login screen now has 로그인 없이 둘러보기 (Browse without signing in). After agreeing
@@ -1372,9 +1379,48 @@ Thank you for your time.
 Accentury team
 ```
 
-한국어 요약. 빌드 16으로 심사해 달라고 하고, 거절 넷에 하나씩 답한다 — 로그인 없이 레벨 테스트와 번역기를 쓰는 길(억양·단어 학습만 계정 기록이라 로그인, 2026-11-10 팀 결정),
+한국어 요약. 빌드 17로 심사해 달라고 하고, 거절 넷에 하나씩 답한다 — 로그인 없이 레벨 테스트와 번역기를 쓰는 길(억양·단어 학습만 계정 기록이라 로그인, 2026-11-10 팀 결정),
 성별 선택, 마이크·광고 사전 안내의 [계속] 하나, 번역기 동의 시트가 보내는 것·받는 곳·안 보내는 것을 전송 전에 밝힌다는 점과 결과 신고.
 마지막에 계정 없이 동의 시트까지 가는 세 단계를 준다.
+
+### Resolution Center 회신문 — 빌드 17 거절 (영어 초안, 2026-11-24)
+
+빌드 18을 올린 뒤 새 제출의 메시지 스레드에 낸다. 정본은 아래 코드 블록이다.
+화면 문장이 빌드 18과 다르면 이 초안·§8·`web/src/legal/voiceConsent.ts`를 함께 고친다.
+
+```
+Hello App Review team,
+
+Thank you for reviewing Accentury 1.0 (build 17). We have uploaded build 18 with the
+following changes.
+
+5.1.1(i), 5.1.2(i) - Who receives the voice recordings
+The voice storage consent sheet and the notice shown before recording now name the
+recipient of the recordings. Both screens say, in Korean:
+"녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요."
+("Recordings are sent for analysis to a server that Accentury operates itself (AWS Seoul).
+They are not sent to any outside AI company.")
+
+Voice recordings from the level test and accent lessons are processed only on servers that
+Accentury operates in the AWS Seoul region, with speech models we host ourselves. They are
+not sent to any third-party AI service.
+
+The only feature that uses a third-party AI service is the dialect translator, which sends
+the typed sentence to Google LLC's Gemini API. Before anything is sent, a separate consent
+sheet names the recipient (Google LLC's Gemini API) and what is and is not sent, and
+nothing is sent until the user taps 동의하고 보내기 (Agree and send).
+
+We have also updated the notes in App Review Information to describe the above.
+
+Please review build 18.
+
+Thank you for your time.
+Accentury team
+```
+
+한국어 요약. 빌드 18로 심사해 달라고 하고, 음성 저장 동의 시트와 녹음 전 고지에 수신처 문장을 넣었다고 한국어 원문과 영어 번역으로 밝힌다.
+음성은 Accentury가 운영하는 AWS 서울 서버에서 자체 호스팅 모델로만 처리하고 외부 AI 서비스로 보내지 않는다는 점, 유일한 제3자 AI는
+번역기의 Google Gemini이고 입력 전 별도 동의 시트로 수신자를 밝힌다는 점, 메모 갱신을 적는다.
 
 ### 회신 절차
 

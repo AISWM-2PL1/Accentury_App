@@ -48,9 +48,9 @@ import kotlinx.coroutines.launch
  * 음성 저장 선택 동의 화면 (KAN-270 2단계, 서버 KAN-269). 로그인과 추가 정보를 마친 미동의 계정에 한 번 뜬다
  * — 띄울지는 [shouldPromptVoiceConsent]가, 다시 안 띄우는 기억은 [VoiceConsentPromptStore]가 맡는다.
  *
- * 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 미체크 [다음]이 거부지만, 앱은 계정에
- * 한 번 묻고 끝나므로 [건너뛰기]가 "이번에 안 한다"를 분명히 말해야 한다. [동의하고 계속]은 체크해야 켜진다 —
- * 만 14세 확인이 체크박스 문장에 묶여 있다.
+ * 웹 화면(`VoiceConsentScreen.tsx`)과 달리 버튼이 둘이다. 웹은 세션마다 묻고 두 칸이 다 체크되지 않은 [다음]이 거부지만,
+ * 앱은 계정에 한 번 묻고 끝나므로 [건너뛰기]가 "이번에 안 한다"를 분명히 말해야 한다. [동의하고 계속]은 동의 칸(기본 체크)과
+ * 만 14세 확인 칸(기본 비움)이 둘 다 체크돼야 켜진다(2026-11-24, KAN-367 PR #89 리뷰 G).
  *
  * 설정 화면처럼 TestFlow 위에 덮인다(호출자 AuthGate). 시스템 뒤로 가기는 막지 않는다 — Activity가 닫히고, 다음
  * 실행에 아직 표시 기록이 없으면 다시 뜬다.
@@ -73,12 +73,15 @@ fun VoiceConsentScreen(
     details: List<String> = VOICE_CONSENT_DETAILS,
 ) {
     val scope = rememberCoroutineScope()
-    var checked by rememberSaveable { mutableStateOf(false) }
+    // 동의 칸은 처음부터 체크, 만 14세 확인 칸은 비어 있다 - 둘 다 체크돼야 동의다(2026-11-24 이성주 결정, 개인정보 담당 검토 전,
+    // KAN-367 PR #89 리뷰 G). 2026-10-06 팀 결정 「기본 미동의」를 동의 칸만 뒤집었다
+    var checked by rememberSaveable { mutableStateOf(true) }
+    var ageConfirmed by rememberSaveable { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var failed by rememberSaveable { mutableStateOf(false) }
 
-    // 시안 11 배치 (KAN-288): 본문은 스크롤, 두 버튼과 안내 한 줄은 바닥 고정. 체크는 기본 해제이고 체크 전 주 버튼은
-    // 비활성 모양(그림자색 면)이다. [건너뛰기]는 KAN-354 시안 s-03-voice-consent-app대로 글자 버튼이다(KAN-288의 보조 버튼
+    // 시안 11 배치 (KAN-288): 본문은 스크롤, 두 버튼과 안내 한 줄은 바닥 고정. 동의 칸은 기본 체크, 나이 칸은 기본 비움(2026-11-24)이고 둘 중
+    // 하나라도 비면 주 버튼은 비활성 모양(그림자색 면)이다. [건너뛰기]는 KAN-354 시안 s-03-voice-consent-app대로 글자 버튼이다(KAN-288의 보조 버튼
     // 모양을 대체, 리뷰 P2-2). 문구는 현재 앱 문구를 유지한다.
     // 모양은 KAN-354 시안 s-03-voice-consent-app: 본문·목록은 흐린 잉크, 체크 줄은 paper 상자 + 종이 그림자, 목록은 둥근 불릿.
     PaperScreen(
@@ -98,7 +101,7 @@ fun VoiceConsentScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = checked && !submitting,
+                enabled = checked && ageConfirmed && !submitting,
                 trailing = { Icon(painterResource(R.drawable.ic_arrow_forward_24), null, Modifier.size(20.dp)) },
             )
             AccenturyButton(
@@ -122,28 +125,8 @@ fun VoiceConsentScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // 줄 전체가 체크박스 하나로 읽히고 눌린다 (LoginScreen ConsentRow와 같은 구성). 시안 `.p4-consent-check`:
-            // 잉크 1 테두리·모서리 10·paper 면·종이 그림자, 안쪽 14, 상자와 글자 사이 12, 위 맞춤.
-            val boxShape = RoundedCornerShape(Radius.lg)
-            Row(
-                modifier = Modifier
-                    .paperShadow(MaterialTheme.accenturyColors.primaryDim, Radius.lg)
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = Dimens.touchTargetMin)
-                    .clip(boxShape)
-                    .background(LightPaper)
-                    .border(1.dp, MaterialTheme.colorScheme.primary, boxShape)
-                    .toggleable(value = checked, role = Role.Checkbox, enabled = !submitting) { checked = it }
-                    .padding(14.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                PaperCheck(checked, Modifier.padding(top = 2.dp))
-                Text(
-                    VOICE_CONSENT_CHECKBOX_LABEL,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(start = Spacing.x3),
-                )
-            }
+            ConsentCheckRow(VOICE_CONSENT_CHECKBOX_LABEL, checked, enabled = !submitting) { checked = it }
+            ConsentCheckRow(VOICE_CONSENT_AGE_LABEL, ageConfirmed, enabled = !submitting) { ageConfirmed = it }
 
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.x2)) {
                 details.forEach {
@@ -179,5 +162,33 @@ fun VoiceConsentScreen(
 
             if (failed) StatusBlock(tone = StatusTone.Error, message = "잠시 후 다시 시도해 주세요")
         }
+    }
+}
+
+/**
+ * 체크 줄 하나. 줄 전체가 체크박스 하나로 읽히고 눌린다 (LoginScreen ConsentRow와 같은 구성). 시안 `.p4-consent-check`:
+ * 잉크 1 테두리·모서리 10·paper 면·종이 그림자, 안쪽 14, 상자와 글자 사이 12, 위 맞춤. 동의·만 14세 확인 두 줄이 같이 쓴다.
+ */
+@Composable
+private fun ConsentCheckRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val boxShape = RoundedCornerShape(Radius.lg)
+    Row(
+        modifier = Modifier
+            .paperShadow(MaterialTheme.accenturyColors.primaryDim, Radius.lg)
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = Dimens.touchTargetMin)
+            .clip(boxShape)
+            .background(LightPaper)
+            .border(1.dp, MaterialTheme.colorScheme.primary, boxShape)
+            .toggleable(value = checked, role = Role.Checkbox, enabled = enabled, onValueChange = onChange)
+            .padding(14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        PaperCheck(checked, Modifier.padding(top = 2.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = Spacing.x3),
+        )
     }
 }

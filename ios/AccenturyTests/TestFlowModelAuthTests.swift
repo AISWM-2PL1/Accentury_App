@@ -67,7 +67,7 @@ final class TestFlowModelAuthTests: XCTestCase {
             defaults: defaults, sessionClient: anonymousClient, isMicGranted: { true }, onProfileIncomplete: {},
             anonymousConsent: consented
         ))
-        XCTAssertEqual(["2026-10-04"], anonymousClient.versions)
+        XCTAssertEqual(["2026-11-24"], anonymousClient.versions)
 
         TestFlowModel.clearSavedState(in: defaults)
         let accountClient = RecordingClient()
@@ -166,7 +166,7 @@ final class TestFlowModelAuthTests: XCTestCase {
         _ = await model.startRetest()
         XCTAssertFalse(model.retestRegionPending)
         XCTAssertEqual(["SEOUL", "SEOUL", "SEOUL"], client.regions)
-        XCTAssertEqual([nil, nil, "2026-10-04"], client.versions)
+        XCTAssertEqual([nil, nil, "2026-11-24"], client.versions)
     }
 
     private func startAndCreate(_ model: TestFlowModel) async {

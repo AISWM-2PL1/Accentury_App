@@ -210,8 +210,8 @@ final class AuthApiTests: XCTestCase {
     func test내_정보의_음성_저장_동의를_읽는다_동의_미동의_키_없음() async {
         let base = #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}"#
         MockURLProtocol.respondInOrder([
-            (200, base + #","voiceConsent":{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}"#),
-            (200, base + #","voiceConsent":{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}}"#),
+            (200, base + #","voiceConsent":{"consented":true,"version":"2026-11-24","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-11-24"}}"#),
+            (200, base + #","voiceConsent":{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-11-24"}}"#),
             (200, base + "}"),
         ])
 
@@ -220,26 +220,26 @@ final class AuthApiTests: XCTestCase {
               case .success(let third) = await api.me() else { return XCTFail() }
 
         XCTAssertEqual(
-            VoiceConsent(consented: true, version: "2026-10-04", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-10-04"),
+            VoiceConsent(consented: true, version: "2026-11-24", consentedAt: "2026-10-06T01:02:03Z", currentVersion: "2026-11-24"),
             first.voiceConsent
         )
-        XCTAssertEqual(VoiceConsent(consented: false, currentVersion: "2026-10-04"), second.voiceConsent)
+        XCTAssertEqual(VoiceConsent(consented: false, currentVersion: "2026-11-24"), second.voiceConsent)
         XCTAssertNil(third.voiceConsent)
     }
 
     func test음성_저장_동의는_Bearer로_버전을_실어_PUT한다() async throws {
         MockURLProtocol.respond(
             status: 200,
-            body: #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}"#
+            body: #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":{"consented":true,"version":"2026-11-24","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-11-24"}}"#
         )
 
-        let result = await api.consentToVoice(version: "2026-10-04")
+        let result = await api.consentToVoice(version: "2026-11-24")
 
         let recorded = try XCTUnwrap(MockURLProtocol.lastRequest())
         XCTAssertEqual("PUT", recorded.method)
         XCTAssertEqual("/v0/users/me/voice-consent", recorded.url?.path)
         XCTAssertEqual("Bearer jwt_a", recorded.header("Authorization"))
-        XCTAssertEqual(#"{"version":"2026-10-04"}"#, try lastBody().raw)
+        XCTAssertEqual(#"{"version":"2026-11-24"}"#, try lastBody().raw)
         guard case .success(let account) = result else { return XCTFail("\(result)") }
         XCTAssertEqual(true, account.voiceConsent?.consented)
     }
@@ -247,7 +247,7 @@ final class AuthApiTests: XCTestCase {
     func test음성_저장_철회는_본문_없이_DELETE한다() async throws {
         MockURLProtocol.respond(
             status: 200,
-            body: #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":{"consented":false,"currentVersion":"2026-10-04"}}"#
+            body: #"{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":{"consented":false,"currentVersion":"2026-11-24"}}"#
         )
 
         let result = await api.withdrawVoiceConsent()

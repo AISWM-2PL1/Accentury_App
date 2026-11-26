@@ -1,5 +1,8 @@
 package com.accentury.app.ui.theme
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -127,15 +130,23 @@ val MaterialTheme.accenturyColors: AccenturyColors
  * 그 뒤의 `WindowInsetsController.isAppearanceLight*Bars`(마지막 말). `values-night/` 폴더는
  * 만들지 않는다 — 만드는 순간 이 결정을 우회하는 자리가 하나 생긴다.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccenturyTheme(
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalAccenturyColors provides LightAccenturyColors) {
+    // ripple 없이 누름만 받는다 - indication을 따로 안 준 clickable이 회색 사각 ripple을 그리지 않게
+    // 루트에서 끄는 이유: 글자 버튼(AccenturyButton Text)이 Material TextButton이라 LocalIndication이 아니라 ripple()을 직접 쓴다
+    CompositionLocalProvider(
+        LocalAccenturyColors provides LightAccenturyColors,
+        LocalRippleConfiguration provides null,
+    ) {
         MaterialTheme(
             colorScheme = LightColorScheme,
             typography = Typography,
-            content = content,
-        )
+        ) {
+            // MaterialTheme가 LocalIndication을 ripple로 덮어쓰므로 안쪽에서 다시 준다 (KAN-367)
+            CompositionLocalProvider(LocalIndication provides PressDimIndication, content = content)
+        }
     }
 }

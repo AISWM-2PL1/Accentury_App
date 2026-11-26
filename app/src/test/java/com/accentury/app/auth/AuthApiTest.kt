@@ -184,22 +184,22 @@ class AuthApiTest {
         server.enqueue(
             MockResponse().setBody(
                 """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
-                    """{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}""",
+                    """{"consented":true,"version":"2026-11-24","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-11-24"}}""",
             ),
         )
         server.enqueue(
             MockResponse().setBody(
                 """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
-                    """{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}}""",
+                    """{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-11-24"}}""",
             ),
         )
         server.enqueue(MockResponse().setBody("""{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}"""))
 
         assertEquals(
-            VoiceConsent(true, "2026-10-04", "2026-10-06T01:02:03Z", "2026-10-04"),
+            VoiceConsent(true, "2026-11-24", "2026-10-06T01:02:03Z", "2026-11-24"),
             (api.me() as AuthResult.Success).value.voiceConsent,
         )
-        assertEquals(VoiceConsent(false, null, null, "2026-10-04"), (api.me() as AuthResult.Success).value.voiceConsent)
+        assertEquals(VoiceConsent(false, null, null, "2026-11-24"), (api.me() as AuthResult.Success).value.voiceConsent)
         assertEquals(null, (api.me() as AuthResult.Success).value.voiceConsent)
     }
 
@@ -208,17 +208,17 @@ class AuthApiTest {
         server.enqueue(
             MockResponse().setBody(
                 """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
-                    """{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}}""",
+                    """{"consented":true,"version":"2026-11-24","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-11-24"}}""",
             ),
         )
 
-        val result = api.consentToVoice("2026-10-04")
+        val result = api.consentToVoice("2026-11-24")
 
         val recorded = server.takeRequest()
         assertEquals("PUT", recorded.method)
         assertEquals("/v0/users/me/voice-consent", recorded.path)
         assertEquals("Bearer jwt_a", recorded.getHeader("Authorization"))
-        assertEquals("""{"version":"2026-10-04"}""", recorded.body.readUtf8())
+        assertEquals("""{"version":"2026-11-24"}""", recorded.body.readUtf8())
         assertTrue((result as AuthResult.Success).value.voiceConsent!!.consented)
     }
 
@@ -227,7 +227,7 @@ class AuthApiTest {
         server.enqueue(
             MockResponse().setBody(
                 """{"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"},"voiceConsent":""" +
-                    """{"consented":false,"currentVersion":"2026-10-04"}}""",
+                    """{"consented":false,"currentVersion":"2026-11-24"}}""",
             ),
         )
 

@@ -9,12 +9,16 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -173,6 +177,7 @@ private fun ChoiceGroup(title: String, content: @Composable () -> Unit) {
  * 생년월일 달력 (Material3 DatePickerDialog). 선택값은 그날의 UTC 자정 밀리초라 [birthDateOf]가 UTC로 푼다.
  * 미래 날짜는 고를 수 없다 — 만 14세 판정은 서버가 한다(400 `AUTH_UNDER_AGE`).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BirthDatePicker(initial: String?, onPicked: (String) -> Unit, onDismiss: () -> Unit) {
     val today = LocalDate.now()
@@ -203,6 +208,10 @@ private fun BirthDatePicker(initial: String?, onPicked: (String) -> Unit, onDism
         },
         dismissButton = { AccenturyButton(text = "취소", onClick = onDismiss, variant = ButtonVariant.Text) },
     ) {
-        DatePicker(state = pickerState)
+        // 테마가 ripple을 껐지만(KAN-367) 날짜 칸·연도·달 넘김은 Material 내부가 ripple()만 쓰므로 여기서만 기본 ripple을 되살린다.
+        // 확인·취소는 AccenturyButton 글자 버튼(누르면 밑줄)이라 이 범위 밖에 둔다
+        CompositionLocalProvider(LocalRippleConfiguration provides RippleConfiguration()) {
+            DatePicker(state = pickerState)
+        }
     }
 }

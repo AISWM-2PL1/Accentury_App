@@ -158,9 +158,9 @@ describe('createWebSession — 요청 형태 (§3.1)', () => {
   it('동의한 음성 저장 문안 버전을 그대로 싣는다 (KAN-270)', async () => {
     const fetchImpl = createdFetch()
 
-    await createWebSession(API_BASE, { voiceConsentVersion: '2026-10-04' }, fetchImpl)
+    await createWebSession(API_BASE, { voiceConsentVersion: '2026-11-24' }, fetchImpl)
 
-    expect(bodyOf(fetchImpl).voiceConsentVersion).toBe('2026-10-04')
+    expect(bodyOf(fetchImpl).voiceConsentVersion).toBe('2026-11-24')
   })
 
   // 미동의 세션은 동의 화면 전과 같은 본문이어야 한다 - null이나 빈 문자열을 보내지 않고 키 자체를 뺀다

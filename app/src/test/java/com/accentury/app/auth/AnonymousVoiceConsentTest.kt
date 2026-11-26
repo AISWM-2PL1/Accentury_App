@@ -11,7 +11,7 @@ class AnonymousVoiceConsentTest {
 
     @Test
     fun `동의하면 게시 문안 버전을 싣는다`() {
-        assertEquals("2026-10-04", anonymousVoiceConsentVersion(true))
+        assertEquals("2026-11-24", anonymousVoiceConsentVersion(true))
         assertEquals(VOICE_CONSENT_VERSION, anonymousVoiceConsentVersion(true))
     }
 

@@ -95,6 +95,7 @@ import com.accentury.app.auth.RegionSelectScreen
 import com.accentury.app.auth.SettingsGearButton
 import com.accentury.app.auth.SettingsScreen
 import com.accentury.app.auth.VOICE_CONSENT_DETAILS_ANONYMOUS
+import com.accentury.app.auth.VOICE_RECIPIENT_NOTICE
 import com.accentury.app.auth.VoiceConsentPromptStore
 import com.accentury.app.auth.VoiceConsentScreen
 import com.accentury.app.auth.accountKindOf
@@ -1613,7 +1614,8 @@ private fun PermissionGate(onGranted: () -> Unit, modifier: Modifier = Modifier)
         MicPermissionState.Rationale -> GateScreen(
             headline = "발음 분석에 마이크가 필요해요",
             // KAN-270 — 선택 동의한 사용자에게는 '즉시 삭제'가 사실이 아니다. 웹 PrivacyNotice 정본 문장과 같은 말이다 (KAN-354).
-            supporting = "따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요",
+            // KAN-366 — 앞 두 문장은 수신처(자체 서버·외부 AI 미전송). App Store 5.1.1(i) 빌드 17 거절이 녹음 전 수신처 고지를 요구했다.
+            supporting = "$VOICE_RECIPIENT_NOTICE 따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요",
             // 「계속 →」 (KAN-330, 애플 5.1.1(iv)) — 시스템 권한 창 앞의 안내 화면이 「허용」을 말하면 심사가 허용 유도로 본다.
             buttonLabel = "계속",
             onButtonClick = { launcher.launch(Manifest.permission.RECORD_AUDIO) },

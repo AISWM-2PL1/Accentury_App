@@ -29,6 +29,8 @@ struct ProfileScreen: View {
     @State private var leaving = false
     /// 지역 화면을 띄웠는가. 저장 실패(``error``)로 게이트 상태가 바뀌어도 같은 `.id`라 지역 화면에 머문다.
     @State private var choosingRegion = false
+    /// 하단 버튼 자리의 높이. 본문 바닥 여백으로 써서 키보드가 없을 때 마지막 칸이 버튼 밑에 숨지 않게 한다
+    @State private var footerHeight: CGFloat = 0
 
     init(
         user: AuthUser,
@@ -64,8 +66,11 @@ struct ProfileScreen: View {
         }
     }
 
+    // 키보드가 떠도 하단 버튼은 바닥 제자리다(2026-11-24 이성주 지시, KAN-367 PR #89). 본문과 버튼을 VStack으로 쌓으면 키보드가 safe area를
+    // 줄일 때 버튼이 키보드 위로 따라 올라온다. 그래서 둘을 ZStack 형제로 두고 버튼 층에만 키보드 safe area를 무시시킨다 — 본문
+    // ScrollView는 그대로 키보드 위로 줄어 포커스 칸을 보이는 자리로 올린다. 바깥 전체에 걸면 그 스크롤 회피까지 꺼진다.
     private var profile: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Papercut.space6) {
                     Text("몇 가지만 알려 주세요")
@@ -96,26 +101,41 @@ struct ProfileScreen: View {
                 }
                 .padding(.horizontal, Papercut.space6)
                 .padding(.top, Papercut.space2)
-                .padding(.bottom, Papercut.space4)
+                .padding(.bottom, Papercut.space4 + footerHeight)
             }
 
-            // 하단 고정 (``ExceptionScreen``의 footer 자리와 같은 좌우 24·아래 32)
-            VStack(spacing: Papercut.space2) {
-                AccenturyButton(
-                    text: "다음", enabled: form.basicsComplete && !leaving, fillsWidth: true, trailingIcon: "arrow.right"
-                ) { choosingRegion = true }
+            // 하단 고정 (``ExceptionScreen``의 footer 자리와 같은 좌우 24·아래 32). 화면 높이를 채운 층의 바닥에 둬야
+            // 키보드 safe area 무시가 층을 화면 바닥까지 늘려 버튼이 제자리에 남는다 — 버튼 묶음 자체에만 걸면 따라 올라온다.
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(spacing: Papercut.space2) {
+                    AccenturyButton(
+                        text: "다음", enabled: form.basicsComplete && !leaving, fillsWidth: true, trailingIcon: "arrow.right"
+                    ) { choosingRegion = true }
 
-                AccenturyButton(text: "다른 계정으로 로그인", variant: .text, enabled: !leaving, fillsWidth: true) {
-                    leaving = true
-                    Task {
-                        await onSwitchAccount()
-                        leaving = false
+                    AccenturyButton(text: "다른 계정으로 로그인", variant: .text, enabled: !leaving, fillsWidth: true) {
+                        leaving = true
+                        Task {
+                            await onSwitchAccount()
+                            leaving = false
+                        }
                     }
                 }
+                .padding(.horizontal, Papercut.space6)
+                .padding(.top, Papercut.space4)
+                .padding(.bottom, Papercut.space8)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear { footerHeight = geo.size.height }
+                            .onChange(of: geo.size.height) { footerHeight = $0 }
+                    }
+                )
+                // 본문이 버튼 밑으로 스크롤돼 들어가도 비치지 않게 바탕을 깐다. ScrollView는 바닥 safe area(홈 인디케이터 자리)까지
+                // 그리므로 바탕만 그 띠까지 늘린다 — 버튼 위치와 위 높이 측정은 그대로다
+                .background(Papercut.cream.ignoresSafeArea(edges: .bottom))
             }
-            .padding(.horizontal, Papercut.space6)
-            .padding(.top, Papercut.space4)
-            .padding(.bottom, Papercut.space8)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         // 워드마크 앱바 (KAN-288 디자인 3). 위 8 + 앱바 48 + 8 = 예전 위 여백 64라 본문 시작 높이는 그대로다.
         .paperAppBar()

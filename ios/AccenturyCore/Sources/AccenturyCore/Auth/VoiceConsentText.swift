@@ -7,7 +7,8 @@ import Foundation
  *
  * 정본은 웹 `web/src/legal/voiceConsent.ts`다. 개인정보 담당 검토가 병행 중이라(2026-10-06) 문장을 바꿀 때 SwiftUI
  * 코드를 뒤지지 않고 이 파일만 고친다 — 세 플랫폼을 같은 커밋에서 맞춘다. 빠지면 안 되는 요소는 웹 파일 헤더에 있다
- * (선택 동의, 거부 시 무제한, 보관 항목·기간, 만 14세 확인, 삭제 요청 경로).
+ * (선택 동의, 거부 시 무제한, 보관 항목·기간, 만 14세 확인, 삭제 요청 경로, 수신처 — 자체 서버(AWS 서울)로 가고 외부 AI
+ * 회사로는 가지 않는다는 것. KAN-366, App Store 5.1.1(i)·5.1.2(i) 빌드 17 거절).
  *
  * 웹과 다른 곳: DETAILS 셋째 줄. 웹은 익명 세션이라 "세션 만료 뒤 개별 삭제 요청 불가"를 말하지만, 앱은 계정에
  * 동의가 묶여 설정에서 철회할 수 있다. 계정 동의(PUT)는 서버가 준 currentVersion을 싣는다. 로그인을 끈 빌드(익명 모드,
@@ -19,19 +20,29 @@ import Foundation
 /// **서버 `AccenturyProperties.VOICE_CONSENT_VERSION`과 같아야 한다** — 웹 `web/src/legal/voiceConsent.ts`, 안드로이드
 /// `auth/VoiceConsentText.kt`의 `VOICE_CONSENT_VERSION`과 같은 값이다. 다르면 서버가 400 `VALIDATION_FAILED`로 세션
 /// 생성을 거절하고, 그때 ``SessionClient/createWithConsentFallback(appVersion:previousToken:campaignToken:voiceConsentVersion:)``이
-/// 동의 없이 한 번 더 만들어 응시는 막히지 않는다. 문안을 바꾸면 이 값과 서버·웹·안드로이드를 함께 올린다.
-public let voiceConsentVersion = "2026-10-04"
+/// 동의 없이 한 번 더 만들어 응시는 막히지 않는다. 문안을 바꾸면 이 값과 서버, 웹, Android 상수를 함께 올린다.
+/// 방침 버전은 방침 본문이 바뀔 때만 올린다(`voice-consent.md`).
+/// 2026-11-24는 App Store 5.1.1(i) 빌드 17 거절에 대응해 LEAD에 수신처 문장을 넣으며 올린 값이다 (KAN-366).
+public let voiceConsentVersion = "2026-11-24"
 
 public let voiceConsentTitle = "음성 저장에 동의하시겠어요? (선택)"
 
-/// ① 목적 + ② 선택 동의이고 거부해도 제한이 없다는 것
+/// ① 목적 + ② 선택 동의이고 거부해도 제한이 없다는 것 + ⑥ 수신처(자체 서버, 외부 AI 미전송).
+/// ⑥은 심사관이 이 시트만 보고 "누구에게 보내는지"를 확인할 수 있어야 해서 넣었다 (KAN-366, App Store 5.1.1(i)·5.1.2(i)).
+/// ⑥ 수신처 문장. 동의 시트 LEAD와 마이크 게이트(`PermissionGateView`)가 같은 값을 쓴다 (KAN-366 PR #90 리뷰).
+public let voiceRecipientNotice =
+    "녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. " +
+    "외부 AI 회사에는 보내지 않아요."
+
 public let voiceConsentLead =
     "억양 분석 AI 모델을 학습시키고 개선하는 데 쓰려고, 따로 동의하신 분의 음성 녹음과 분석 정보를 보관해요. " +
-    "선택 사항이라 동의하지 않아도 테스트 응시와 결과 확인에 아무 제한이 없어요."
+    "선택 사항이라 동의하지 않아도 테스트 응시와 결과 확인에 아무 제한이 없어요. " +
+    voiceRecipientNotice
 
-/// 체크박스 문구. ④ 만 14세 이상 확인을 동의와 한 문장에 묶는다
-public let voiceConsentCheckboxLabel =
-    "음성 녹음과 분석 정보를 AI 모델 학습에 쓰도록 보관하는 데 동의하고, 만 14세 이상임을 확인해요."
+/// 체크박스 문구 둘 — 동의(기본 체크)와 ④ 만 14세 이상 확인(기본 비움). 둘 다 체크돼야 동의다 (KAN-367 PR #89 리뷰 G).
+/// 체크박스 문장 분리(KAN-367 PR #89)는 KAN-366의 버전 상향(2026-11-24)에 함께 실렸다 — 두 문안 변경이 한 버전으로 기록된다.
+public let voiceConsentCheckboxLabel = "음성 녹음과 분석 정보를 AI 모델 학습에 쓰도록 보관하는 데 동의해요."
+public let voiceConsentAgeLabel = "만 14세 이상이에요."
 
 /// ③ 보관 항목·보유 기간 + 철회 경로. 방침 링크 줄은 화면이 따로 그린다
 public let voiceConsentDetails: [String] = [

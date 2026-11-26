@@ -7,8 +7,8 @@ import org.junit.Test
 class VoiceConsentPromptTest {
 
     private val user = AuthUser(id = "u-1", provider = Provider.GOOGLE)
-    private val notConsented = VoiceConsent(consented = false, currentVersion = "2026-10-04")
-    private val consented = VoiceConsent(true, "2026-10-04", "2026-10-06T01:02:03Z", "2026-10-04")
+    private val notConsented = VoiceConsent(consented = false, currentVersion = "2026-11-24")
+    private val consented = VoiceConsent(true, "2026-11-24", "2026-10-06T01:02:03Z", "2026-11-24")
 
     @Test
     fun `미동의이고 아직 묻지 않았으면 띄운다`() {

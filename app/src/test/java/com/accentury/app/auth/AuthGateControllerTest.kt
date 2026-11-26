@@ -52,15 +52,15 @@ class AuthGateControllerTest {
             (voiceConsent?.let { ""","voiceConsent":$it""" } ?: "") + "}"
     private fun consent(consented: Boolean) =
         if (consented) {
-            """{"consented":true,"version":"2026-10-04","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-10-04"}"""
+            """{"consented":true,"version":"2026-11-24","consentedAt":"2026-10-06T01:02:03Z","currentVersion":"2026-11-24"}"""
         } else {
-            """{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-10-04"}"""
+            """{"consented":false,"version":null,"consentedAt":null,"currentVersion":"2026-11-24"}"""
         }
     private val loginComplete =
         """{"accessToken":"jwt_1","refreshToken":"rt_1","accessTokenExpiresInSec":900,"isNewUser":false,""" +
             """"profileStatus":"COMPLETE","user":{"id":"u-1","provider":"GOOGLE"}}"""
-    private val notConsented = VoiceConsent(false, null, null, "2026-10-04")
-    private val consented = VoiceConsent(true, "2026-10-04", "2026-10-06T01:02:03Z", "2026-10-04")
+    private val notConsented = VoiceConsent(false, null, null, "2026-11-24")
+    private val consented = VoiceConsent(true, "2026-11-24", "2026-10-06T01:02:03Z", "2026-11-24")
     private fun tokens(n: Int) = """{"accessToken":"jwt_$n","refreshToken":"rt_$n","accessTokenExpiresInSec":900}"""
     private fun envelope(code: String, retryable: Boolean) =
         """{"code":"$code","message":"m","retryable":$retryable,"correlationId":"c"}"""
@@ -501,7 +501,7 @@ class AuthGateControllerTest {
         val put = server.takeRequest()
         assertEquals("PUT", put.method)
         assertEquals("/v0/users/me/voice-consent", put.path)
-        assertEquals("""{"version":"2026-10-04"}""", put.body.readUtf8())
+        assertEquals("""{"version":"2026-11-24"}""", put.body.readUtf8())
     }
 
     @Test
@@ -517,7 +517,7 @@ class AuthGateControllerTest {
 
         assertEquals(AuthGateState.SignedIn(user, consented), gate.state.value)
         repeat(3) { server.takeRequest() }
-        assertEquals("""{"version":"2026-10-04"}""", server.takeRequest().body.readUtf8())
+        assertEquals("""{"version":"2026-11-24"}""", server.takeRequest().body.readUtf8())
     }
 
     @Test

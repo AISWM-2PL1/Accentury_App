@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,7 +48,8 @@ import com.accentury.app.ui.theme.isReducedMotionEnabled
  *
  * - [Primary] 주동작 (녹음 시작·다음·허용). 화면에서 유일하게 벽돌로 꽉 찬 면이고 종이 그림자가 있다
  * - [Secondary] 보조 (재녹음·재시도·취소). 크림 면에 잉크 1dp 테두리, 그림자 없음
- * - [Text] 이탈·종료. 흐린 잉크 글자라 무게를 가장 뺀다. 밑줄은 눌린 동안만 긋는다 (KAN-311 시안 `.btn--text:active`)
+ * - [Text] 이탈·종료. 흐린 잉크 글자라 무게를 가장 뺀다. 밑줄은 누르는 동안, 그리고 키보드·D-패드 포커스 중에 긋는다
+ *   (KAN-311 시안 `.btn--text:active`, 포커스는 KAN-367). 웹 글자 버튼의 포커스 표시는 밑줄이 아니라 전역 `:focus-visible` outline이다
  * - [Destructive] 되돌릴 수 없는 확인 ([그만두기]·[탈퇴]). 크림 면에 벽돌 1.5dp 테두리·벽돌 글자 —
  *   벽돌 채움이면 주 버튼과 같은 무게라 "눌러도 되는 쪽"으로 읽힌다 (시안 HIG 수정 50·50b, 2026-11-16 두 앱 공통 결정)
  */
@@ -93,6 +95,9 @@ fun AccenturyButton(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    // 키보드·D-패드 포커스도 밑줄로 보인다(KAN-367) - 테마가 ripple을 꺼 TextButton의 포커스 표시가 사라졌다.
+    // clickable 포커스는 터치 모드 밖에서만 생겨 손가락 탭 뒤에는 밑줄이 남지 않는다
+    val focused by interaction.collectIsFocusedAsState()
 
     if (variant == ButtonVariant.Text) {
         TextButton(
@@ -104,7 +109,7 @@ fun AccenturyButton(
             ButtonContent(
                 text = text,
                 style = ButtonLabel.Text.copy(
-                    textDecoration = if (pressed && enabled) TextDecoration.Underline else TextDecoration.None,
+                    textDecoration = if ((pressed || focused) && enabled) TextDecoration.Underline else TextDecoration.None,
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 leading = leading,
