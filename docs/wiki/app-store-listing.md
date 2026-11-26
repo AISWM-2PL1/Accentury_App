@@ -40,7 +40,7 @@ Play와 갈리는 가장 큰 자리가 §6이다. Play의 데이터 안전에는
 | 앱 레코드 | KAN-108에서 생성 완료. TestFlight에 1.0 빌드 **7**까지 올라가 있다 (빌드 6은 C2 아이콘, 빌드 7이 확정 도상 D3, 둘 다 2026-09-23 러너에서 업로드) |
 | 숫자 Apple ID | **아직 모른다** — `id<숫자>` 자리표시자. 앱 레코드 › 앱 정보 › 일반 정보 › Apple ID에서 확인해 이 표와 §3의 스토어 URL에 적는다 |
 | 마케팅 버전 | `1.0` (`MARKETING_VERSION`) |
-| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **18**(2026-11-25, KAN-366). 17은 2026-11-20 5.1.1(i)·5.1.2(i)로 거절됐고(§11), 18은 음성 동의 시트·마이크 사전 안내에 녹음 수신처(자체 서버·AWS 서울, 외부 AI 미전송)를 넣은 재제출 빌드다. Android `versionCode`도 18. 17은 2026-11-18에 올렸다(PR #87). 16은 2026-11-18 심사 제출 때 업로드 검사 ITMS-91064(앱 매니페스트 `NSPrivacyTracking` true·추적 도메인 없음)로 「잘못된 바이너리」 처리돼 번호가 소모됐다(§11). 17은 매니페스트만 고친 빌드다. 16은 2026-11-10 KAN-330에서 올렸다. 15는 2026-11-09에 거절됐고(§11), 16이 그 대응(성별 선택·게스트 둘러보기·ATT 사전 시트 [계속]·마이크 [계속]·개인정보 매니페스트·광고 신고·애플 시스템 버튼)을 담은 재제출 빌드다. Android `versionCode`도 17. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고 2026-10-30에 거절됐다. 14는 2026-10-25 CI(ios-release run 40174171160, Dev dispatch)의 TestFlight 업로드로 소모됐다(KAN-292 R8 대응, 미제출, KAN-304·315 미포함). 15가 KAN-304·KAN-315 리젝 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로)을 담은 재제출 빌드다(2026-11-04 결정, §11). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
+| 빌드 번호 | `CURRENT_PROJECT_VERSION` = **18**(2026-11-25, KAN-366). 17은 2026-11-20 5.1.1(i)·5.1.2(i)로 거절됐고(§11), 18은 음성 동의 시트·마이크 사전 안내에 녹음 수신처(자체 서버·AWS 서울, 외부 AI 미전송)를 넣은 재제출 빌드다. Android `versionCode`도 18. 17은 2026-11-18에 올렸다(PR #87). 16은 2026-11-18 심사 제출 때 업로드 검사 ITMS-91064(앱 매니페스트 `NSPrivacyTracking` true·추적 도메인 없음)로 「잘못된 바이너리」 처리돼 번호가 소모됐다(§11). 17은 매니페스트만 고친 빌드다. 16은 2026-11-10 KAN-330에서 올렸다. 15는 2026-11-09에 거절됐고(§11), 16이 그 대응(성별 선택·게스트 둘러보기·ATT 사전 시트 [계속]·마이크 [계속]·개인정보 매니페스트·광고 신고·애플 시스템 버튼)을 담은 재제출 빌드다. 빌드 13(KAN-224 iOS 외관 라이트 고정)은 2026-10-22 제출 빌드로 번호가 소모됐고 2026-10-30에 거절됐다. 14는 2026-10-25 CI(ios-release run 40174171160, Dev dispatch)의 TestFlight 업로드로 소모됐다(KAN-292 R8 대응, 미제출, KAN-304·315 미포함). 15가 KAN-304·KAN-315 리젝 대응(번역기 Gemini 고지·동의 시트, 홈 광고 동의 시트, 설정 「맞춤형 광고 설정」 행·ATT 재허용 경로)을 담은 재제출 빌드다(2026-11-04 결정, §11). Android `versionCode`와 같은 값을 같은 커밋에서 올린다 — `AccenturyCoreTests/ReleaseVersionParityTests`가 대조한다 |
 
 **개인 계정이라 나중에 옮기려면 App Transfer 절차를 밟는다.** 팀·법인 명의로 넘기는 것은
 계정 사이의 앱 이전이고, 애플이 요구하는 조건(미해결 계약 없음, 양쪽 계정의 법적 동의 등)을
@@ -444,8 +444,8 @@ Play 쪽 512 아이콘과 나란히 두려고 남긴 편의 파일이다.
 
 | 자리 | 실제 문자열 |
 |---|---|
-| iOS 권한 프롬프트 | `억양 분석을 위해 마이크로 목소리를 녹음해요. 따로 동의하지 않으면 녹음은 분석 뒤 바로 삭제돼요.` (`ios/Accentury/Info-Release.plist:387` `NSMicrophoneUsageDescription`, KAN-270 3단계) |
-| 앱 내 권한 게이트 | `발음 분석에 마이크가 필요해요` / `따로 동의하지 않으면 음성은 분석 뒤 바로 삭제돼요` (`ios/Accentury/Permission/PermissionGateView.swift:66-70`, KAN-270 3단계) |
+| iOS 권한 프롬프트 | `억양 분석을 위해 녹음한 목소리를 Accentury가 운영하는 서버(AWS 서울)로 보내요. 따로 동의하지 않으면 분석 뒤 바로 삭제돼요.` (`ios/Accentury/Info-Release.plist:400` `NSMicrophoneUsageDescription`, KAN-270 3단계, 수신처는 KAN-366 PR #90 리뷰 2026-11-26) |
+| 앱 내 권한 게이트 | `발음 분석에 마이크가 필요해요` / `녹음은 Accentury가 직접 운영하는 서버(AWS 서울)로 보내 분석해요. 외부 AI 회사에는 보내지 않아요. 따로 동의하지 않으면 녹음한 음성은 분석이 끝나면 바로 지워요` (`ios/Accentury/Permission/PermissionGateView.swift:65-75`, 앞 두 문장은 `voiceRecipientNotice`, KAN-270 3단계·KAN-366) |
 | 스토어 설명 | `녹음한 음성은 점수를 매기는 데 쓰고 곧바로 지워요. 음성 저장과 AI 모델 학습 활용에 따로 동의하신 경우에만 보관하고` (§3, KAN-269 갱신) |
 | 방침 1항 음성 행 | 선택 동의가 없으면 분석이 끝나면 즉시 삭제, 선택 동의가 있으면 학습 목적 달성 시까지 보관 (Accentury_Server `infra/privacy/privacy.html` 1항 「음성 저장과 AI 모델 학습 활용 (선택 동의)」, 방침 버전 `2026-10-04`) |
 | 개인정보 라벨 | 「오디오 데이터」 수집으로 신고 (§6, KAN-269 갱신) |
@@ -1047,7 +1047,7 @@ In the app: the 설정 (Settings) tab in the bottom tab bar > 계정 (Account) >
 
 **빌드 18판 수신처 문장 (2026-11-24, KAN-366).** 빌드 17 거절(§11, 2026-11-20)에 대응해 두 메모의 [음성 데이터]·[Voice data] 첫머리에 녹음의 수신처(Accentury가 직접 운영하는 AWS 서울 서버, 외부 AI 회사 미전송)와 그 사실을 적은 화면 두 곳(녹음 전 인트로 고지, 음성 저장 동의 시트)을 넣었다. 영어 블록은 **3969자**(3856자 → 3969자, 끝 줄바꿈 제외, Python `len`)다 — 4000자를 맞추려고 [Voice data]의 「gives a separate optional consent to voice storage and AI model training」을 「separately opts in to voice storage for AI model training」으로, 번역기 문단의 「Only the sentence is sent;」 문장을 앞 문장에 합쳤다. 화면 문장 정본은 `web/src/legal/voiceConsent.ts`의 `VOICE_CONSENT_LEAD`와 `web/src/legal/PrivacyNotice.tsx`다.
 
-**빌드 16판 (2026-11-10, KAN-330·KAN-331·KAN-344).** 위 두 블록은 빌드 16 기준이다. 빌드 15 거절(§11) 대응으로 바꾼 것:
+**빌드 16판 (2026-11-10, KAN-330·KAN-331·KAN-344, 이력).** 위 두 블록은 지금 빌드 18 기준이고(바로 위 문단), 아래는 빌드 16 때 빌드 15 거절(§11) 대응으로 바꾼 것이다:
 「로그인 없이 둘러보기」 문단과 확인 경로(심사관이 로그인 없이 번역기 동의 시트에 닿게), 성별 선택 항목, 마이크 사전 안내의 [계속] 하나,
 광고 안내 시트의 [계속] 하나와 ATT 결과로 맞춤형 결정(webview-bridge §8.7), 번역기 동의 시트의 「보내지 않는 것(계정 정보·음성)」과
 [부적절한 결과 신고], 탈퇴 경로 「오른쪽 위 톱니」 → 하단 「설정」 탭(KAN-252 탭 바 이후 탭 화면에는 톱니가 없다). 영어 블록은
@@ -1385,7 +1385,7 @@ Accentury team
 
 ### Resolution Center 회신문 — 빌드 17 거절 (영어 초안, 2026-11-24)
 
-빌드 18을 올린 뒤 새 제출의 메시지 스레드에 낸다. 같은 본문을 `~/Downloads/accentury-build18/reply.txt`로도 저장했다.
+빌드 18을 올린 뒤 새 제출의 메시지 스레드에 낸다. 정본은 아래 코드 블록이다.
 화면 문장이 빌드 18과 다르면 이 초안·§8·`web/src/legal/voiceConsent.ts`를 함께 고친다.
 
 ```
