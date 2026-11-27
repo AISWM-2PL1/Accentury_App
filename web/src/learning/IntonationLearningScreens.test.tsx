@@ -393,9 +393,9 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
   })
 
   it('성적표 (5-4): 「스탬프 완료」·점수 원·별, ✕ 없음, 「다시 연습할 대사」는 최저점 대사, 하단 [다음 스탬프]·「지도로」', async () => {
-    const { exits } = await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72, 75) })
+    const { exits } = await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 62, 75) })
     expect(screen.getByText('스탬프 완료')).toBeInTheDocument()
-    expect(reportDonut()).toHaveTextContent('76점')
+    expect(reportDonut()).toHaveTextContent('71점')
     expect(screen.getByRole('img', { name: '별 3개 중 3개' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '닫기' })).toBeNull()
     expect(screen.queryByRole('region', { name: /코스 별/ })).toBeNull() // KAN-359 전이면 「코스 별」 줄을 숨긴다
@@ -403,12 +403,12 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(screen.queryByText(/마쳤어요|평균|번 문항/)).toBeNull()
 
     const card = practiceCard()
-    expect(card).toHaveTextContent('뭇나') // 72점인 2번째 대사 「밥 뭇나」(밥에 음절 표시)
+    expect(card).toHaveTextContent('뭇나') // 62점인 2번째 대사 「밥 뭇나」(밥에 음절 표시)
     expect(card).not.toHaveTextContent('안녕하능교')
-    expect(card).toHaveTextContent('▼3')
-    expect(card).toHaveTextContent('지난번 75점보다 3점 하락')
+    expect(card).toHaveTextContent('▼13')
+    expect(card).toHaveTextContent('지난번 75점보다 13점 하락')
     expect(card).toHaveTextContent('「밥」 음절을 더 높여 보세요')
-    expect(card.querySelector('.score-donut')).toHaveTextContent('72점')
+    expect(card.querySelector('.score-donut')).toHaveTextContent('62점')
     expect(screen.getByRole('img', { name: '밥, 더 높이기, 1번' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /다음 스탬프/ }))
@@ -418,17 +418,17 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
   })
 
   it('최저점이 동점이면 앞 대사, 그 대사에 코멘트가 없어도 카드는 서고 조언 줄(①)만 없다 (PR #76 리뷰)', async () => {
-    await toEnd({ la_1: completed('la_1', 70, null, []), la_2: completed('la_2', 70) })
+    await toEnd({ la_1: completed('la_1', 60, null, []), la_2: completed('la_2', 60) })
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
-    expect(practiceCard().querySelector('.score-donut')).toHaveTextContent('70점')
+    expect(practiceCard().querySelector('.score-donut')).toHaveTextContent('60점')
     expect(practiceCard().querySelector('.intonation-practice__tip')).toBeNull()
   })
 
   it('성적표 › → 결과 상세 (s-08): 위 「← 결과 목록으로」·카드 한 장·주 버튼 [다시 말해 보기], ✕ 없음 → 성적표로', async () => {
-    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72) })
+    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 62) })
     fireEvent.click(practiceCard())
     expect(screen.getByText('억양 학습 2 · 2번째 대사')).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: '억양 점수 72점, 첫 기록' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '억양 점수 62점, 첫 기록' })).toBeInTheDocument()
     expect(screen.getByText('첫 기록')).toBeInTheDocument()
     expect(buttonNames()).toEqual(['결과 목록으로', '다시 말해 보기'])
     expect(screen.getByRole('button', { name: '다시 말해 보기' })).toHaveClass('btn--primary')
@@ -440,8 +440,8 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
   it('상세 [다시 말해 보기] → 같은 카드 녹음(복귀 모드) → 그 카드 1건 대기 → 카드 피드백(s-19)에 ▲·지난번 점수 → 성적표 점수 갱신', async () => {
     const { start } = await toEnd({
       la_1: completed('la_1', 80),
-      la_2: completed('la_2', 72),
-      la_3: [processing('la_3'), completed('la_3', 86, 72)],
+      la_2: completed('la_2', 62),
+      la_3: [processing('la_3'), completed('la_3', 86, 62)],
     })
     fireEvent.click(practiceCard())
     fireEvent.click(screen.getByRole('button', { name: '다시 말해 보기' }))
@@ -461,22 +461,23 @@ describe('뒤 폴링 → 대기 → 결과 목록 → 상세', () => {
     expect(buttonNames()).toEqual(['다시 말해 보기', '결과 목록으로', '닫기'])
     expect(screen.getByRole('button', { name: '다시 말해 보기' })).toHaveClass('btn--primary')
     expect(screen.getByRole('button', { name: '결과 목록으로' })).toHaveClass('btn--text')
-    expect(screen.getByText('▲14')).toBeInTheDocument()
-    expect(screen.getByText('지난번 72점')).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: '억양 점수 86점, 지난번 72점보다 14점 상승' })).toBeInTheDocument()
+    expect(screen.getByText('▲24')).toBeInTheDocument()
+    expect(screen.getByText('지난번 62점')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '억양 점수 86점, 지난번 62점보다 24점 상승' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
     expect(reportDonut()).toHaveTextContent('83점') // (80 + 86) / 2
-    expect(practiceCard()).toHaveTextContent('안녕하능교') // 이제 최저점은 1번째 대사(80)
+    // 이제 두 대사 모두 ★3 경계(70) 이상이라 「다시 연습할 대사」 카드가 없다
+    expect(screen.queryByRole('region', { name: '다시 연습할 대사' })).toBeNull()
   })
 
   it('복귀 모드 A-2에서 회신 없이 [결과 목록으로] → 성적표, 점수는 그대로', async () => {
-    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 72) })
+    await toEnd({ la_1: completed('la_1', 80), la_2: completed('la_2', 62) })
     fireEvent.click(practiceCard())
     fireEvent.click(screen.getByRole('button', { name: '다시 말해 보기' }))
     fireEvent.click(screen.getByRole('button', { name: '결과 목록으로' }))
     expect(screen.getByRole('heading', { name: SUMMARY })).toBeInTheDocument()
-    expect(reportDonut()).toHaveTextContent('76점')
+    expect(reportDonut()).toHaveTextContent('71점')
   })
 
   it('KAN-359 구간 요약이 있으면 「코스 별」 줄(전 → 후)과 starThresholds로 별을 그린다', async () => {

@@ -106,11 +106,14 @@ export function reportScore(scores: (number | null)[]): number | null {
   return Math.round((scores as number[]).reduce((a, b) => a + b, 0) / scores.length)
 }
 
-/** 「다시 연습할 대사」 — 점수가 가장 낮은 대사의 위치, 동점이면 앞 대사. 점수 있는 대사가 없으면 null */
-export function practiceIndex(scores: (number | null)[]): number | null {
+/**
+ * 「다시 연습할 대사」 — 점수가 가장 낮은 대사의 위치, 동점이면 앞 대사. 점수 있는 대사가 없거나
+ * 최저점도 ★3 경계 이상이면(전부 잘 읽었으면) null — 100점 대사를 다시 연습하라고 내밀지 않는다
+ */
+export function practiceIndex(scores: (number | null)[], thresholds?: readonly number[] | null): number | null {
   let pick: number | null = null
   scores.forEach((s, i) => {
     if (s !== null && (pick === null || s < scores[pick]!)) pick = i
   })
-  return pick
+  return pick !== null && starsForScore(scores[pick]!, thresholds) < 3 ? pick : null
 }
