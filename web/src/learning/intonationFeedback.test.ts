@@ -102,6 +102,13 @@ describe('억양 성적표 (KAN-347 5-4)', () => {
     expect(practiceIndex([null, 70, 60])).toBe(2)
     expect(practiceIndex([null, null])).toBeNull()
   })
+
+  it('practiceIndex: 최저점도 ★3 경계 이상이면 null (전부 고득점이면 카드 없음)', () => {
+    expect(practiceIndex([100, 100, 100])).toBeNull()
+    expect(practiceIndex([90, 70, 100])).toBeNull()
+    expect(practiceIndex([90, 69, 100])).toBe(1)
+    expect(practiceIndex([90, 85, 100], [30, 90])).toBe(1)
+  })
 })
 
 describe('syllableMarks', () => {

@@ -19,7 +19,7 @@
  *    계정 토큰으로 `POST /v0/learning/intonation-cards/{cardId}/recordings`에 가짜 마이크 WAV를 올리고([uploadRecording]),
  *    202의 진짜 attemptId를 회신에 싣는다. 그 뒤 채점 조회는 가로채지 않는다 — 카드를 끝까지 연속으로 올린 뒤 성적표의
  *    점수(대사 점수 평균 반올림)·별을 서버 폴링 응답과 대조하고, 「지도로」에 도장·코스 지도에 「완료」(KAN-268)가 서는지 본다.
- *    가짜 AI 엔진은 해시 점수만 주고 segments를 안 줘 pitchFeedback이 늘 빈 배열이라 「다시 연습할 대사」 카드는 서지만 조언 줄(①)과 음절 표시가 없다 —
+ *    가짜 AI 엔진은 해시 점수만 주고 segments를 안 줘 pitchFeedback이 늘 빈 배열이라 「다시 연습할 대사」 카드는 (최저점이 ★3 경계 미만이면) 서지만 조언 줄(①)과 음절 표시가 없다 —
  *    그 길(카드 → 결과 상세 → 다시 말해 보기 → 카드 피드백)과 [다음 스탬프]는 실업로드 + 채점 조회 가로채기로 본다.
  *    실패 출구는 엔진이 오독·분석 실패를 못 내므로 채점 조회를 가로채 만든다.
  *
@@ -34,7 +34,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { feedbackComment, formatDelta, starsForScore } from '../src/learning/intonationFeedback'
+import { feedbackComment, formatDelta, practiceIndex, starsForScore } from '../src/learning/intonationFeedback'
 import type { IntonationAttempt } from '../src/learning/intonationApi'
 import { loginWithFakeIdp } from './helpers/accountLogin'
 
@@ -511,9 +511,10 @@ test('실채점 - 카드를 연속으로 올리면 성적표의 점수·별이 �
   await expect(page.getByRole('heading', { level: 1, name: '억양 학습 1 결과' })).toBeVisible({ timeout: 90_000 })
   const scores = await waitServerCompleted(request, token, attemptIds)
   await expectReport(page, scores)
-  // 가짜 엔진은 코멘트가 없다 — 「다시 연습할 대사」 카드는 서고 조언 줄(①)만 없다 (PR #76 리뷰)
+  // 가짜 엔진은 코멘트가 없다 — 「다시 연습할 대사」 카드는 서고 조언 줄(①)만 없다 (PR #76 리뷰).
+  // 해시 점수가 전부 ★3 경계 이상이면 카드가 서지 않는다
   const practice = page.getByRole('region', { name: '다시 연습할 대사' })
-  await expect(practice).toHaveCount(1)
+  await expect(practice).toHaveCount(practiceIndex(scores) === null ? 0 : 1)
   await expect(practice.locator('.intonation-practice__tip')).toHaveCount(0)
 
   // 「지도로」 → 지도. 완료 저장 호출은 없고 서버가 시도 기록으로 계산한다 (KAN-268) — 방금 마친 스탬프에 도장이 찍히고

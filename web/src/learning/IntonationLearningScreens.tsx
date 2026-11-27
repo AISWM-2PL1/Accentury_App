@@ -560,7 +560,7 @@ export function IntonationReportScreen({
     return r?.outcome === 'completed' ? r.score : null
   })
   const score = reportScore(scores)
-  const pick = practiceIndex(scores)
+  const pick = practiceIndex(scores, starThresholds)
   const pickCard = pick === null ? undefined : course.cards[pick]
   const pickResult = pickCard === undefined ? undefined : results[pickCard.cardId]
   const practice = pickResult?.outcome === 'completed' ? pickResult : null
